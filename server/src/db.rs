@@ -1,3 +1,5 @@
+pub mod backup;
+
 use std::{
     path::{Path, PathBuf},
     time::Duration,
@@ -93,7 +95,7 @@ async fn migrate_with(migrator: &Migrator, db: &Db, snapshot_dir: &Path) -> Resu
     };
     let snapshot = match status.applied.is_empty() {
         true => None,
-        false => Some(snapshot(db, snapshot_dir, first).await?),
+        false => Some(snapshot(db, snapshot_dir, &format!("before-{first:04}")).await?),
     };
     migrator.run(db).await?;
     Ok(Migrated {
@@ -102,14 +104,23 @@ async fn migrate_with(migrator: &Migrator, db: &Db, snapshot_dir: &Path) -> Resu
     })
 }
 
-async fn snapshot(db: &Db, dir: &Path, before: i64) -> Result<PathBuf, DbError> {
+pub fn snapshot_dir(database: &Path) -> PathBuf {
+    database.parent().unwrap_or(Path::new("")).join("snapshots")
+}
+
+pub async fn snapshot(db: &Db, dir: &Path, label: &str) -> Result<PathBuf, DbError> {
     create_dir(dir)?;
-    let path = dir.join(format!("{}-before-{before:04}.db", Utc::now().format("%Y%m%dT%H%M%SZ")));
+    let path = dir.join(format!("{}-{label}.db", Utc::now().format("%Y%m%dT%H%M%SZ")));
+    vacuum_into(db, &path).await?;
+    Ok(path)
+}
+
+async fn vacuum_into(db: &Db, path: &Path) -> Result<(), DbError> {
     let target = path
         .to_str()
-        .ok_or_else(|| DbError::NonUtf8Path { path: path.clone() })?;
+        .ok_or_else(|| DbError::NonUtf8Path { path: path.to_owned() })?;
     sqlx::query("VACUUM INTO ?").bind(target).execute(db).await?;
-    Ok(path)
+    Ok(())
 }
 
 fn create_dir(path: &Path) -> Result<(), DbError> {
