@@ -150,30 +150,28 @@ pub async fn restore(_lock: &Lock, database: &Path, source: &Path) -> Result<Res
     let staging = sibling(database, ".restoring");
     remove_database_files(&staging)?;
     fs::copy(source, &staging).map_err(io_error(source))?;
-    if let Err(e) = check(&staging, source).await {
-        let _ = remove_database_files(&staging);
-        return Err(e);
+    let restored = async {
+        let restored = prepare(&staging, source).await?;
+        let snapshot = match database.exists() {
+            true => {
+                let current = db::open(database).await?;
+                let snapshot = db::snapshot(&current, &db::snapshot_dir(database), "before-restore").await;
+                current.close().await;
+                Some(snapshot?)
+            }
+            false => None,
+        };
+        fs::rename(&staging, database).map_err(io_error(database))?;
+        Ok(Restored { snapshot, ..restored })
     }
-
-    let snapshot = match database.exists() {
-        true => {
-            let current = db::open(database).await?;
-            let snapshot = db::snapshot(&current, &db::snapshot_dir(database), "before-restore").await;
-            current.close().await;
-            Some(snapshot?)
-        }
-        false => None,
-    };
-    remove_database_files(database)?;
-    fs::rename(&staging, database).map_err(io_error(database))?;
-
-    let db = db::open(database).await?;
-    let restored = reset(&db, database).await;
-    db.close().await;
-    Ok(Restored { snapshot, ..restored? })
+    .await;
+    if restored.is_err() {
+        let _ = remove_database_files(&staging);
+    }
+    restored
 }
 
-async fn check(staging: &Path, source: &Path) -> Result<(), BackupError> {
+async fn prepare(staging: &Path, source: &Path) -> Result<Restored, BackupError> {
     let db = db::open(staging).await?;
     let checked = async {
         let rows: Vec<String> = sqlx::query_scalar("PRAGMA integrity_check").fetch_all(&db).await?;
@@ -188,16 +186,16 @@ async fn check(staging: &Path, source: &Path) -> Result<(), BackupError> {
                 path: source.to_owned(),
             });
         }
-        Ok(())
+        reset(&db, staging).await
     }
     .await;
     db.close().await;
-    checked?;
+    let restored = checked?;
     let wal = sibling(staging, "-wal");
     if wal.exists() {
         return Err(BackupError::Exists { path: wal });
     }
-    Ok(())
+    Ok(restored)
 }
 
 async fn reset(db: &Db, database: &Path) -> Result<Restored, BackupError> {
@@ -248,6 +246,8 @@ fn remove_database_files(path: &Path) -> Result<(), BackupError> {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+    use sqlx::migrate::Migrator;
     use tempfile::TempDir;
 
     use super::*;
@@ -385,6 +385,88 @@ mod tests {
 
         let snapshot = db::open(restored.snapshot.as_ref().unwrap()).await.unwrap();
         assert_eq!(settings(&snapshot).await, ["after backup", "in backup"]);
+    }
+
+    #[rstest]
+    #[case::migration("migration")]
+    #[case::reset("reset")]
+    #[case::snapshot("snapshot")]
+    #[tokio::test]
+    async fn preserves_the_database_when_restore_fails(#[case] phase: &str) {
+        let (dir, path, db) = database().await;
+        set(&db, "current").await;
+        db.close().await;
+        let saved = fs::read(&path).unwrap();
+        let source = dir.path().join("saved.db");
+        let copy = db::open(&source).await.unwrap();
+        if phase == "migration" {
+            let initial = Migrator::with_migrations(vec![db::MIGRATOR.iter().next().unwrap().clone()]);
+            initial.run(&copy).await.unwrap();
+            sqlx::query("INSERT INTO reference_versions (kind, version, updated_at) VALUES ('legacy', 'v1', ?)")
+                .bind(NOW)
+                .execute(&copy)
+                .await
+                .unwrap();
+        } else {
+            db::migrate(&copy, &db::snapshot_dir(&source)).await.unwrap();
+            if phase == "reset" {
+                sqlx::query("DROP TABLE sessions").execute(&copy).await.unwrap();
+            } else {
+                fs::write(db::snapshot_dir(&path), b"blocked").unwrap();
+            }
+        }
+        set(&copy, "backup").await;
+        copy.close().await;
+        let source_saved = fs::read(&source).unwrap();
+
+        let held = lock(&path).unwrap();
+        let error = restore(&held, &path, &source).await.unwrap_err();
+        match phase {
+            "migration" => assert!(matches!(error, BackupError::Db(DbError::Migrate(_)))),
+            "reset" => assert!(matches!(error, BackupError::Sqlx(_))),
+            _ => assert!(matches!(error, BackupError::Db(DbError::CreateDir { .. }))),
+        }
+        assert_eq!(fs::read(&path).unwrap(), saved);
+        assert_eq!(fs::read(&source).unwrap(), source_saved);
+        for suffix in [".restoring", ".restoring-wal", ".restoring-shm"] {
+            assert!(!sibling(&path, suffix).exists());
+        }
+        let current = db::open(&path).await.unwrap();
+        assert_eq!(settings(&current).await, ["current"]);
+        let state: (String, i64, i64) = sqlx::query_as(
+            "SELECT cursor_generation, (SELECT count(*) FROM sessions), \
+             (SELECT count(*) FROM registration_tokens) FROM logbooks",
+        )
+        .fetch_one(&current)
+        .await
+        .unwrap();
+        assert_eq!(state, ("generation".into(), 1, 2));
+        current.close().await;
+    }
+
+    #[tokio::test]
+    async fn restores_a_backup_with_pending_migrations() {
+        let (dir, path, db) = database().await;
+        set(&db, "current").await;
+        db.close().await;
+        let source = dir.path().join("old.db");
+        let old = db::open(&source).await.unwrap();
+        let initial = Migrator::with_migrations(vec![db::MIGRATOR.iter().next().unwrap().clone()]);
+        initial.run(&old).await.unwrap();
+        set(&old, "backup").await;
+        old.close().await;
+        let saved = fs::read(&source).unwrap();
+
+        let held = lock(&path).unwrap();
+        let restored = restore(&held, &path, &source).await.unwrap();
+        assert_eq!(restored.migrated.applied, [2]);
+        assert!(restored.migrated.snapshot.unwrap().is_file());
+        assert!(restored.snapshot.unwrap().is_file());
+        assert_eq!(fs::read(&source).unwrap(), saved);
+        let current = db::open(&path).await.unwrap();
+        assert!(db::migration_status(&current).await.unwrap().pending.is_empty());
+        assert_eq!(settings(&current).await, ["backup"]);
+        current.close().await;
     }
 
     #[tokio::test]

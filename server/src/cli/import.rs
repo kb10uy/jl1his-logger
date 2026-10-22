@@ -13,6 +13,7 @@ use crate::{
     domain::{
         adif::{self, LengthUnit},
         confirmation::{self, MatchKey, Source},
+        duplicate::DuplicateKey,
         import::RecordIds,
         qso::{Qso, QsoError, QsoId, Warning},
     },
@@ -189,6 +190,7 @@ pub async fn import_new(
             Err(e) => report.reject(index, e, None),
         }
     }
+    let mut previewed: BTreeMap<i64, Vec<(String, DuplicateKey)>> = BTreeMap::new();
     for batch in planned.chunks(BATCH) {
         let mut tx = WriteTx::begin(db).await?;
         for (index, id, qso) in batch {
@@ -197,15 +199,32 @@ pub async fn import_new(
                 qso: qso.clone(),
             };
             match qso::create(&mut tx, access, id, input).await {
-                Ok(Created::New { warnings, .. }) => {
+                Ok(Created::New { stored, warnings }) => {
                     report.created += 1;
+                    let mut duplicates = vec![];
                     for warning in warnings {
                         match warning {
-                            Warning::PossibleDuplicate { ids } => report.duplicates.push((*index, ids)),
+                            Warning::PossibleDuplicate { ids } => duplicates.extend(ids),
                             Warning::FrequencyOutsideBand { freq, band } => {
                                 report.outside_band.push((*index, freq, band))
                             }
                         }
+                    }
+                    if !apply {
+                        let key = DuplicateKey::of(&stored.qso)?;
+                        duplicates.extend(
+                            previewed
+                                .range(key.time_range())
+                                .flat_map(|(_, rows)| rows)
+                                .filter(|(_, previous)| key.matches(previous))
+                                .map(|(id, _)| id.clone()),
+                        );
+                        previewed.entry(key.qso_time).or_default().push((stored.id, key));
+                    }
+                    duplicates.sort();
+                    duplicates.dedup();
+                    if !duplicates.is_empty() {
+                        report.duplicates.push((*index, duplicates));
                     }
                 }
                 Ok(Created::Existing(_)) => report.existing += 1,
@@ -326,8 +345,16 @@ pub async fn merge(
             call: Some(CallMatch::Exact(key.call.clone())),
             ..Filter::default()
         };
-        let page = qso::search(&mut conn, access, &filter, None, CANDIDATES).await?;
-        let candidates: Vec<_> = page.rows.iter().filter(|row| key.matches(&row.qso)).collect();
+        let mut candidates = vec![];
+        let mut after = None;
+        loop {
+            let page = qso::search(&mut conn, access, &filter, after.as_ref(), CANDIDATES).await?;
+            candidates.extend(page.rows.into_iter().filter(|row| key.matches(&row.qso)));
+            match page.next {
+                Some(next) => after = Some(next),
+                None => break,
+            }
+        }
         match candidates.as_slice() {
             [] => {
                 report.unmatched.push(index);
@@ -383,6 +410,8 @@ pub async fn merge(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::store::{
         qso::StoredQso,
@@ -458,6 +487,97 @@ mod tests {
         let again = import_new(&world.db, &access, &station, more, true).await.unwrap();
         assert_eq!((again.created, again.existing), (1, 3));
         assert_eq!(all(&world, &access).await.len(), 4);
+    }
+
+    #[rstest]
+    #[case::empty(false)]
+    #[case::existing_duplicate(true)]
+    #[tokio::test]
+    async fn previews_duplicates_across_batches(#[case] existing: bool) {
+        let (world, access, station) = setup().await;
+        if existing {
+            import_new(&world.db, &access, &station, vec![Ok(contact("JA1AAA", "0059"))], true)
+                .await
+                .unwrap();
+        }
+        let mut records = vec![Ok(contact("JA1AAA", "0101"))];
+        records.extend((1..BATCH).map(|i| Ok(contact(&format!("JA1X{i}"), "0101"))));
+        records.extend([Ok(contact("JA1AAA", "0101")), Ok(contact("JA1AAA", "0101"))]);
+
+        let preview = import_new(&world.db, &access, &station, records.clone(), false)
+            .await
+            .unwrap();
+        assert_eq!(preview.created, BATCH + 2);
+        assert_eq!(preview.duplicates.len(), if existing { 3 } else { 2 });
+        assert_eq!(all(&world, &access).await.len(), usize::from(existing));
+        let applied = import_new(&world.db, &access, &station, records.clone(), true)
+            .await
+            .unwrap();
+        assert_eq!(preview.duplicates, applied.duplicates);
+
+        let rerun = import_new(&world.db, &access, &station, records, false).await.unwrap();
+        assert_eq!((rerun.created, rerun.existing), (0, BATCH + 2));
+        assert!(rerun.duplicates.is_empty());
+    }
+
+    #[rstest]
+    #[case::ambiguous("CW", false, 0, 0, 2)]
+    #[case::match_on_later_page("SSB", false, 1, 0, 0)]
+    #[case::all_received("CW", true, 0, 1, 0)]
+    #[tokio::test]
+    async fn matches_confirmations_across_all_pages(
+        #[case] newest_mode: &str,
+        #[case] received: bool,
+        #[case] merged: usize,
+        #[case] already: usize,
+        #[case] ambiguous: usize,
+    ) {
+        let (world, access, station) = setup().await;
+        let mut oldest = contact("JA1AAA", "0100");
+        let mut newest = contact("JA1AAA", "0102");
+        newest.set("MODE", Some(newest_mode.into())).unwrap();
+        if received {
+            oldest.set("LOTW_QSL_RCVD", Some("Y".into())).unwrap();
+            newest.set("LOTW_QSL_RCVD", Some("Y".into())).unwrap();
+        }
+        let mut records = vec![Ok(oldest)];
+        records.extend((1..CANDIDATES).map(|i| {
+            let mut qso = contact("JA1AAA", "0101");
+            qso.set("BAND", Some("20m".into())).unwrap();
+            qso.set("COMMENT", Some(i.to_string())).unwrap();
+            Ok(qso)
+        }));
+        records.push(Ok(newest));
+        import_new(&world.db, &access, &station, records, true).await.unwrap();
+
+        let mut confirmation = contact("JA1AAA", "0101");
+        confirmation.set("QSL_RCVD", Some("Y".into())).unwrap();
+        let report = merge(
+            &world.db,
+            &access,
+            Source::Lotw,
+            None,
+            vec![Ok(confirmation)],
+            true,
+            "20261122",
+        )
+        .await
+        .unwrap();
+        assert_eq!((report.merged, report.already), (merged, already));
+        assert!(report.unmatched.is_empty());
+        assert_eq!(
+            report.ambiguous.iter().map(|(_, ids)| ids.len()).sum::<usize>(),
+            ambiguous
+        );
+        let changed = all(&world, &access)
+            .await
+            .into_iter()
+            .filter(|row| row.qso.get("LOTW_QSLRDATE").is_some())
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), merged);
+        if merged == 1 {
+            assert_eq!(changed[0].qso.get("TIME_ON"), Some("0100"));
+        }
     }
 
     #[tokio::test]
