@@ -4,7 +4,7 @@
 
 jl1his-logger is the QSO log of record for JL1HIS, replacing Wavelog: one Rust
 server, one SQLite database and a same-origin SvelteKit PWA. The design is
-recorded in `docs/decisions.md` (in Japanese); it is the authority on IDs,
+recorded in `docs/decisions.md`; it is the authority on IDs,
 synchronization, storage, permissions, ADIF handling and the Wavelog
 compatibility layer, and this file only summarizes it. `README.md` is the
 product overview.
@@ -22,7 +22,7 @@ The repository contains:
 - `assets/`: example files, such as `config.example.toml`.
 - `docs/`: development documentation.
 
-The crate split inside `server/` is still open (see "保留" in
+The crate split inside `server/` is still open (see "Open Questions" in
 `docs/decisions.md`). Do not create a workspace or a shared crate until it is
 decided; keep the server a single package until then.
 
@@ -124,7 +124,7 @@ decided; keep the server a single package until then.
 ## Documentation
 
 - Write documentation under `docs/` in English or Japanese.
-- When a change settles something listed under "保留" in `docs/decisions.md`,
+- When a change settles something listed under "Open Questions" in `docs/decisions.md`,
   or departs from a decision there, update that file in the same change.
 - When a change alters behavior, APIs, architecture or anything else
   documented, update the relevant documentation in the same change.

@@ -1,141 +1,141 @@
-# 設計決定メモ
+# Design Decisions
 
-2026-10-22 時点の検討結果。Wavelog に代わる自前の QSO ログ SSoT(jl1his-logger)の方針をまとめる。
+The outcome of the design review as of 2026-10-22: the direction for jl1his-logger, a QSO log of record of our own that replaces Wavelog.
 
-## 背景
+## Background
 
-- 現在は Wavelog を交信ログの SSoT とし、API / WebUI で記録したあと ADIF をエクスポートして eQSL、コンテストのサマリーシート、QSL カード生成、POTA に流している。
-- Wavelog は用途に対して機能が過剰で、WebUI にも不満がある。
-- 関連プロジェクトと Wavelog への依存:
-  - wavelog-tools: `GET qso?format=adif`(フィルタ付き)、`GET catalog`(subdivisions)
-  - hislog: `POST qso`、`GET qso?format=adif&since_id=&page=`、`GET station`、`GET lookup?detail=basic`、`GET catalog?topic=contest`。未送信キューを持ち、重複応答(`400 validation_error` + `details.duplicate`)を送信済みとして扱う。UUID は送らない
-  - speech-to-qso: `POST qso`、`GET station`、`GET qso`(ADIF、過去交信、`callsign_match=plain`)。クライアント ID を転送時に落とす
-  - grayline: `GET lookup`。トークンの `wl2_` 接頭辞で v2 を選ぶ。ADIF の長さを bytes で読む
-  - qso-tools: ADIF のみを入力とする。FREQ 必須。公園は `MY_POTA_REF` から読む。長さは bytes 既定、`--lenient codepoints` あり
-- 使っている Wavelog API は `qso`、`station`、`lookup`、`catalog` の 4 リソースのみ。
+- Today Wavelog is the single source of truth for contacts. QSOs are recorded through its API and web UI, then exported as ADIF and fed to eQSL, contest summary sheets, QSL card generation and POTA.
+- Wavelog does far more than this use needs, and its web UI is unsatisfying.
+- The related projects and what they depend on in Wavelog:
+  - wavelog-tools: `GET qso?format=adif` (with filters), `GET catalog` (subdivisions)
+  - hislog: `POST qso`, `GET qso?format=adif&since_id=&page=`, `GET station`, `GET lookup?detail=basic`, `GET catalog?topic=contest`. Keeps an unsent queue and treats a duplicate response (`400 validation_error` with `details.duplicate`) as sent. Sends no UUID
+  - speech-to-qso: `POST qso`, `GET station`, `GET qso` (ADIF, previous contacts, `callsign_match=plain`). Drops the client ID when forwarding
+  - grayline: `GET lookup`. Chooses v2 by the `wl2_` prefix of the token. Reads ADIF lengths in bytes
+  - qso-tools: takes ADIF as its only input. Requires FREQ. Reads parks from `MY_POTA_REF`. Lengths are bytes by default, with `--lenient codepoints` available
+- Only four Wavelog API resources are in use: `qso`, `station`, `lookup` and `catalog`.
 
-## 構成
+## Structure
 
-- 新しい独立リポジトリ(このリポジトリ)に 1 サーバー、1 SQLite、同一オリジンの SPA / PWA。
-- サーバーは Rust + axum、クライアントは SvelteKit。speech-to-qso の認証(パスキー)、配信、オフライン入力を参考にする。
-- SQLite は 1 つ。WAL と busy_timeout を設定し、書き込みトランザクションを短く保つ。
+- A new, separate repository (this one) holding one server, one SQLite database and a same-origin SPA / PWA.
+- The server is Rust + axum; the client is SvelteKit. The authentication (passkeys), delivery and offline entry of speech-to-qso serve as the reference.
+- One SQLite database. Set WAL and `busy_timeout`, and keep write transactions short.
 
-## 必須機能
+## Required Features
 
-- QSO ストア、Station Location、Logbook、User、Membership、API トークン。
-- 書き込み API(作成、更新、削除)、読み出し API(フィルタと ADIF 出力)、差分取得、SSE。
-- ADIF インポート(初回移行と、既存 QSO への QSL 系フィールドのマージ)。
-- 確認状態(紙 QSL、eQSL、LoTW をそれぞれ別に保持)。
-- 参照データ: cty.dat、周波数とバンド、モードとサブモード、subdivisions、POTA 公園。
-- lookup: cty.dat によるエンティティ情報と自ログの過去交信(name / grid / QTH)。
-- WebUI: ログ一覧と検索、1 件編集、Live QSO 入力、音声入力(speech-to-qso を吸収)、Station Location 編集、ADIF インポートとエクスポート、QSL 状態の一括変更。
+- QSO store, Station Location, Logbook, User, Membership, API tokens.
+- Write API (create, update, delete), read API (filters and ADIF output), differential fetch, SSE.
+- ADIF import (the first migration, and merging QSL fields into existing QSOs).
+- Confirmation state (paper QSL, eQSL and LoTW held separately).
+- Reference data: cty.dat, frequencies and bands, modes and submodes, subdivisions, POTA parks.
+- lookup: entity information from cty.dat and previous contacts in the own log (name / grid / QTH).
+- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry (absorbing speech-to-qso), Station Location editing, ADIF import and export, bulk QSL state changes.
 
-## 落とすもの
+## Dropped
 
-ダッシュボード、地図、DX クラスタ、QRZ / HamQTH 連携、CAT(hislog が rigctld を持つ)、コンテストモジュール(qso-tools の loggen がある)、アワード(必要になったら ADIF から qso-tools で集計)、衛星、テーマ、組織階層や細かい権限管理。
+Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld), contest modules (qso-tools has loggen), awards (when needed, tallied from ADIF with qso-tools), satellites, themes, organization hierarchies and fine-grained permissions.
 
-## 決定事項
+## Decisions
 
-### ID と重複判定
+### IDs and Duplicate Detection
 
-- QSO ID はクライアント生成の UUID v7。`POST` は冪等で、同 ID の再送は既存の 1 件を返す。
-- ヒューリスティックな重複判定(同コール、同バンド、同モード、時刻の近傍)は登録を拒否せず警告のみ。専用エンドポイント(入力中の候補検査)と `POST` 応答の `warnings` の両方で返し、判定処理は共有する。
-- サーバー採番の整数 `seq`(挿入順)と `updated_seq`(更新順)を Logbook ごとに持つ。削除後も再利用しない。
+- The QSO ID is a client-generated UUID v7. `POST` is idempotent: resending the same ID returns the existing row.
+- Heuristic duplicate detection (same call, same band, same mode, nearby time) never refuses a record and only warns. It is returned both by a dedicated endpoint (checking a candidate during entry) and in the `warnings` of the `POST` response, with the detection shared between them.
+- Each Logbook has server-assigned integers `seq` (insertion order) and `updated_seq` (update order). They are never reused, even after deletion.
 
-### 変更履歴
+### Change History
 
-- 追記専用の変更ログは持たない。
-- 行に `updated_seq`、`revision`、`updated_by`、`updated_at`、削除の墓標、カーソルの世代番号を持つ。墓標は消さない。
-- 差分取得は `updated_seq > N` で削除済みも含めて現在行を返す(upsert / delete)。途中の変更内容と過去時点の再現は提供しない。
-- 更新競合は `revision` で検出する。
-- 履歴が必要になったら SQLite のトリガで更新前の JSON を積む形で後付けできる。API の形は変わらない。
+- There is no append-only change log.
+- A row carries `updated_seq`, `revision`, `updated_by`, `updated_at`, a deletion tombstone, and the cursor generation. Tombstones are never removed.
+- A differential fetch returns the current rows with `updated_seq > N`, deleted ones included (upsert / delete). Intermediate changes and the state at a past moment are not provided.
+- Conflicting updates are detected by `revision`.
+- Should history become necessary, it can be added later with SQLite triggers that stack the JSON of the row before each update. The shape of the API does not change.
 
-### 自局情報
+### Own Station Information
 
-- QSO 作成時に Station の既定値を `STATION_CALLSIGN` / `MY_*` として行に焼き込む。Station を編集しても過去の ADIF は変わらない。
-- `station_location_id` は分類と検索のために別途保持する。
-- 過去を直すときは対象件数を示す明示的な一括更新を使う。
-- Station は削除より archive を基本にする。
+- When a QSO is created, the Station's defaults are baked into the row as `STATION_CALLSIGN` / `MY_*`. Editing the Station does not change past ADIF.
+- `station_location_id` is held separately for classification and search.
+- Past rows are corrected with an explicit bulk update that states the number of affected rows.
+- Stations are archived rather than deleted.
 
-### 格納形
+### Storage Shape
 
-- コアのフィールド(call、band、mode、日時、station、QSL 状態など)はカラム、残りは JSON の文字列マップ。
-- カラム化したフィールドは JSON に重複して持たない。未知の標準フィールドと `APP_*` を落とさない。
-- 値は ADIF の文字列のまま保持し、検索用の正規化(call の正規化、秒単位の時刻、Hz の周波数)は派生列に置く。
+- Core fields (call, band, mode, date and time, station, QSL state and so on) are columns; the rest is a JSON string map.
+- A field that has a column is not duplicated in the JSON. Unknown standard fields and `APP_*` are not dropped.
+- Values are kept as their ADIF strings; normalized forms for search (the normalized callsign, time in seconds, frequency in Hz) go to derived columns.
 
-### FREQ と公園
+### FREQ and Parks
 
-- FREQ 不明の QSO を保存できる。qso-tools 側で FREQ を省略可能に改修する。代表周波数で埋めない。
-- 複数公園はストアでは 1 行で `MY_POTA_REF` に複数参照を持ち、POTA 提出用 export で公園ごとに `MY_SIG_INFO` を展開して射影する。QSO を複製しない。
+- A QSO without FREQ can be saved. qso-tools is to be changed to make FREQ optional. No representative frequency is filled in.
+- Several parks are one row in the store, with several references in `MY_POTA_REF`; the POTA submission export projects one record per park with `MY_SIG_INFO` expanded. QSOs are not duplicated.
 
-### ユーザーと権限
+### Users and Permissions
 
-- インスタンスの役割(User に持つ): `admin` / `user`。
-- Logbook の役割(Membership に持つ): `owner` / `operator`。
-- User は人。パスキーでログイン。個人コールサインを持つ。
-- Logbook は個人局またはクラブ局の単位で、Station Location の所有者。
-- QSO は `OPERATOR` に打った人のコールを既定で入れ、`created_by` / `updated_by` に User を記録する。
-- `Membership.owner` はアプリの管理権限であり、ADIF の `OWNER_CALLSIGN` とは別概念。
-- admin の責務は Logbook の外側: ユーザーの作成と無効化、招待リンク、パスキー再登録、Logbook の作成と削除と owner の付け替え、他人のトークン失効、参照データ更新、初期セットアップ、バックアップ、インスタンス設定。
-- owner は自分の Logbook の Station と Membership を管理できるが、User は作れない。
-- admin も QSO を読むには Membership が要る。救済操作は明示的に行い理由と actor を残す。
-- operator は他人が打った QSO も修正・削除できる。
-- API トークンは User に紐づけ、スコープで Logbook を限定する。平文は発行時だけ見せる。
-- 最初の admin は CLI のセットアップコマンドで作り、一度だけの登録 URL を発行する。
+- Instance roles (held by a User): `admin` / `user`.
+- Logbook roles (held by a Membership): `owner` / `operator`.
+- A User is a person. Signs in with a passkey. Has a personal callsign.
+- A Logbook is the unit of a personal or club station and owns its Station Locations.
+- A QSO's `OPERATOR` defaults to the callsign of the person who entered it, and `created_by` / `updated_by` record the User.
+- `Membership.owner` is an application administration right, separate from ADIF's `OWNER_CALLSIGN`.
+- An admin's responsibilities lie outside Logbooks: creating and disabling users, invitation links, passkey re-registration, creating and deleting Logbooks and reassigning their owner, revoking other people's tokens, reference data updates, initial setup, backups, and instance settings.
+- An owner manages the Stations and Memberships of its own Logbook but cannot create Users.
+- Even an admin needs a Membership to read QSOs. A rescue operation is explicit and records its reason and actor.
+- An operator can edit and delete QSOs entered by others.
+- API tokens belong to a User and are limited to Logbooks by scopes. The plaintext is shown only when issued.
+- The first admin is created by a CLI setup command, which issues a one-time registration URL.
 
-### Wavelog API v2 互換層
+### Wavelog API v2 Compatibility Layer
 
-- パス接頭辞 `/wl2` に置く。クライアントのベース URL を `https://host/wl2` にすれば `/wl2/index.php/api/v2/...` で届く。grayline 向けに `/wl2/api/v2/lookup` も alias として出す。
-- サブドメインによる Host 分岐は axum で可能だが採らない。
-- 互換トークンは発行時に 1 Logbook に固定する。grayline 用には `wl2_` 接頭辞を付けて発行する。
-- Station に Wavelog の旧整数 ID を対応表として持ち、既存クライアントの `station_id` 設定を変えずに済ませる。
-- 合わせる範囲は手元クライアントの依存部分のみ: `station_profile_id`、`since_id` / `lastfetchedid` / `has_more`、`format=adif`、重複時の `400 validation_error` + `details.duplicate`、`lookup?detail=basic`、`catalog` の contest と subdivisions。
-- 互換の `since_id` は挿入 `seq` に固定する。編集・削除の差分同期は独自 API に移したクライアントで有効にする。
-- UUID を送らない旧式 POST の扱いは今は決めない。クライアント(hislog、speech-to-qso)は後で直す。
+- Mounted under the path prefix `/wl2`. Setting a client's base URL to `https://host/wl2` makes `/wl2/index.php/api/v2/...` reach it. `/wl2/api/v2/lookup` is also exposed as an alias for grayline.
+- Branching on the Host subdomain is possible with axum but not adopted.
+- A compatibility token is fixed to one Logbook when issued. Tokens for grayline are issued with the `wl2_` prefix.
+- Each Station keeps its old Wavelog integer ID as a mapping, so existing clients keep their `station_id` setting unchanged.
+- Only what the local clients depend on is matched: `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`, `format=adif`, `400 validation_error` with `details.duplicate` on duplicates, `lookup?detail=basic`, and the `contest` and `subdivisions` topics of `catalog`.
+- The compatibility `since_id` is fixed to the insertion `seq`. Differential sync of edits and deletions is enabled for clients that have moved to the native API.
+- How to handle legacy `POST`s without a UUID is left undecided for now. The clients (hislog, speech-to-qso) are fixed later.
 
-### ADIF 入出力
+### ADIF Input and Output
 
-- 長さは codepoints を既定とし、export のオプションで bytes を選べる。qso-tools には `--lenient codepoints` を渡す。
-- 読み取りは adif-reader(github.com/kb10uy/adif-reader)を使う。
-- writer は adif-reader 側に足す方向。置き場所(同 crate か隣の crate か)は保留。
-- 共通 crate の切り出しは行わず、当面はこのリポジトリ内に閉じる。hislog / qso-tools / grayline の置き換えは安定後に別タスクで行う。
-- QSL の正本は ADIF フィールド(`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`、`EQSL_QSL_*`、`LOTW_QSL_*`)。別の boolean 群を持たない。
-- qsl_required は `QSL_SENT in {R, Q}`、受信済みは `QSL_RCVD in {Y, V}`。
-- export 時に batch として対象 UUID と `revision` を記録し、外部処理後はその batch の該当行だけ更新する。
+- Lengths are codepoints by default; bytes can be chosen as an export option. qso-tools is given `--lenient codepoints`.
+- Reading uses adif-reader (github.com/kb10uy/adif-reader).
+- The writer is to be added on the adif-reader side. Its placement (the same crate or a neighboring one) is open.
+- No shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
+- The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
+- qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
+- An export records the target UUIDs and `revision`s as a batch, and after the external processing only the matching rows of that batch are updated.
 
-### 配信と同期
+### Delivery and Sync
 
-- SSE を使う。WebSocket は使わない。
-- イベントの `id` は `updated_seq`。再接続は `Last-Event-ID`、ページ再読み込み後はクライアントが保存したカーソルを `?after=` で渡す。
-- 差分はフィルタで絞らず Logbook 全体を流し、クライアントが現在行で表示条件を再評価する。
-- 初回同期は開始時の最大 `updated_seq` を H として全件を取り、その後 `after H` を読む。二重に届く行は upsert なので無害。
-- axum の `Sse` に `keep_alive` を付ける。
-- バックアップ復元後はカーソルの世代番号を変えて全再同期を要求する。
+- Use SSE. Do not use WebSocket.
+- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a page reload the client passes its stored cursor as `?after=`.
+- Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
+- The initial sync takes the maximum `updated_seq` at start as H, fetches everything, then reads `after H`. Rows that arrive twice are upserts and therefore harmless.
+- Attach `keep_alive` to axum's `Sse`.
+- After restoring a backup, change the cursor generation to demand a full resync.
 
-### クライアントの位置づけ
+### Position of the Clients
 
-- speech-to-qso: WebUI に吸収する。音声入力画面を PWA の 1 画面にし、オフラインキューは Live 入力と共通化する。
-- hislog: UUID 付きの永続未送信キューを実装してから独自 API に移す。
-- grayline: 当面 lookup 互換。独自 API 化の優先度は低い。
-- wavelog-tools: 当面 export / subdivisions 互換。独自 CLI が揃った時点で移す。
+- speech-to-qso: absorbed into the web UI. The voice entry screen becomes one screen of the PWA, and the offline queue is shared with Live entry.
+- hislog: moves to the native API after implementing a persistent unsent queue with UUIDs.
+- grayline: lookup compatibility for the time being. Moving to the native API is low priority.
+- wavelog-tools: export / subdivisions compatibility for the time being. Moves once the native CLI is complete.
 
-### 参照データ
+### Reference Data
 
-- 更新は CLI サブコマンドで行う(取得、検証、版の切り替え)。WebUI は版の表示だけ。
-- 既存 QSO に記録済みの DXCC や zone は参照データの更新で自動変更しない。
-- JCX は文字列のまま扱い先頭ゼロを保持する。
+- Updates are done with CLI subcommands (fetch, verify, switch versions). The web UI only shows the version.
+- DXCC and zones already recorded on existing QSOs are not changed automatically by a reference data update.
+- JCX is handled as a string, keeping leading zeros.
 
-## 保留
+## Open Questions
 
-- QSL merge の自動適用フィールドと曖昧一致の扱い(import 実装時)
-- バックアップと復元手順を初期版にどこまで含めるか
-- ADIF writer の置き場所
-- crate 構成
+- The fields QSL merge applies automatically, and the handling of ambiguous matches (at import implementation)
+- How much of the backup and restore procedure the first version includes
+- Where the ADIF writer lives
+- The crate structure
 
-## 実装順(案)
+## Implementation Order (Draft)
 
-1. 契約と fixture: ID と再送、自局情報の確定、ADIF の日本語と長さ、QSL 値、互換レスポンス、権限表。
-2. 核と CLI: Logbook / Membership / Station / QSO、setup、import の preview と apply、export、backup。
-3. 読み取り互換と WebUI: station / lookup / catalog / ADIF、ログ一覧と編集、Live 入力と音声入力、SSE、QSL の一括変更。
-4. 書き込みクライアントの改修: hislog の永続 UUID キュー、speech-to-qso の吸収。
-5. 移行リハーサルと切り替え: Station 単位で Wavelog の ADIF を出して取り込み、qcgen / loggen / POTA 用 ADIF の差分を確認する。
+1. Contracts and fixtures: IDs and resends, settling the own station information, Japanese text and lengths in ADIF, QSL values, compatibility responses, the permission table.
+2. Core and CLI: Logbook / Membership / Station / QSO, setup, import preview and apply, export, backup.
+3. Read compatibility and the web UI: station / lookup / catalog / ADIF, log list and editing, Live entry and voice entry, SSE, bulk QSL changes.
+4. Reworking the writing clients: hislog's persistent UUID queue, absorbing speech-to-qso.
+5. Migration rehearsal and cutover: export Wavelog's ADIF per Station and import it, then compare the ADIF for qcgen / loggen / POTA.
