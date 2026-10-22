@@ -165,7 +165,8 @@ pub async fn set_archived(
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<Station, StoreError> {
     access.revalidate(conn).await?;
     let row = sqlx::query(
-        "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \n         FROM stations WHERE logbook_id = ? AND id = ?",
+        "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \
+         FROM stations WHERE logbook_id = ? AND id = ?",
     )
     .bind(access.logbook_id())
     .bind(id)
@@ -178,7 +179,8 @@ pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) 
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Station>, StoreError> {
     access.revalidate(conn).await?;
     sqlx::query(
-        "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \n         FROM stations WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id",
+        "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \
+         FROM stations WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id",
     )
     .bind(access.logbook_id())
     .fetch_all(conn)
