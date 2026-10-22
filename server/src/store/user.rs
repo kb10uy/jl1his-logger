@@ -19,7 +19,7 @@ impl Role {
         }
     }
 
-    fn parse(s: &str) -> Result<Role, StoreError> {
+    pub(crate) fn parse(s: &str) -> Result<Role, StoreError> {
         match s {
             "admin" => Ok(Role::Admin),
             "user" => Ok(Role::User),
@@ -70,6 +70,15 @@ pub async fn find_by_callsign(conn: &mut SqliteConnection, callsign: &str) -> Re
     let callsign = normalize_callsign(callsign)?;
     sqlx::query("SELECT id, callsign, role, disabled_at FROM users WHERE callsign = ?")
         .bind(callsign)
+        .fetch_optional(conn)
+        .await?
+        .map(|row| User::from_row(&row))
+        .transpose()
+}
+
+pub(crate) async fn find(conn: &mut SqliteConnection, id: &str) -> Result<Option<User>, StoreError> {
+    sqlx::query("SELECT id, callsign, role, disabled_at FROM users WHERE id = ?")
+        .bind(id)
         .fetch_optional(conn)
         .await?
         .map(|row| User::from_row(&row))

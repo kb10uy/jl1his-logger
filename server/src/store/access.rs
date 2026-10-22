@@ -5,7 +5,7 @@ use std::{
 
 use sqlx::{Row, SqliteConnection};
 
-use crate::store::{StoreError, WriteTx, new_id, now};
+use crate::store::{StoreError, WriteTx, new_id, now, user::Role};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Principal {
@@ -148,6 +148,35 @@ impl AdminAccess {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserAccess {
+    user_id: String,
+    callsign: String,
+    role: Role,
+}
+
+impl UserAccess {
+    pub fn user_id(&self) -> &str {
+        &self.user_id
+    }
+
+    pub fn callsign(&self) -> &str {
+        &self.callsign
+    }
+
+    pub fn role(&self) -> Role {
+        self.role
+    }
+
+    pub(super) async fn revalidate(&self, conn: &mut SqliteConnection) -> Result<UserAccess, StoreError> {
+        user(conn, &Principal::user(&self.user_id)).await
+    }
+
+    pub(super) fn may_manage(&self, user_id: &str) -> bool {
+        self.user_id == user_id || self.role == Role::Admin
+    }
+}
+
 pub async fn logbook(
     conn: &mut SqliteConnection,
     principal: &Principal,
@@ -203,6 +232,23 @@ pub async fn admin(conn: &mut SqliteConnection, principal: &Principal) -> Result
         }),
         None => Err(StoreError::Forbidden("only an admin can do this")),
     }
+}
+
+pub async fn user(conn: &mut SqliteConnection, principal: &Principal) -> Result<UserAccess, StoreError> {
+    let Principal::User { user_id } = principal else {
+        return Err(StoreError::Forbidden("API tokens cannot manage accounts"));
+    };
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT callsign, role FROM users WHERE id = ? AND disabled_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(conn)
+            .await?;
+    let (callsign, role) = row.ok_or(StoreError::Unauthenticated)?;
+    Ok(UserAccess {
+        user_id: user_id.clone(),
+        callsign,
+        role: Role::parse(&role)?,
+    })
 }
 
 pub async fn rescue(
