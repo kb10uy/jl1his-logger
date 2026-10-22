@@ -32,6 +32,7 @@ pub enum Auth<'a> {
 
 pub struct Harness {
     pub world: World,
+    pub state: Arc<AppState>,
     pub app: Router,
     pub station: Station,
 }
@@ -39,7 +40,7 @@ pub struct Harness {
 impl Harness {
     pub async fn new() -> Harness {
         let world = World::new().await;
-        let state = AppState::new(world.db.clone(), Config::default(), Url::parse(ORIGIN).unwrap()).unwrap();
+        let state = Arc::new(AppState::new(world.db.clone(), Config::default(), Url::parse(ORIGIN).unwrap()).unwrap());
         let owner = world.access(&world.owner).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let station = station::create(&mut tx, &owner.owner().unwrap(), &station_input("Home"))
@@ -47,7 +48,8 @@ impl Harness {
             .unwrap();
         tx.commit().await.unwrap();
         Harness {
-            app: router(Arc::new(state), None),
+            app: router(state.clone(), None),
+            state,
             world,
             station,
         }
@@ -127,7 +129,7 @@ impl Harness {
     }
 }
 
-fn authorize(req: Builder, auth: Auth<'_>) -> Builder {
+pub fn authorize(req: Builder, auth: Auth<'_>) -> Builder {
     match auth {
         Auth::Anonymous => req,
         Auth::Session(cookie) => req.header(header::ORIGIN, ORIGIN).header(header::COOKIE, cookie),

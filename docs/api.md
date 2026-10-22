@@ -10,9 +10,9 @@ that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
 many passkey requests are in flight. Some errors add fields next to `error`, such
 as `current` on a revision conflict.
 
-Sign-in, reference versions, API tokens, Logbooks, Members, Stations, QSOs,
-bulk QSL changes, export batches and ADIF import exist so far; the SSE stream
-follows.
+It covers sign-in, reference versions, API tokens, Logbooks, Members,
+Stations, QSOs with their event stream, bulk QSL changes, export batches and
+ADIF import.
 
 ## Sign-in
 
@@ -292,3 +292,40 @@ and for a merge
   never applied.
 - `rejects` is an ADIF file of the invalid, unmatched and ambiguous records, or
   null when there are none.
+
+## Event Stream
+
+`GET /api/logbooks/{logbook_id}/events?after=N` is a Server-Sent Events stream
+of every change to the Logbook's QSOs, unfiltered; the client re-evaluates what
+it shows. It starts after `Last-Event-ID` when the browser reconnects, else
+after `after`, else at the Logbook's latest `updated_seq`. A `Last-Event-ID` or
+`after` that is not an integer is `400`.
+
+The first event is `hello`, without an `id`:
+
+```text
+event: hello
+data: {"cursor_generation":"...","last_updated_seq":42,"after":40}
+```
+
+A client whose stored `cursor_generation` differs closes the stream, discards
+its rows and cursor, and syncs again from 0. Then each changed QSO, deleted
+ones included, is one `qso` event in `updated_seq` order, its `id` being the
+`updated_seq`:
+
+```text
+event: qso
+id: 41
+data: {"cursor_generation":"...","qso":{...}}
+```
+
+A QSO changed several times since the cursor arrives once, in its current
+state. A client syncs from scratch by reading `/changes` up to its
+`last_updated_seq` H and then opening the stream with `after=H`; rows seen twice
+are upserts. Comments are sent every 15 seconds to keep the connection open.
+
+Writes through the server reach the streams at once; writes by the CLI in
+another process reach them within 10 seconds. The stream ends when the caller
+loses the Logbook (its Membership, its user or its token) and when the server
+shuts down; the browser then reconnects with `Last-Event-ID`, and a `404` or
+`401` stops it.

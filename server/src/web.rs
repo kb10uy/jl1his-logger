@@ -1,5 +1,6 @@
 mod auth;
 mod error;
+mod events;
 mod export;
 mod extract;
 mod import;
@@ -21,6 +22,7 @@ use axum::{
     routing::{any, delete, get, post, put},
 };
 use serde_json::{Value, json};
+use tokio::sync::watch;
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeader,
@@ -42,6 +44,8 @@ pub struct AppState {
     origin: String,
     webauthn: Webauthn,
     ceremonies: Ceremonies,
+    writes: watch::Sender<u64>,
+    closing: watch::Sender<bool>,
 }
 
 impl AppState {
@@ -57,7 +61,13 @@ impl AppState {
             public_origin,
             webauthn,
             ceremonies: Ceremonies::default(),
+            writes: watch::Sender::new(0),
+            closing: watch::Sender::new(false),
         })
+    }
+
+    pub fn close_streams(&self) {
+        self.closing.send_replace(true);
     }
 }
 
@@ -112,6 +122,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/logbooks/{logbook_id}/exports/{id}", get(export::get))
         .route("/api/logbooks/{logbook_id}/exports/{id}/apply", post(export::apply))
         .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
+        .route("/api/logbooks/{logbook_id}/events", get(events::stream))
         .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
         .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))
         .route(
@@ -120,6 +131,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         )
         .route("/api", any(api_not_found))
         .route("/api/{*rest}", any(api_not_found))
+        .layer(middleware::from_fn_with_state(state.clone(), announce_writes))
         .layer(middleware::from_fn_with_state(state.clone(), same_origin_only))
         .with_state(state);
 
@@ -156,6 +168,15 @@ async fn same_origin_only(State(state): State<Arc<AppState>>, request: Request, 
         }
     }
     next.run(request).await
+}
+
+async fn announce_writes(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
+    let write = !matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS);
+    let response = next.run(request).await;
+    if write && response.status().is_success() {
+        state.writes.send_modify(|n| *n = n.wrapping_add(1));
+    }
+    response
 }
 
 async fn health(State(state): State<Arc<AppState>>) -> Response {
