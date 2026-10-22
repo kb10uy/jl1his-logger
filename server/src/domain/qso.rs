@@ -224,7 +224,7 @@ fn digits<T: FromStr>(s: &str) -> Option<T> {
 }
 
 pub(crate) fn parse_date(date: &str) -> Option<NaiveDate> {
-    if date.len() != 8 {
+    if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
     NaiveDate::from_ymd_opt(digits(&date[..4])?, digits(&date[4..6])?, digits(&date[6..])?)
@@ -416,6 +416,8 @@ pub(crate) mod tests {
     #[case("QSO_DATE", "20261301")]
     #[case("QSO_DATE", "20260230")]
     #[case("QSO_DATE", "2026102")]
+    #[case("QSO_DATE", "2026€1")]
+    #[case("QSO_DATE", "202€01")]
     #[case("TIME_ON", "2400")]
     #[case("TIME_ON", "0460")]
     #[case("TIME_ON", "04:05")]

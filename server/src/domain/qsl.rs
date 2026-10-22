@@ -69,6 +69,8 @@ mod tests {
     #[case("QSLSDATE", "20261022", true)]
     #[case("LOTW_QSLRDATE", "20261322", false)]
     #[case("EQSL_QSLSDATE", "2026-10-22", false)]
+    #[case("QSLSDATE", "2026€1", false)]
+    #[case("QSLRDATE", "202€01", false)]
     #[case("LOTW_QSL_SENT", "", true)]
     fn checks_enumerations_and_dates(#[case] name: &'static str, #[case] value: &str, #[case] valid: bool) {
         assert_eq!(check(name, value).is_ok(), valid);
