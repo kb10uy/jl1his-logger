@@ -1,0 +1,15 @@
+[package]
+name = "jl1his-logger"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+toml = "1.1.8"
+url = "2.5.8"
+
+[dev-dependencies]
+rstest = "0.28.0"
