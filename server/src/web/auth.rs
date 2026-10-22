@@ -7,7 +7,7 @@ use std::{
 use axum::{
     Json,
     extract::{FromRequestParts, Path, State},
-    http::{StatusCode, request::Parts},
+    http::{StatusCode, header, request::Parts},
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,7 @@ use crate::{
         passkey::{self, NewPasskey, Passkey},
         random_token, registration,
         session::{self, SESSION_TTL},
+        token::{self, TokenKind},
         user::User,
     },
     web::{AppState, error::ApiError},
@@ -82,12 +83,46 @@ impl FromRequestParts<Arc<AppState>> for SignedIn {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<SignedIn, ApiError> {
-        let jar = CookieJar::from_headers(&parts.headers);
-        let token = jar.get(SESSION_COOKIE).ok_or(StoreError::Unauthenticated)?.value();
-        let principal = session::authenticate(&state.db, token).await?;
+        let principal = session_principal(parts, state).await?;
         let mut conn = state.db.acquire().await?;
         Ok(SignedIn(access::user(&mut conn, &principal).await?))
     }
+}
+
+pub struct Caller {
+    pub principal: Principal,
+    pub scopes: Option<Vec<String>>,
+}
+
+impl FromRequestParts<Arc<AppState>> for Caller {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Caller, ApiError> {
+        let Some(authorization) = parts.headers.get(header::AUTHORIZATION) else {
+            return Ok(Caller {
+                principal: session_principal(parts, state).await?,
+                scopes: None,
+            });
+        };
+        let plaintext = authorization
+            .to_str()
+            .ok()
+            .and_then(|v| v.split_once(' '))
+            .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
+            .map(|(_, token)| token)
+            .ok_or(StoreError::Unauthenticated)?;
+        let (principal, token) = token::authenticate(&state.db, plaintext, TokenKind::Native).await?;
+        Ok(Caller {
+            principal,
+            scopes: Some(token.logbook_ids),
+        })
+    }
+}
+
+async fn session_principal(parts: &Parts, state: &AppState) -> Result<Principal, StoreError> {
+    let jar = CookieJar::from_headers(&parts.headers);
+    let token = jar.get(SESSION_COOKIE).ok_or(StoreError::Unauthenticated)?.value();
+    session::authenticate(&state.db, token).await
 }
 
 #[derive(Debug, Serialize)]

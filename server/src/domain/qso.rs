@@ -4,6 +4,7 @@ mod id;
 use std::{collections::BTreeMap, str::FromStr};
 
 use chrono::NaiveDate;
+use serde::Serialize;
 
 use crate::domain::{
     band::{Band, parse_frequency_hz},
@@ -27,7 +28,8 @@ pub enum QsoError {
     ColumnField(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Warning {
     FrequencyOutsideBand { freq: String, band: String },
     PossibleDuplicate { ids: Vec<String> },

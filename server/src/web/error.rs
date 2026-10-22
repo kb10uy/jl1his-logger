@@ -3,14 +3,15 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde_json::json;
+use serde_json::{Map, Value};
 
-use crate::store::StoreError;
+use crate::{domain::qso::QsoError, store::StoreError};
 
 #[derive(Debug)]
 pub struct ApiError {
     status: StatusCode,
     message: String,
+    detail: Map<String, Value>,
 }
 
 impl ApiError {
@@ -18,11 +19,17 @@ impl ApiError {
         ApiError {
             status,
             message: message.into(),
+            detail: Map::new(),
         }
     }
 
     pub fn internal(message: impl Into<String>) -> ApiError {
         ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, message)
+    }
+
+    pub fn with(mut self, key: &str, value: Value) -> ApiError {
+        self.detail.insert(key.to_owned(), value);
+        self
     }
 }
 
@@ -40,6 +47,12 @@ impl From<StoreError> for ApiError {
     }
 }
 
+impl From<QsoError> for ApiError {
+    fn from(e: QsoError) -> ApiError {
+        StoreError::from(e).into()
+    }
+}
+
 impl From<sqlx::Error> for ApiError {
     fn from(e: sqlx::Error) -> ApiError {
         StoreError::from(e).into()
@@ -48,13 +61,18 @@ impl From<sqlx::Error> for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let message = match self.status {
+        let mut body = match self.status {
             StatusCode::INTERNAL_SERVER_ERROR => {
                 tracing::error!("{}", self.message);
-                "internal server error".to_owned()
+                Map::from_iter([("error".to_owned(), "internal server error".into())])
             }
-            _ => self.message,
+            _ => {
+                let mut body = self.detail;
+                body.insert("error".to_owned(), self.message.into());
+                body
+            }
         };
-        (self.status, Json(json!({ "status": "error", "error": message }))).into_response()
+        body.insert("status".to_owned(), "error".into());
+        (self.status, Json(body)).into_response()
     }
 }

@@ -1,5 +1,9 @@
 mod auth;
 mod error;
+mod logbook;
+mod qso;
+#[cfg(test)]
+mod testing;
 
 use std::{path::Path, sync::Arc};
 
@@ -62,6 +66,15 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/passkeys/register/start", post(auth::add_start))
         .route("/api/passkeys/register/finish", post(auth::add_finish))
         .route("/api/passkeys/{id}", delete(auth::delete_passkey))
+        .route("/api/logbooks", get(logbook::list))
+        .route("/api/logbooks/{logbook_id}", get(logbook::get))
+        .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
+        .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
+        .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))
+        .route(
+            "/api/logbooks/{logbook_id}/qsos/{id}",
+            get(qso::get).put(qso::update).delete(qso::delete),
+        )
         .route("/api", any(api_not_found))
         .route("/api/{*rest}", any(api_not_found))
         .layer(middleware::from_fn_with_state(state.clone(), same_origin_only))
