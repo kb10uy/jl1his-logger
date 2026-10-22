@@ -131,6 +131,35 @@ pub struct Target {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CallMatch {
+    Exact(String),
+    Base(String),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Filter {
+    pub time: TimeRange,
+    pub station_id: Option<String>,
+    pub band: Option<String>,
+    pub mode: Option<String>,
+    pub call: Option<CallMatch>,
+    pub qsl_sent: Option<Vec<String>>,
+    pub contest_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cursor {
+    pub qso_time: i64,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Page {
+    pub rows: Vec<StoredQso>,
+    pub next: Option<Cursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QsoInput {
     pub station_id: String,
     pub qso: Qso,
@@ -344,6 +373,99 @@ pub async fn changes(
         rows,
         has_more,
     })
+}
+
+pub async fn search(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    filter: &Filter,
+    after: Option<&Cursor>,
+    limit: u32,
+) -> Result<Page, StoreError> {
+    access.revalidate(conn).await?;
+    if limit == 0 {
+        return Err(StoreError::Invalid("a page needs at least one row".into()));
+    }
+    enum Bind {
+        Text(String),
+        Int(i64),
+    }
+    let mut conditions = vec!["logbook_id = ?".to_owned(), "deleted_at IS NULL".to_owned()];
+    let mut binds = vec![Bind::Text(access.logbook_id().to_owned())];
+    let mut text = |condition: &str, value: String| {
+        conditions.push(condition.to_owned());
+        binds.push(Bind::Text(value));
+    };
+    if let Some(station_id) = &filter.station_id {
+        text("station_id = ?", station_id.clone());
+    }
+    if let Some(band) = &filter.band {
+        text("trim(band) = ? COLLATE NOCASE", band.trim().to_owned());
+    }
+    if let Some(mode) = &filter.mode {
+        text("trim(mode) = ? COLLATE NOCASE", mode.trim().to_owned());
+    }
+    match &filter.call {
+        Some(CallMatch::Exact(call)) => text("trim(call) = ? COLLATE NOCASE", call.trim().to_owned()),
+        Some(CallMatch::Base(call)) => text("call_base = ?", callsign::base(call)),
+        None => {}
+    }
+    if let Some(contest_id) = &filter.contest_id {
+        text("trim(contest_id) = ? COLLATE NOCASE", contest_id.trim().to_owned());
+    }
+    if let Some(values) = &filter.qsl_sent {
+        let placeholders = vec!["?"; values.len()].join(", ");
+        conditions.push(match values.is_empty() {
+            true => "0".to_owned(),
+            false => format!("upper(trim(coalesce(qsl_sent, ''))) IN ({placeholders})"),
+        });
+        binds.extend(values.iter().map(|v| Bind::Text(v.trim().to_ascii_uppercase())));
+    }
+    if let Some(from) = filter.time.from {
+        conditions.push("qso_time >= ?".to_owned());
+        binds.push(Bind::Int(from));
+    }
+    if let Some(until) = filter.time.until {
+        conditions.push("qso_time < ?".to_owned());
+        binds.push(Bind::Int(until));
+    }
+    if let Some(after) = after {
+        conditions.push("(qso_time, id) < (?, ?)".to_owned());
+        binds.push(Bind::Int(after.qso_time));
+        binds.push(Bind::Text(after.id.clone()));
+    }
+
+    let sql = format!(
+        "{} WHERE {} ORDER BY qso_time DESC, id DESC LIMIT ?",
+        *SELECT,
+        conditions.join(" AND ")
+    );
+    let mut query = sqlx::query(AssertSqlSafe(sql));
+    for bind in binds {
+        query = match bind {
+            Bind::Text(value) => query.bind(value),
+            Bind::Int(value) => query.bind(value),
+        };
+    }
+    let mut rows = query
+        .bind(i64::from(limit) + 1)
+        .fetch_all(conn)
+        .await?
+        .iter()
+        .map(StoredQso::from_row)
+        .collect::<Result<Vec<_>, _>>()?;
+    let next = match rows.len() > limit as usize {
+        true => {
+            rows.truncate(limit as usize);
+            let last = rows.last().expect("a full page has a last row");
+            Some(Cursor {
+                qso_time: last.qso.qso_time()?,
+                id: last.id.clone(),
+            })
+        }
+        false => None,
+    };
+    Ok(Page { rows, next })
 }
 
 pub async fn possible_duplicates(
@@ -682,6 +804,86 @@ mod tests {
         ));
         let later = create(&mut tx, &access, &QsoId::generate(), input).await.unwrap();
         assert!(matches!(later, Created::New { warnings, .. } if warnings.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn searches_newest_first_with_keyset_pages() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut ids = vec![];
+        for (call, time_on, mode, qsl_sent) in [
+            ("JA1AAA", "010000", "CW", Some("R")),
+            ("ja1aaa/p", "020000", "cw", None),
+            ("JA1BBB", "030000", "SSB", Some("Y")),
+            ("JA1AAA", "040000", "CW", Some("q")),
+        ] {
+            let mut input = entry(&station, call, time_on);
+            input.qso.set("MODE", Some(mode.into())).unwrap();
+            input.qso.set("QSL_SENT", qsl_sent.map(str::to_owned)).unwrap();
+            let (id, _) = create_one(&world, &access, input).await;
+            ids.push(id.to_string());
+        }
+        let deleted = ids[3].parse().unwrap();
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        delete(&mut tx, &access, &deleted, 1).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let found = |page: &Page| page.rows.iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+        let all = Filter::default();
+        let first = search(&mut conn, &access, &all, None, 2).await.unwrap();
+        assert_eq!(found(&first), [ids[2].clone(), ids[1].clone()]);
+        let second = search(&mut conn, &access, &all, first.next.as_ref(), 2).await.unwrap();
+        assert_eq!((found(&second), second.next), (vec![ids[0].clone()], None));
+
+        let filters = [
+            (
+                Filter {
+                    call: Some(CallMatch::Base("JA1AAA/1".into())),
+                    mode: Some(" Cw".into()),
+                    ..Filter::default()
+                },
+                vec![ids[1].clone(), ids[0].clone()],
+            ),
+            (
+                Filter {
+                    call: Some(CallMatch::Exact("ja1aaa".into())),
+                    ..Filter::default()
+                },
+                vec![ids[0].clone()],
+            ),
+            (
+                Filter {
+                    qsl_sent: Some(vec!["r".into(), "".into()]),
+                    ..Filter::default()
+                },
+                vec![ids[1].clone(), ids[0].clone()],
+            ),
+            (
+                Filter {
+                    qsl_sent: Some(vec![]),
+                    ..Filter::default()
+                },
+                vec![],
+            ),
+            (
+                Filter {
+                    time: TimeRange {
+                        from: Some(1792634400),
+                        until: Some(1792638000),
+                    },
+                    station_id: Some(station.id.clone()),
+                    band: Some("40M".into()),
+                    ..Filter::default()
+                },
+                vec![ids[1].clone()],
+            ),
+        ];
+        for (filter, expected) in filters {
+            let page = search(&mut conn, &access, &filter, None, 10).await.unwrap();
+            assert_eq!(found(&page), expected, "{filter:?}");
+        }
     }
 
     #[tokio::test]
