@@ -11,8 +11,8 @@ many passkey requests are in flight. Some errors add fields next to `error`, suc
 as `current` on a revision conflict.
 
 Sign-in, reference versions, API tokens, Logbooks, Members, Stations, QSOs,
-bulk QSL changes and export batches exist so far; ADIF import and the SSE
-stream follow.
+bulk QSL changes, export batches and ADIF import exist so far; the SSE stream
+follows.
 
 ## Sign-in
 
@@ -258,3 +258,37 @@ Applying an `eqsl`, `lotw` or `qsl_card` batch sets `EQSL_QSL_SENT`,
 `LOTW_QSL_SENT` or `QSL_SENT` to `Y` and its sent date to the UTC day, on the
 rows still at their recorded revisions. A batch is applied once; again is
 `409`. `adif` and `pota` batches are records only, and applying them is `400`.
+
+## ADIF Import
+
+`POST /api/logbooks/{logbook_id}/imports?source=&station_id=&format=&length=&apply=`
+takes the file itself as the body, up to 64 MiB of UTF-8. It works as the CLI
+`import` does (see `decisions.md`, "ADIF Import"):
+
+| Parameter | Meaning |
+| --- | --- |
+| `source` | `new` adds QSOs; `lotw`, `eqsl` or `card` merges confirmations into existing ones |
+| `station_id` | The Station of new QSOs, required for `new`; for a merge, matches only its QSOs |
+| `format` | `adi` (default) or `adx` |
+| `length` | How an `.adi` file counts lengths, `codepoints` or `bytes`; by default the server's `[adif] length` |
+| `apply` | `true` writes; without it the import only previews and writes nothing |
+
+New QSOs get IDs derived from their records, so rerunning an import creates
+only the records it has not created before. A file that cannot be read at all is
+`400`; a record that cannot be read or checked is reported and skipped.
+
+The response for `new` is
+`{applied, read, created, existing, duplicates, outside_band, invalid, rejects}`,
+and for a merge
+`{applied, read, not_confirmations, merged, already, unmatched, ambiguous, invalid, skipped, differences, rejects}`:
+
+- `duplicates` and `ambiguous` are `[{record, ids}]`, `outside_band` is
+  `[{record, freq, band}]`, `invalid` is `[{record, error}]` and `unmatched` is
+  a list of record numbers, counted from 1 in file order.
+- `skipped` lists the QSOs that changed between matching and writing, as in bulk
+  QSL changes.
+- `differences` counts, per field, the matched QSOs whose `DXCC`, `CQZ`, `ITUZ`,
+  `STATE`, `CNTY`, `GRIDSQUARE` or `IOTA` differ from the confirmation; they are
+  never applied.
+- `rejects` is an ADIF file of the invalid, unmatched and ambiguous records, or
+  null when there are none.

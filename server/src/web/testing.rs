@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     Router,
     body::Body,
-    http::{HeaderMap, StatusCode, header},
+    http::{HeaderMap, Request, StatusCode, header, request::Builder},
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -92,18 +92,9 @@ impl Harness {
         headers: &[(&str, &str)],
         body: Option<Value>,
     ) -> (StatusCode, HeaderMap, Value) {
-        let mut req = axum::http::Request::builder().method(method).uri(uri);
+        let mut req = authorize(Request::builder().method(method).uri(uri), auth);
         for (name, value) in headers {
             req = req.header(*name, *value);
-        }
-        match auth {
-            Auth::Anonymous => {}
-            Auth::Session(cookie) => {
-                req = req.header(header::ORIGIN, ORIGIN).header(header::COOKIE, cookie);
-            }
-            Auth::Bearer(token) => {
-                req = req.header(header::AUTHORIZATION, format!("Bearer {token}"));
-            }
         }
         let body = match body {
             Some(body) => {
@@ -112,7 +103,17 @@ impl Harness {
             }
             None => Body::empty(),
         };
-        let response = self.app.clone().oneshot(req.body(body).unwrap()).await.unwrap();
+        self.exchange(req.body(body).unwrap()).await
+    }
+
+    pub async fn send_text(&self, uri: &str, auth: Auth<'_>, text: &str) -> (StatusCode, Value) {
+        let req = authorize(Request::post(uri), auth).header(header::CONTENT_TYPE, "text/plain");
+        let (status, _, body) = self.exchange(req.body(Body::from(text.to_owned())).unwrap()).await;
+        (status, body)
+    }
+
+    async fn exchange(&self, req: Request<Body>) -> (StatusCode, HeaderMap, Value) {
+        let response = self.app.clone().oneshot(req).await.unwrap();
         let status = response.status();
         let headers = response.headers().clone();
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
@@ -123,5 +124,13 @@ impl Harness {
             }
         };
         (status, headers, body)
+    }
+}
+
+fn authorize(req: Builder, auth: Auth<'_>) -> Builder {
+    match auth {
+        Auth::Anonymous => req,
+        Auth::Session(cookie) => req.header(header::ORIGIN, ORIGIN).header(header::COOKIE, cookie),
+        Auth::Bearer(token) => req.header(header::AUTHORIZATION, format!("Bearer {token}")),
     }
 }

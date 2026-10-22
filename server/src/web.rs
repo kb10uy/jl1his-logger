@@ -2,6 +2,7 @@ mod auth;
 mod error;
 mod export;
 mod extract;
+mod import;
 mod logbook;
 mod qso;
 mod station;
@@ -13,7 +14,7 @@ use std::{path::Path, sync::Arc};
 
 use axum::{
     Json, Router,
-    extract::{Request, State},
+    extract::{DefaultBodyLimit, Request, State},
     http::{HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -100,6 +101,10 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
             get(station::preview_rewrite).post(station::rewrite),
         )
         .route("/api/logbooks/{logbook_id}/qsl", post(export::update_qsl))
+        .route(
+            "/api/logbooks/{logbook_id}/imports",
+            post(import::import).layer(DefaultBodyLimit::max(import::MAX_FILE)),
+        )
         .route(
             "/api/logbooks/{logbook_id}/exports",
             get(export::list).post(export::create),

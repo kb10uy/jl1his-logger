@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     domain::{
         adif::{self, LengthUnit},
-        qso::QsoId,
+        qso::{Qso, QsoId},
     },
     store::{
         StoreError, WriteTx, access,
@@ -84,6 +84,21 @@ pub struct SkippedBody {
     current_revision: Option<i64>,
 }
 
+impl SkippedBody {
+    pub(super) fn new(id: String, reason: SkipReason) -> SkippedBody {
+        let (reason, current_revision) = match reason {
+            SkipReason::Missing => ("missing", None),
+            SkipReason::Deleted => ("deleted", None),
+            SkipReason::Revision { current } => ("revision", Some(current)),
+        };
+        SkippedBody {
+            id,
+            reason,
+            current_revision,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct OutcomeBody {
     updated: Vec<QsoBody>,
@@ -97,21 +112,14 @@ impl From<Outcome> for OutcomeBody {
             skipped: outcome
                 .skipped
                 .into_iter()
-                .map(|s| {
-                    let (reason, current_revision) = match s.reason {
-                        SkipReason::Missing => ("missing", None),
-                        SkipReason::Deleted => ("deleted", None),
-                        SkipReason::Revision { current } => ("revision", Some(current)),
-                    };
-                    SkippedBody {
-                        id: s.id,
-                        reason,
-                        current_revision,
-                    }
-                })
+                .map(|s| SkippedBody::new(s.id, s.reason))
                 .collect(),
         }
     }
+}
+
+pub(super) fn adif_document(records: &[Qso], unit: LengthUnit) -> String {
+    adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, unit)
 }
 
 #[derive(Debug, Serialize)]
@@ -247,16 +255,12 @@ pub async fn create(
     }
     let batch = export::create(&mut tx, &access, kind, &selection.targets).await?;
     tx.commit().await?;
-    let mut text = adif::header(env!("CARGO_PKG_VERSION"), Utc::now(), unit);
-    for record in &selection.records {
-        text.push_str(&adif::record(record, unit));
-    }
     Ok((
         StatusCode::CREATED,
         Json(ExportBody {
             batch: Some(batch.into()),
             records: selection.records.len(),
-            adif: Some(text),
+            adif: Some(adif_document(&selection.records, unit)),
         }),
     ))
 }

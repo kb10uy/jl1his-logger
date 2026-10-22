@@ -1,5 +1,6 @@
 pub mod access;
 pub mod export;
+pub mod import;
 pub mod logbook;
 pub mod membership;
 pub mod passkey;

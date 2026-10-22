@@ -50,6 +50,14 @@ pub fn header(program_version: &str, created: DateTime<Utc>, unit: LengthUnit) -
     out
 }
 
+pub fn document(program_version: &str, created: DateTime<Utc>, records: &[Qso], unit: LengthUnit) -> String {
+    let mut out = header(program_version, created, unit);
+    for qso in records {
+        out.push_str(&record(qso, unit));
+    }
+    out
+}
+
 pub fn record(qso: &Qso, unit: LengthUnit) -> String {
     let mut out = String::new();
     for (name, value) in qso.iter() {
