@@ -102,6 +102,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Issuing a token requires a Membership in every Logbook of its scopes. A token is revoked by its user or by an admin; an owner cannot revoke the tokens of the Logbook's members.
 - A token's `last_used_at` is written at most once a day, so that reads do not become writes.
 - A registration token is valid for 24 hours unless the CLI gives another period. Issuing one for a user invalidates that user's unused ones.
+- A registration link is `PUBLIC_ORIGIN/register#<token>`. The token is in the fragment, so it never reaches the server's request logs; the client sends it in the registration request.
 - Re-registration only adds a passkey. A lost passkey is removed with a separate deletion. A user cannot delete their own last passkey; an admin can delete another user's last one.
 - WebAuthn ceremony state is kept in memory, as in speech-to-qso. The store keeps the `Passkey` as JSON and does not depend on webauthn-rs.
 
@@ -119,13 +120,13 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - There are no Repository traits and no separate service layer. Each operation (creating a QSO, archiving a Station and so on) is one concrete function in `server/src/store/`, shared by the native API, the `/wl2` layer and the CLI. Smaller SQL helpers inside the store take a plain connection and are not the entry points. A trait or a service layer is added only when it removes a concrete duplication.
 - Every operation that writes runs in a write transaction opened with `BEGIN IMMEDIATE`, so the write lock is taken before the first read and a later write never fails with a busy error that `busy_timeout` cannot wait out. The transaction is a type only the store can create, and every public write function requires it; a caller cannot forget to open one or open a deferred one.
-- The unit of atomicity is one operation: numbering, checking and saving one QSO happen in one transaction. Bulk work such as an import calls the same operation in batches, a bounded number per transaction, so write transactions stay short. Making a rerun of an interrupted import idempotent is decided with the import.
+- The unit of atomicity is one operation: numbering, checking and saving one QSO happen in one transaction. Bulk work such as an import calls the same operation in batches, a bounded number per transaction, so write transactions stay short. A rerun of an interrupted import is idempotent through IDs derived from the records (see ADIF Import).
 - Authorization is a value. The store checks a principal (a signed-in user, or an API token with its user and Logbook scopes) against the user's state, the token's scopes and the Membership, and only then hands out a Logbook access that carries the Logbook, the user and the role. Logbook operations take the Logbook from that access rather than from a separate argument, so an access for one Logbook cannot be used on another.
 - Access values retain their principal and are revalidated at each store operation. Writes revalidate inside their write transaction, including the current user state, token scopes and required role; an old access cannot bypass removal, demotion or revocation. QSO creation uses the user's current callsign for the default `OPERATOR`.
 - Operations reserved for owners (Stations, Memberships) require an owner access, which can only be obtained from a Logbook access whose role is `owner`. Instance operations (users, Logbooks) require an admin access, which only a signed-in admin obtains; API tokens never do.
 - An admin outside a Logbook obtains a Logbook access only through a rescue, which records the actor, the action and the reason in `rescue_operations` in the same transaction as the operation.
 - A rescue access is valid only while its issuing write transaction is active and its uncommitted audit row is visible on the operation's connection. Commit or rollback invalidates it, and it cannot be used from another connection. Each rescue operation also revalidates the admin's current authority.
-- The authorization lives in the store, not in the web layer. The CLI acts as a named user and goes through the same checks, which also gives `created_by` and `updated_by` a user.
+- The authorization lives in the store, not in the web layer. The CLI acts as a named user and goes through the same checks, which also gives `created_by` and `updated_by` a user. The user is named by callsign with `--as` (or `CLI_CALLSIGN`); the CLI is not authenticated, since whoever runs it can already read the database file.
 - A Logbook or a row the principal cannot access is reported as not found, the same as one that does not exist.
 
 ### Wavelog API v2 Compatibility Layer
@@ -147,6 +148,36 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
 - An export records the target UUIDs and `revision`s as a batch, and after the external processing only the matching rows of that batch are updated.
+
+### ADIF Import
+
+- An import either adds new QSOs or merges QSL confirmations into existing ones. The CLI is told which by the source (`new`, `lotw`, `eqsl` or `card`); it is never guessed from the file.
+- Without `--apply` an import only previews: it reads, checks and matches every record and reports what applying would do, writing nothing. With `--apply` it writes, a bounded number of records per write transaction.
+- A new QSO's ID is derived from its record: a UUID v7 whose timestamp is the QSO time and whose remaining bits come from the SHA-256 of the Logbook ID, the record's fields as read (names upper-cased and sorted, values as they arrived) and the number of identical records before it in the file. A rerun of an interrupted or repeated import meets the rows it already created and the idempotent create returns them; a deleted row stays deleted. Editing some records and rerunning adds only those records.
+- The timestamp of such an ID is the QSO time rather than the time of entry. Nothing relies on it: insertion order is `seq`.
+- Records that cannot be read or checked are skipped and reported by their position; the others go ahead. A possible duplicate of an existing row is a warning, as on entry.
+- A QSL merge writes only the fields of its source, and only towards received:
+
+  | Source | Confirmation in the record | Fields written |
+  | --- | --- | --- |
+  | `lotw` | `LOTW_QSL_RCVD`, or else `QSL_RCVD` (as in `lotwreport.adi`), is `Y`; the date is `LOTW_QSLRDATE`, or else `QSLRDATE` | `LOTW_QSL_RCVD = Y`, `LOTW_QSLRDATE` |
+  | `eqsl` | `EQSL_QSL_RCVD`, or else `QSL_RCVD`, is `Y`; a record with neither is a confirmation (an eQSL inbox); the date is `EQSL_QSLRDATE`, or else `QSLRDATE` | `EQSL_QSL_RCVD = Y`, `EQSL_QSLRDATE` |
+  | `card` | `QSL_RCVD` is `Y` or `V`; the date is `QSLRDATE` | `QSL_RCVD` as given, `QSLRDATE`, and `QSL_RCVD_VIA` when the record has it |
+
+- A confirmation without a date is dated with the UTC day of the import. A QSO whose received field for the source is already `Y` or `V` is left alone, and nothing is set back to `N`.
+- Other fields a confirmation carries (`DXCC`, `CQZ`, `ITUZ`, `STATE`, `CNTY`, `GRIDSQUARE`, `IOTA` in LoTW's report) are never applied; the preview counts the QSOs where they differ.
+- A record matches the live QSOs of the Logbook, or of one Station when it is given, with the same call ignoring case, the same band (from `FREQ` when the record has no `BAND`), a mode where the `MODE` or `SUBMODE` of one equals the `MODE` or `SUBMODE` of the other ignoring case, `TIME_ON` within 15 minutes, and the same `STATION_CALLSIGN` when the record has one.
+- Exactly one match is merged. No match is reported as unmatched. Several matches are ambiguous and never merged unless all of them are already received; they are resolved by hand. Unmatched, ambiguous and invalid records can be written to a rejects file as ADIF. Two records matching the same QSO merge the first only.
+- Applying is a bulk QSL change at the revisions read while matching, so a row changed in between is skipped and reported. A rerun finds the merged rows already received and changes nothing.
+
+### Backup and Restore
+
+- `backup` writes a `VACUUM INTO` copy of the database while the server runs, to a timestamped file in the `backups` directory next to the database or to a given path. `--keep N` then removes all but the newest N backups in that directory. Scheduling and off-site copies are left to the host (cron, a systemd timer).
+- A backup is the database only. Reference data is fetched again with the CLI; the configuration and the environment belong to the deployment.
+- `serve` holds an exclusive lock on a `.lock` file next to the database. `restore` takes the same lock, so it refuses while the server runs and the server cannot start during a restore.
+- `restore` copies the backup next to the database and checks the copy: `PRAGMA integrity_check`, and every migration applied in it known to this binary with the same checksum. It then snapshots the current database to `snapshots`, swaps the copy in, applies pending migrations and, in one transaction, replaces the cursor generation of every Logbook and deletes every session and every unused registration link. The backup file itself is never modified.
+- Sessions and registration links are deleted because the backup may hold some that were revoked after it was taken; everyone signs in again. API tokens revoked after the backup come back too, so the restore lists the tokens it restored for an admin to review.
+- Restoring from the web UI, scheduled backups inside the server, continuous replication and restoring a single Logbook are not in the first version; a single Logbook travels as an ADIF export.
 
 ### Delivery and Sync
 
@@ -180,9 +211,6 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ## Open Questions
 
-- The fields QSL merge applies automatically, and the handling of ambiguous matches (at import implementation)
-- Making a rerun of an interrupted import idempotent, since ADIF records carry no UUID (at import implementation)
-- How much of the backup and restore procedure the first version includes
 - Where the ADIF writer lives
 - The crate structure
 
