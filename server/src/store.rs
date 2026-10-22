@@ -1,6 +1,7 @@
 pub mod access;
 pub mod logbook;
 pub mod membership;
+pub mod station;
 pub mod user;
 
 use std::ops::{Deref, DerefMut};

@@ -1,6 +1,9 @@
 use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
 
-use crate::store::{StoreError, WriteTx, access::AdminAccess, is_unique_violation, new_id, now};
+use crate::{
+    domain::callsign,
+    store::{StoreError, WriteTx, access::AdminAccess, is_unique_violation, new_id, now},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -44,15 +47,8 @@ impl User {
     }
 }
 
-pub fn normalize_callsign(callsign: &str) -> Result<String, StoreError> {
-    let callsign = callsign.trim().to_ascii_uppercase();
-    let valid = callsign.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'/')
-        && callsign.bytes().any(|b| b.is_ascii_digit())
-        && callsign.bytes().any(|b| b.is_ascii_alphabetic());
-    match valid {
-        true => Ok(callsign),
-        false => Err(StoreError::Invalid(format!("{callsign:?} is not a callsign"))),
-    }
+pub(crate) fn normalize_callsign(callsign: &str) -> Result<String, StoreError> {
+    callsign::normalize(callsign).ok_or_else(|| StoreError::Invalid(format!("{callsign:?} is not a callsign")))
 }
 
 pub async fn create_initial_admin(tx: &mut WriteTx, callsign: &str) -> Result<User, StoreError> {
@@ -105,27 +101,8 @@ async fn insert(tx: &mut WriteTx, callsign: &str, role: Role) -> Result<User, St
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
-
     use super::*;
     use crate::store::testing::World;
-
-    #[rstest]
-    #[case(" jl1his ", "JL1HIS")]
-    #[case("JL1HIS/1", "JL1HIS/1")]
-    fn normalizes_callsigns(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(normalize_callsign(input).unwrap(), expected);
-    }
-
-    #[rstest]
-    #[case("")]
-    #[case("JL1 HIS")]
-    #[case("JLHIS")]
-    #[case("1234")]
-    #[case("JL1-HIS")]
-    fn refuses_what_is_not_a_callsign(#[case] input: &str) {
-        assert!(matches!(normalize_callsign(input), Err(StoreError::Invalid(_))));
-    }
 
     #[tokio::test]
     async fn creates_the_initial_admin_only_once() {

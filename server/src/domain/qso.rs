@@ -182,7 +182,7 @@ impl Qso {
     }
 }
 
-fn field_name(name: &str) -> Result<String, QsoError> {
+pub fn field_name(name: &str) -> Result<String, QsoError> {
     let valid = !name.is_empty()
         && !name.starts_with(' ')
         && !name.ends_with(' ')
