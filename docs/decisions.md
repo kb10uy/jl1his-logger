@@ -100,7 +100,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - Lengths are codepoints by default; bytes can be chosen as an export option. qso-tools is given `--lenient codepoints`.
 - Reading uses adif-reader (github.com/kb10uy/adif-reader).
-- The writer is to be added on the adif-reader side. Its placement (the same crate or a neighboring one) is open.
+- The writer is to be added on the adif-reader side. Its placement (the same crate or a neighboring one) is open; until it is settled the writer lives in `server/src/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share.
 - No shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.

@@ -55,6 +55,7 @@ Logbooks.
   client-only app with offline entry.
 - `assets/` — example files, such as `config.example.toml`.
 - `docs/` — development documentation. `decisions.md` is the design record.
+- `fixtures/` — expected files shared by the server and client tests.
 
 ## Running
 

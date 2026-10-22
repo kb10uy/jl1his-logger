@@ -1,0 +1,23 @@
+Example import with lowercase names, type indicators and codepoint lengths
+<adif_ver:5>3.1.4
+<programid:7>Example
+<eoh>
+
+<call:6>JA1XYZ
+<band:3>40M
+<mode:2>CW
+<freq:5:N>7.041
+<qso_date:8:D>20261020
+<time_on:6:T>094127
+<rst_sent:3>599
+<rst_rcvd:3>599
+<name:2>太郎
+<qth:5>東京都港区
+<station_callsign:6>JL1HIS
+<my_pota_ref:15>JP-0001,JP-0002
+<qsl_sent:1>R
+<app_wavelog_id:4>1284
+<eor>
+
+<CALL:8>JA1ZZZ/P <BAND:4>70cm <MODE:2>FM <QSO_DATE:8>20261020 <TIME_ON:4>1002
+<CNTY:4>0101 <STATION_CALLSIGN:6>JL1HIS <MY_SIG:4>POTA <MY_SIG_INFO:7>JP-0001 <EOR>
