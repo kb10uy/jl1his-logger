@@ -63,6 +63,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Core fields (call, band, mode, date and time, station, QSL state and so on) are columns; the rest is a JSON string map.
 - A field that has a column is not duplicated in the JSON. Unknown standard fields and `APP_*` are not dropped.
 - Values are kept as their ADIF strings; normalized forms for search (the normalized callsign, time in seconds, frequency in Hz) go to derived columns.
+- Because values are kept as they arrived, ADIF enumerations (`BAND`, `MODE`, `QSL_SENT`, `QSL_RCVD` and so on) are compared ignoring ASCII case.
 - Composite foreign keys enforce that a QSO belongs to the same Logbook as its Station, and that an export batch contains only QSOs from its own Logbook.
 - The tables are described in [schema.md](schema.md).
 
