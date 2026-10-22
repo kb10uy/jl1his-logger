@@ -95,6 +95,37 @@ registration URL:
 jl1his-logger setup --callsign JL1HIS
 ```
 
+The other commands act as a named user, given with `--as` or `CLI_CALLSIGN`, and go
+through the same permission checks as the web app. `--logbook` and `--station` take
+an ID or a name, and may be left out when there is only one.
+
+```sh
+export CLI_CALLSIGN=JL1HIS
+jl1his-logger logbook add JL1HIS --owner JL1HIS
+jl1his-logger station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95 --wavelog-id 1
+jl1his-logger import wavelog.adi --source new --station Home      # preview
+jl1his-logger import wavelog.adi --source new --station Home --apply
+jl1his-logger import lotwreport.adi --source lotw --apply --rejects rejects.adi
+jl1his-logger export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
+jl1his-logger export write qsl-card --qsl-sent R,Q -o cards.adi
+jl1his-logger export apply <batch>                                # mark them sent
+jl1his-logger token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
+```
+
+An import previews unless given `--apply`. New QSOs get IDs derived from their
+records, so rerunning an interrupted import adds only what is missing. A QSL merge
+(`lotw`, `eqsl`, `card`) only marks matched QSOs as received and reports unmatched
+and ambiguous records instead of guessing.
+
+`backup` copies the database while the server runs; `restore` needs the server
+stopped, keeps the replaced database in `snapshots`, signs everyone out and makes
+every client sync again:
+
+```sh
+jl1his-logger backup --keep 14                  # into backups/ next to the database
+jl1his-logger restore backups/jl1his-logger-20261022T000000Z.db --yes
+```
+
 ## Development
 
 ```sh

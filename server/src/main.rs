@@ -8,8 +8,9 @@ use std::{
 
 use clap::{ArgAction, Parser, Subcommand};
 use jl1his_logger::{
+    cli,
     config::{Config, parse_public_origin},
-    db::{self, Db, Migrated},
+    db::{self, Db, Migrated, backup},
     web::{AppState, router},
 };
 use tracing_subscriber::EnvFilter;
@@ -34,6 +35,14 @@ struct Cli {
         help = "TOML configuration (see assets/config.example.toml); defaults apply without it"
     )]
     config: Option<PathBuf>,
+    #[arg(
+        long = "as",
+        env = "CLI_CALLSIGN",
+        global = true,
+        value_name = "CALLSIGN",
+        help = "Callsign of the user the CLI acts as"
+    )]
+    actor: Option<String>,
     #[command(subcommand)]
     command: Command,
 }
@@ -73,6 +82,8 @@ enum Command {
     },
     #[command(about = "Applies pending migrations after snapshotting the database")]
     Migrate,
+    #[command(flatten)]
+    Cli(cli::Command),
 }
 
 #[tokio::main]
@@ -106,10 +117,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             web_dir,
             auto_migrate,
         } => {
-            let config = match &cli.config {
-                Some(path) => Config::load(path)?,
-                None => Config::default(),
-            };
+            let config = load_config(cli.config.as_deref())?;
             match &web_dir {
                 Some(dir) if !dir.join("index.html").is_file() => {
                     return Err(format!("{} has no index.html; build the client first", dir.display()).into());
@@ -118,6 +126,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 None => tracing::warn!("WEB_DIR is not set; serving the API only"),
             }
 
+            let _lock = backup::lock(&cli.database)?;
             let db = db::open(&cli.database).await?;
             if auto_migrate {
                 let migrated = migrate(&db, &cli.database).await?;
@@ -162,13 +171,23 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 false => println!("Applied migrations {:?}", migrated.applied),
             }
         }
+        Command::Cli(command) => {
+            let config = load_config(cli.config.as_deref())?;
+            cli::run(&cli.database, &config, cli.actor.as_deref(), command).await?;
+        }
     }
     Ok(())
 }
 
+fn load_config(path: Option<&Path>) -> Result<Config, Box<dyn Error>> {
+    Ok(match path {
+        Some(path) => Config::load(path)?,
+        None => Config::default(),
+    })
+}
+
 async fn migrate(db: &Db, database: &Path) -> Result<Migrated, db::DbError> {
-    let dir = database.parent().unwrap_or(Path::new("")).join("snapshots");
-    db::migrate(db, &dir).await
+    db::migrate(db, &db::snapshot_dir(database)).await
 }
 
 async fn shutdown_signal() {
