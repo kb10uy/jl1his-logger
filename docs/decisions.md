@@ -45,7 +45,8 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Change History
 
 - There is no append-only change log.
-- A row carries `updated_seq`, `revision`, `updated_by`, `updated_at`, a deletion tombstone, and the cursor generation. Tombstones are never removed.
+- A row carries `updated_seq`, `revision`, `updated_by`, `updated_at` and a deletion tombstone. Tombstones are never removed.
+- The cursor generation is held once per Logbook, not on each row; every differential response and SSE event reports it next to `updated_seq`.
 - A differential fetch returns the current rows with `updated_seq > N`, deleted ones included (upsert / delete). Intermediate changes and the state at a past moment are not provided.
 - Conflicting updates are detected by `revision`.
 - Should history become necessary, it can be added later with SQLite triggers that stack the JSON of the row before each update. The shape of the API does not change.
@@ -62,6 +63,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Core fields (call, band, mode, date and time, station, QSL state and so on) are columns; the rest is a JSON string map.
 - A field that has a column is not duplicated in the JSON. Unknown standard fields and `APP_*` are not dropped.
 - Values are kept as their ADIF strings; normalized forms for search (the normalized callsign, time in seconds, frequency in Hz) go to derived columns.
+- The tables are described in [schema.md](schema.md).
 
 ### FREQ and Parks
 
@@ -110,7 +112,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
 - The initial sync takes the maximum `updated_seq` at start as H, fetches everything, then reads `after H`. Rows that arrive twice are upserts and therefore harmless.
 - Attach `keep_alive` to axum's `Sse`.
-- After restoring a backup, change the cursor generation to demand a full resync.
+- After restoring a backup, change the cursor generation of every Logbook to demand a full resync. A client whose stored generation differs discards its cursor and syncs from the start.
 
 ### Position of the Clients
 
