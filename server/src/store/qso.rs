@@ -1,6 +1,10 @@
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use sqlx::{AssertSqlSafe, Connection, Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{
+    AssertSqlSafe, Connection, Row, Sqlite, SqliteConnection,
+    query::Query,
+    sqlite::{SqliteArguments, SqliteRow},
+};
 
 use crate::{
     domain::{
@@ -153,6 +157,27 @@ pub struct Filter {
     pub call: Option<CallMatch>,
     pub qsl_sent: Option<Vec<String>>,
     pub contest_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confirmation {
+    Card,
+    Lotw,
+    Eqsl,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InsertionQuery {
+    pub filter: Filter,
+    pub station_ids: Option<Vec<String>>,
+    pub confirmed_by: Vec<Confirmation>,
+    pub after_seq: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InsertionPage {
+    pub rows: Vec<StoredQso>,
+    pub total: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -396,68 +421,21 @@ pub async fn search(
     if limit == 0 {
         return Err(StoreError::Invalid("a page needs at least one row".into()));
     }
-    enum Bind {
-        Text(String),
-        Int(i64),
-    }
-    let mut conditions = vec!["logbook_id = ?".to_owned(), "deleted_at IS NULL".to_owned()];
-    let mut binds = vec![Bind::Text(access.logbook_id().to_owned())];
-    let mut text = |condition: &str, value: String| {
-        conditions.push(condition.to_owned());
-        binds.push(Bind::Text(value));
-    };
-    if let Some(station_id) = &filter.station_id {
-        text("station_id = ?", station_id.clone());
-    }
-    if let Some(band) = &filter.band {
-        text("trim(band) = ? COLLATE NOCASE", band.trim().to_owned());
-    }
-    if let Some(mode) = &filter.mode {
-        text("trim(mode) = ? COLLATE NOCASE", mode.trim().to_owned());
-    }
-    match &filter.call {
-        Some(CallMatch::Exact(call)) => text("trim(call) = ? COLLATE NOCASE", call.trim().to_owned()),
-        Some(CallMatch::Base(call)) => text("call_base = ?", callsign::base(call)),
-        None => {}
-    }
-    if let Some(contest_id) = &filter.contest_id {
-        text("trim(contest_id) = ? COLLATE NOCASE", contest_id.trim().to_owned());
-    }
-    if let Some(values) = &filter.qsl_sent {
-        let placeholders = vec!["?"; values.len()].join(", ");
-        conditions.push(match values.is_empty() {
-            true => "0".to_owned(),
-            false => format!("upper(trim(coalesce(qsl_sent, ''))) IN ({placeholders})"),
-        });
-        binds.extend(values.iter().map(|v| Bind::Text(v.trim().to_ascii_uppercase())));
-    }
-    if let Some(from) = filter.time.from {
-        conditions.push("qso_time >= ?".to_owned());
-        binds.push(Bind::Int(from));
-    }
-    if let Some(until) = filter.time.until {
-        conditions.push("qso_time < ?".to_owned());
-        binds.push(Bind::Int(until));
-    }
+    let mut conditions = Conditions::of(access, filter);
     if let Some(after) = after {
-        conditions.push("(qso_time, id) < (?, ?)".to_owned());
-        binds.push(Bind::Int(after.qso_time));
-        binds.push(Bind::Text(after.id.clone()));
+        conditions.push(
+            "(qso_time, id) < (?, ?)",
+            [Bind::Int(after.qso_time), Bind::Text(after.id.clone())],
+        );
     }
 
     let sql = format!(
         "{} WHERE {} ORDER BY qso_time DESC, id DESC LIMIT ?",
         *SELECT,
-        conditions.join(" AND ")
+        conditions.sql()
     );
-    let mut query = sqlx::query(AssertSqlSafe(sql));
-    for bind in binds {
-        query = match bind {
-            Bind::Text(value) => query.bind(value),
-            Bind::Int(value) => query.bind(value),
-        };
-    }
-    let mut rows = query
+    let mut rows = conditions
+        .bind(sqlx::query(AssertSqlSafe(sql)))
         .bind(i64::from(limit) + 1)
         .fetch_all(conn)
         .await?
@@ -476,6 +454,151 @@ pub async fn search(
         false => None,
     };
     Ok(Page { rows, next })
+}
+
+pub async fn by_insertion(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    query: &InsertionQuery,
+    offset: u64,
+    limit: u32,
+) -> Result<InsertionPage, StoreError> {
+    access.revalidate(conn).await?;
+    if limit == 0 {
+        return Err(StoreError::Invalid("a page needs at least one row".into()));
+    }
+    let mut conditions = Conditions::of(access, &query.filter);
+    conditions.push("seq > ?", [Bind::Int(query.after_seq)]);
+    if let Some(station_ids) = &query.station_ids {
+        conditions.any_of("station_id", station_ids.iter().cloned());
+    }
+    if !query.confirmed_by.is_empty() {
+        let any: Vec<&str> = query
+            .confirmed_by
+            .iter()
+            .map(|confirmation| match confirmation {
+                Confirmation::Card => "upper(trim(coalesce(qsl_rcvd, ''))) IN ('Y', 'V')",
+                Confirmation::Lotw => "upper(trim(coalesce(lotw_qsl_rcvd, ''))) IN ('Y', 'V')",
+                Confirmation::Eqsl => "upper(trim(coalesce(eqsl_qsl_rcvd, ''))) IN ('Y', 'V')",
+            })
+            .collect();
+        conditions.push(format!("({})", any.join(" OR ")), []);
+    }
+    let offset = i64::try_from(offset).map_err(|_| StoreError::Invalid("the page is out of range".into()))?;
+
+    let mut tx = conn.begin().await?;
+    let count_sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
+    let total: i64 = conditions
+        .bind(sqlx::query(AssertSqlSafe(count_sql)))
+        .fetch_one(&mut *tx)
+        .await?
+        .try_get(0)?;
+    let sql = format!("{} WHERE {} ORDER BY seq LIMIT ? OFFSET ?", *SELECT, conditions.sql());
+    let rows = conditions
+        .bind(sqlx::query(AssertSqlSafe(sql)))
+        .bind(i64::from(limit))
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await?
+        .iter()
+        .map(StoredQso::from_row)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(InsertionPage {
+        rows,
+        total: total.try_into().unwrap_or_default(),
+    })
+}
+
+pub async fn contest_ids(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<String>, StoreError> {
+    access.revalidate(conn).await?;
+    Ok(sqlx::query_scalar(
+        "SELECT min(trim(contest_id)) FROM qsos \
+         WHERE logbook_id = ? AND deleted_at IS NULL AND trim(coalesce(contest_id, '')) <> '' \
+         GROUP BY upper(trim(contest_id)) ORDER BY upper(trim(contest_id))",
+    )
+    .bind(access.logbook_id())
+    .fetch_all(conn)
+    .await?)
+}
+
+enum Bind {
+    Text(String),
+    Int(i64),
+}
+
+struct Conditions {
+    clauses: Vec<String>,
+    binds: Vec<Bind>,
+}
+
+impl Conditions {
+    fn of(access: &LogbookAccess, filter: &Filter) -> Conditions {
+        let mut conditions = Conditions {
+            clauses: vec![],
+            binds: vec![],
+        };
+        conditions.push("logbook_id = ?", [Bind::Text(access.logbook_id().to_owned())]);
+        conditions.push("deleted_at IS NULL", []);
+        let text = |value: &str| [Bind::Text(value.trim().to_owned())];
+        if let Some(station_id) = &filter.station_id {
+            conditions.push("station_id = ?", [Bind::Text(station_id.clone())]);
+        }
+        if let Some(band) = &filter.band {
+            conditions.push("trim(band) = ? COLLATE NOCASE", text(band));
+        }
+        if let Some(mode) = &filter.mode {
+            conditions.push("trim(mode) = ? COLLATE NOCASE", text(mode));
+        }
+        match &filter.call {
+            Some(CallMatch::Exact(call)) => conditions.push("trim(call) = ? COLLATE NOCASE", text(call)),
+            Some(CallMatch::Base(call)) => conditions.push("call_base = ?", [Bind::Text(callsign::base(call))]),
+            None => {}
+        }
+        if let Some(contest_id) = &filter.contest_id {
+            conditions.push("trim(contest_id) = ? COLLATE NOCASE", text(contest_id));
+        }
+        if let Some(values) = &filter.qsl_sent {
+            conditions.any_of(
+                "upper(trim(coalesce(qsl_sent, '')))",
+                values.iter().map(|v| v.trim().to_ascii_uppercase()),
+            );
+        }
+        if let Some(from) = filter.time.from {
+            conditions.push("qso_time >= ?", [Bind::Int(from)]);
+        }
+        if let Some(until) = filter.time.until {
+            conditions.push("qso_time < ?", [Bind::Int(until)]);
+        }
+        conditions
+    }
+
+    fn push(&mut self, clause: impl Into<String>, binds: impl IntoIterator<Item = Bind>) {
+        self.clauses.push(clause.into());
+        self.binds.extend(binds);
+    }
+
+    fn any_of(&mut self, expression: &str, values: impl IntoIterator<Item = String>) {
+        let values: Vec<Bind> = values.into_iter().map(Bind::Text).collect();
+        let clause = match values.len() {
+            0 => "0".to_owned(),
+            n => format!("{expression} IN ({})", vec!["?"; n].join(", ")),
+        };
+        self.push(clause, values);
+    }
+
+    fn sql(&self) -> String {
+        self.clauses.join(" AND ")
+    }
+
+    fn bind<'q>(&self, mut query: Query<'q, Sqlite, SqliteArguments>) -> Query<'q, Sqlite, SqliteArguments> {
+        for bind in &self.binds {
+            query = match bind {
+                Bind::Text(value) => query.bind(value.clone()),
+                Bind::Int(value) => query.bind(*value),
+            };
+        }
+        query
+    }
 }
 
 pub async fn possible_duplicates(

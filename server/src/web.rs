@@ -10,6 +10,7 @@ mod station;
 #[cfg(test)]
 mod testing;
 mod token;
+mod wl2;
 
 use std::{path::Path, sync::Arc};
 
@@ -131,6 +132,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         )
         .route("/api", any(api_not_found))
         .route("/api/{*rest}", any(api_not_found))
+        .merge(wl2::router())
         .layer(middleware::from_fn_with_state(state.clone(), announce_writes))
         .layer(middleware::from_fn_with_state(state.clone(), same_origin_only))
         .with_state(state);

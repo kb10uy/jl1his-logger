@@ -12,7 +12,8 @@ as `current` on a revision conflict.
 
 It covers sign-in, reference versions, API tokens, Logbooks, Members,
 Stations, QSOs with their event stream, bulk QSL changes, export batches and
-ADIF import.
+ADIF import. The Wavelog API v2 compatibility layer under `/wl2` is described
+in [wl2.md](wl2.md).
 
 ## Sign-in
 
