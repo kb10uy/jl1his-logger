@@ -61,7 +61,8 @@ pub async fn create_initial_admin(tx: &mut WriteTx, callsign: &str) -> Result<Us
     insert(tx, callsign, Role::Admin).await
 }
 
-pub async fn create(tx: &mut WriteTx, _admin: &AdminAccess, callsign: &str, role: Role) -> Result<User, StoreError> {
+pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, callsign: &str, role: Role) -> Result<User, StoreError> {
+    admin.revalidate(tx).await?;
     insert(tx, callsign, role).await
 }
 

@@ -23,6 +23,8 @@ pub enum QsoError {
     FieldName(String),
     #[error("{0} is given more than once")]
     Repeated(String),
+    #[error("{0} belongs in the QSO columns, not the extra fields")]
+    ColumnField(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,6 +114,15 @@ impl Qso {
     }
 
     pub fn check(&self) -> Result<Checked, QsoError> {
+        for name in self.fields.keys() {
+            let normalized = field_name(name)?;
+            if Columns::NAMES.contains(&normalized.as_str()) {
+                return Err(QsoError::ColumnField(normalized));
+            }
+            if *name != normalized {
+                return Err(QsoError::FieldName(name.clone()));
+            }
+        }
         let required = |name: &'static str| self.get(name).ok_or(QsoError::Missing(name));
         let call = required("CALL")?;
         required("QSO_DATE")?;
@@ -317,6 +328,26 @@ pub(crate) mod tests {
             Qso::from_fields([("app_x", "1"), ("APP_X", "2")]),
             Err(QsoError::Repeated("APP_X".into()))
         );
+    }
+
+    #[rstest]
+    #[case("CALL")]
+    #[case("call")]
+    #[case("QSL_SENT")]
+    fn refuses_core_fields_in_the_extra_map(#[case] name: &str) {
+        let mut qso = sample();
+        qso.fields.insert(name.into(), "x".into());
+        assert_eq!(qso.check(), Err(QsoError::ColumnField(name.to_ascii_uppercase())));
+    }
+
+    #[rstest]
+    #[case("APP:NOTE")]
+    #[case("app_note")]
+    #[case("EOH")]
+    fn refuses_invalid_extra_field_keys(#[case] name: &str) {
+        let mut qso = sample();
+        qso.fields.insert(name.into(), "x".into());
+        assert_eq!(qso.check(), Err(QsoError::FieldName(name.into())));
     }
 
     #[test]

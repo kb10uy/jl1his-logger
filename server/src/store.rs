@@ -5,7 +5,10 @@ pub mod qso;
 pub mod station;
 pub mod user;
 
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use chrono::{SecondsFormat, Utc};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
@@ -29,15 +32,23 @@ pub enum StoreError {
     Database(#[from] sqlx::Error),
 }
 
-pub struct WriteTx(Transaction<'static, Sqlite>);
+pub struct WriteTx {
+    transaction: Transaction<'static, Sqlite>,
+    scope: Arc<()>,
+}
 
 impl WriteTx {
     pub async fn begin(db: &Db) -> Result<WriteTx, StoreError> {
-        Ok(WriteTx(db.begin_with("BEGIN IMMEDIATE").await?))
+        Ok(WriteTx {
+            transaction: db.begin_with("BEGIN IMMEDIATE").await?,
+            scope: Arc::new(()),
+        })
     }
 
     pub async fn commit(self) -> Result<(), StoreError> {
-        Ok(self.0.commit().await?)
+        let WriteTx { transaction, scope } = self;
+        drop(scope);
+        Ok(transaction.commit().await?)
     }
 }
 
@@ -45,13 +56,13 @@ impl Deref for WriteTx {
     type Target = SqliteConnection;
 
     fn deref(&self) -> &SqliteConnection {
-        &self.0
+        &self.transaction
     }
 }
 
 impl DerefMut for WriteTx {
     fn deref_mut(&mut self) -> &mut SqliteConnection {
-        &mut self.0
+        &mut self.transaction
     }
 }
 

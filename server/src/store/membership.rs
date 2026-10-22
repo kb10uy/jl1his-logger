@@ -10,6 +10,7 @@ pub async fn set(
     user_id: &str,
     role: LogbookRole,
 ) -> Result<(), StoreError> {
+    owner.revalidate(tx).await?;
     let user_exists: bool =
         sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND disabled_at IS NULL)")
             .bind(user_id)
@@ -35,6 +36,7 @@ pub async fn set(
 }
 
 pub async fn remove(tx: &mut WriteTx, owner: &OwnerAccess<'_>, user_id: &str) -> Result<(), StoreError> {
+    owner.revalidate(tx).await?;
     keep_another_owner(tx, owner, user_id).await?;
     let removed = sqlx::query("DELETE FROM memberships WHERE logbook_id = ? AND user_id = ?")
         .bind(owner.logbook_id())

@@ -87,6 +87,7 @@ fn wavelog_id_taken(e: sqlx::Error, wavelog_id: Option<i64>) -> StoreError {
 }
 
 pub async fn create(tx: &mut WriteTx, owner: &OwnerAccess<'_>, input: &StationInput) -> Result<Station, StoreError> {
+    owner.revalidate(tx).await?;
     let normalized = normalize(input)?;
     let id = new_id();
     let now = now();
@@ -114,6 +115,7 @@ pub async fn update(
     id: &str,
     input: &StationInput,
 ) -> Result<Station, StoreError> {
+    owner.revalidate(tx).await?;
     let normalized = normalize(input)?;
     let updated = sqlx::query(
         "UPDATE stations SET wavelog_id = ?, name = ?, callsign = ?, fields = ?, updated_at = ? \
@@ -141,6 +143,7 @@ pub async fn set_archived(
     id: &str,
     archived: bool,
 ) -> Result<Station, StoreError> {
+    owner.revalidate(tx).await?;
     let now = now();
     let updated = sqlx::query(
         "UPDATE stations SET archived_at = CASE WHEN ? THEN coalesce(archived_at, ?) END, updated_at = ? \
@@ -160,6 +163,7 @@ pub async fn set_archived(
 }
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<Station, StoreError> {
+    access.revalidate(conn).await?;
     let row = sqlx::query(
         "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \n         FROM stations WHERE logbook_id = ? AND id = ?",
     )
@@ -172,6 +176,7 @@ pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) 
 }
 
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Station>, StoreError> {
+    access.revalidate(conn).await?;
     sqlx::query(
         "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \n         FROM stations WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id",
     )

@@ -144,6 +144,7 @@ pub async fn create(
     id: &QsoId,
     input: QsoInput,
 ) -> Result<Created, StoreError> {
+    let access = &access.revalidate(tx).await?;
     let id = id.to_string();
     let owner: Option<String> = sqlx::query_scalar("SELECT logbook_id FROM qsos WHERE id = ?")
         .bind(&id)
@@ -199,6 +200,7 @@ pub async fn update(
     base_revision: i64,
     input: QsoInput,
 ) -> Result<(StoredQso, Vec<Warning>), StoreError> {
+    access.revalidate(tx).await?;
     let id = id.to_string();
     let current = fetch(tx, access, &id).await?;
     if current.deleted_at.is_some() {
@@ -246,6 +248,7 @@ pub async fn delete(
     id: &QsoId,
     base_revision: i64,
 ) -> Result<StoredQso, StoreError> {
+    access.revalidate(tx).await?;
     let id = id.to_string();
     let current = fetch(tx, access, &id).await?;
     if current.deleted_at.is_some() {
@@ -275,6 +278,7 @@ pub async fn delete(
 }
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &QsoId) -> Result<StoredQso, StoreError> {
+    access.revalidate(conn).await?;
     fetch(conn, access, &id.to_string()).await
 }
 
@@ -314,6 +318,7 @@ pub async fn possible_duplicates(
     qso: &Qso,
     except: Option<&str>,
 ) -> Result<Vec<String>, StoreError> {
+    access.revalidate(conn).await?;
     let key = DuplicateKey::of(qso)?;
     let rows: Vec<(String, String, String, String, i64)> = sqlx::query_as(
         "SELECT id, call, band, mode, qso_time FROM qsos \
@@ -373,6 +378,8 @@ fn fields_json(qso: &Qso) -> String {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::{
         domain::qso::QsoError,
@@ -642,5 +649,111 @@ mod tests {
         assert_eq!(rest.rows[0].id, ids[0].to_string());
         assert!(rest.rows[0].deleted_at.is_some());
         assert_eq!(rest.cursor_generation, world.logbook.cursor_generation);
+    }
+
+    #[rstest]
+    #[case("CALL")]
+    #[case("call")]
+    #[case("QSL_SENT")]
+    #[case("APP:NOTE")]
+    #[case("app_note")]
+    #[tokio::test]
+    async fn rejects_invalid_field_layout_before_writing(#[case] name: &str) {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (id, created) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+        let (original, _) = new(created);
+        let mut invalid = QsoInput {
+            station_id: station.id.clone(),
+            qso: original.qso.clone(),
+        };
+        invalid.qso.fields.insert(name.into(), "x".into());
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(matches!(
+            create(&mut tx, &access, &QsoId::generate(), invalid.clone()).await,
+            Err(StoreError::Qso(_))
+        ));
+        assert!(matches!(
+            update(&mut tx, &access, &id, original.revision, invalid).await,
+            Err(StoreError::Qso(_))
+        ));
+        tx.commit().await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        assert_eq!(get(&mut conn, &access, &id).await.unwrap(), original);
+        let book = logbook::get(&mut conn, &access).await.unwrap();
+        assert_eq!((book.last_seq, book.last_updated_seq), (1, 1));
+        let page = changes(&mut conn, &access, 0, 10).await.unwrap();
+        assert_eq!(page.rows, [original]);
+        drop(conn);
+
+        let (_, created) = create_one(&world, &access, entry(&station, "JA1NEW", "050000")).await;
+        let (stored, _) = new(created);
+        assert_eq!((stored.seq, stored.updated_seq), (2, 2));
+    }
+
+    #[rstest]
+    #[case::removed(false)]
+    #[case::disabled(true)]
+    #[tokio::test]
+    async fn rejects_stale_access_for_qso_operations(#[case] disable: bool) {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (id, created) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+        let (stored, _) = new(created);
+        let input = QsoInput {
+            station_id: station.id,
+            qso: stored.qso.clone(),
+        };
+
+        let owner = world.access(&world.owner).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        if disable {
+            sqlx::query("UPDATE users SET disabled_at = ? WHERE id = ?")
+                .bind(now())
+                .bind(&world.operator.id)
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+        } else {
+            crate::store::membership::remove(&mut tx, &owner.owner().unwrap(), &world.operator.id)
+                .await
+                .unwrap();
+        }
+        tx.commit().await.unwrap();
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(matches!(get(&mut tx, &access, &id).await, Err(StoreError::NotFound(_))));
+        assert!(matches!(
+            changes(&mut tx, &access, 0, 10).await,
+            Err(StoreError::NotFound(_))
+        ));
+        assert!(matches!(
+            possible_duplicates(&mut tx, &access, &input.qso, None).await,
+            Err(StoreError::NotFound(_))
+        ));
+        for create_id in [id, QsoId::generate()] {
+            assert!(matches!(
+                create(&mut tx, &access, &create_id, input.clone()).await,
+                Err(StoreError::NotFound(_))
+            ));
+        }
+        assert!(matches!(
+            update(&mut tx, &access, &id, 1, input).await,
+            Err(StoreError::NotFound(_))
+        ));
+        assert!(matches!(
+            delete(&mut tx, &access, &id, 1).await,
+            Err(StoreError::NotFound(_))
+        ));
+        tx.commit().await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        assert_eq!(get(&mut conn, &owner, &id).await.unwrap(), stored);
+        let book = logbook::get(&mut conn, &owner).await.unwrap();
+        assert_eq!((book.last_seq, book.last_updated_seq), (1, 1));
     }
 }

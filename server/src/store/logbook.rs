@@ -27,7 +27,8 @@ impl Logbook {
     }
 }
 
-pub async fn create(tx: &mut WriteTx, _admin: &AdminAccess, name: &str, owner_id: &str) -> Result<Logbook, StoreError> {
+pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, name: &str, owner_id: &str) -> Result<Logbook, StoreError> {
+    admin.revalidate(tx).await?;
     let name = name.trim();
     if name.is_empty() {
         return Err(StoreError::Invalid("a Logbook needs a name".into()));
@@ -68,6 +69,7 @@ pub async fn create(tx: &mut WriteTx, _admin: &AdminAccess, name: &str, owner_id
 }
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Logbook, StoreError> {
+    access.revalidate(conn).await?;
     let row = sqlx::query("SELECT id, name, last_seq, last_updated_seq, cursor_generation FROM logbooks WHERE id = ?")
         .bind(access.logbook_id())
         .fetch_optional(conn)

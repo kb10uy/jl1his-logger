@@ -158,7 +158,11 @@ no other writer runs between the reads and the writes (`server/src/store/qso.rs`
    a row of another Logbook is a conflict.
 2. The Station is read from the same Logbook, its values are baked in where
    the QSO has none, `OPERATOR` defaults to the user's callsign, and the record
-   is checked. Possible duplicates become warnings.
+   is checked. Extra-field keys must be valid uppercase ADIF names and must
+   not name a core column, even if that column is empty. Creates and updates
+   reject invalid field placement before numbering or saving, so a caller
+   can handle the validation error and commit other work safely. Possible
+   duplicates become warnings.
 3. `UPDATE logbooks SET last_seq = last_seq + 1, last_updated_seq = last_updated_seq + 1 WHERE id = ? RETURNING last_seq, last_updated_seq`
    for a create; an update or delete increments `last_updated_seq` only.
 4. `INSERT` for a create. An update first compares the revision it was based

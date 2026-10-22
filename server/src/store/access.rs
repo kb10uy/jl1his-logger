@@ -1,4 +1,7 @@
-use std::ops::Deref;
+use std::{
+    ops::Deref,
+    sync::{Arc, Weak},
+};
 
 use sqlx::{Row, SqliteConnection};
 
@@ -47,12 +50,19 @@ impl LogbookRole {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+enum Authorization {
+    Member(Principal),
+    Rescue { id: String, scope: Weak<()> },
+}
+
+#[derive(Debug, Clone)]
 pub struct LogbookAccess {
     logbook_id: String,
     user_id: String,
     callsign: String,
     role: LogbookRole,
+    authorization: Authorization,
 }
 
 impl LogbookAccess {
@@ -78,10 +88,41 @@ impl LogbookAccess {
             LogbookRole::Operator => Err(StoreError::Forbidden("only an owner of the Logbook can do this")),
         }
     }
+
+    pub(super) async fn revalidate(&self, conn: &mut SqliteConnection) -> Result<LogbookAccess, StoreError> {
+        match &self.authorization {
+            Authorization::Member(principal) => logbook(conn, principal, &self.logbook_id).await,
+            Authorization::Rescue { id, scope } => {
+                let recorded: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (SELECT 1 FROM rescue_operations WHERE id = ? AND logbook_id = ? AND actor_id = ?)",
+                )
+                .bind(id)
+                .bind(&self.logbook_id)
+                .bind(&self.user_id)
+                .fetch_one(&mut *conn)
+                .await?;
+                if !recorded || scope.strong_count() == 0 {
+                    return Err(StoreError::NotFound("Logbook"));
+                }
+                let admin = admin(conn, &Principal::user(&self.user_id)).await?;
+                Ok(LogbookAccess {
+                    callsign: admin.callsign,
+                    ..self.clone()
+                })
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct OwnerAccess<'a>(&'a LogbookAccess);
+
+impl OwnerAccess<'_> {
+    pub(super) async fn revalidate(&self, conn: &mut SqliteConnection) -> Result<(), StoreError> {
+        self.0.revalidate(conn).await?.owner()?;
+        Ok(())
+    }
+}
 
 impl Deref for OwnerAccess<'_> {
     type Target = LogbookAccess;
@@ -100,6 +141,10 @@ pub struct AdminAccess {
 impl AdminAccess {
     pub fn user_id(&self) -> &str {
         &self.user_id
+    }
+
+    pub(super) async fn revalidate(&self, conn: &mut SqliteConnection) -> Result<AdminAccess, StoreError> {
+        admin(conn, &Principal::user(&self.user_id)).await
     }
 }
 
@@ -138,6 +183,7 @@ pub async fn logbook(
         user_id: principal.user_id().to_owned(),
         callsign: row.try_get("callsign")?,
         role: LogbookRole::parse(row.try_get("role")?)?,
+        authorization: Authorization::Member(principal.clone()),
     })
 }
 
@@ -166,6 +212,7 @@ pub async fn rescue(
     action: &str,
     reason: &str,
 ) -> Result<LogbookAccess, StoreError> {
+    let admin = admin.revalidate(tx).await?;
     let reason = reason.trim();
     if reason.is_empty() {
         return Err(StoreError::Invalid("a rescue needs a reason".into()));
@@ -177,10 +224,11 @@ pub async fn rescue(
     if !exists {
         return Err(StoreError::NotFound("Logbook"));
     }
+    let id = new_id();
     sqlx::query(
         "INSERT INTO rescue_operations (id, logbook_id, actor_id, action, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)",
     )
-    .bind(new_id())
+    .bind(&id)
     .bind(logbook_id)
     .bind(&admin.user_id)
     .bind(action)
@@ -193,13 +241,23 @@ pub async fn rescue(
         user_id: admin.user_id.clone(),
         callsign: admin.callsign.clone(),
         role: LogbookRole::Owner,
+        authorization: Authorization::Rescue {
+            id,
+            scope: Arc::downgrade(&tx.scope),
+        },
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
-    use crate::store::testing::World;
+    use crate::store::{
+        logbook, membership, station,
+        testing::World,
+        user::{self, Role},
+    };
 
     async fn add_token(world: &World, user_id: &str, scopes: &[&str]) -> Principal {
         let token_id = new_id();
@@ -337,5 +395,166 @@ mod tests {
                 "owner lost their passkey".into()
             )
         );
+    }
+
+    #[rstest]
+    #[case::rollback(false)]
+    #[case::commit(true)]
+    #[tokio::test]
+    async fn limits_rescue_access_to_its_transaction(#[case] commit: bool) {
+        let world = World::new().await;
+        let admin = world.admin_access().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let access = rescue(
+            &mut tx,
+            &admin,
+            &world.logbook.id,
+            "create station",
+            "owner lost access",
+        )
+        .await
+        .unwrap();
+        let input = station::tests::input("Rescue");
+        let station = station::create(&mut tx, &access.owner().unwrap(), &input)
+            .await
+            .unwrap();
+        assert_eq!(station::get(&mut tx, &access, &station.id).await.unwrap(), station);
+
+        let mut other = world.db.acquire().await.unwrap();
+        assert!(matches!(
+            logbook::get(&mut other, &access).await,
+            Err(StoreError::NotFound("Logbook"))
+        ));
+        drop(other);
+        if commit {
+            tx.commit().await.unwrap();
+        } else {
+            drop(tx);
+        }
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(matches!(
+            station::create(&mut tx, &access.owner().unwrap(), &input).await,
+            Err(StoreError::NotFound("Logbook"))
+        ));
+        assert!(matches!(
+            logbook::get(&mut tx, &access).await,
+            Err(StoreError::NotFound("Logbook"))
+        ));
+        let audits: i64 = sqlx::query_scalar("SELECT count(*) FROM rescue_operations")
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        let stations: i64 = sqlx::query_scalar("SELECT count(*) FROM stations")
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        assert_eq!((audits, stations), (i64::from(commit), i64::from(commit)));
+        tx.commit().await.unwrap();
+    }
+
+    #[rstest]
+    #[case::removed(true)]
+    #[case::demoted(false)]
+    #[tokio::test]
+    async fn rechecks_owner_permissions(#[case] remove: bool) {
+        let world = World::new().await;
+        let access = world.access(&world.owner).await;
+        let owner = access.owner().unwrap();
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        membership::set(&mut tx, &owner, &world.operator.id, LogbookRole::Owner)
+            .await
+            .unwrap();
+        if remove {
+            membership::remove(&mut tx, &owner, &world.owner.id).await.unwrap();
+        } else {
+            membership::set(&mut tx, &owner, &world.owner.id, LogbookRole::Operator)
+                .await
+                .unwrap();
+        }
+        let denied = station::create(&mut tx, &owner, &station::tests::input("Denied")).await;
+        assert!(matches!(
+            denied,
+            Err(StoreError::NotFound(_) | StoreError::Forbidden(_))
+        ));
+        assert!(
+            membership::set(&mut tx, &owner, &world.outsider.id, LogbookRole::Owner)
+                .await
+                .is_err()
+        );
+        assert!(membership::remove(&mut tx, &owner, &world.operator.id).await.is_err());
+        tx.commit().await.unwrap();
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(
+            station::create(&mut tx, &owner, &station::tests::input("Denied"))
+                .await
+                .is_err()
+        );
+        let stations: i64 = sqlx::query_scalar("SELECT count(*) FROM stations")
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        assert_eq!(stations, 0);
+    }
+
+    #[rstest]
+    #[case::revoked("DELETE FROM api_tokens WHERE id = ?")]
+    #[case::unscoped("DELETE FROM api_token_scopes WHERE token_id = ?")]
+    #[tokio::test]
+    async fn rechecks_token_access(#[case] revoke: &'static str) {
+        let world = World::new().await;
+        let principal = add_token(&world, &world.owner.id, &[&world.logbook.id]).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let access = logbook(&mut tx, &principal, &world.logbook.id).await.unwrap();
+        let Principal::Token { token_id, .. } = principal else {
+            unreachable!()
+        };
+        sqlx::query(sqlx::AssertSqlSafe(revoke))
+            .bind(token_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(matches!(
+            station::list(&mut tx, &access).await,
+            Err(StoreError::NotFound("Logbook"))
+        ));
+        assert!(matches!(
+            station::create(&mut tx, &access.owner().unwrap(), &station::tests::input("Denied")).await,
+            Err(StoreError::NotFound("Logbook"))
+        ));
+    }
+
+    #[rstest]
+    #[case::disabled("UPDATE users SET disabled_at = '2026-10-22T00:00:00Z' WHERE id = ?")]
+    #[case::demoted("UPDATE users SET role = 'user' WHERE id = ?")]
+    #[tokio::test]
+    async fn rechecks_admin_access(#[case] revoke: &'static str) {
+        let world = World::new().await;
+        let admin = world.admin_access().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(revoke))
+            .bind(&world.admin.id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(matches!(
+            user::create(&mut tx, &admin, "JA1NEW", Role::User).await,
+            Err(StoreError::Forbidden(_))
+        ));
+        assert!(matches!(
+            logbook::create(&mut tx, &admin, "Denied", &world.owner.id).await,
+            Err(StoreError::Forbidden(_))
+        ));
+        assert!(matches!(
+            rescue(&mut tx, &admin, &world.logbook.id, "export", "support").await,
+            Err(StoreError::Forbidden(_))
+        ));
     }
 }
