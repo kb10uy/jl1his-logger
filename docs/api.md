@@ -5,8 +5,10 @@ An error is `{"status": "error", "error": "<message>"}` with the HTTP status:
 `400` for an invalid request or an expired passkey request, `401` when not signed
 in or a passkey or registration link is refused, `403` for a cross-origin write or
 a missing right, `404` for anything not found or not visible, `409` for a
-conflict, `429` when too many passkey requests are in flight. Some errors add
-fields next to `error`, such as `current` on a revision conflict.
+conflict, `412` when `If-Match` names another revision, `415` / `422` for a body
+that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
+many passkey requests are in flight. Some errors add fields next to `error`, such
+as `current` on a revision conflict.
 
 Sign-in, Logbooks and QSOs exist so far; Stations, Memberships, tokens, bulk QSL
 changes, export batches, ADIF and the SSE stream follow.
@@ -66,8 +68,10 @@ A QSO is:
   "updated_seq": 1,
   "revision": 1,
   "created_by": "<user ID>",
+  "created_by_callsign": "JA1OPR",
   "created_at": "2026-10-22T04:05:06Z",
   "updated_by": "<user ID>",
+  "updated_by_callsign": "JA1OPR",
   "updated_at": "2026-10-22T04:05:06Z",
   "deleted_at": null,
   "fields": { "CALL": "JA1XYZ", "QSO_DATE": "20261022", "TIME_ON": "040506", "...": "..." }
@@ -78,7 +82,8 @@ A QSO is:
 which of them are columns is not visible. Names in a request are read ignoring
 case and stored upper-cased; an empty value is the same as an absent field.
 `CALL`, `QSO_DATE`, `TIME_ON`, `BAND` and `MODE` are required. A deleted QSO
-keeps its fields and has `deleted_at` set.
+keeps its fields and has `deleted_at` set. `created_by_callsign` and
+`updated_by_callsign` are those users' current callsigns.
 
 Paths below are relative to `/api/logbooks/{logbook_id}`.
 
@@ -86,22 +91,26 @@ Paths below are relative to `/api/logbooks/{logbook_id}`.
 | --- | --- | --- |
 | `POST /qsos` | `{id, station_id, fields}` | `201 {qso, warnings}`; `200 {qso, warnings: []}` with the existing row when the ID is known |
 | `GET /qsos/{id}` | | The QSO, deleted or not |
-| `PUT /qsos/{id}` | `{revision, station_id, fields}` | `{qso, warnings}` |
-| `DELETE /qsos/{id}?revision=N` | | The deleted QSO; deleting a deleted QSO returns it unchanged |
+| `PUT /qsos/{id}` with `If-Match` | `{station_id, fields}` | `{qso, warnings}` |
+| `DELETE /qsos/{id}` with `If-Match` | | The deleted QSO; deleting a deleted QSO returns it unchanged |
 | `GET /qsos?...` | | `{qsos, next}`, see Search |
 | `GET /changes?after=N&limit=L` | | `{cursor_generation, last_updated_seq, qsos, has_more}` |
-| `GET /duplicates?call=&band=&mode=&qso_date=&time_on=&except=` | | `{ids}` |
+| `GET /duplicates?call=&band=&mode=&qso_date=&time_on=&except=` | | `{qsos}` |
 
 `id` is a UUID v7 the client generates; anything else is `400`. Creating
 fills `STATION_CALLSIGN` and the Station's `MY_*` defaults, then `OPERATOR` from
 the caller's callsign, for fields the request leaves out. An `id` that belongs
 to another Logbook is `409`.
 
+Every response carrying one QSO has an `ETag` of its revision in quotes, such
+as `"3"`. `PUT` and `DELETE` require `If-Match` with the revision they are based
+on, in the same form; without it they are `428`, and a weak tag, `*` or several
+tags are `400`. Another revision is `412`, and a `PUT` on a deleted QSO is
+`409`; both carry the current QSO as `current`, so the client merges and retries
+with its revision.
+
 `PUT` replaces the whole QSO: `fields` is the complete new set, Station
-defaults are not baked in again, and a field left out is removed. A `revision`
-other than the current one, or a deleted QSO, is `409` with the current QSO as
-`current`; the client merges and retries with its `revision`. `DELETE` checks
-`revision` the same way.
+defaults are not baked in again, and a field left out is removed.
 
 `warnings` never refuse a write:
 
@@ -110,16 +119,16 @@ other than the current one, or a deleted QSO, is `409` with the current QSO as
 | `possible_duplicate` | `ids` | Live QSOs with the same call, band and mode, ignoring case, within 15 minutes |
 | `frequency_outside_band` | `freq`, `band` | `FREQ` is outside `BAND` |
 
-`/duplicates` runs the same check for a QSO being entered; `except` leaves out
-the QSO being edited.
+`/duplicates` runs the same check for a QSO being entered and returns the
+matching QSOs by QSO time; `except` leaves out the QSO being edited.
 
 ### Changes
 
 `/changes` returns the QSOs with `updated_seq > after` (default 0), deleted ones
 included, by `updated_seq`, at most `limit` (default and maximum 1000). While
 `has_more` is true, the next request continues from the `updated_seq` of the
-last row. `last_updated_seq` is the Logbook's latest `updated_seq` when the
-request started. A client whose stored `cursor_generation` differs discards its
+last row. The response is read from one snapshot: `last_updated_seq` is the
+Logbook's latest `updated_seq` in it, and no row goes beyond it. A client whose stored `cursor_generation` differs discards its
 cursor and starts from 0.
 
 ### Search

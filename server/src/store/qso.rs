@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{AssertSqlSafe, Connection, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::{
@@ -37,7 +37,11 @@ static SELECT: LazyLock<String> = LazyLock::new(|| {
         .iter()
         .copied()
         .chain(ADIF_COLUMNS.iter().map(String::as_str))
-        .chain(["fields"])
+        .chain([
+            "fields",
+            "(SELECT callsign FROM users WHERE users.id = qsos.created_by) AS created_by_callsign",
+            "(SELECT callsign FROM users WHERE users.id = qsos.updated_by) AS updated_by_callsign",
+        ])
         .collect();
     format!("SELECT {} FROM qsos", columns.join(", "))
 });
@@ -84,8 +88,10 @@ pub struct StoredQso {
     pub updated_seq: i64,
     pub revision: i64,
     pub created_by: String,
+    pub created_by_callsign: String,
     pub created_at: String,
     pub updated_by: String,
+    pub updated_by_callsign: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
     pub qso: Qso,
@@ -109,8 +115,10 @@ impl StoredQso {
             updated_seq: row.try_get("updated_seq")?,
             revision: row.try_get("revision")?,
             created_by: row.try_get("created_by")?,
+            created_by_callsign: row.try_get("created_by_callsign")?,
             created_at: row.try_get("created_at")?,
             updated_by: row.try_get("updated_by")?,
+            updated_by_callsign: row.try_get("updated_by_callsign")?,
             updated_at: row.try_get("updated_at")?,
             deleted_at: row.try_get("deleted_at")?,
             qso: Qso::from_fields(values.into_iter().chain(fields))?,
@@ -351,16 +359,18 @@ pub async fn changes(
     after: i64,
     limit: u32,
 ) -> Result<Changes, StoreError> {
-    let logbook = logbook::get(conn, access).await?;
+    let mut tx = conn.begin().await?;
+    let logbook = logbook::get(&mut tx, access).await?;
     let sql = format!(
-        "{} WHERE logbook_id = ? AND updated_seq > ? ORDER BY updated_seq LIMIT ?",
+        "{} WHERE logbook_id = ? AND updated_seq > ? AND updated_seq <= ? ORDER BY updated_seq LIMIT ?",
         *SELECT
     );
     let mut rows = sqlx::query(AssertSqlSafe(sql))
         .bind(access.logbook_id())
         .bind(after)
+        .bind(logbook.last_updated_seq)
         .bind(i64::from(limit) + 1)
-        .fetch_all(conn)
+        .fetch_all(&mut *tx)
         .await?
         .iter()
         .map(StoredQso::from_row)
@@ -473,32 +483,28 @@ pub async fn possible_duplicates(
     access: &LogbookAccess,
     qso: &Qso,
     except: Option<&str>,
-) -> Result<Vec<String>, StoreError> {
+) -> Result<Vec<StoredQso>, StoreError> {
     access.revalidate(conn).await?;
     let key = DuplicateKey::of(qso)?;
-    let rows: Vec<(String, String, String, String, i64)> = sqlx::query_as(
-        "SELECT id, call, band, mode, qso_time FROM qsos \
-         WHERE logbook_id = ? AND call_base = ? AND qso_time BETWEEN ? AND ? AND deleted_at IS NULL \
-         ORDER BY qso_time, id",
-    )
-    .bind(access.logbook_id())
-    .bind(callsign::base(&key.call))
-    .bind(key.time_range().start())
-    .bind(key.time_range().end())
-    .fetch_all(conn)
-    .await?;
+    let sql = format!(
+        "{} WHERE logbook_id = ? AND call_base = ? AND qso_time BETWEEN ? AND ? AND deleted_at IS NULL          ORDER BY qso_time, id",
+        *SELECT
+    );
+    let rows = sqlx::query(AssertSqlSafe(sql))
+        .bind(access.logbook_id())
+        .bind(callsign::base(&key.call))
+        .bind(key.time_range().start())
+        .bind(key.time_range().end())
+        .fetch_all(conn)
+        .await?
+        .iter()
+        .map(StoredQso::from_row)
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(rows
         .into_iter()
-        .filter(|(id, call, band, mode, qso_time)| {
-            Some(id.as_str()) != except
-                && key.matches(&DuplicateKey {
-                    call: call.clone(),
-                    band: band.clone(),
-                    mode: mode.clone(),
-                    qso_time: *qso_time,
-                })
+        .filter(|row| {
+            Some(row.id.as_str()) != except && DuplicateKey::of(&row.qso).is_ok_and(|other| key.matches(&other))
         })
-        .map(|(id, ..)| id)
         .collect())
 }
 
@@ -510,7 +516,11 @@ async fn check(
 ) -> Result<(Checked, Vec<Warning>), StoreError> {
     let checked = qso.check()?;
     let mut warnings = checked.warnings.clone();
-    let ids = possible_duplicates(conn, access, qso, except).await?;
+    let ids: Vec<String> = possible_duplicates(conn, access, qso, except)
+        .await?
+        .into_iter()
+        .map(|row| row.id)
+        .collect();
     if !ids.is_empty() {
         warnings.push(Warning::PossibleDuplicate { ids });
     }
@@ -747,7 +757,7 @@ mod tests {
         let candidate = entry(&station, "JA1XYZ", "0415").qso;
         assert_eq!(
             possible_duplicates(&mut conn, &access, &candidate, None).await.unwrap(),
-            [first.id.clone(), second.id.clone()]
+            [first, second]
         );
     }
 

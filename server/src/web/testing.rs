@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
     Router,
     body::Body,
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -80,7 +80,22 @@ impl Harness {
     }
 
     pub async fn send(&self, method: &str, uri: &str, auth: Auth<'_>, body: Option<Value>) -> (StatusCode, Value) {
+        let (status, _, body) = self.send_with(method, uri, auth, &[], body).await;
+        (status, body)
+    }
+
+    pub async fn send_with(
+        &self,
+        method: &str,
+        uri: &str,
+        auth: Auth<'_>,
+        headers: &[(&str, &str)],
+        body: Option<Value>,
+    ) -> (StatusCode, HeaderMap, Value) {
         let mut req = axum::http::Request::builder().method(method).uri(uri);
+        for (name, value) in headers {
+            req = req.header(*name, *value);
+        }
         match auth {
             Auth::Anonymous => {}
             Auth::Session(cookie) => {
@@ -99,6 +114,7 @@ impl Harness {
         };
         let response = self.app.clone().oneshot(req.body(body).unwrap()).await.unwrap();
         let status = response.status();
+        let headers = response.headers().clone();
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let body = match bytes.is_empty() {
             true => Value::Null,
@@ -106,6 +122,6 @@ impl Harness {
                 serde_json::from_slice(&bytes).unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into()))
             }
         };
-        (status, body)
+        (status, headers, body)
     }
 }

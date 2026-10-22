@@ -1,9 +1,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{FromRequestParts, Path, State},
+    http::{HeaderName, StatusCode, header, request::Parts},
 };
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,12 @@ use crate::{
         access::{self, LogbookAccess},
         qso::{self, CallMatch, Created, Cursor, Filter, QsoInput, StoredQso, TimeRange},
     },
-    web::{AppState, auth::Caller, error::ApiError},
+    web::{
+        AppState,
+        auth::Caller,
+        error::ApiError,
+        extract::{Json, Query},
+    },
 };
 
 const MAX_LIMIT: u32 = 1000;
@@ -29,8 +33,10 @@ pub struct QsoBody {
     updated_seq: i64,
     revision: i64,
     created_by: String,
+    created_by_callsign: String,
     created_at: String,
     updated_by: String,
+    updated_by_callsign: String,
     updated_at: String,
     deleted_at: Option<String>,
     fields: BTreeMap<String, String>,
@@ -50,8 +56,10 @@ impl From<StoredQso> for QsoBody {
             updated_seq: stored.updated_seq,
             revision: stored.revision,
             created_by: stored.created_by,
+            created_by_callsign: stored.created_by_callsign,
             created_at: stored.created_at,
             updated_by: stored.updated_by,
+            updated_by_callsign: stored.updated_by_callsign,
             updated_at: stored.updated_at,
             deleted_at: stored.deleted_at,
         }
@@ -73,14 +81,40 @@ pub struct NewQso {
 
 #[derive(Debug, Deserialize)]
 pub struct ChangedQso {
-    revision: i64,
     station_id: String,
     fields: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Revision {
-    revision: i64,
+pub struct IfMatch(i64);
+
+impl<S: Send + Sync> FromRequestParts<S> for IfMatch {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<IfMatch, ApiError> {
+        let value = parts.headers.get(header::IF_MATCH).ok_or_else(|| {
+            ApiError::new(
+                StatusCode::PRECONDITION_REQUIRED,
+                "If-Match with the revision of the QSO is required",
+            )
+        })?;
+        value
+            .to_str()
+            .ok()
+            .and_then(|v| v.trim().strip_prefix('"')?.strip_suffix('"')?.parse().ok())
+            .map(IfMatch)
+            .ok_or_else(|| {
+                ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "If-Match takes one strong entity tag, the revision in quotes",
+                )
+            })
+    }
+}
+
+type Tagged<T> = ([(HeaderName, String); 1], Json<T>);
+
+fn tagged<T>(revision: i64, body: T) -> Tagged<T> {
+    ([(header::ETAG, format!("\"{revision}\""))], Json(body))
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,7 +164,7 @@ pub struct DuplicatesQuery {
 
 #[derive(Debug, Serialize)]
 pub struct DuplicatesBody {
-    ids: Vec<String>,
+    qsos: Vec<QsoBody>,
 }
 
 pub async fn create(
@@ -138,7 +172,7 @@ pub async fn create(
     caller: Caller,
     Path(logbook_id): Path<String>,
     Json(req): Json<NewQso>,
-) -> Result<(StatusCode, Json<Saved>), ApiError> {
+) -> Result<(StatusCode, Tagged<Saved>), ApiError> {
     let id: QsoId = req.id.parse().map_err(|e| StoreError::Invalid(format!("{e}")))?;
     let input = QsoInput {
         station_id: req.station_id,
@@ -148,41 +182,41 @@ pub async fn create(
     let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
     let created = qso::create(&mut tx, &access, &id, input).await?;
     tx.commit().await?;
-    Ok(match created {
-        Created::New { stored, warnings } => (
-            StatusCode::CREATED,
-            Json(Saved {
+    let (status, stored, warnings) = match created {
+        Created::New { stored, warnings } => (StatusCode::CREATED, stored, warnings),
+        Created::Existing(stored) => (StatusCode::OK, stored, vec![]),
+    };
+    Ok((
+        status,
+        tagged(
+            stored.revision,
+            Saved {
                 qso: stored.into(),
                 warnings,
-            }),
+            },
         ),
-        Created::Existing(stored) => (
-            StatusCode::OK,
-            Json(Saved {
-                qso: stored.into(),
-                warnings: vec![],
-            }),
-        ),
-    })
+    ))
 }
 
 pub async fn get(
     State(state): State<Arc<AppState>>,
     caller: Caller,
     Path((logbook_id, id)): Path<(String, String)>,
-) -> Result<Json<QsoBody>, ApiError> {
+) -> Result<Tagged<QsoBody>, ApiError> {
     let id = path_id(&id)?;
     let mut conn = state.db.acquire().await?;
     let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    Ok(Json(qso::get(&mut conn, &access, &id).await?.into()))
+    let stored = qso::get(&mut conn, &access, &id).await?;
+    Ok(tagged(stored.revision, stored.into()))
 }
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
     caller: Caller,
     Path((logbook_id, id)): Path<(String, String)>,
+    IfMatch(revision): IfMatch,
     Json(req): Json<ChangedQso>,
-) -> Result<Json<Saved>, ApiError> {
+) -> Result<Tagged<Saved>, ApiError> {
     let id = path_id(&id)?;
     let input = QsoInput {
         station_id: req.station_id,
@@ -190,13 +224,16 @@ pub async fn update(
     };
     let mut tx = WriteTx::begin(&state.db).await?;
     let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    match qso::update(&mut tx, &access, &id, req.revision, input).await {
+    match qso::update(&mut tx, &access, &id, revision, input).await {
         Ok((stored, warnings)) => {
             tx.commit().await?;
-            Ok(Json(Saved {
-                qso: stored.into(),
-                warnings,
-            }))
+            Ok(tagged(
+                stored.revision,
+                Saved {
+                    qso: stored.into(),
+                    warnings,
+                },
+            ))
         }
         Err(e) => {
             drop(tx);
@@ -209,15 +246,15 @@ pub async fn delete(
     State(state): State<Arc<AppState>>,
     caller: Caller,
     Path((logbook_id, id)): Path<(String, String)>,
-    Query(query): Query<Revision>,
-) -> Result<Json<QsoBody>, ApiError> {
+    IfMatch(revision): IfMatch,
+) -> Result<Tagged<QsoBody>, ApiError> {
     let id = path_id(&id)?;
     let mut tx = WriteTx::begin(&state.db).await?;
     let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    match qso::delete(&mut tx, &access, &id, query.revision).await {
+    match qso::delete(&mut tx, &access, &id, revision).await {
         Ok(stored) => {
             tx.commit().await?;
-            Ok(Json(stored.into()))
+            Ok(tagged(stored.revision, stored.into()))
         }
         Err(e) => {
             drop(tx);
@@ -298,8 +335,10 @@ pub async fn duplicates(
     )?;
     let mut conn = state.db.acquire().await?;
     let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let ids = qso::possible_duplicates(&mut conn, &access, &candidate, query.except.as_deref()).await?;
-    Ok(Json(DuplicatesBody { ids }))
+    let rows = qso::possible_duplicates(&mut conn, &access, &candidate, query.except.as_deref()).await?;
+    Ok(Json(DuplicatesBody {
+        qsos: rows.into_iter().map(QsoBody::from).collect(),
+    }))
 }
 
 async fn with_current(state: &AppState, access: &LogbookAccess, id: &QsoId, e: StoreError) -> ApiError {
@@ -311,10 +350,16 @@ async fn with_current(state: &AppState, access: &LogbookAccess, id: &QsoId, e: S
         Err(_) => None,
     };
     match current {
-        Some(current) => ApiError::from(e).with(
-            "current",
-            serde_json::to_value(QsoBody::from(current)).expect("a QSO serializes"),
-        ),
+        Some(current) => {
+            let status = match current.deleted_at {
+                Some(_) => StatusCode::CONFLICT,
+                None => StatusCode::PRECONDITION_FAILED,
+            };
+            ApiError::new(status, e.to_string()).with(
+                "current",
+                serde_json::to_value(QsoBody::from(current)).expect("a QSO serializes"),
+            )
+        }
         None => e.into(),
     }
 }
@@ -412,6 +457,8 @@ mod tests {
         assert_eq!(qso["id"], id.to_string());
         assert_eq!((qso["seq"].as_i64(), qso["revision"].as_i64()), (Some(1), Some(1)));
         assert_eq!(qso["created_by"], h.world.operator.id);
+        assert_eq!(qso["created_by_callsign"], "JA1OPR");
+        assert_eq!(qso["updated_by_callsign"], "JA1OPR");
         assert_eq!(qso["deleted_at"], Value::Null);
         assert_eq!(qso["fields"]["STATION_CALLSIGN"], "JL1HIS/1");
         assert_eq!(qso["fields"]["OPERATOR"], "JA1OPR");
@@ -429,10 +476,11 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(again["qso"], created["qso"]);
 
-        let (status, fetched) = h
-            .send("GET", &format!("{}/{id}", qsos(&h)), Auth::Session(&cookie), None)
+        let (status, headers, fetched) = h
+            .send_with("GET", &format!("{}/{id}", qsos(&h)), Auth::Session(&cookie), &[], None)
             .await;
         assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers[header::ETAG], "\"1\"");
         assert_eq!(fetched, created["qso"]);
     }
 
@@ -461,6 +509,18 @@ mod tests {
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(reply["status"], "error");
         assert!(reply["error"].as_str().unwrap().contains("BAND"), "{reply}");
+
+        let (status, reply) = h
+            .send("POST", &qsos(&h), Auth::Session(&cookie), Some(json!({ "id": 1 })))
+            .await;
+        assert!(status.is_client_error(), "{status}");
+        assert_eq!(reply["status"], "error");
+
+        let (status, reply) = h
+            .send("GET", &format!("{}?limit=many", qsos(&h)), Auth::Session(&cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(reply["status"], "error");
     }
 
     #[tokio::test]
@@ -470,7 +530,6 @@ mod tests {
         let first = create(&h, &cookie, "JA1XYZ", "40m", "0405").await;
         let first_id = first["qso"]["id"].clone();
         let second = create(&h, &cookie, "ja1xyz", "40M", "0410").await;
-        let second_id = second["qso"]["id"].clone();
         assert_eq!(
             second["warnings"],
             json!([{ "kind": "possible_duplicate", "ids": [first_id] }])
@@ -482,11 +541,11 @@ mod tests {
         );
         let (status, body) = h.send("GET", &uri, Auth::Session(&cookie), None).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body, json!({ "ids": [first_id, second_id] }));
+        assert_eq!(body, json!({ "qsos": [first["qso"], second["qso"]] }));
 
         let except = format!("{uri}&except={}", first_id.as_str().unwrap());
         let (_, body) = h.send("GET", &except, Auth::Session(&cookie), None).await;
-        assert_eq!(body, json!({ "ids": [second_id] }));
+        assert_eq!(body, json!({ "qsos": [second["qso"]] }));
 
         let incomplete = format!("/api/logbooks/{}/duplicates?call=JA1XYZ", h.world.logbook.id);
         let (status, _) = h.send("GET", &incomplete, Auth::Session(&cookie), None).await;
@@ -494,7 +553,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn updates_at_the_current_revision_only() {
+    async fn updates_at_the_revision_in_if_match() {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
         let created = create(&h, &cookie, "JA1XYZ", "40m", "040506").await;
@@ -502,19 +561,38 @@ mod tests {
         let mut fields = created["qso"]["fields"].clone();
         fields["NAME"] = json!("Hanako");
         fields["COMMENT"] = json!("tnx");
-        let change = json!({ "revision": 1, "station_id": h.station.id, "fields": fields });
+        let change = json!({ "station_id": h.station.id, "fields": fields });
+        let put = |if_match: &'static [(&'static str, &'static str)]| {
+            h.send_with("PUT", &uri, Auth::Session(&cookie), if_match, Some(change.clone()))
+        };
 
-        let (status, updated) = h.send("PUT", &uri, Auth::Session(&cookie), Some(change.clone())).await;
+        let (status, _, _) = put(&[]).await;
+        assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+        for malformed in [&[("if-match", "1")], &[("if-match", "W/\"1\"")], &[("if-match", "*")]] {
+            let (status, _, _) = put(malformed).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{malformed:?}");
+        }
+
+        let (status, headers, updated) = put(&[("if-match", "\"1\"")]).await;
         assert_eq!(status, StatusCode::OK, "{updated}");
+        assert_eq!(headers[header::ETAG], "\"2\"");
         assert_eq!(updated["qso"]["revision"], 2);
         assert_eq!(updated["qso"]["updated_seq"], 2);
         assert_eq!(updated["qso"]["fields"]["NAME"], "Hanako");
         assert_eq!(updated["qso"]["fields"]["COMMENT"], "tnx");
 
-        let (status, conflict) = h.send("PUT", &uri, Auth::Session(&cookie), Some(change)).await;
+        let (status, _, stale) = put(&[("if-match", "\"1\"")]).await;
+        assert_eq!(status, StatusCode::PRECONDITION_FAILED);
+        assert_eq!(stale["status"], "error");
+        assert_eq!(stale["current"], updated["qso"]);
+
+        let (status, _, deleted) = h
+            .send_with("DELETE", &uri, Auth::Session(&cookie), &[("if-match", "\"2\"")], None)
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _, gone) = put(&[("if-match", "\"3\"")]).await;
         assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(conflict["status"], "error");
-        assert_eq!(conflict["current"], updated["qso"]);
+        assert_eq!(gone["current"], deleted);
     }
 
     #[tokio::test]
@@ -525,16 +603,17 @@ mod tests {
         let kept = create(&h, &cookie, "JA1ABC", "40m", "0200").await;
         let uri = format!("{}/{}", qsos(&h), gone["qso"]["id"].as_str().unwrap());
 
-        let (status, conflict) = h
-            .send("DELETE", &format!("{uri}?revision=2"), Auth::Session(&cookie), None)
+        let (status, _, stale) = h
+            .send_with("DELETE", &uri, Auth::Session(&cookie), &[("if-match", "\"2\"")], None)
             .await;
-        assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(conflict["current"], gone["qso"]);
+        assert_eq!(status, StatusCode::PRECONDITION_FAILED);
+        assert_eq!(stale["current"], gone["qso"]);
 
-        let (status, deleted) = h
-            .send("DELETE", &format!("{uri}?revision=1"), Auth::Session(&cookie), None)
+        let (status, headers, deleted) = h
+            .send_with("DELETE", &uri, Auth::Session(&cookie), &[("if-match", "\"1\"")], None)
             .await;
         assert_eq!(status, StatusCode::OK, "{deleted}");
+        assert_eq!(headers[header::ETAG], "\"2\"");
         assert!(deleted["deleted_at"].is_string());
         assert_eq!(
             (deleted["revision"].as_i64(), deleted["updated_seq"].as_i64()),

@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use axum::{
-    Json,
-    extract::{Path, State},
-};
+use axum::extract::{Path, State};
 use serde::Serialize;
 
 use crate::{
@@ -12,7 +9,7 @@ use crate::{
         access::{self, LogbookRole},
         logbook::{self, Logbook},
     },
-    web::{AppState, auth::Caller, error::ApiError},
+    web::{AppState, auth::Caller, error::ApiError, extract::Json},
 };
 
 #[derive(Debug, Serialize)]

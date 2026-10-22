@@ -5,7 +5,6 @@ use std::{
 };
 
 use axum::{
-    Json,
     extract::{FromRequestParts, Path, State},
     http::{StatusCode, header, request::Parts},
 };
@@ -28,7 +27,7 @@ use crate::{
         token::{self, TokenKind},
         user::User,
     },
-    web::{AppState, error::ApiError},
+    web::{AppState, error::ApiError, extract::Json},
 };
 
 pub const SESSION_COOKIE: &str = "__Host-session";

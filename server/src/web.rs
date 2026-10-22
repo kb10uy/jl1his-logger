@@ -1,5 +1,6 @@
 mod auth;
 mod error;
+mod extract;
 mod logbook;
 mod qso;
 #[cfg(test)]
