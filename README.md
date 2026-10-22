@@ -10,8 +10,9 @@ station's own clients actually use (`qso`, `station`, `lookup`, `catalog`), spea
 ADIF in and out, and drops the rest: no dashboards, maps, DX cluster, QRZ lookups,
 CAT control, contest modules, awards or satellites.
 
-The design is recorded in [docs/decisions.md](docs/decisions.md). The code is not
-written yet; this README describes what the repository is going to hold.
+The design is recorded in [docs/decisions.md](docs/decisions.md). The server so far
+opens its database, applies migrations and serves the built client; this README
+describes what the repository is going to hold.
 
 ## What it does
 
@@ -73,6 +74,17 @@ cargo run --release -- serve
 | `PUBLIC_ORIGIN` | URL the app is reached at. Passkeys are bound to its host; do not change it later |
 | `WEB_DIR` | The built app (`client/build`). Without it only the API runs |
 | `DATABASE_PATH` | The SQLite database (default `data/jl1his-logger.db`) |
+| `CONFIG_PATH` | TOML configuration, also `-c`/`--config` (see `assets/config.example.toml`). Defaults apply without it |
+| `AUTO_MIGRATE` | Apply pending migrations when `serve` starts (default `true`). With `false`, pending migrations stop the server until `migrate` runs |
+
+Before applying pending migrations to an existing database, the server writes a
+`VACUUM INTO` snapshot to the `snapshots` directory next to the database, named
+after the first pending migration. Migrations only go forward; rolling back means
+restoring that snapshot with the matching binary.
+
+```sh
+jl1his-logger migrate         # apply pending migrations explicitly
+```
 
 Passkeys need HTTPS (or `http://localhost`), so put a TLS-terminating reverse proxy
 in front. The first admin is created by the setup command, which prints a one-time
