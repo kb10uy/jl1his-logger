@@ -76,10 +76,35 @@ pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<
     Logbook::from_row(&row)
 }
 
+pub(crate) struct Sequence {
+    pub seq: i64,
+    pub updated_seq: i64,
+}
+
+pub(crate) async fn next_insert(tx: &mut WriteTx, logbook_id: &str) -> Result<Sequence, StoreError> {
+    let (seq, updated_seq) = sqlx::query_as(
+        "UPDATE logbooks SET last_seq = last_seq + 1, last_updated_seq = last_updated_seq + 1 \
+         WHERE id = ? RETURNING last_seq, last_updated_seq",
+    )
+    .bind(logbook_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(Sequence { seq, updated_seq })
+}
+
+pub(crate) async fn next_update(tx: &mut WriteTx, logbook_id: &str) -> Result<i64, StoreError> {
+    Ok(sqlx::query_scalar(
+        "UPDATE logbooks SET last_updated_seq = last_updated_seq + 1 WHERE id = ? RETURNING last_updated_seq",
+    )
+    .bind(logbook_id)
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::testing::World;
+    use crate::store::{access, testing::World};
 
     #[tokio::test]
     async fn makes_the_creator_given_owner_an_owner() {
@@ -105,5 +130,26 @@ mod tests {
             create(&mut tx, &admin, "Other", "no-such-user").await,
             Err(StoreError::NotFound("user"))
         ));
+    }
+
+    #[tokio::test]
+    async fn hands_out_sequences_that_only_grow() {
+        let world = World::new().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let first = next_insert(&mut tx, &world.logbook.id).await.unwrap();
+        let updated = next_update(&mut tx, &world.logbook.id).await.unwrap();
+        let second = next_insert(&mut tx, &world.logbook.id).await.unwrap();
+        assert_eq!((first.seq, first.updated_seq), (1, 1));
+        assert_eq!(updated, 2);
+        assert_eq!((second.seq, second.updated_seq), (2, 3));
+
+        let other = {
+            let admin = access::admin(&mut tx, &access::Principal::user(&world.admin.id))
+                .await
+                .unwrap();
+            create(&mut tx, &admin, "Other", &world.owner.id).await.unwrap()
+        };
+        let separate = next_insert(&mut tx, &other.id).await.unwrap();
+        assert_eq!((separate.seq, separate.updated_seq), (1, 1));
     }
 }

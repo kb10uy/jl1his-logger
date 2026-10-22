@@ -150,11 +150,21 @@ key references.
 | `(logbook_id, station_id, qso_time)` | Per-Station listing and export. |
 | `(logbook_id, qsl_sent)` | The QSL work queue. |
 
-**Write flow.** In one short transaction:
+**Write flow.** In one short transaction opened with `BEGIN IMMEDIATE`, so
+no other writer runs between the reads and the writes (`server/src/store/qso.rs`):
 
-1. `UPDATE logbooks SET last_seq = last_seq + 1, last_updated_seq = last_updated_seq + 1 WHERE id = ? RETURNING last_seq, last_updated_seq` (an update or delete increments `last_updated_seq` only).
-2. `INSERT ... ON CONFLICT (id) DO NOTHING` for a create, so a resend is idempotent; a conflict means "return the existing row" and the step 1 increment is rolled back with the transaction.
-3. For an update, `UPDATE qsos SET ..., revision = revision + 1, updated_seq = ? WHERE id = ? AND revision = ?`; zero rows changed is a conflict.
+1. A create looks the ID up first. A row of the same Logbook is returned as it
+   is, tombstone included, so a resend is idempotent and hands out no numbers;
+   a row of another Logbook is a conflict.
+2. The Station is read from the same Logbook, its values are baked in where
+   the QSO has none, `OPERATOR` defaults to the user's callsign, and the record
+   is checked. Possible duplicates become warnings.
+3. `UPDATE logbooks SET last_seq = last_seq + 1, last_updated_seq = last_updated_seq + 1 WHERE id = ? RETURNING last_seq, last_updated_seq`
+   for a create; an update or delete increments `last_updated_seq` only.
+4. `INSERT` for a create. An update first compares the revision it was based
+   on, then runs `UPDATE qsos SET ..., revision = revision + 1, updated_seq = ? WHERE id = ? AND revision = ?`.
+   A delete sets the tombstone the same way; deleting a deleted row returns it
+   unchanged.
 
 ### `api_tokens`, `api_token_scopes`
 

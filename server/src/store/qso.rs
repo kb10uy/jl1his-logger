@@ -1,0 +1,646 @@
+use std::{collections::BTreeMap, sync::LazyLock};
+
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
+
+use crate::{
+    domain::{
+        callsign,
+        duplicate::DuplicateKey,
+        qso::{Checked, Columns, Qso, QsoId, Warning},
+    },
+    store::{
+        StoreError, WriteTx,
+        access::LogbookAccess,
+        logbook::{self, next_insert, next_update},
+        now, station,
+    },
+};
+
+const BOOKKEEPING: &[&str] = &[
+    "id",
+    "station_id",
+    "seq",
+    "updated_seq",
+    "revision",
+    "created_by",
+    "created_at",
+    "updated_by",
+    "updated_at",
+    "deleted_at",
+];
+
+static ADIF_COLUMNS: LazyLock<Vec<String>> =
+    LazyLock::new(|| Columns::NAMES.iter().map(|name| name.to_ascii_lowercase()).collect());
+
+static SELECT: LazyLock<String> = LazyLock::new(|| {
+    let columns: Vec<&str> = BOOKKEEPING
+        .iter()
+        .copied()
+        .chain(ADIF_COLUMNS.iter().map(String::as_str))
+        .chain(["fields"])
+        .collect();
+    format!("SELECT {} FROM qsos", columns.join(", "))
+});
+
+static INSERT: LazyLock<String> = LazyLock::new(|| {
+    let columns: Vec<&str> = [
+        "id",
+        "logbook_id",
+        "station_id",
+        "seq",
+        "updated_seq",
+        "created_by",
+        "created_at",
+        "updated_by",
+        "updated_at",
+    ]
+    .into_iter()
+    .chain(ADIF_COLUMNS.iter().map(String::as_str))
+    .chain(["fields", "call_base", "qso_time", "freq_hz"])
+    .collect();
+    let placeholders = vec!["?"; columns.len()].join(", ");
+    format!("INSERT INTO qsos ({}) VALUES ({placeholders})", columns.join(", "))
+});
+
+static UPDATE: LazyLock<String> = LazyLock::new(|| {
+    let assignments: Vec<String> = ["station_id", "updated_seq", "updated_by", "updated_at"]
+        .into_iter()
+        .chain(ADIF_COLUMNS.iter().map(String::as_str))
+        .chain(["fields", "call_base", "qso_time", "freq_hz"])
+        .map(|column| format!("{column} = ?"))
+        .collect();
+    format!(
+        "UPDATE qsos SET {}, revision = revision + 1 \
+         WHERE logbook_id = ? AND id = ? AND revision = ? AND deleted_at IS NULL",
+        assignments.join(", ")
+    )
+});
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredQso {
+    pub id: String,
+    pub station_id: String,
+    pub seq: i64,
+    pub updated_seq: i64,
+    pub revision: i64,
+    pub created_by: String,
+    pub created_at: String,
+    pub updated_by: String,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+    pub qso: Qso,
+}
+
+impl StoredQso {
+    fn from_row(row: &SqliteRow) -> Result<StoredQso, StoreError> {
+        let mut values = vec![];
+        for (name, column) in Columns::NAMES.iter().zip(ADIF_COLUMNS.iter()) {
+            if let Some(value) = row.try_get::<Option<String>, _>(column.as_str())? {
+                values.push((name.to_string(), value));
+            }
+        }
+        let fields: String = row.try_get("fields")?;
+        let fields: BTreeMap<String, String> = serde_json::from_str(&fields)
+            .map_err(|e| StoreError::Invalid(format!("stored QSO fields are not a string map: {e}")))?;
+        Ok(StoredQso {
+            id: row.try_get("id")?,
+            station_id: row.try_get("station_id")?,
+            seq: row.try_get("seq")?,
+            updated_seq: row.try_get("updated_seq")?,
+            revision: row.try_get("revision")?,
+            created_by: row.try_get("created_by")?,
+            created_at: row.try_get("created_at")?,
+            updated_by: row.try_get("updated_by")?,
+            updated_at: row.try_get("updated_at")?,
+            deleted_at: row.try_get("deleted_at")?,
+            qso: Qso::from_fields(values.into_iter().chain(fields))?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QsoInput {
+    pub station_id: String,
+    pub qso: Qso,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Created {
+    New { stored: StoredQso, warnings: Vec<Warning> },
+    Existing(StoredQso),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Changes {
+    pub cursor_generation: String,
+    pub last_updated_seq: i64,
+    pub rows: Vec<StoredQso>,
+    pub has_more: bool,
+}
+
+pub async fn create(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    id: &QsoId,
+    input: QsoInput,
+) -> Result<Created, StoreError> {
+    let id = id.to_string();
+    let owner: Option<String> = sqlx::query_scalar("SELECT logbook_id FROM qsos WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&mut **tx)
+        .await?;
+    match owner {
+        Some(logbook_id) if logbook_id == access.logbook_id() => {
+            return Ok(Created::Existing(fetch(tx, access, &id).await?));
+        }
+        Some(_) => return Err(StoreError::Conflict(format!("the ID {id} belongs to another QSO"))),
+        None => {}
+    }
+
+    let station = station::get(tx, access, &input.station_id).await?;
+    let mut qso = input.qso;
+    qso.bake_station(&station.callsign, &station.fields)?;
+    qso.fill("OPERATOR", access.callsign())?;
+    let (checked, warnings) = check(tx, access, &qso, None).await?;
+
+    let sequence = next_insert(tx, access.logbook_id()).await?;
+    let now = now();
+    let mut query = sqlx::query(AssertSqlSafe(INSERT.as_str()))
+        .bind(&id)
+        .bind(access.logbook_id())
+        .bind(&station.id)
+        .bind(sequence.seq)
+        .bind(sequence.updated_seq)
+        .bind(access.user_id())
+        .bind(&now)
+        .bind(access.user_id())
+        .bind(&now);
+    for name in Columns::NAMES {
+        query = query.bind(qso.columns.get(name));
+    }
+    query
+        .bind(fields_json(&qso))
+        .bind(&checked.derived.call_base)
+        .bind(checked.derived.qso_time)
+        .bind(checked.derived.freq_hz)
+        .execute(&mut **tx)
+        .await?;
+
+    Ok(Created::New {
+        stored: fetch(tx, access, &id).await?,
+        warnings,
+    })
+}
+
+pub async fn update(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    id: &QsoId,
+    base_revision: i64,
+    input: QsoInput,
+) -> Result<(StoredQso, Vec<Warning>), StoreError> {
+    let id = id.to_string();
+    let current = fetch(tx, access, &id).await?;
+    if current.deleted_at.is_some() {
+        return Err(StoreError::Conflict(format!("QSO {id} has been deleted")));
+    }
+    if current.revision != base_revision {
+        return Err(StoreError::Conflict(format!(
+            "QSO {id} is at revision {}, not {base_revision}",
+            current.revision
+        )));
+    }
+    let station = station::get(tx, access, &input.station_id).await?;
+    let (checked, warnings) = check(tx, access, &input.qso, Some(&id)).await?;
+
+    let updated_seq = next_update(tx, access.logbook_id()).await?;
+    let mut query = sqlx::query(AssertSqlSafe(UPDATE.as_str()))
+        .bind(&station.id)
+        .bind(updated_seq)
+        .bind(access.user_id())
+        .bind(now());
+    for name in Columns::NAMES {
+        query = query.bind(input.qso.columns.get(name));
+    }
+    let updated = query
+        .bind(fields_json(&input.qso))
+        .bind(&checked.derived.call_base)
+        .bind(checked.derived.qso_time)
+        .bind(checked.derived.freq_hz)
+        .bind(access.logbook_id())
+        .bind(&id)
+        .bind(base_revision)
+        .execute(&mut **tx)
+        .await?;
+    if updated.rows_affected() == 0 {
+        return Err(StoreError::Conflict(format!(
+            "QSO {id} changed while it was being updated"
+        )));
+    }
+    Ok((fetch(tx, access, &id).await?, warnings))
+}
+
+pub async fn delete(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    id: &QsoId,
+    base_revision: i64,
+) -> Result<StoredQso, StoreError> {
+    let id = id.to_string();
+    let current = fetch(tx, access, &id).await?;
+    if current.deleted_at.is_some() {
+        return Ok(current);
+    }
+    if current.revision != base_revision {
+        return Err(StoreError::Conflict(format!(
+            "QSO {id} is at revision {}, not {base_revision}",
+            current.revision
+        )));
+    }
+    let updated_seq = next_update(tx, access.logbook_id()).await?;
+    let now = now();
+    sqlx::query(
+        "UPDATE qsos SET deleted_at = ?, updated_seq = ?, revision = revision + 1, updated_by = ?, updated_at = ? \
+         WHERE logbook_id = ? AND id = ?",
+    )
+    .bind(&now)
+    .bind(updated_seq)
+    .bind(access.user_id())
+    .bind(&now)
+    .bind(access.logbook_id())
+    .bind(&id)
+    .execute(&mut **tx)
+    .await?;
+    fetch(tx, access, &id).await
+}
+
+pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &QsoId) -> Result<StoredQso, StoreError> {
+    fetch(conn, access, &id.to_string()).await
+}
+
+pub async fn changes(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    after: i64,
+    limit: u32,
+) -> Result<Changes, StoreError> {
+    let logbook = logbook::get(conn, access).await?;
+    let sql = format!(
+        "{} WHERE logbook_id = ? AND updated_seq > ? ORDER BY updated_seq LIMIT ?",
+        *SELECT
+    );
+    let mut rows = sqlx::query(AssertSqlSafe(sql))
+        .bind(access.logbook_id())
+        .bind(after)
+        .bind(i64::from(limit) + 1)
+        .fetch_all(conn)
+        .await?
+        .iter()
+        .map(StoredQso::from_row)
+        .collect::<Result<Vec<_>, _>>()?;
+    let has_more = rows.len() > limit as usize;
+    rows.truncate(limit as usize);
+    Ok(Changes {
+        cursor_generation: logbook.cursor_generation,
+        last_updated_seq: logbook.last_updated_seq,
+        rows,
+        has_more,
+    })
+}
+
+pub async fn possible_duplicates(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    qso: &Qso,
+    except: Option<&str>,
+) -> Result<Vec<String>, StoreError> {
+    let key = DuplicateKey::of(qso)?;
+    let rows: Vec<(String, String, String, String, i64)> = sqlx::query_as(
+        "SELECT id, call, band, mode, qso_time FROM qsos \
+         WHERE logbook_id = ? AND call_base = ? AND qso_time BETWEEN ? AND ? AND deleted_at IS NULL \
+         ORDER BY qso_time, id",
+    )
+    .bind(access.logbook_id())
+    .bind(callsign::base(&key.call))
+    .bind(key.time_range().start())
+    .bind(key.time_range().end())
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .filter(|(id, call, band, mode, qso_time)| {
+            Some(id.as_str()) != except
+                && key.matches(&DuplicateKey {
+                    call: call.clone(),
+                    band: band.clone(),
+                    mode: mode.clone(),
+                    qso_time: *qso_time,
+                })
+        })
+        .map(|(id, ..)| id)
+        .collect())
+}
+
+async fn check(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    qso: &Qso,
+    except: Option<&str>,
+) -> Result<(Checked, Vec<Warning>), StoreError> {
+    let checked = qso.check()?;
+    let mut warnings = checked.warnings.clone();
+    let ids = possible_duplicates(conn, access, qso, except).await?;
+    if !ids.is_empty() {
+        warnings.push(Warning::PossibleDuplicate { ids });
+    }
+    Ok((checked, warnings))
+}
+
+async fn fetch(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<StoredQso, StoreError> {
+    let sql = format!("{} WHERE logbook_id = ? AND id = ?", *SELECT);
+    let row = sqlx::query(AssertSqlSafe(sql))
+        .bind(access.logbook_id())
+        .bind(id)
+        .fetch_optional(conn)
+        .await?
+        .ok_or(StoreError::NotFound("QSO"))?;
+    StoredQso::from_row(&row)
+}
+
+fn fields_json(qso: &Qso) -> String {
+    serde_json::to_string(&qso.fields).expect("a string map serializes")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        domain::qso::QsoError,
+        store::{
+            station::{Station, tests::input as station_input},
+            testing::World,
+        },
+    };
+
+    async fn station(world: &World) -> Station {
+        let access = world.access(&world.owner).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let station = station::create(&mut tx, &access.owner().unwrap(), &station_input("Home"))
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        station
+    }
+
+    fn entry(station: &Station, call: &str, time_on: &str) -> QsoInput {
+        QsoInput {
+            station_id: station.id.clone(),
+            qso: Qso::from_fields([
+                ("CALL", call),
+                ("QSO_DATE", "20261022"),
+                ("TIME_ON", time_on),
+                ("BAND", "40m"),
+                ("MODE", "CW"),
+                ("FREQ", "7.041"),
+                ("NAME", "太郎"),
+                ("APP_HISLOG_NOTE", "x"),
+            ])
+            .unwrap(),
+        }
+    }
+
+    async fn create_one(world: &World, access: &LogbookAccess, input: QsoInput) -> (QsoId, Created) {
+        let id = QsoId::generate();
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let created = create(&mut tx, access, &id, input).await.unwrap();
+        tx.commit().await.unwrap();
+        (id, created)
+    }
+
+    fn new(created: Created) -> (StoredQso, Vec<Warning>) {
+        match created {
+            Created::New { stored, warnings } => (stored, warnings),
+            Created::Existing(_) => panic!("expected a new QSO"),
+        }
+    }
+
+    #[tokio::test]
+    async fn creates_a_qso_with_station_values_baked_in() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (id, created) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+        let (stored, warnings) = new(created);
+
+        assert_eq!(stored.id, id.to_string());
+        assert_eq!((stored.seq, stored.updated_seq, stored.revision), (1, 1, 1));
+        assert_eq!(
+            (stored.created_by.as_str(), stored.station_id.as_str()),
+            (world.operator.id.as_str(), station.id.as_str())
+        );
+        assert!(warnings.is_empty());
+        assert_eq!(stored.qso.get("STATION_CALLSIGN"), Some("JL1HIS/1"));
+        assert_eq!(stored.qso.get("MY_CITY"), Some("Minato"));
+        assert_eq!(stored.qso.get("OPERATOR"), Some("JA1OPR"));
+        assert_eq!(stored.qso.get("NAME"), Some("太郎"));
+        assert_eq!(stored.qso.fields.get("APP_HISLOG_NOTE").map(String::as_str), Some("x"));
+
+        let (call_base, qso_time, freq_hz): (String, i64, Option<i64>) =
+            sqlx::query_as("SELECT call_base, qso_time, freq_hz FROM qsos WHERE id = ?")
+                .bind(&stored.id)
+                .fetch_one(&world.db)
+                .await
+                .unwrap();
+        assert_eq!(
+            (call_base.as_str(), qso_time, freq_hz),
+            ("JA1XYZ", 1_792_641_906, Some(7_041_000))
+        );
+    }
+
+    #[tokio::test]
+    async fn returns_the_existing_row_when_an_id_is_resent() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (id, created) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+        let (first, _) = new(created);
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let again = create(&mut tx, &access, &id, entry(&station, "JA1ZZZ", "050000"))
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert_eq!(again, Created::Existing(first));
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let changes = changes(&mut conn, &access, 0, 10).await.unwrap();
+        assert_eq!(changes.last_updated_seq, 1);
+    }
+
+    #[tokio::test]
+    async fn refuses_an_id_used_by_another_logbook() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (id, _) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+
+        let admin = world.admin_access().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let other = logbook::create(&mut tx, &admin, "Other", &world.owner.id)
+            .await
+            .unwrap();
+        let other_access = crate::store::access::logbook(
+            &mut tx,
+            &crate::store::access::Principal::user(&world.owner.id),
+            &other.id,
+        )
+        .await
+        .unwrap();
+        let other_station = station::create(&mut tx, &other_access.owner().unwrap(), &station_input("Away"))
+            .await
+            .unwrap();
+        let refused = create(&mut tx, &other_access, &id, entry(&other_station, "JA1XYZ", "040506")).await;
+        assert!(matches!(refused, Err(StoreError::Conflict(_))), "{refused:?}");
+        assert!(matches!(
+            get(&mut tx, &other_access, &id).await,
+            Err(StoreError::NotFound("QSO"))
+        ));
+    }
+
+    #[tokio::test]
+    async fn refuses_a_station_of_another_logbook_and_invalid_records() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+
+        let mut elsewhere = entry(&station, "JA1XYZ", "040506");
+        elsewhere.station_id = "no-such-station".into();
+        assert!(matches!(
+            create(&mut tx, &access, &QsoId::generate(), elsewhere).await,
+            Err(StoreError::NotFound("Station"))
+        ));
+
+        let mut invalid = entry(&station, "JA1XYZ", "040506");
+        invalid.qso.set("BAND", Some("41m".into())).unwrap();
+        assert!(matches!(
+            create(&mut tx, &access, &QsoId::generate(), invalid).await,
+            Err(StoreError::Qso(QsoError::Invalid { name: "BAND", .. }))
+        ));
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let logbook = logbook::get(&mut conn, &access).await.unwrap();
+        assert_eq!((logbook.last_seq, logbook.last_updated_seq), (0, 0));
+    }
+
+    #[tokio::test]
+    async fn warns_about_possible_duplicates_without_refusing() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (_, first) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+        let (first, _) = new(first);
+
+        let (_, second) = create_one(&world, &access, entry(&station, "ja1xyz", "041000")).await;
+        let (second, warnings) = new(second);
+        assert_eq!(
+            warnings,
+            [Warning::PossibleDuplicate {
+                ids: vec![first.id.clone()]
+            }]
+        );
+
+        let (_, far) = create_one(&world, &access, entry(&station, "JA1XYZ", "060000")).await;
+        assert_eq!(new(far).1, []);
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let candidate = entry(&station, "JA1XYZ", "0415").qso;
+        assert_eq!(
+            possible_duplicates(&mut conn, &access, &candidate, None).await.unwrap(),
+            [first.id.clone(), second.id.clone()]
+        );
+    }
+
+    #[tokio::test]
+    async fn updates_against_the_revision_it_was_based_on() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let operator = world.access(&world.operator).await;
+        let (id, created) = create_one(&world, &operator, entry(&station, "JA1XYZ", "040506")).await;
+        let (stored, _) = new(created);
+
+        let owner = world.access(&world.owner).await;
+        let mut edited = stored.qso.clone();
+        edited.set("NAME", Some("花子".into())).unwrap();
+        edited.set("MY_RIG", Some("IC-705".into())).unwrap();
+        let input = QsoInput {
+            station_id: station.id.clone(),
+            qso: edited,
+        };
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let (updated, warnings) = update(&mut tx, &owner, &id, 1, input.clone()).await.unwrap();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!((updated.revision, updated.seq, updated.updated_seq), (2, 1, 2));
+        assert_eq!(updated.updated_by, world.owner.id);
+        assert_eq!(updated.qso.get("NAME"), Some("花子"));
+        assert_eq!(updated.qso.get("MY_RIG"), Some("IC-705"));
+
+        let stale = update(&mut tx, &operator, &id, 1, input).await;
+        assert!(matches!(stale, Err(StoreError::Conflict(_))), "{stale:?}");
+    }
+
+    #[tokio::test]
+    async fn deletes_with_a_tombstone_once() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let (id, _) = create_one(&world, &access, entry(&station, "JA1XYZ", "040506")).await;
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(matches!(
+            delete(&mut tx, &access, &id, 7).await,
+            Err(StoreError::Conflict(_))
+        ));
+        let deleted = delete(&mut tx, &access, &id, 1).await.unwrap();
+        assert!(deleted.deleted_at.is_some());
+        assert_eq!((deleted.revision, deleted.updated_seq), (2, 2));
+        assert_eq!(deleted.qso.get("CALL"), Some("JA1XYZ"));
+        assert_eq!(delete(&mut tx, &access, &id, 1).await.unwrap(), deleted);
+
+        let input = entry(&station, "JA1XYZ", "040506");
+        assert!(matches!(
+            update(&mut tx, &access, &id, 2, input.clone()).await,
+            Err(StoreError::Conflict(_))
+        ));
+        let later = create(&mut tx, &access, &QsoId::generate(), input).await.unwrap();
+        assert!(matches!(later, Created::New { warnings, .. } if warnings.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn lists_changes_after_a_cursor_including_tombstones() {
+        let world = World::new().await;
+        let station = station(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut ids = vec![];
+        for minute in ["0400", "0420", "0440"] {
+            ids.push(create_one(&world, &access, entry(&station, "JA1XYZ", minute)).await.0);
+        }
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        delete(&mut tx, &access, &ids[0], 1).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let page = changes(&mut conn, &access, 0, 2).await.unwrap();
+        assert_eq!(page.last_updated_seq, 4);
+        assert!(page.has_more);
+        let seqs: Vec<_> = page.rows.iter().map(|r| r.updated_seq).collect();
+        assert_eq!(seqs, [2, 3]);
+
+        let rest = changes(&mut conn, &access, 3, 2).await.unwrap();
+        assert!(!rest.has_more);
+        assert_eq!(rest.rows.len(), 1);
+        assert_eq!(rest.rows[0].id, ids[0].to_string());
+        assert!(rest.rows[0].deleted_at.is_some());
+        assert_eq!(rest.cursor_generation, world.logbook.cursor_generation);
+    }
+}

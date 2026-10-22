@@ -1,6 +1,7 @@
 pub mod access;
 pub mod logbook;
 pub mod membership;
+pub mod qso;
 pub mod station;
 pub mod user;
 
