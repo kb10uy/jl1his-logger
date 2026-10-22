@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
-    domain::qso::field_name,
+    domain::qso::{Qso, field_name},
     store::{
         StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
         is_unique_violation, new_id, now,
+        qso::{self, StoredQso, TimeRange},
         user::normalize_callsign,
     },
 };
@@ -162,6 +163,58 @@ pub async fn set_archived(
     get(tx, owner, id).await
 }
 
+pub async fn preview_rewrite(
+    conn: &mut SqliteConnection,
+    owner: &OwnerAccess<'_>,
+    id: &str,
+    range: TimeRange,
+) -> Result<usize, StoreError> {
+    owner.revalidate(conn).await?;
+    Ok(rewrite_plan(conn, owner, id, range).await?.len())
+}
+
+pub async fn rewrite_qsos(
+    tx: &mut WriteTx,
+    owner: &OwnerAccess<'_>,
+    id: &str,
+    range: TimeRange,
+    expected: usize,
+) -> Result<usize, StoreError> {
+    owner.revalidate(tx).await?;
+    let plan = rewrite_plan(tx, owner, id, range).await?;
+    if plan.len() != expected {
+        return Err(StoreError::Conflict(format!(
+            "{} QSOs would change, not {expected}",
+            plan.len()
+        )));
+    }
+    for (current, rewritten) in &plan {
+        qso::rewrite(tx, owner, current, rewritten).await?;
+    }
+    Ok(plan.len())
+}
+
+async fn rewrite_plan(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &str,
+    range: TimeRange,
+) -> Result<Vec<(StoredQso, Qso)>, StoreError> {
+    let station = get(conn, access, id).await?;
+    let mut plan = vec![];
+    for current in qso::of_station(conn, access, &station.id, range).await? {
+        let mut rewritten = current.qso.clone();
+        rewritten.set("STATION_CALLSIGN", Some(station.callsign.clone()))?;
+        for (name, value) in &station.fields {
+            rewritten.set(name, Some(value.clone()))?;
+        }
+        if rewritten != current.qso {
+            plan.push((current, rewritten));
+        }
+    }
+    Ok(plan)
+}
+
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<Station, StoreError> {
     access.revalidate(conn).await?;
     let row = sqlx::query(
@@ -290,6 +343,68 @@ pub(crate) mod tests {
             update(&mut tx, &owner, "no-such-station", &changed).await,
             Err(StoreError::NotFound("Station"))
         ));
+    }
+
+    #[tokio::test]
+    async fn rewrites_past_qsos_with_the_stated_count() {
+        let world = World::new().await;
+        let access = world.access(&world.owner).await;
+        let owner = access.owner().unwrap();
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let station = create(&mut tx, &owner, &input("Home")).await.unwrap();
+        let mut ids = vec![];
+        for (time_on, my_rig) in [("0101", "IC-705"), ("0202", "IC-705"), ("0303", "")] {
+            let qso = Qso::from_fields([
+                ("CALL", "JA1XYZ"),
+                ("QSO_DATE", "20261022"),
+                ("TIME_ON", time_on),
+                ("BAND", "40m"),
+                ("MODE", "CW"),
+                ("MY_RIG", my_rig),
+            ])
+            .unwrap();
+            let input = qso::QsoInput {
+                station_id: station.id.clone(),
+                qso,
+            };
+            let id = crate::domain::qso::QsoId::generate();
+            qso::create(&mut tx, &access, &id, input).await.unwrap();
+            ids.push(id.to_string());
+        }
+
+        let mut moved = input("Home");
+        moved.callsign = "JL1HIS/2".into();
+        moved.fields.insert("my_city".into(), "Kawasaki".into());
+        update(&mut tx, &owner, &station.id, &moved).await.unwrap();
+
+        let first = Qso::from_fields([("QSO_DATE", "20261022"), ("TIME_ON", "0202")])
+            .unwrap()
+            .qso_time()
+            .unwrap();
+        let range = TimeRange {
+            from: Some(first),
+            until: None,
+        };
+        assert_eq!(preview_rewrite(&mut tx, &owner, &station.id, range).await.unwrap(), 2);
+        assert!(matches!(
+            rewrite_qsos(&mut tx, &owner, &station.id, range, 3).await,
+            Err(StoreError::Conflict(_))
+        ));
+        assert_eq!(rewrite_qsos(&mut tx, &owner, &station.id, range, 2).await.unwrap(), 2);
+        assert_eq!(preview_rewrite(&mut tx, &owner, &station.id, range).await.unwrap(), 0);
+
+        let mut rows = vec![];
+        for id in &ids {
+            rows.push(qso::get(&mut tx, &access, &id.parse().unwrap()).await.unwrap());
+        }
+        assert_eq!(rows[0].qso.get("STATION_CALLSIGN"), Some("JL1HIS/1"));
+        assert_eq!(rows[1].qso.get("STATION_CALLSIGN"), Some("JL1HIS/2"));
+        assert_eq!(rows[1].qso.get("MY_CITY"), Some("Kawasaki"));
+        assert_eq!(rows[1].qso.get("MY_RIG"), Some("IC-705"));
+        assert_eq!((rows[1].revision, rows[2].revision), (2, 2));
+
+        let operator = world.access(&world.operator).await;
+        assert!(operator.owner().is_err());
     }
 
     #[tokio::test]

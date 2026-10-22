@@ -395,6 +395,29 @@ async fn check(
     Ok((checked, warnings))
 }
 
+pub(crate) async fn of_station(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    station_id: &str,
+    range: TimeRange,
+) -> Result<Vec<StoredQso>, StoreError> {
+    let sql = format!(
+        "{} WHERE logbook_id = ? AND station_id = ? AND deleted_at IS NULL \
+         AND qso_time >= ? AND qso_time < ? ORDER BY qso_time, id",
+        *SELECT
+    );
+    sqlx::query(AssertSqlSafe(sql))
+        .bind(access.logbook_id())
+        .bind(station_id)
+        .bind(range.from.unwrap_or(i64::MIN))
+        .bind(range.until.unwrap_or(i64::MAX))
+        .fetch_all(conn)
+        .await?
+        .iter()
+        .map(StoredQso::from_row)
+        .collect()
+}
+
 pub(crate) async fn fetch(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
