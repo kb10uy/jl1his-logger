@@ -10,8 +10,8 @@ that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
 many passkey requests are in flight. Some errors add fields next to `error`, such
 as `current` on a revision conflict.
 
-Sign-in, reference versions, Logbooks, Members, Stations and QSOs exist so far;
-tokens, bulk QSL changes, export batches, ADIF and the SSE stream follow.
+Sign-in, reference versions, API tokens, Logbooks, Members, Stations and QSOs
+exist so far; bulk QSL changes, export batches, ADIF and the SSE stream follow.
 
 ## Sign-in
 
@@ -41,6 +41,24 @@ browser's `credential`; a ceremony is used once and expires after 5 minutes.
 `[{kind, version, updated_at}]` with `kind` one of `cty`, `subdivisions` and
 `parks`. It takes the session cookie only. Reference data is updated with the
 CLI.
+
+## API Tokens
+
+A token is `{id, user_id, kind, name, logbook_ids, created_at, last_used_at}`.
+`kind` is `native` for `/api` or `wl2` for `/wl2`; `last_used_at` is updated at
+most once a day. These endpoints take the session cookie only, so a token cannot
+manage tokens.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /api/tokens?user_id=` | | The tokens of the signed-in user, or of `user_id` for an admin |
+| `POST /api/tokens` | `{kind, name, logbook_ids, wl2_prefix?}` | `201 {token, plaintext}` |
+| `DELETE /api/tokens/{id}` | | `204`; the token's user or an admin |
+
+The plaintext is shown only in the response that issues it. Every Logbook in
+`logbook_ids` needs a Membership of the user, or it is `404`. A `wl2` token has
+exactly one Logbook; `wl2_prefix` starts its plaintext with `wl2_`, as grayline
+expects. Another user's token is `404` for anyone but an admin.
 
 ## Callers
 

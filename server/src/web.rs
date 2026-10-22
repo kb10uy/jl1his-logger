@@ -6,6 +6,7 @@ mod qso;
 mod station;
 #[cfg(test)]
 mod testing;
+mod token;
 
 use std::{path::Path, sync::Arc};
 
@@ -72,6 +73,8 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/passkeys/register/finish", post(auth::add_finish))
         .route("/api/passkeys/{id}", delete(auth::delete_passkey))
         .route("/api/reference", get(reference_versions))
+        .route("/api/tokens", get(token::list).post(token::issue))
+        .route("/api/tokens/{id}", delete(token::revoke))
         .route("/api/logbooks", get(logbook::list))
         .route("/api/logbooks/{logbook_id}", get(logbook::get))
         .route("/api/logbooks/{logbook_id}/members", get(logbook::members))
