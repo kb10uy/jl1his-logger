@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
-use url::Url;
+use url::{Host, Url};
 
 use crate::domain::adif::LengthUnit;
 
@@ -59,7 +59,12 @@ impl Config {
 
 pub fn parse_public_origin(s: &str) -> Result<Url, String> {
     let url = Url::parse(s.trim()).map_err(|e| format!("PUBLIC_ORIGIN {s:?}: {e}"))?;
-    let local = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
+    if matches!(url.host(), Some(Host::Ipv4(_) | Host::Ipv6(_))) {
+        return Err(format!(
+            "PUBLIC_ORIGIN {s:?}: passkeys need a DNS hostname; use http://localhost for local development"
+        ));
+    }
+    let local = url.host_str() == Some("localhost");
     match url.scheme() {
         "https" => {}
         "http" if local => {}
@@ -111,10 +116,27 @@ mod tests {
     #[case("https://log.example.com/", "https://log.example.com")]
     #[case("https://log.example.com", "https://log.example.com")]
     #[case("http://localhost:8080", "http://localhost:8080")]
-    #[case("http://127.0.0.1:8080", "http://127.0.0.1:8080")]
+    #[case("https://localhost:8080", "https://localhost:8080")]
     fn accepts_origins(#[case] input: &str, #[case] origin: &str) {
         let url = parse_public_origin(input).unwrap();
         assert_eq!(url.origin().ascii_serialization(), origin);
+        webauthn_rs::WebauthnBuilder::new(url.host_str().unwrap(), &url)
+            .unwrap()
+            .build()
+            .unwrap();
+    }
+
+    #[rstest]
+    #[case("http://127.0.0.1:8080")]
+    #[case("https://127.0.0.1:8080")]
+    #[case("https://192.0.2.1")]
+    #[case("http://[::1]:8080")]
+    #[case("https://[::1]:8080")]
+    #[case("https://[2001:db8::1]")]
+    fn rejects_ip_origins_with_hostname_guidance(#[case] input: &str) {
+        let error = parse_public_origin(input).unwrap_err();
+        assert!(error.contains("hostname"), "{error}");
+        assert!(error.contains("http://localhost"), "{error}");
     }
 
     #[rstest]

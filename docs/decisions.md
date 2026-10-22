@@ -96,6 +96,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### Sign-in and Credentials
 
+- `PUBLIC_ORIGIN` requires a DNS hostname for WebAuthn. IP addresses are refused during configuration validation; local development uses `http://localhost`.
 - Sessions, API tokens and registration tokens are random 256-bit values; only their SHA-256 is stored. A `wl2` token for grayline carries the `wl2_` prefix as part of its plaintext.
 - A session lasts 30 days and is extended on use: once its expiry is more than a day old, it is pushed to 30 days from now. Signing out deletes it.
 - A token's kind decides which API it opens: a `native` token works only on the native API, a `wl2` token only under `/wl2`.

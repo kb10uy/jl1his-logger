@@ -74,7 +74,7 @@ cargo run --release -- serve
 | Environment variable | Description |
 | --- | --- |
 | `LISTEN` | Listen address (default `127.0.0.1:8080`) |
-| `PUBLIC_ORIGIN` | URL the app is reached at. Passkeys are bound to its host; do not change it later |
+| `PUBLIC_ORIGIN` | URL the app is reached at, with a DNS hostname (IP addresses are refused; use `http://localhost` locally). Passkeys are bound to its host; do not change it later |
 | `WEB_DIR` | The built app (`client/build`). Without it only the API runs |
 | `DATABASE_PATH` | The SQLite database (default `data/jl1his-logger.db`) |
 | `CONFIG_PATH` | TOML configuration, also `-c`/`--config` (see `assets/config.example.toml`). Defaults apply without it |
