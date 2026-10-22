@@ -1,0 +1,328 @@
+use std::collections::BTreeSet;
+
+use chrono::Utc;
+use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+
+use crate::store::{
+    StoreError, WriteTx,
+    access::LogbookAccess,
+    new_id, now,
+    qsl::{self, Outcome},
+    qso::{self, Target},
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportKind {
+    Adif,
+    Pota,
+    Eqsl,
+    Lotw,
+    QslCard,
+}
+
+impl ExportKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ExportKind::Adif => "adif",
+            ExportKind::Pota => "pota",
+            ExportKind::Eqsl => "eqsl",
+            ExportKind::Lotw => "lotw",
+            ExportKind::QslCard => "qsl_card",
+        }
+    }
+
+    fn parse(s: &str) -> Result<ExportKind, StoreError> {
+        match s {
+            "adif" => Ok(ExportKind::Adif),
+            "pota" => Ok(ExportKind::Pota),
+            "eqsl" => Ok(ExportKind::Eqsl),
+            "lotw" => Ok(ExportKind::Lotw),
+            "qsl_card" => Ok(ExportKind::QslCard),
+            _ => Err(StoreError::Invalid(format!("unknown export kind {s:?}"))),
+        }
+    }
+
+    fn sent_fields(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            ExportKind::Adif | ExportKind::Pota => None,
+            ExportKind::Eqsl => Some(("EQSL_QSL_SENT", "EQSL_QSLSDATE")),
+            ExportKind::Lotw => Some(("LOTW_QSL_SENT", "LOTW_QSLSDATE")),
+            ExportKind::QslCard => Some(("QSL_SENT", "QSLSDATE")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportBatch {
+    pub id: String,
+    pub kind: ExportKind,
+    pub created_by: String,
+    pub created_at: String,
+    pub applied_at: Option<String>,
+    pub qso_count: i64,
+}
+
+impl ExportBatch {
+    fn from_row(row: &SqliteRow) -> Result<ExportBatch, StoreError> {
+        Ok(ExportBatch {
+            id: row.try_get("id")?,
+            kind: ExportKind::parse(row.try_get("kind")?)?,
+            created_by: row.try_get("created_by")?,
+            created_at: row.try_get("created_at")?,
+            applied_at: row.try_get("applied_at")?,
+            qso_count: row.try_get("qso_count")?,
+        })
+    }
+}
+
+pub async fn create(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    kind: ExportKind,
+    qsos: &[Target],
+) -> Result<ExportBatch, StoreError> {
+    let access = access.revalidate(tx).await?;
+    if qsos.is_empty() {
+        return Err(StoreError::Invalid("an export batch needs a QSO".into()));
+    }
+    let mut seen = BTreeSet::new();
+    for target in qsos {
+        let id = target.id.to_string();
+        if !seen.insert(target.id) {
+            return Err(StoreError::Invalid(format!("QSO {id} is given more than once")));
+        }
+        let current = qso::fetch(tx, &access, &id).await?;
+        if current.deleted_at.is_some() || current.revision != target.revision {
+            return Err(StoreError::Conflict(format!("QSO {id} changed since it was exported")));
+        }
+    }
+
+    let id = new_id();
+    sqlx::query("INSERT INTO export_batches (id, logbook_id, kind, created_by, created_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(&id)
+        .bind(access.logbook_id())
+        .bind(kind.as_str())
+        .bind(access.user_id())
+        .bind(now())
+        .execute(&mut **tx)
+        .await?;
+    for target in qsos {
+        sqlx::query("INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision) VALUES (?, ?, ?, ?)")
+            .bind(access.logbook_id())
+            .bind(&id)
+            .bind(target.id.to_string())
+            .bind(target.revision)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(fetch(tx, &access, &id).await?.0)
+}
+
+pub async fn get(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &str,
+) -> Result<(ExportBatch, Vec<Target>), StoreError> {
+    let access = access.revalidate(conn).await?;
+    fetch(conn, &access, id).await
+}
+
+pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<ExportBatch>, StoreError> {
+    let access = access.revalidate(conn).await?;
+    sqlx::query(
+        "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
+         (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
+         FROM export_batches b WHERE b.logbook_id = ? ORDER BY b.created_at DESC, b.id DESC",
+    )
+    .bind(access.logbook_id())
+    .fetch_all(conn)
+    .await?
+    .iter()
+    .map(ExportBatch::from_row)
+    .collect()
+}
+
+pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result<Outcome, StoreError> {
+    let access = access.revalidate(tx).await?;
+    let (batch, _) = fetch(tx, &access, id).await?;
+    if batch.applied_at.is_some() {
+        return Err(StoreError::Conflict(format!(
+            "export batch {id} has already been applied"
+        )));
+    }
+    let Some((sent, date)) = batch.kind.sent_fields() else {
+        return Err(StoreError::Invalid(format!(
+            "{} export batches have nothing to apply",
+            batch.kind.as_str()
+        )));
+    };
+    let targets: Vec<(String, i64)> =
+        sqlx::query_as("SELECT qso_id, revision FROM export_batch_qsos WHERE batch_id = ? ORDER BY qso_id")
+            .bind(id)
+            .fetch_all(&mut **tx)
+            .await?;
+    let changes = vec![(sent, "Y".to_owned()), (date, Utc::now().format("%Y%m%d").to_string())];
+    let outcome = qsl::apply(tx, &access, &targets, &changes).await?;
+    sqlx::query("UPDATE export_batches SET applied_at = ? WHERE id = ?")
+        .bind(now())
+        .bind(id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(outcome)
+}
+
+async fn fetch(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &str,
+) -> Result<(ExportBatch, Vec<Target>), StoreError> {
+    let row = sqlx::query(
+        "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
+         (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
+         FROM export_batches b WHERE b.logbook_id = ? AND b.id = ?",
+    )
+    .bind(access.logbook_id())
+    .bind(id)
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(StoreError::NotFound("export batch"))?;
+    let batch = ExportBatch::from_row(&row)?;
+    let targets: Vec<(String, i64)> =
+        sqlx::query_as("SELECT qso_id, revision FROM export_batch_qsos WHERE batch_id = ? ORDER BY qso_id")
+            .bind(id)
+            .fetch_all(conn)
+            .await?;
+    let targets = targets
+        .into_iter()
+        .map(|(id, revision)| {
+            let id = id
+                .parse()
+                .map_err(|_| StoreError::Invalid(format!("stored QSO ID {id:?} is not a UUID v7")))?;
+            Ok(Target { id, revision })
+        })
+        .collect::<Result<_, StoreError>>()?;
+    Ok((batch, targets))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::store::{
+        logbook,
+        qsl::{
+            SkipReason,
+            tests::{target, three_qsos},
+        },
+        testing::World,
+    };
+
+    #[tokio::test]
+    async fn records_and_applies_a_batch_once() {
+        let world = World::new().await;
+        let rows = three_qsos(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let targets: Vec<_> = rows.iter().map(target).collect();
+        let batch = create(&mut tx, &access, ExportKind::QslCard, &targets).await.unwrap();
+        assert_eq!(
+            (batch.kind, batch.qso_count, batch.applied_at.as_deref()),
+            (ExportKind::QslCard, 3, None)
+        );
+
+        let mut sorted = targets.clone();
+        sorted.sort_by_key(|t| t.id.to_string());
+        assert_eq!(get(&mut tx, &access, &batch.id).await.unwrap(), (batch.clone(), sorted));
+
+        let edited = BTreeMap::from([("QSL_SENT_VIA".to_owned(), "D".to_owned())]);
+        qsl::update(&mut tx, &access, &[target(&rows[1])], &edited)
+            .await
+            .unwrap();
+
+        let outcome = apply(&mut tx, &access, &batch.id).await.unwrap();
+        let today = Utc::now().format("%Y%m%d").to_string();
+        assert_eq!(outcome.updated.len(), 2);
+        for row in &outcome.updated {
+            assert_eq!(row.qso.get("QSL_SENT"), Some("Y"));
+            assert_eq!(row.qso.get("QSLSDATE"), Some(today.as_str()));
+            assert_eq!(row.qso.get("QSL_SENT_VIA"), None);
+        }
+        assert_eq!(outcome.skipped.len(), 1);
+        assert_eq!(outcome.skipped[0].id, rows[1].id);
+        assert_eq!(outcome.skipped[0].reason, SkipReason::Revision { current: 2 });
+
+        assert!(matches!(
+            apply(&mut tx, &access, &batch.id).await,
+            Err(StoreError::Conflict(_))
+        ));
+        assert!(list(&mut tx, &access).await.unwrap()[0].applied_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn refuses_stale_rows_and_batches_without_results() {
+        let world = World::new().await;
+        let rows = three_qsos(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let stale = Target {
+            revision: 2,
+            ..target(&rows[0])
+        };
+        assert!(matches!(
+            create(&mut tx, &access, ExportKind::Eqsl, &[stale]).await,
+            Err(StoreError::Conflict(_))
+        ));
+        assert!(matches!(
+            create(
+                &mut tx,
+                &access,
+                ExportKind::Eqsl,
+                &[target(&rows[0]), target(&rows[0])]
+            )
+            .await,
+            Err(StoreError::Invalid(_))
+        ));
+        assert!(matches!(
+            create(&mut tx, &access, ExportKind::Eqsl, &[]).await,
+            Err(StoreError::Invalid(_))
+        ));
+        let pota = create(&mut tx, &access, ExportKind::Pota, &[target(&rows[0])])
+            .await
+            .unwrap();
+        assert!(matches!(
+            apply(&mut tx, &access, &pota.id).await,
+            Err(StoreError::Invalid(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn keeps_batches_inside_their_logbook() {
+        let world = World::new().await;
+        let rows = three_qsos(&world).await;
+        let access = world.access(&world.owner).await;
+        let admin = world.admin_access().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let batch = create(&mut tx, &access, ExportKind::Lotw, &[target(&rows[0])])
+            .await
+            .unwrap();
+        let other = logbook::create(&mut tx, &admin, "Other", &world.owner.id)
+            .await
+            .unwrap();
+        let other_access = crate::store::access::logbook(
+            &mut tx,
+            &crate::store::access::Principal::user(&world.owner.id),
+            &other.id,
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            get(&mut tx, &other_access, &batch.id).await,
+            Err(StoreError::NotFound(_))
+        ));
+        assert!(matches!(
+            create(&mut tx, &other_access, ExportKind::Lotw, &[target(&rows[0])]).await,
+            Err(StoreError::NotFound(_))
+        ));
+    }
+}

@@ -223,7 +223,7 @@ fn digits<T: FromStr>(s: &str) -> Option<T> {
     s.bytes().all(|b| b.is_ascii_digit()).then(|| s.parse().ok())?
 }
 
-fn parse_date(date: &str) -> Option<NaiveDate> {
+pub(crate) fn parse_date(date: &str) -> Option<NaiveDate> {
     if date.len() != 8 {
         return None;
     }

@@ -118,6 +118,18 @@ impl StoredQso {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TimeRange {
+    pub from: Option<i64>,
+    pub until: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Target {
+    pub id: QsoId,
+    pub revision: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QsoInput {
     pub station_id: String,
@@ -214,32 +226,54 @@ pub async fn update(
     }
     let station = station::get(tx, access, &input.station_id).await?;
     let (checked, warnings) = check(tx, access, &input.qso, Some(&id)).await?;
+    let stored = write_update(tx, access, &current, &station.id, &input.qso, &checked).await?;
+    Ok((stored, warnings))
+}
 
+pub(crate) async fn rewrite(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    current: &StoredQso,
+    qso: &Qso,
+) -> Result<StoredQso, StoreError> {
+    let checked = qso.check()?;
+    write_update(tx, access, current, &current.station_id, qso, &checked).await
+}
+
+async fn write_update(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    current: &StoredQso,
+    station_id: &str,
+    qso: &Qso,
+    checked: &Checked,
+) -> Result<StoredQso, StoreError> {
     let updated_seq = next_update(tx, access.logbook_id()).await?;
     let mut query = sqlx::query(AssertSqlSafe(UPDATE.as_str()))
-        .bind(&station.id)
+        .bind(station_id)
         .bind(updated_seq)
         .bind(access.user_id())
         .bind(now());
     for name in Columns::NAMES {
-        query = query.bind(input.qso.columns.get(name));
+        query = query.bind(qso.columns.get(name));
     }
     let updated = query
-        .bind(fields_json(&input.qso))
+        .bind(fields_json(qso))
         .bind(&checked.derived.call_base)
         .bind(checked.derived.qso_time)
         .bind(checked.derived.freq_hz)
         .bind(access.logbook_id())
-        .bind(&id)
-        .bind(base_revision)
+        .bind(&current.id)
+        .bind(current.revision)
         .execute(&mut **tx)
         .await?;
     if updated.rows_affected() == 0 {
         return Err(StoreError::Conflict(format!(
-            "QSO {id} changed while it was being updated"
+            "QSO {} changed while it was being updated",
+            current.id
         )));
     }
-    Ok((fetch(tx, access, &id).await?, warnings))
+    fetch(tx, access, &current.id).await
 }
 
 pub async fn delete(
@@ -361,7 +395,11 @@ async fn check(
     Ok((checked, warnings))
 }
 
-async fn fetch(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<StoredQso, StoreError> {
+pub(crate) async fn fetch(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &str,
+) -> Result<StoredQso, StoreError> {
     let sql = format!("{} WHERE logbook_id = ? AND id = ?", *SELECT);
     let row = sqlx::query(AssertSqlSafe(sql))
         .bind(access.logbook_id())

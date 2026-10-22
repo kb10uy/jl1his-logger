@@ -1,7 +1,9 @@
 pub mod access;
+pub mod export;
 pub mod logbook;
 pub mod membership;
 pub mod passkey;
+pub mod qsl;
 pub mod qso;
 pub mod registration;
 pub mod session;
