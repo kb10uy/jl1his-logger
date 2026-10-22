@@ -4,6 +4,9 @@ The SQLite schema behind the decisions in [decisions.md](decisions.md). The
 source of truth is `server/migrations/0001_init.sql`; this page explains the
 choices the SQL cannot. The migration is a draft until the first version
 applies it, after which it is never edited and every change is a new migration.
+sqlx applies pending migrations when the server starts and records each one
+with its checksum in `_sqlx_migrations`; see "Migrations and Deployment" in
+decisions.md.
 
 ## Conventions
 
@@ -24,6 +27,9 @@ applies it, after which it is never edited and every change is a new migration.
 - **Connections** set `PRAGMA journal_mode = WAL`, `PRAGMA foreign_keys = ON`
   and `PRAGMA busy_timeout` on open. Foreign keys are only enforced when the
   pragma is on, so it is part of the connection options, not the migration.
+- **Logbook ownership** is enforced with composite foreign keys: a QSO and
+  its Station belong to the same Logbook, as do an export batch and all its
+  QSOs. The referenced tables have `UNIQUE (logbook_id, id)` constraints.
 - Rows are not deleted where the design says archive or disable: `stations`
   are archived (`archived_at`), `users` are disabled (`disabled_at`) and
   `qsos` get a tombstone (`deleted_at`). Deleting a Logbook is the one
@@ -129,14 +135,15 @@ columns, never written by clients, never exported.
 | `qso_time` | `qso_date` + `time_on` as Unix seconds in UTC. `time_on` with four digits counts as `:00`. Sorting, time range filters and duplicate detection use it. |
 | `freq_hz` | `freq` (MHz, decimal string) as integer Hz, or `NULL`. |
 
-**Indexes.** All partial on `deleted_at IS NULL` except the two unique
-constraints, which must cover tombstones because the sequences are unique
-across them.
+**Indexes.** All partial on `deleted_at IS NULL` except the unique
+constraints, which cover tombstones for sequence uniqueness and foreign
+key references.
 
 | Index | Serves |
 | --- | --- |
 | `UNIQUE (logbook_id, updated_seq)` | Differential fetch: `updated_seq > ?` ordered, tombstones included. The SSE catch-up query is the same. |
 | `UNIQUE (logbook_id, seq)` | `/wl2` `since_id` paging. |
+| `UNIQUE (logbook_id, id)` | Composite foreign key from `export_batch_qsos`, enforcing Logbook ownership. |
 | `(logbook_id, qso_time)` | The log list and date filters. |
 | `(logbook_id, call, qso_time)` | Duplicate detection: same `call`, `band`, `mode`, `qso_time` within the window. |
 | `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`. |
@@ -166,6 +173,10 @@ Applying the result (for example marking `QSL_SENT = Y` after the cards went
 out) touches only the rows in the batch, and a row whose `revision` moved
 since the export is reported rather than silently overwritten. `applied_at`
 is set when the result has been applied.
+
+`export_batch_qsos.logbook_id` participates in composite foreign keys to
+both `export_batches` and `qsos`, so a batch cannot include a QSO from
+another Logbook. Deleting a batch or a QSO cascades to its batch entries.
 
 ### `rescue_operations`
 

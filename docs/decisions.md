@@ -63,6 +63,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Core fields (call, band, mode, date and time, station, QSL state and so on) are columns; the rest is a JSON string map.
 - A field that has a column is not duplicated in the JSON. Unknown standard fields and `APP_*` are not dropped.
 - Values are kept as their ADIF strings; normalized forms for search (the normalized callsign, time in seconds, frequency in Hz) go to derived columns.
+- Composite foreign keys enforce that a QSO belongs to the same Logbook as its Station, and that an export batch contains only QSOs from its own Logbook.
 - The tables are described in [schema.md](schema.md).
 
 ### FREQ and Parks
@@ -126,6 +127,14 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Updates are done with CLI subcommands (fetch, verify, switch versions). The web UI only shows the version.
 - DXCC and zones already recorded on existing QSOs are not changed automatically by a reference data update.
 - JCX is handled as a string, keeping leading zeros.
+
+### Migrations and Deployment
+
+- Migrations are embedded in the binary with `sqlx::migrate!()` and applied forward-only. `serve` applies the pending ones at startup; a `migrate` subcommand applies them explicitly, and an environment variable turns the automatic run off for a deployment that wants the explicit step.
+- sqlx records each applied migration with its checksum in `_sqlx_migrations`, so an edited applied file stops the server at startup instead of running.
+- Before applying pending migrations, the server snapshots the database with `VACUUM INTO` under the data directory. There is no downgrade; rolling back means restoring that snapshot.
+- One process owns the database file, so there is no separate migration job or init container. A deployment is one container holding the binary and `client/build`, with the data directory (database, reference data, snapshots) on a volume and TLS terminated outside.
+- Query macros that need the schema at compile time keep their `cargo sqlx prepare` output in the repository, refreshed whenever a migration is added.
 
 ## Open Questions
 

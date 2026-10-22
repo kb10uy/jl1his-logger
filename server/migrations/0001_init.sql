@@ -73,7 +73,8 @@ CREATE TABLE stations (
     archived_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    UNIQUE (logbook_id, wavelog_id)
+    UNIQUE (logbook_id, wavelog_id),
+    UNIQUE (logbook_id, id)
 );
 
 CREATE INDEX stations_logbook_id ON stations (logbook_id);
@@ -81,7 +82,7 @@ CREATE INDEX stations_logbook_id ON stations (logbook_id);
 CREATE TABLE qsos (
     id TEXT PRIMARY KEY NOT NULL,
     logbook_id TEXT NOT NULL REFERENCES logbooks (id) ON DELETE CASCADE,
-    station_id TEXT NOT NULL REFERENCES stations (id),
+    station_id TEXT NOT NULL,
     seq INTEGER NOT NULL,
     updated_seq INTEGER NOT NULL,
     revision INTEGER NOT NULL DEFAULT 1,
@@ -145,7 +146,9 @@ CREATE TABLE qsos (
     freq_hz INTEGER,
 
     UNIQUE (logbook_id, seq),
-    UNIQUE (logbook_id, updated_seq)
+    UNIQUE (logbook_id, updated_seq),
+    UNIQUE (logbook_id, id),
+    FOREIGN KEY (logbook_id, station_id) REFERENCES stations (logbook_id, id)
 );
 
 CREATE INDEX qsos_logbook_time ON qsos (logbook_id, qso_time) WHERE deleted_at IS NULL;
@@ -178,16 +181,20 @@ CREATE TABLE export_batches (
     kind TEXT NOT NULL,
     created_by TEXT NOT NULL REFERENCES users (id),
     created_at TEXT NOT NULL,
-    applied_at TEXT
+    applied_at TEXT,
+    UNIQUE (logbook_id, id)
 );
 
 CREATE INDEX export_batches_logbook_id ON export_batches (logbook_id, created_at);
 
 CREATE TABLE export_batch_qsos (
-    batch_id TEXT NOT NULL REFERENCES export_batches (id) ON DELETE CASCADE,
-    qso_id TEXT NOT NULL REFERENCES qsos (id) ON DELETE CASCADE,
+    logbook_id TEXT NOT NULL,
+    batch_id TEXT NOT NULL,
+    qso_id TEXT NOT NULL,
     revision INTEGER NOT NULL,
-    PRIMARY KEY (batch_id, qso_id)
+    PRIMARY KEY (batch_id, qso_id),
+    FOREIGN KEY (logbook_id, batch_id) REFERENCES export_batches (logbook_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (logbook_id, qso_id) REFERENCES qsos (logbook_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE rescue_operations (
