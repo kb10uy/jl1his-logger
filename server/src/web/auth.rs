@@ -191,13 +191,12 @@ pub async fn login_finish(
         .webauthn
         .identify_discoverable_authentication(&req.credential)
         .map_err(|_| unknown_passkey())?;
-    let mut conn = state.db.acquire().await?;
-    let stored = match passkey::find_by_credential(&mut conn, credential_id).await {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let stored = match passkey::find_by_credential(&mut tx, credential_id).await {
         Ok(stored) => stored,
         Err(StoreError::Unauthenticated) => return Err(unknown_passkey()),
         Err(e) => return Err(e.into()),
     };
-    drop(conn);
     if Uuid::parse_str(&stored.user_id).ok() != Some(user_handle) {
         return Err(unknown_passkey());
     }
@@ -211,7 +210,6 @@ pub async fn login_finish(
         })?;
     credential.update_credential(&result);
 
-    let mut tx = WriteTx::begin(&state.db).await?;
     passkey::record_use(&mut tx, &stored.id, &encode(&credential)?).await?;
     let token = session::create(&mut tx, &stored.user_id).await?;
     let user = access::user(&mut tx, &Principal::user(&stored.user_id)).await?;
@@ -420,7 +418,7 @@ fn webauthn_failed(e: WebauthnError) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, future::poll_fn, pin::pin, task::Poll};
 
     use axum::{Router, body::Body, http::header, response::IntoResponse};
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -703,6 +701,51 @@ mod tests {
             statuses.push(reply.status);
         }
         assert_eq!(statuses, [StatusCode::OK, StatusCode::UNAUTHORIZED]);
+    }
+
+    #[tokio::test]
+    async fn refuses_a_repeated_counter_during_concurrent_sign_ins() {
+        let h = Harness::new().await;
+        let link = h.link(&h.world.operator.id).await;
+        let registered = h.register(&link, &Authenticator::new(1)).await;
+        assert_eq!(registered.status, StatusCode::OK, "{}", registered.body);
+
+        let mut requests = Vec::new();
+        for _ in 0..2 {
+            let start = h.send("POST", "/api/auth/login/start", None, None).await;
+            assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+            let credential = Authenticator::new(1).get(&start.body["options"], &handle(&h.world.operator.id));
+            requests.push(json!({ "ceremony": start.body["ceremony"], "credential": credential }));
+        }
+        let second = requests.pop().unwrap();
+        let first = requests.pop().unwrap();
+        let mut held_connections = Vec::new();
+        for _ in 0..h.world.db.options().get_max_connections() {
+            held_connections.push(h.world.db.acquire().await.unwrap());
+        }
+        let mut finishes = pin!(async {
+            tokio::join!(
+                h.send("POST", "/api/auth/login/finish", None, Some(first)),
+                h.send("POST", "/api/auth/login/finish", None, Some(second)),
+            )
+        });
+        poll_fn(|cx| {
+            assert!(finishes.as_mut().poll(cx).is_pending());
+            Poll::Ready(())
+        })
+        .await;
+        drop(held_connections.pop());
+        let (first, second) = finishes.await;
+        drop(held_connections);
+        let mut statuses = [first.status, second.status];
+        statuses.sort();
+        assert_eq!(statuses, [StatusCode::OK, StatusCode::UNAUTHORIZED]);
+
+        let sessions: i64 = sqlx::query_scalar("SELECT count(*) FROM sessions")
+            .fetch_one(&h.world.db)
+            .await
+            .unwrap();
+        assert_eq!(sessions, 2);
     }
 
     #[tokio::test]
