@@ -1,6 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use uuid::{Uuid, Variant};
+use uuid::{Builder, Uuid, Variant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QsoId(Uuid);
@@ -12,6 +12,10 @@ pub struct InvalidQsoId(String);
 impl QsoId {
     pub fn generate() -> QsoId {
         QsoId(Uuid::now_v7())
+    }
+
+    pub fn with_time(unix_millis: u64, rest: &[u8; 10]) -> QsoId {
+        QsoId(Builder::from_unix_timestamp_millis(unix_millis, rest).into_uuid())
     }
 }
 
@@ -58,6 +62,13 @@ mod tests {
     #[test]
     fn generates_uuid_v7() {
         let id = QsoId::generate();
+        assert_eq!(id.to_string().parse::<QsoId>(), Ok(id));
+    }
+
+    #[test]
+    fn builds_uuid_v7_from_a_time_and_given_bits() {
+        let id = QsoId::with_time(1_792_641_906_000, &[0xff; 10]);
+        assert_eq!(id.to_string(), "01a161c8-b550-7fff-bfff-ffffffffffff");
         assert_eq!(id.to_string().parse::<QsoId>(), Ok(id));
     }
 }

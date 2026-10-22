@@ -1,6 +1,9 @@
 pub mod adif;
 pub mod band;
 pub mod callsign;
+pub mod confirmation;
 pub mod duplicate;
+pub mod import;
+pub mod pota;
 pub mod qsl;
 pub mod qso;
