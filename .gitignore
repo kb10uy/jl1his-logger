@@ -1,0 +1,16 @@
+/.claude
+.env
+.DS_Store
+Thumbs.db
+
+# server/
+/server/target
+/server/data
+
+# client/
+node_modules
+/client/.svelte-kit
+/client/build
+/client/test-results
+/client/playwright-report
+vite.config.ts.timestamp-*

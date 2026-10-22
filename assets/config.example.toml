@@ -1,0 +1,15 @@
+# Example configuration for jl1his-logger. Point the CLI at a copy with
+# -c/--config; the environment (see server/.env.example) sets the listen
+# address, public origin, web directory and database path.
+
+[reference]
+# AD1C cty.dat used by lookup and callsign resolution; updated with the CLI.
+cty = "data/reference/cty.dat"
+# Subdivision names keyed by DXCC entity, in the TOML qso-tools reads.
+subdivisions = "data/reference/subdivisions.toml"
+# POTA park references and names.
+parks = "data/reference/parks.toml"
+
+[adif]
+# Length counting for exported ADI: "codepoints" (default) or "bytes".
+length = "codepoints"
