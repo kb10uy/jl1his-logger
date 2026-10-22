@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use crate::domain::qso::{Derived, Qso};
+use crate::domain::qso::{Qso, QsoError};
 
 pub const WINDOW_SECONDS: i64 = 15 * 60;
 
@@ -13,12 +13,13 @@ pub struct DuplicateKey {
 }
 
 impl DuplicateKey {
-    pub fn of(qso: &Qso, derived: &Derived) -> Option<DuplicateKey> {
-        Some(DuplicateKey {
-            call: qso.get("CALL")?.to_owned(),
-            band: qso.get("BAND")?.to_owned(),
-            mode: qso.get("MODE")?.to_owned(),
-            qso_time: derived.qso_time,
+    pub fn of(qso: &Qso) -> Result<DuplicateKey, QsoError> {
+        let required = |name: &'static str| qso.get(name).map(str::to_owned).ok_or(QsoError::Missing(name));
+        Ok(DuplicateKey {
+            call: required("CALL")?,
+            band: required("BAND")?,
+            mode: required("MODE")?,
+            qso_time: qso.qso_time()?,
         })
     }
 
@@ -52,13 +53,13 @@ mod tests {
     }
 
     #[test]
-    fn takes_the_key_from_a_checked_qso() {
-        let qso = sample();
-        let derived = qso.check().unwrap().derived;
-        assert_eq!(
-            DuplicateKey::of(&qso, &derived),
-            Some(key("JA1XYZ", "40m", "CW", 1_792_641_906))
-        );
+    fn takes_the_key_from_a_qso() {
+        let mut qso = sample();
+        assert_eq!(DuplicateKey::of(&qso), Ok(key("JA1XYZ", "40m", "CW", 1_792_641_906)));
+        qso.set("STATION_CALLSIGN", None).unwrap();
+        assert!(DuplicateKey::of(&qso).is_ok());
+        qso.set("MODE", None).unwrap();
+        assert_eq!(DuplicateKey::of(&qso), Err(QsoError::Missing("MODE")));
     }
 
     #[rstest]

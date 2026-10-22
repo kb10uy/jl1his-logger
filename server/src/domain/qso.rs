@@ -28,6 +28,7 @@ pub enum QsoError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Warning {
     FrequencyOutsideBand { freq: String, band: String },
+    PossibleDuplicate { ids: Vec<String> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,8 +114,8 @@ impl Qso {
     pub fn check(&self) -> Result<Checked, QsoError> {
         let required = |name: &'static str| self.get(name).ok_or(QsoError::Missing(name));
         let call = required("CALL")?;
-        let qso_date = required("QSO_DATE")?;
-        let time_on = required("TIME_ON")?;
+        required("QSO_DATE")?;
+        required("TIME_ON")?;
         let band_name = required("BAND")?;
         required("MODE")?;
         required("STATION_CALLSIGN")?;
@@ -127,10 +128,7 @@ impl Qso {
         if call_base.is_empty() {
             return Err(invalid("CALL", call));
         }
-        let qso_time = qso_time(qso_date, time_on).ok_or_else(|| match parse_date(qso_date) {
-            None => invalid("QSO_DATE", qso_date),
-            Some(_) => invalid("TIME_ON", time_on),
-        })?;
+        let qso_time = self.qso_time()?;
         let band = Band::named(band_name).ok_or_else(|| invalid("BAND", band_name))?;
 
         let mut warnings = vec![];
@@ -155,6 +153,19 @@ impl Qso {
                 freq_hz,
             },
             warnings,
+        })
+    }
+
+    pub fn qso_time(&self) -> Result<i64, QsoError> {
+        let date = self.get("QSO_DATE").ok_or(QsoError::Missing("QSO_DATE"))?;
+        let time = self.get("TIME_ON").ok_or(QsoError::Missing("TIME_ON"))?;
+        let invalid = |name: &'static str, value: &str| QsoError::Invalid {
+            name,
+            value: value.to_owned(),
+        };
+        unix_time(date, time).ok_or_else(|| match parse_date(date) {
+            None => invalid("QSO_DATE", date),
+            Some(_) => invalid("TIME_ON", time),
         })
     }
 
@@ -208,7 +219,7 @@ fn parse_date(date: &str) -> Option<NaiveDate> {
     NaiveDate::from_ymd_opt(digits(&date[..4])?, digits(&date[4..6])?, digits(&date[6..])?)
 }
 
-fn qso_time(date: &str, time: &str) -> Option<i64> {
+fn unix_time(date: &str, time: &str) -> Option<i64> {
     let seconds = match time.len() {
         4 => "00",
         6 => time.get(4..)?,
