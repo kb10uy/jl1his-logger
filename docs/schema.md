@@ -145,8 +145,8 @@ key references.
 | `UNIQUE (logbook_id, seq)` | `/wl2` `since_id` paging. |
 | `UNIQUE (logbook_id, id)` | Composite foreign key from `export_batch_qsos`, enforcing Logbook ownership. |
 | `(logbook_id, qso_time)` | The log list and date filters. |
-| `(logbook_id, call, qso_time)` | Duplicate detection: same `call`, `band`, `mode`, `qso_time` within the window. |
-| `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`. |
+| `(logbook_id, call, qso_time)` | Searching an exact `call`. |
+| `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. `call` is stored as it arrived, so its index cannot answer that. |
 | `(logbook_id, station_id, qso_time)` | Per-Station listing and export. |
 | `(logbook_id, qsl_sent)` | The QSL work queue. |
 

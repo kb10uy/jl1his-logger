@@ -39,7 +39,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### IDs and Duplicate Detection
 
 - The QSO ID is a client-generated UUID v7. `POST` is idempotent: resending the same ID returns the existing row.
-- Heuristic duplicate detection (same call, same band, same mode, nearby time) never refuses a record and only warns. It is returned both by a dedicated endpoint (checking a candidate during entry) and in the `warnings` of the `POST` response, with the detection shared between them.
+- Heuristic duplicate detection (same call, same band, same mode, compared ignoring case, and `TIME_ON` within 15 minutes) never refuses a record and only warns. It is returned both by a dedicated endpoint (checking a candidate during entry) and in the `warnings` of the `POST` response, with the detection shared between them.
 - Each Logbook has server-assigned integers `seq` (insertion order) and `updated_seq` (update order). They are never reused, even after deletion.
 
 ### Change History
