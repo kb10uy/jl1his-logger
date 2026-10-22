@@ -10,8 +10,8 @@ that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
 many passkey requests are in flight. Some errors add fields next to `error`, such
 as `current` on a revision conflict.
 
-Sign-in, Logbooks and QSOs exist so far; Stations, Memberships, tokens, bulk QSL
-changes, export batches, ADIF and the SSE stream follow.
+Sign-in, reference versions, Logbooks, Members, Stations and QSOs exist so far;
+tokens, bulk QSL changes, export batches, ADIF and the SSE stream follow.
 
 ## Sign-in
 
@@ -35,16 +35,23 @@ browser's `credential`; a ceremony is used once and expires after 5 minutes.
 `role` is `admin` or `user`. A passkey `name` left out or blank becomes
 `Passkey`.
 
+## Reference Data
+
+`GET /api/reference` returns the versions of the reference data in use,
+`[{kind, version, updated_at}]` with `kind` one of `cty`, `subdivisions` and
+`parks`. It takes the session cookie only. Reference data is updated with the
+CLI.
+
 ## Callers
 
-The Logbook and QSO endpoints accept either the session cookie or a `native` API
+The endpoints under `/api/logbooks` accept either the session cookie or a `native` API
 token as `Authorization: Bearer <token>`. A token reaches only the Logbooks of
 its scopes where its user still has a Membership; a `wl2` token is refused with
 `401`. When `Authorization` is present the cookie is ignored. Sign-in and
 passkey endpoints take the session cookie only.
 
-A Logbook or QSO the caller cannot reach is `404`, the same as one that does
-not exist.
+A Logbook, Station or QSO the caller cannot reach is `404`, the same as one
+that does not exist. A write reserved for owners is `403` for an operator.
 
 ## Logbooks
 
@@ -55,6 +62,50 @@ where `role` is the caller's Membership, `owner` or `operator`.
 | --- | --- |
 | `GET /api/logbooks` | The caller's Logbooks, by name |
 | `GET /api/logbooks/{logbook_id}` | One Logbook |
+
+## Members
+
+A member is `{user_id, callsign, role, disabled}`. Members are named by
+callsign, since an owner cannot list the users of the instance; owners cannot
+create users either. Paths are relative to `/api/logbooks/{logbook_id}`.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /members` | | The members, by callsign |
+| `PUT /members/{callsign}` | `{role}`, `owner` or `operator` | The members after adding the user or changing their role; owners only |
+| `DELETE /members/{callsign}` | | `204`; owners only |
+
+An unknown or disabled user is `404`. Demoting or removing the last active
+owner is `409`.
+
+## Stations
+
+A Station is `{id, wavelog_id, name, callsign, fields, archived_at,
+created_at, updated_at}`. `fields` holds the `MY_*` and other defaults baked
+into new QSOs; `wavelog_id` is the Station's old Wavelog ID for `/wl2`. Paths
+are relative to `/api/logbooks/{logbook_id}`.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /stations` | | The Stations, archived ones last, by name |
+| `GET /stations/{id}` | | One Station |
+| `POST /stations` | `{name, callsign, wavelog_id?, fields}` | `201` with the Station; owners only |
+| `PUT /stations/{id}` | `{name, callsign, wavelog_id?, fields}` | The Station; owners only |
+| `POST /stations/{id}/archive` | | The archived Station; owners only |
+| `DELETE /stations/{id}/archive` | | The Station, no longer archived; owners only |
+| `GET /stations/{id}/rewrite?from=&until=` | | `{count}` of past QSOs a rewrite would change; owners only |
+| `POST /stations/{id}/rewrite` | `{from?, until?, count}` | `{count}` rewritten; owners only |
+
+The callsign is upper-cased and field names are read ignoring case; an empty
+value leaves the field out. `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`, `MODE` and
+`STATION_CALLSIGN` cannot be defaults. A `wavelog_id` another Station has is
+`409`.
+
+Editing a Station never changes past QSOs. A rewrite does: it covers the
+Station's live QSOs with a QSO time in `[from, until)` (RFC 3339 times, both
+optional) and sets `STATION_CALLSIGN` and every field of the Station, leaving
+other fields alone. Its `count` must equal what a preview returns now, or it is
+`409` and nothing changes.
 
 ## QSOs
 

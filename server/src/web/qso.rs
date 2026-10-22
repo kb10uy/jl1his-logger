@@ -375,7 +375,7 @@ fn limit(limit: Option<u32>, default: u32) -> Result<u32, StoreError> {
     }
 }
 
-fn time(name: &str, value: &str) -> Result<i64, StoreError> {
+pub(super) fn time(name: &str, value: &str) -> Result<i64, StoreError> {
     DateTime::parse_from_rfc3339(value)
         .map(|t| t.timestamp())
         .map_err(|_| StoreError::Invalid(format!("{name} {value:?} is not an RFC 3339 time")))

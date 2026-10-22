@@ -1,8 +1,38 @@
+use sqlx::SqliteConnection;
+
 use crate::store::{
     StoreError, WriteTx,
-    access::{LogbookRole, OwnerAccess},
+    access::{LogbookAccess, LogbookRole, OwnerAccess},
     now,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Member {
+    pub user_id: String,
+    pub callsign: String,
+    pub role: LogbookRole,
+    pub disabled: bool,
+}
+
+pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Member>, StoreError> {
+    access.revalidate(conn).await?;
+    let rows: Vec<(String, String, String, bool)> = sqlx::query_as(
+        "SELECT u.id, u.callsign, m.role, u.disabled_at IS NOT NULL FROM memberships m          JOIN users u ON u.id = m.user_id WHERE m.logbook_id = ? ORDER BY u.callsign",
+    )
+    .bind(access.logbook_id())
+    .fetch_all(conn)
+    .await?;
+    rows.into_iter()
+        .map(|(user_id, callsign, role, disabled)| {
+            Ok(Member {
+                user_id,
+                callsign,
+                role: LogbookRole::parse(&role)?,
+                disabled,
+            })
+        })
+        .collect()
+}
 
 pub async fn set(
     tx: &mut WriteTx,
@@ -93,6 +123,21 @@ mod tests {
         tx.commit().await.unwrap();
         assert_eq!(world.access(&world.outsider).await.role(), LogbookRole::Operator);
         assert_eq!(world.access(&world.operator).await.role(), LogbookRole::Owner);
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let members = list(&mut conn, &world.access(&world.outsider).await).await.unwrap();
+        let members: Vec<_> = members
+            .iter()
+            .map(|m| (m.callsign.as_str(), m.role, m.disabled))
+            .collect();
+        assert_eq!(
+            members,
+            [
+                ("JA1OPR", LogbookRole::Owner, false),
+                ("JA1OUT", LogbookRole::Operator, false),
+                ("JA1OWN", LogbookRole::Owner, false),
+            ]
+        );
     }
 
     #[tokio::test]

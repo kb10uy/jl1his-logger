@@ -1,13 +1,18 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
-use serde::Serialize;
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     store::{
-        StoreError,
+        StoreError, WriteTx,
         access::{self, LogbookRole},
         logbook::{self, Logbook},
+        membership::{self, Member},
+        user,
     },
     web::{AppState, auth::Caller, error::ApiError, extract::Json},
 };
@@ -33,6 +38,37 @@ impl LogbookBody {
             last_updated_seq: logbook.last_updated_seq,
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct MemberBody {
+    user_id: String,
+    callsign: String,
+    role: &'static str,
+    disabled: bool,
+}
+
+impl From<Member> for MemberBody {
+    fn from(member: Member) -> MemberBody {
+        MemberBody {
+            user_id: member.user_id,
+            callsign: member.callsign,
+            role: member.role.as_str(),
+            disabled: member.disabled,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RoleRequest {
+    Owner,
+    Operator,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MembershipRequest {
+    role: RoleRequest,
 }
 
 pub async fn list(State(state): State<Arc<AppState>>, caller: Caller) -> Result<Json<Vec<LogbookBody>>, ApiError> {
@@ -72,6 +108,55 @@ pub async fn get(
     let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
     let logbook = logbook::get(&mut conn, &access).await?;
     Ok(Json(LogbookBody::new(logbook, access.role())))
+}
+
+pub async fn members(
+    State(state): State<Arc<AppState>>,
+    caller: Caller,
+    Path(logbook_id): Path<String>,
+) -> Result<Json<Vec<MemberBody>>, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
+    let members = membership::list(&mut conn, &access).await?;
+    Ok(Json(members.into_iter().map(MemberBody::from).collect()))
+}
+
+pub async fn set_member(
+    State(state): State<Arc<AppState>>,
+    caller: Caller,
+    Path((logbook_id, callsign)): Path<(String, String)>,
+    Json(req): Json<MembershipRequest>,
+) -> Result<Json<Vec<MemberBody>>, ApiError> {
+    let role = match req.role {
+        RoleRequest::Owner => LogbookRole::Owner,
+        RoleRequest::Operator => LogbookRole::Operator,
+    };
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
+    let owner = access.owner()?;
+    let user = user::find_by_callsign(&mut tx, &callsign)
+        .await?
+        .ok_or(StoreError::NotFound("user"))?;
+    membership::set(&mut tx, &owner, &user.id, role).await?;
+    let members = membership::list(&mut tx, &access).await?;
+    tx.commit().await?;
+    Ok(Json(members.into_iter().map(MemberBody::from).collect()))
+}
+
+pub async fn remove_member(
+    State(state): State<Arc<AppState>>,
+    caller: Caller,
+    Path((logbook_id, callsign)): Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
+    let owner = access.owner()?;
+    let user = user::find_by_callsign(&mut tx, &callsign)
+        .await?
+        .ok_or(StoreError::NotFound("Membership"))?;
+    membership::remove(&mut tx, &owner, &user.id).await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]
@@ -126,6 +211,78 @@ mod tests {
                 None,
             )
             .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn owners_manage_members_by_callsign() {
+        let h = Harness::new().await;
+        let members = format!("/api/logbooks/{}/members", h.world.logbook.id);
+        let owner = h.session(&h.world.owner).await;
+        let operator = h.session(&h.world.operator).await;
+        let outsider = h.session(&h.world.outsider).await;
+
+        let (status, list) = h.send("GET", &members, Auth::Session(&operator), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            list,
+            json!([
+                { "user_id": h.world.operator.id, "callsign": "JA1OPR", "role": "operator", "disabled": false },
+                { "user_id": h.world.owner.id, "callsign": "JA1OWN", "role": "owner", "disabled": false },
+            ])
+        );
+
+        let operator_role = Some(json!({ "role": "operator" }));
+        let (status, _) = h
+            .send(
+                "PUT",
+                &format!("{members}/JA1OUT"),
+                Auth::Session(&operator),
+                operator_role.clone(),
+            )
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, list) = h
+            .send(
+                "PUT",
+                &format!("{members}/ja1out"),
+                Auth::Session(&owner),
+                operator_role.clone(),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(list[1]["callsign"], "JA1OUT");
+        let (status, _) = h.send("GET", &members, Auth::Session(&outsider), None).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let (status, _) = h
+            .send(
+                "PUT",
+                &format!("{members}/JA1NONE"),
+                Auth::Session(&owner),
+                operator_role,
+            )
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let (status, _) = h
+            .send(
+                "PUT",
+                &format!("{members}/JA1OUT"),
+                Auth::Session(&owner),
+                Some(json!({ "role": "admin" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+        let (status, _) = h
+            .send("DELETE", &format!("{members}/JA1OWN"), Auth::Session(&owner), None)
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        let (status, _) = h
+            .send("DELETE", &format!("{members}/JA1OUT"), Auth::Session(&owner), None)
+            .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (status, _) = h.send("GET", &members, Auth::Session(&outsider), None).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 

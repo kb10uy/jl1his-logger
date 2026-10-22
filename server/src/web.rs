@@ -3,6 +3,7 @@ mod error;
 mod extract;
 mod logbook;
 mod qso;
+mod station;
 #[cfg(test)]
 mod testing;
 
@@ -14,9 +15,9 @@ use axum::{
     http::{HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{any, delete, get, post},
+    routing::{any, delete, get, post, put},
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeader,
@@ -25,8 +26,11 @@ use tower_http::{
 use url::Url;
 use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::WebauthnError};
 
-use self::{auth::Ceremonies, error::ApiError};
-use crate::{config::Config, db::Db};
+use self::{
+    auth::{Ceremonies, SignedIn},
+    error::ApiError,
+};
+use crate::{config::Config, db::Db, store::reference};
 
 pub struct AppState {
     pub db: Db,
@@ -67,8 +71,30 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/passkeys/register/start", post(auth::add_start))
         .route("/api/passkeys/register/finish", post(auth::add_finish))
         .route("/api/passkeys/{id}", delete(auth::delete_passkey))
+        .route("/api/reference", get(reference_versions))
         .route("/api/logbooks", get(logbook::list))
         .route("/api/logbooks/{logbook_id}", get(logbook::get))
+        .route("/api/logbooks/{logbook_id}/members", get(logbook::members))
+        .route(
+            "/api/logbooks/{logbook_id}/members/{callsign}",
+            put(logbook::set_member).delete(logbook::remove_member),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/stations",
+            get(station::list).post(station::create),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/stations/{id}",
+            get(station::get).put(station::update),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/stations/{id}/archive",
+            post(station::archive).delete(station::unarchive),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/stations/{id}/rewrite",
+            get(station::preview_rewrite).post(station::rewrite),
+        )
         .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
         .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
         .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))
@@ -124,6 +150,20 @@ async fn health(State(state): State<Arc<AppState>>) -> Response {
             (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "status": "error" }))).into_response()
         }
     }
+}
+
+async fn reference_versions(
+    State(state): State<Arc<AppState>>,
+    SignedIn(user): SignedIn,
+) -> Result<Json<Value>, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let versions = reference::list(&mut conn, &user).await?;
+    Ok(Json(Value::Array(
+        versions
+            .into_iter()
+            .map(|v| json!({ "kind": v.kind.as_str(), "version": v.version, "updated_at": v.updated_at }))
+            .collect(),
+    )))
 }
 
 async fn api_not_found() -> Response {
@@ -204,6 +244,38 @@ mod tests {
         }
         let response = router.oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), status);
+    }
+
+    #[tokio::test]
+    async fn shows_reference_versions_to_signed_in_users() {
+        use crate::{
+            store::{WriteTx, reference::ReferenceKind, token::TokenKind},
+            web::testing::{Auth, Harness},
+        };
+
+        let h = Harness::new().await;
+        let admin = h.world.admin_access().await;
+        let mut tx = WriteTx::begin(&h.world.db).await.unwrap();
+        let cty = reference::set(&mut tx, &admin, ReferenceKind::Cty, "2026-10-15", Some(&[1]))
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let session = h.session(&h.world.outsider).await;
+        let (status, body) = h.send("GET", "/api/reference", Auth::Session(&session), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body,
+            json!([{ "kind": "cty", "version": "2026-10-15", "updated_at": cty.updated_at }])
+        );
+
+        let token = h
+            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
+            .await;
+        for auth in [Auth::Anonymous, Auth::Bearer(&token)] {
+            let (status, _) = h.send("GET", "/api/reference", auth, None).await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED);
+        }
     }
 
     #[tokio::test]
