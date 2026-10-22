@@ -86,6 +86,34 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - An operator can edit and delete QSOs entered by others.
 - API tokens belong to a User and are limited to Logbooks by scopes. The plaintext is shown only when issued.
 - The first admin is created by a CLI setup command, which issues a one-time registration URL.
+- Disabling or demoting the last active admin is refused.
+- A Logbook keeps at least one active owner: disabling the only active owner of a Logbook is refused until another owner is set, and so is removing or demoting the last active owner.
+- Disabling a user deletes their sessions, API tokens and unused registration tokens. Enabling them again restores none of these. Changing a user's callsign is not in the first version.
+- Deleting a Logbook is an admin operation that cascades to everything it owns, its rescue records included; the CLI confirms and snapshots the database first.
+- An admin sets an owner of a Logbook as a rescue with a reason. The existing owners stay owners.
+- Instance settings are written by an admin; the server reads them without an access.
+- Reference data versions are written by an admin (the CLI) and read by any signed-in user.
+
+### Sign-in and Credentials
+
+- Sessions, API tokens and registration tokens are random 256-bit values; only their SHA-256 is stored. A `wl2` token for grayline carries the `wl2_` prefix as part of its plaintext.
+- A session lasts 30 days and is extended on use: once its expiry is more than a day old, it is pushed to 30 days from now. Signing out deletes it.
+- A token's kind decides which API it opens: a `native` token works only on the native API, a `wl2` token only under `/wl2`.
+- Issuing a token requires a Membership in every Logbook of its scopes. A token is revoked by its user or by an admin; an owner cannot revoke the tokens of the Logbook's members.
+- A token's `last_used_at` is written at most once a day, so that reads do not become writes.
+- A registration token is valid for 24 hours unless the CLI gives another period. Issuing one for a user invalidates that user's unused ones.
+- Re-registration only adds a passkey. A lost passkey is removed with a separate deletion. A user cannot delete their own last passkey; an admin can delete another user's last one.
+- WebAuthn ceremony state is kept in memory, as in speech-to-qso. The store keeps the `Passkey` as JSON and does not depend on webauthn-rs.
+
+### Bulk Changes
+
+- A bulk QSL change takes QSO IDs, each with the revision it is based on, and assignments to the QSL columns only. Values are checked against the ADIF enumerations ignoring case and dates as `YYYYMMDD`, and stored as given. Rows that are missing, deleted or at another revision are skipped and reported; the others are updated. Operators can do it.
+- Applying an export batch is a bulk QSL change over the batch rows at their recorded revisions, dated with the UTC day of the application: `qsl_card` sets `QSL_SENT = Y` and `QSLSDATE`, `eqsl` sets `EQSL_QSL_SENT = Y` and `EQSL_QSLSDATE`, and `lotw` sets `LOTW_QSL_SENT = Y` and `LOTW_QSLSDATE`. `QSL_SENT_VIA` is not written. `adif` and `pota` batches are records only and cannot be applied. A batch is applied once, in one transaction.
+- Rewriting the past QSOs of a Station is reserved for owners. It covers the Station's QSOs, optionally within a QSO time range, and overwrites `STATION_CALLSIGN` and the keys present in the Station's fields, leaving the other fields alone; rows that already match are not touched. A preview returns the number of rows; applying takes that number and refuses with a conflict if it no longer matches.
+
+### Search
+
+- The client keeps the whole Logbook and filters locally, so the server's search is the minimum the APIs, the CLI and exports need: a QSO time range, the Station, band and mode ignoring case, the call exactly (ignoring case) or by `call_base`, a set of `QSL_SENT` values in which an empty value matches an absent field, and `contest_id`. Deleted rows are excluded. Results are newest first with keyset paging on `(qso_time, id)`. There is no substring search.
 
 ### Store and Authorization Boundaries
 

@@ -178,7 +178,7 @@ CREATE TABLE api_token_scopes (
 CREATE TABLE export_batches (
     id TEXT PRIMARY KEY NOT NULL,
     logbook_id TEXT NOT NULL REFERENCES logbooks (id) ON DELETE CASCADE,
-    kind TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('adif', 'pota', 'eqsl', 'lotw', 'qsl_card')),
     created_by TEXT NOT NULL REFERENCES users (id),
     created_at TEXT NOT NULL,
     applied_at TEXT,
@@ -207,7 +207,7 @@ CREATE TABLE rescue_operations (
 );
 
 CREATE TABLE reference_versions (
-    kind TEXT PRIMARY KEY NOT NULL,
+    kind TEXT PRIMARY KEY NOT NULL CHECK (kind IN ('cty', 'subdivisions', 'parks')),
     version TEXT NOT NULL,
     checksum BLOB,
     updated_at TEXT NOT NULL

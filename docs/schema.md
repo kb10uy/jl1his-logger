@@ -41,7 +41,8 @@ decisions.md.
 
 Instance-wide key / value settings edited by an admin. Nothing in the first
 version needs one yet; the table exists so that the admin UI and the CLI
-have one place for them.
+have one place for them. Only an admin writes them; the server reads them
+without an access.
 
 ### `users`, `passkeys`, `registration_tokens`, `sessions`
 
@@ -56,8 +57,15 @@ have one place for them.
   from `setup`, invitations of new users and passkey re-registration. The
   user row exists before the link is issued, so the token always points at a
   user. `created_by` is the admin who issued it, or `NULL` for `setup`.
+  A token is valid for 24 hours unless the CLI gives another period, and
+  issuing one deletes the user's unused ones. `setup` can issue one only for
+  an admin without passkeys.
 - `sessions` is the `__Host-` cookie session, looked up by the hash of the
-  cookie value.
+  cookie value. It lasts 30 days; using it pushes `expires_at` back to 30
+  days from now once the stored expiry is more than a day old. Expired rows
+  are deleted when a session is created.
+- Disabling a user deletes their `sessions`, `api_tokens` and unused
+  `registration_tokens`; `passkeys` stay.
 
 ### `logbooks`
 
@@ -176,8 +184,12 @@ A token belongs to a user and is limited to the Logbooks listed in
 `api_token_scopes`. `kind` is `native` or `wl2`. A `wl2` token has exactly
 one scope row, which is the Logbook its compatibility requests are fixed to;
 the application enforces the count. Whether the plaintext started with `wl2_`
-(grayline) is a formatting choice at issue time and is not stored. Revoking a
-token deletes the row.
+(grayline) is a formatting choice at issue time and is not stored; the
+prefix is part of the plaintext that is hashed. `kind` decides the API a
+token opens: `native` the native API, `wl2` only `/wl2`. Every scope needs a
+Membership of the user when the token is issued, and access revalidates the
+Membership on every use. `last_used_at` is written at most once a day.
+Revoking a token deletes the row.
 
 ### `export_batches`, `export_batch_qsos`
 
@@ -185,8 +197,11 @@ An export records which rows it covered and at which `revision`. `kind`
 names the external processing (`adif`, `pota`, `eqsl`, `lotw`, `qsl_card`).
 Applying the result (for example marking `QSL_SENT = Y` after the cards went
 out) touches only the rows in the batch, and a row whose `revision` moved
-since the export is reported rather than silently overwritten. `applied_at`
-is set when the result has been applied.
+since the export, or that was deleted, is skipped and reported rather than
+silently overwritten. `applied_at` is set when the result has been applied,
+and a batch is applied only once. `adif` and `pota` batches record what was
+exported and have nothing to apply. decisions.md lists the fields each kind
+sets.
 
 `export_batch_qsos.logbook_id` participates in composite foreign keys to
 both `export_batches` and `qsos`, so a batch cannot include a QSO from
@@ -202,7 +217,8 @@ operation.
 ### `reference_versions`
 
 The active version of each reference data set (`cty`, `subdivisions`,
-`parks`), written by the CLI when it switches versions. The data itself lives
+`parks`, enforced by a `CHECK`), written by the CLI as an admin when it
+switches versions. The data itself lives
 in the files `config.toml` points at; the web UI reads this table to show
 the versions.
 
