@@ -1,86 +1,17 @@
-use std::{collections::BTreeMap, fmt, str::FromStr};
+mod columns;
+mod id;
+
+use std::{collections::BTreeMap, str::FromStr};
 
 use chrono::NaiveDate;
-use uuid::{Uuid, Variant};
 
 use crate::domain::{
     band::{Band, parse_frequency_hz},
     callsign,
 };
 
-macro_rules! columns {
-    ($($field:ident => $name:literal),* $(,)?) => {
-        #[derive(Debug, Clone, Default, PartialEq, Eq)]
-        pub struct Columns {
-            $(pub $field: Option<String>,)*
-        }
-
-        impl Columns {
-            pub const NAMES: &[&str] = &[$($name),*];
-
-            pub fn get(&self, name: &str) -> Option<&str> {
-                match name {
-                    $($name => self.$field.as_deref(),)*
-                    _ => None,
-                }
-            }
-
-            fn slot(&mut self, name: &str) -> Option<&mut Option<String>> {
-                match name {
-                    $($name => Some(&mut self.$field),)*
-                    _ => None,
-                }
-            }
-        }
-    };
-}
-
-columns! {
-    call => "CALL",
-    qso_date => "QSO_DATE",
-    time_on => "TIME_ON",
-    time_off => "TIME_OFF",
-    band => "BAND",
-    mode => "MODE",
-    submode => "SUBMODE",
-    freq => "FREQ",
-    rst_sent => "RST_SENT",
-    rst_rcvd => "RST_RCVD",
-    station_callsign => "STATION_CALLSIGN",
-    operator => "OPERATOR",
-    name => "NAME",
-    qth => "QTH",
-    gridsquare => "GRIDSQUARE",
-    state => "STATE",
-    cnty => "CNTY",
-    dxcc => "DXCC",
-    contest_id => "CONTEST_ID",
-    stx_string => "STX_STRING",
-    srx_string => "SRX_STRING",
-    comment => "COMMENT",
-    tx_pwr => "TX_PWR",
-    qsl_sent => "QSL_SENT",
-    qsl_sent_via => "QSL_SENT_VIA",
-    qslsdate => "QSLSDATE",
-    qsl_rcvd => "QSL_RCVD",
-    qsl_rcvd_via => "QSL_RCVD_VIA",
-    qslrdate => "QSLRDATE",
-    eqsl_qsl_sent => "EQSL_QSL_SENT",
-    eqsl_qslsdate => "EQSL_QSLSDATE",
-    eqsl_qsl_rcvd => "EQSL_QSL_RCVD",
-    eqsl_qslrdate => "EQSL_QSLRDATE",
-    lotw_qsl_sent => "LOTW_QSL_SENT",
-    lotw_qslsdate => "LOTW_QSLSDATE",
-    lotw_qsl_rcvd => "LOTW_QSL_RCVD",
-    lotw_qslrdate => "LOTW_QSLRDATE",
-    my_gridsquare => "MY_GRIDSQUARE",
-    my_city => "MY_CITY",
-    my_state => "MY_STATE",
-    my_cnty => "MY_CNTY",
-    my_pota_ref => "MY_POTA_REF",
-    my_sig => "MY_SIG",
-    my_sig_info => "MY_SIG_INFO",
-}
+pub use columns::Columns;
+pub use id::{InvalidQsoId, QsoId};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum QsoError {
@@ -285,36 +216,6 @@ fn qso_time(date: &str, time: &str) -> Option<i64> {
     };
     let time = parse_date(date)?.and_hms_opt(digits(time.get(..2)?)?, digits(time.get(2..4)?)?, digits(seconds)?)?;
     Some(time.and_utc().timestamp())
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct QsoId(Uuid);
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("{0:?} is not a UUID v7")]
-pub struct InvalidQsoId(String);
-
-impl QsoId {
-    pub fn generate() -> QsoId {
-        QsoId(Uuid::now_v7())
-    }
-}
-
-impl FromStr for QsoId {
-    type Err = InvalidQsoId;
-
-    fn from_str(s: &str) -> Result<QsoId, InvalidQsoId> {
-        match Uuid::parse_str(s) {
-            Ok(id) if id.get_version_num() == 7 && id.get_variant() == Variant::RFC4122 => Ok(QsoId(id)),
-            _ => Err(InvalidQsoId(s.to_owned())),
-        }
-    }
-}
-
-impl fmt::Display for QsoId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.hyphenated().fmt(f)
-    }
 }
 
 #[cfg(test)]
@@ -572,28 +473,5 @@ pub(crate) mod tests {
             assert_eq!(qso.columns.get(name), Some(*name));
         }
         assert!(qso.fields.is_empty());
-    }
-
-    #[rstest]
-    #[case("019a0a4e-6f2b-7c3d-8e4f-0123456789ab", "019a0a4e-6f2b-7c3d-8e4f-0123456789ab")]
-    #[case("019A0A4E-6F2B-7C3D-8E4F-0123456789AB", "019a0a4e-6f2b-7c3d-8e4f-0123456789ab")]
-    #[case("019a0a4e6f2b7c3d8e4f0123456789ab", "019a0a4e-6f2b-7c3d-8e4f-0123456789ab")]
-    fn reads_qso_ids_in_canonical_form(#[case] input: &str, #[case] canonical: &str) {
-        assert_eq!(input.parse::<QsoId>().unwrap().to_string(), canonical);
-    }
-
-    #[rstest]
-    #[case("6f1c2a3e-4b5d-4e6f-8a7b-0123456789ab")]
-    #[case("019a0a4e-6f2b-7c3d-0e4f-0123456789ab")]
-    #[case("00000000-0000-0000-0000-000000000000")]
-    #[case("not-a-uuid")]
-    fn refuses_ids_other_than_uuid_v7(#[case] input: &str) {
-        assert!(input.parse::<QsoId>().is_err());
-    }
-
-    #[test]
-    fn generates_uuid_v7() {
-        let id = QsoId::generate();
-        assert_eq!(id.to_string().parse::<QsoId>(), Ok(id));
     }
 }
