@@ -57,7 +57,7 @@ decided; keep the server a single package until then.
 - **ADIF lengths are codepoints by default**, with bytes as an export option.
   Reading goes through `adif-reader` (github.com/kb10uy/adif-reader); the
   writer belongs there too, placement pending; until it moves it is
-  `server/src/adif.rs`.
+  `server/src/domain/adif.rs`.
 - **Exports are batches**: record the UUIDs and `revision`s, and apply the
   external result to those rows only.
 - **SSE, not WebSocket.** Event `id` is `updated_seq`; reconnection uses
@@ -116,6 +116,10 @@ decided; keep the server a single package until then.
 - Prefer `modname.rs` and `modname/` style over `mod.rs` style.
 - Use `rstest` for parameterized tests, fixtures, and test cases where they
   improve coverage or reduce repetition.
+- In `server/`, pure logic (bands, callsigns, QSO records, duplicate
+  detection, ADIF) lives under `src/domain/` and must not touch the
+  database, network or file system; `config`, `db` and `web` depend on it,
+  never the other way round.
 - In `client/`, pure logic (ADIF, QSO records, the voice DSL, frequency
   resolution) must not touch the DOM, audio, storage or network, and has unit
   tests next to it (`*.test.ts`). Prettier (single quotes, width 100,

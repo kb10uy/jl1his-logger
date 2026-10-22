@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use url::Url;
 
+use crate::domain::adif::LengthUnit;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -32,14 +34,6 @@ impl Default for ReferenceConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct AdifConfig {
     pub length: LengthUnit,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LengthUnit {
-    #[default]
-    Codepoints,
-    Bytes,
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,13 +1,19 @@
 use adif_reader::{LengthMode, document::AdifDocument, error::AdifError};
 use chrono::{DateTime, Utc};
+use serde::Deserialize;
 
-use crate::{
-    config::LengthUnit,
-    qso::{Qso, QsoError},
-};
+use crate::domain::qso::{Qso, QsoError};
 
 pub const ADIF_VERSION: &str = "3.1.5";
 pub const PROGRAM_ID: &str = "jl1his-logger";
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LengthUnit {
+    #[default]
+    Codepoints,
+    Bytes,
+}
 
 pub fn read_adi(text: &str, unit: LengthUnit) -> Result<Vec<Result<Qso, QsoError>>, AdifError> {
     let mode = match unit {
@@ -67,9 +73,9 @@ mod tests {
 
     use super::*;
 
-    const EXPORT_CODEPOINTS: &str = include_str!("../../fixtures/adif/export-codepoints.adi");
-    const EXPORT_BYTES: &str = include_str!("../../fixtures/adif/export-bytes.adi");
-    const IMPORT: &str = include_str!("../../fixtures/adif/import.adi");
+    const EXPORT_CODEPOINTS: &str = include_str!("../../../fixtures/adif/export-codepoints.adi");
+    const EXPORT_BYTES: &str = include_str!("../../../fixtures/adif/export-bytes.adi");
+    const IMPORT: &str = include_str!("../../../fixtures/adif/import.adi");
 
     fn exported() -> Qso {
         Qso::from_fields([

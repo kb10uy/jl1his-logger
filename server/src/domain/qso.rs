@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fmt, str::FromStr};
 use chrono::NaiveDate;
 use uuid::{Uuid, Variant};
 
-use crate::{
+use crate::domain::{
     band::{Band, parse_frequency_hz},
     callsign,
 };

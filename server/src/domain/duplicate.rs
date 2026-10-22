@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use crate::qso::{Derived, Qso};
+use crate::domain::qso::{Derived, Qso};
 
 pub const WINDOW_SECONDS: i64 = 15 * 60;
 
@@ -40,7 +40,7 @@ mod tests {
     use rstest::rstest;
 
     use super::*;
-    use crate::qso::tests::sample;
+    use crate::domain::qso::tests::sample;
 
     fn key(call: &str, band: &str, mode: &str, qso_time: i64) -> DuplicateKey {
         DuplicateKey {
