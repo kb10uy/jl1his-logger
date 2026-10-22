@@ -1,11 +1,15 @@
+mod auth;
+mod error;
+
 use std::{path::Path, sync::Arc};
 
 use axum::{
     Json, Router,
-    extract::State,
-    http::{HeaderValue, StatusCode, header},
+    extract::{Request, State},
+    http::{HeaderValue, Method, StatusCode, header},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{any, get},
+    routing::{any, delete, get, post},
 };
 use serde_json::json;
 use tower_http::{
@@ -14,20 +18,53 @@ use tower_http::{
     trace::TraceLayer,
 };
 use url::Url;
+use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::WebauthnError};
 
+use self::{auth::Ceremonies, error::ApiError};
 use crate::{config::Config, db::Db};
 
 pub struct AppState {
     pub db: Db,
     pub config: Config,
     pub public_origin: Url,
+    origin: String,
+    webauthn: Webauthn,
+    ceremonies: Ceremonies,
+}
+
+impl AppState {
+    pub fn new(db: Db, config: Config, public_origin: Url) -> Result<AppState, WebauthnError> {
+        let rp_id = public_origin.host_str().ok_or(WebauthnError::Configuration)?;
+        let webauthn = WebauthnBuilder::new(rp_id, &public_origin)?
+            .rp_name("jl1his-logger")
+            .build()?;
+        Ok(AppState {
+            db,
+            config,
+            origin: public_origin.origin().ascii_serialization(),
+            public_origin,
+            webauthn,
+            ceremonies: Ceremonies::default(),
+        })
+    }
 }
 
 pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
     let api = Router::new()
         .route("/api/health", get(health))
+        .route("/api/me", get(auth::me))
+        .route("/api/auth/login/start", post(auth::login_start))
+        .route("/api/auth/login/finish", post(auth::login_finish))
+        .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/register/start", post(auth::link_start))
+        .route("/api/auth/register/finish", post(auth::link_finish))
+        .route("/api/passkeys", get(auth::list_passkeys))
+        .route("/api/passkeys/register/start", post(auth::add_start))
+        .route("/api/passkeys/register/finish", post(auth::add_finish))
+        .route("/api/passkeys/{id}", delete(auth::delete_passkey))
         .route("/api", any(api_not_found))
         .route("/api/{*rest}", any(api_not_found))
+        .layer(middleware::from_fn_with_state(state.clone(), same_origin_only))
         .with_state(state);
 
     let app = match web_dir {
@@ -49,6 +86,22 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
     app.layer(TraceLayer::new_for_http())
 }
 
+async fn same_origin_only(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
+    if !matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+        let headers = request.headers();
+        let foreign_origin = headers
+            .get(header::ORIGIN)
+            .is_some_and(|o| o.as_bytes() != state.origin.as_bytes());
+        let cross_site = headers
+            .get("sec-fetch-site")
+            .is_some_and(|s| s != "same-origin" && s != "none");
+        if foreign_origin || cross_site {
+            return ApiError::new(StatusCode::FORBIDDEN, "cross-origin request").into_response();
+        }
+    }
+    next.run(request).await
+}
+
 async fn health(State(state): State<Arc<AppState>>) -> Response {
     match sqlx::query("SELECT 1").execute(&state.db).await {
         Ok(_) => Json(json!({ "status": "ok" })).into_response(),
@@ -60,11 +113,7 @@ async fn health(State(state): State<Arc<AppState>>) -> Response {
 }
 
 async fn api_not_found() -> Response {
-    (
-        StatusCode::NOT_FOUND,
-        Json(json!({ "status": "error", "error": "not found" })),
-    )
-        .into_response()
+    ApiError::new(StatusCode::NOT_FOUND, "not found").into_response()
 }
 
 #[cfg(test)]
@@ -85,11 +134,8 @@ mod tests {
         std::fs::create_dir_all(web_dir.join("_app").join("immutable")).unwrap();
         std::fs::write(web_dir.join("index.html"), "<!doctype html>").unwrap();
         std::fs::write(web_dir.join("_app").join("immutable").join("app.js"), "app").unwrap();
-        let state = Arc::new(AppState {
-            db,
-            config: Config::default(),
-            public_origin: Url::parse("http://localhost:8080").unwrap(),
-        });
+        let state =
+            Arc::new(AppState::new(db, Config::default(), Url::parse("http://localhost:8080").unwrap()).unwrap());
         let router = router(state, web.then_some(web_dir.as_path()));
         (dir, router)
     }
@@ -126,6 +172,34 @@ mod tests {
             assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
             assert!(body.contains("not found"), "{uri}: {body}");
         }
+    }
+
+    #[rstest]
+    #[case::foreign_origin(&[("origin", "https://evil.example.com")], StatusCode::FORBIDDEN)]
+    #[case::null_origin(&[("origin", "null")], StatusCode::FORBIDDEN)]
+    #[case::cross_site(&[("sec-fetch-site", "cross-site")], StatusCode::FORBIDDEN)]
+    #[case::same_site(&[("origin", "http://localhost:8080"), ("sec-fetch-site", "same-site")], StatusCode::FORBIDDEN)]
+    #[case::same_origin(&[("origin", "http://localhost:8080"), ("sec-fetch-site", "same-origin")], StatusCode::NO_CONTENT)]
+    #[case::not_a_browser(&[], StatusCode::NO_CONTENT)]
+    #[tokio::test]
+    async fn accepts_writes_only_from_the_public_origin(#[case] headers: &[(&str, &str)], #[case] status: StatusCode) {
+        let (_dir, router) = app(false).await;
+        let mut request = axum::http::Request::post("/api/auth/logout");
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let response = router.oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), status);
+    }
+
+    #[tokio::test]
+    async fn reads_from_other_origins() {
+        let (_dir, router) = app(false).await;
+        let request = axum::http::Request::get("/api/health")
+            .header(header::ORIGIN, "https://evil.example.com")
+            .header("sec-fetch-site", "cross-site");
+        let response = router.oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[rstest]

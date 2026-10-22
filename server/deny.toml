@@ -13,6 +13,15 @@ allow = [
     "CC0-1.0",
     "Unicode-3.0",
 ]
+exceptions = [
+    { allow = ["MPL-2.0"], crate = "webauthn-rs" },
+    { allow = ["MPL-2.0"], crate = "webauthn-rs-core" },
+    { allow = ["MPL-2.0"], crate = "webauthn-rs-proto" },
+    { allow = ["MPL-2.0"], crate = "webauthn-attestation-ca" },
+    { allow = ["MPL-2.0"], crate = "crypto-glue" },
+]
 
 [advisories]
-ignore = []
+ignore = [
+    { id = "RUSTSEC-2023-0071", reason = "rsa comes through webauthn-rs, which only verifies RSA signatures; the Marvin attack targets decryption" },
+]

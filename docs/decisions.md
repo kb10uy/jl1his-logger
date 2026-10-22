@@ -105,6 +105,11 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - A registration link is `PUBLIC_ORIGIN/register#<token>`. The token is in the fragment, so it never reaches the server's request logs; the client sends it in the registration request.
 - Re-registration only adds a passkey. A lost passkey is removed with a separate deletion. A user cannot delete their own last passkey; an admin can delete another user's last one.
 - WebAuthn ceremony state is kept in memory, as in speech-to-qso. The store keeps the `Passkey` as JSON and does not depend on webauthn-rs.
+- A ceremony is used once, expires after 5 minutes, and at most 1000 are in flight; a restart drops them and the browser starts again.
+- Passkeys are discoverable credentials: registration requires a resident key and user verification, and sign-in asks for no callsign. The WebAuthn user handle is the user ID; a passkey whose row belongs to another user than its handle, or to a disabled user, does not sign in.
+- Completing a registration link consumes it and stores the passkey in one transaction, then signs the user in. A signed-in user adds further passkeys without a link.
+- The session cookie is `__Host-session` with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/` and a 30-day `Max-Age`, which `GET /api/me` renews.
+- A state-changing request (any method but `GET`, `HEAD` and `OPTIONS`) is refused when it carries an `Origin` other than `PUBLIC_ORIGIN`, or a `Sec-Fetch-Site` other than `same-origin` or `none`. A request with neither header is not from a browser and carries no ambient cookie, so API token clients need not send them.
 
 ### Bulk Changes
 

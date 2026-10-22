@@ -147,11 +147,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            let state = Arc::new(AppState {
-                db: db.clone(),
-                config,
-                public_origin: public_origin.clone(),
-            });
+            let state = Arc::new(AppState::new(db.clone(), config, public_origin.clone())?);
             let listener = tokio::net::TcpListener::bind(listen).await?;
             tracing::info!("listening on http://{} for {public_origin}", listener.local_addr()?);
             axum::serve(listener, router(state, web_dir.as_deref()))

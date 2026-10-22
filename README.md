@@ -11,8 +11,9 @@ ADIF in and out, and drops the rest: no dashboards, maps, DX cluster, QRZ lookup
 CAT control, contest modules, awards or satellites.
 
 The design is recorded in [docs/decisions.md](docs/decisions.md). The server so far
-opens its database, applies migrations and serves the built client; this README
-describes what the repository is going to hold.
+opens its database, applies migrations, serves the built client, signs users in
+with passkeys and has the administration CLI; this README describes what the
+repository is going to hold.
 
 ## What it does
 
@@ -54,7 +55,8 @@ Logbooks.
 - `client/` — SvelteKit + TypeScript PWA, built with `adapter-static` as a
   client-only app with offline entry.
 - `assets/` — example files, such as `config.example.toml`.
-- `docs/` — development documentation. `decisions.md` is the design record.
+- `docs/` — development documentation. `decisions.md` is the design record,
+  `schema.md` the database and `api.md` the native API.
 - `fixtures/` — expected files shared by the server and client tests.
 
 ## Running
