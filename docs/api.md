@@ -40,8 +40,8 @@ browser's `credential`; a ceremony is used once and expires after 5 minutes.
 ## Reference Data
 
 `GET /api/reference` returns the versions of the reference data in use,
-`[{kind, version, updated_at}]` with `kind` one of `cty`, `subdivisions` and
-`parks`. It takes the session cookie only. Reference data is updated with the
+`[{kind, version, updated_at}]` with `kind` one of `cty`, `dxcc`,
+`subdivisions` and `parks`. It takes the session cookie only. Reference data is updated with the
 CLI.
 
 ## API Tokens

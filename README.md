@@ -112,7 +112,15 @@ jl1his-logger export write pota --park JP-0001 --from 2026-10-22 --until 2026-10
 jl1his-logger export write qsl-card --qsl-sent R,Q -o cards.adi
 jl1his-logger export apply <batch>                                # mark them sent
 jl1his-logger token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
+jl1his-logger reference install cty cty.dat                       # version from its =VER entry
+jl1his-logger reference install dxcc dxcc.toml --version 2026-10
+jl1his-logger reference list
 ```
+
+Reference data (`cty`, `dxcc`, `subdivisions`, `parks`) is installed from local
+files by an admin and goes where `[reference]` in the configuration points; paths
+there are relative to the working directory. The running server picks up a new
+version without a restart.
 
 An import previews unless given `--apply`. New QSOs get IDs derived from their
 records, so rerunning an interrupted import adds only what is missing. A QSL merge

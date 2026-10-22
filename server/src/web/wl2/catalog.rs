@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::State};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -15,6 +15,7 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct CatalogQuery {
     topic: Option<String>,
+    dxcc: Option<String>,
 }
 
 pub async fn get(
@@ -32,6 +33,28 @@ pub async fn get(
                 .collect();
             Ok(data(Value::Array(contests), json!({ "topic": "contest" })))
         }
+        Some("subdivisions") => {
+            let dxcc: u32 = query
+                .dxcc
+                .as_deref()
+                .and_then(|d| d.trim().parse().ok())
+                .ok_or_else(|| Wl2Error::validation("dxcc is required as a DXCC entity code"))?;
+            let subdivisions = state
+                .references
+                .subdivisions(&state.db, &state.config.reference)
+                .await?
+                .ok_or_else(|| Wl2Error::new(StatusCode::NOT_FOUND, "not_found", "no subdivisions are installed"))?;
+            let names = subdivisions
+                .get(&dxcc)
+                .into_iter()
+                .flatten()
+                .map(|(state, name)| json!({ "dxcc": dxcc, "state": state, "name": name }))
+                .collect();
+            Ok(data(
+                Value::Array(names),
+                json!({ "topic": "subdivisions", "dxcc": dxcc }),
+            ))
+        }
         Some(topic) => Err(Wl2Error::validation(format!(
             "the catalog topic {topic:?} is not available"
         ))),
@@ -45,10 +68,10 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        store::token::TokenKind,
+        store::{reference::ReferenceKind, token::TokenKind},
         web::{
             testing::{Auth, Harness},
-            wl2::qso::tests::create_qso,
+            wl2::{lookup::tests::Fixture, qso::tests::create_qso},
         },
     };
 
@@ -106,10 +129,44 @@ mod tests {
         for uri in [
             "/wl2/index.php/api/v2/catalog",
             "/wl2/index.php/api/v2/catalog?topic=mode",
+            "/wl2/index.php/api/v2/catalog?topic=subdivisions",
         ] {
             let (status, body) = h.send("GET", uri, Auth::Bearer(&token), None).await;
             assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");
             assert_eq!(body["error"]["code"], "validation_error", "{uri}");
         }
+    }
+
+    #[tokio::test]
+    async fn lists_the_installed_subdivisions_of_an_entity() {
+        let f = Fixture::new().await;
+        let uri = "/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=339";
+        let (status, body) = f.get(uri).await;
+        assert_eq!(
+            (status, &body["error"]["code"]),
+            (StatusCode::NOT_FOUND, &json!("not_found"))
+        );
+
+        f.install(
+            ReferenceKind::Subdivisions,
+            "subdivisions.toml",
+            "[339]\n13 = \"Tokyo\"\n01 = \"Hokkaido\"\n[291]\nCA = \"California\"\n",
+            "2026-10-23",
+        )
+        .await;
+        let (status, body) = f.get(uri).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            body,
+            json!({
+                "data": [
+                    { "dxcc": 339, "state": "01", "name": "Hokkaido" },
+                    { "dxcc": 339, "state": "13", "name": "Tokyo" },
+                ],
+                "meta": { "topic": "subdivisions", "dxcc": 339 },
+            })
+        );
+        let (_, none) = f.get("/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=1").await;
+        assert_eq!(none["data"], json!([]));
     }
 }

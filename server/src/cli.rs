@@ -2,6 +2,7 @@ pub mod admin;
 pub mod backup;
 pub mod export;
 pub mod import;
+pub mod reference;
 
 use std::{error::Error, path::Path};
 
@@ -49,6 +50,8 @@ pub enum Command {
     Import(import::ImportArgs),
     #[command(subcommand, about = "Exports QSOs as ADIF and applies the results")]
     Export(export::ExportCommand),
+    #[command(subcommand, about = "Lists and installs reference data")]
+    Reference(reference::ReferenceCommand),
     #[command(about = "Writes a copy of the database while the server runs")]
     Backup(backup::BackupArgs),
     #[command(about = "Replaces the database with a backup; the server must be stopped")]
@@ -94,6 +97,7 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
             Command::Token(command) => admin::token(&context, command).await,
             Command::Import(args) => import::run(&context, &args).await,
             Command::Export(command) => export::run(&context, command).await,
+            Command::Reference(command) => reference::run(&context, command).await,
             Command::Backup(args) => backup::backup(&context, &args).await,
             Command::Restore(_) => unreachable!("restore runs without an open database"),
         }

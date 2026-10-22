@@ -1,4 +1,5 @@
 mod catalog;
+mod lookup;
 mod qso;
 mod station;
 
@@ -6,7 +7,7 @@ use std::sync::Arc;
 
 use axum::{
     Json, Router,
-    extract::{FromRequestParts, Query as AxumQuery},
+    extract::{FromRequest, FromRequestParts, Query as AxumQuery, Request},
     http::{StatusCode, header, request::Parts},
     response::{IntoResponse, Response},
     routing::{any, get},
@@ -15,12 +16,14 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::{
+    domain::qso::QsoError,
     store::{
         StoreError,
         access::{self, LogbookAccess},
+        station::Station,
         token::{self, TokenKind},
     },
-    web::AppState,
+    web::{AppState, references::LoadError},
 };
 
 const API: &str = "/wl2/index.php/api/v2";
@@ -28,8 +31,10 @@ const API: &str = "/wl2/index.php/api/v2";
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route(&format!("{API}/station"), get(station::list))
-        .route(&format!("{API}/qso"), get(qso::list))
+        .route(&format!("{API}/qso"), get(qso::list).post(qso::create))
         .route(&format!("{API}/catalog"), get(catalog::get))
+        .route(&format!("{API}/lookup"), get(lookup::get))
+        .route("/wl2/api/v2/lookup", get(lookup::get))
         .route("/wl2", any(not_found))
         .route("/wl2/{*rest}", any(not_found))
 }
@@ -39,6 +44,7 @@ pub struct Wl2Error {
     status: StatusCode,
     code: &'static str,
     message: String,
+    details: Option<Value>,
 }
 
 impl Wl2Error {
@@ -47,7 +53,13 @@ impl Wl2Error {
             status,
             code,
             message: message.into(),
+            details: None,
         }
+    }
+
+    fn with_details(mut self, details: Value) -> Wl2Error {
+        self.details = Some(details);
+        self
     }
 
     fn validation(message: impl Into<String>) -> Wl2Error {
@@ -73,6 +85,21 @@ impl From<StoreError> for Wl2Error {
     }
 }
 
+impl From<QsoError> for Wl2Error {
+    fn from(e: QsoError) -> Wl2Error {
+        StoreError::from(e).into()
+    }
+}
+
+impl From<LoadError> for Wl2Error {
+    fn from(e: LoadError) -> Wl2Error {
+        match e {
+            LoadError::Store(e) => e.into(),
+            LoadError::File(message) => Wl2Error::new(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", message),
+        }
+    }
+}
+
 impl From<sqlx::Error> for Wl2Error {
     fn from(e: sqlx::Error) -> Wl2Error {
         StoreError::from(e).into()
@@ -88,11 +115,11 @@ impl IntoResponse for Wl2Error {
             }
             _ => self.message,
         };
-        (
-            self.status,
-            Json(json!({ "error": { "code": self.code, "message": message } })),
-        )
-            .into_response()
+        let mut error = json!({ "code": self.code, "message": message });
+        if let Some(details) = self.details {
+            error["details"] = details;
+        }
+        (self.status, Json(json!({ "error": error }))).into_response()
     }
 }
 
@@ -141,6 +168,33 @@ impl<S: Send + Sync, T: DeserializeOwned> FromRequestParts<S> for Wl2Query<T> {
             Err(e) => Err(Wl2Error::validation(e.body_text())),
         }
     }
+}
+
+pub struct Wl2Json<T>(pub T);
+
+impl<S: Send + Sync, T: DeserializeOwned> FromRequest<S> for Wl2Json<T> {
+    type Rejection = Wl2Error;
+
+    async fn from_request(req: Request, state: &S) -> Result<Wl2Json<T>, Wl2Error> {
+        match Json::<T>::from_request(req, state).await {
+            Ok(Json(value)) => Ok(Wl2Json(value)),
+            Err(e) => Err(Wl2Error::validation(e.body_text())),
+        }
+    }
+}
+
+fn mapped<'a>(stations: &'a [Station], wavelog_id: &str) -> Result<&'a Station, Wl2Error> {
+    let wavelog_id = wavelog_id.trim();
+    stations
+        .iter()
+        .find(|s| s.wavelog_id.is_some_and(|id| id.to_string() == wavelog_id))
+        .ok_or_else(|| {
+            Wl2Error::new(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                format!("Station {wavelog_id:?} not found"),
+            )
+        })
 }
 
 fn data(data: Value, meta: Value) -> Json<Value> {

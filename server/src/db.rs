@@ -221,7 +221,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2]);
+        assert_eq!(migrated.applied, [2, 3]);
         assert!(migrated.snapshot.unwrap().is_file());
         let batch: (String, String, String, String, String, Option<String>) =
             sqlx::query_as("SELECT id, logbook_id, kind, created_by, created_at, applied_at FROM export_batches")
@@ -273,6 +273,10 @@ mod tests {
         ] {
             assert!(sqlx::query(sql).execute(&db).await.is_err(), "{sql}");
         }
+        sqlx::query("INSERT INTO reference_versions (kind, version, updated_at) VALUES ('dxcc', '1', 'now')")
+            .execute(&db)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM export_batches WHERE id = 'batch'")
             .execute(&db)
             .await

@@ -3,18 +3,24 @@ use std::sync::Arc;
 use axum::{Json, extract::State, http::StatusCode};
 use chrono::{Days, NaiveDate};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use crate::{
-    domain::{adif::LengthUnit, qso::Qso},
+    domain::{
+        adif::LengthUnit,
+        import::RecordIds,
+        qso::Qso,
+        wavelog::{STATION_PROFILE_ID, qso_from_body},
+    },
     store::{
-        qso::{self, CallMatch, Confirmation, Filter, InsertionQuery, TimeRange},
+        WriteTx,
+        qso::{self, CallMatch, Confirmation, Created, Filter, InsertionQuery, QsoInput, TimeRange},
         station,
     },
     web::{
         AppState,
         export::adif_document,
-        wl2::{Wl2Access, Wl2Error, Wl2Query, data},
+        wl2::{Wl2Access, Wl2Error, Wl2Json, Wl2Query, data, mapped},
     },
 };
 
@@ -78,18 +84,8 @@ pub async fn list(
         Some(list) => {
             let stations = station::list(&mut conn, &access).await?;
             let mut ids = vec![];
-            for wavelog_id in list.split(',').map(str::trim) {
-                let station = stations
-                    .iter()
-                    .find(|s| s.wavelog_id.is_some_and(|id| id.to_string() == wavelog_id))
-                    .ok_or_else(|| {
-                        Wl2Error::new(
-                            StatusCode::NOT_FOUND,
-                            "not_found",
-                            format!("Station {wavelog_id:?} not found"),
-                        )
-                    })?;
-                ids.push(station.id.clone());
+            for wavelog_id in list.split(',') {
+                ids.push(mapped(&stations, wavelog_id)?.id.clone());
             }
             Some(ids)
         }
@@ -141,6 +137,45 @@ pub async fn list(
             "has_more": page < total_pages,
         }),
     ))
+}
+
+pub async fn create(
+    State(state): State<Arc<AppState>>,
+    Wl2Access(access): Wl2Access,
+    Wl2Json(body): Wl2Json<Map<String, Value>>,
+) -> Result<(StatusCode, Json<Value>), Wl2Error> {
+    let wavelog_id = match body.get(STATION_PROFILE_ID) {
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::String(s)) => s.clone(),
+        _ => return Err(Wl2Error::validation("station_profile_id is required")),
+    };
+    let qso = qso_from_body(&body)?;
+    let id = RecordIds::new(access.logbook_id()).next(&qso)?;
+
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let station_id = mapped(&station::list(&mut tx, &access).await?, &wavelog_id)?.id.clone();
+    match qso::create(&mut tx, &access, &id, QsoInput { station_id, qso }).await? {
+        Created::New { stored, .. } => {
+            tx.commit().await?;
+            Ok((
+                StatusCode::CREATED,
+                data(
+                    json!({ "id": stored.seq, "uuid": stored.id }),
+                    json!({ "resource": "qso", "method": "POST" }),
+                ),
+            ))
+        }
+        Created::Existing(stored) => {
+            let summary = ["CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE"]
+                .map(|name| stored.qso.get(name).unwrap_or_default())
+                .join(" ");
+            Err(Wl2Error::validation("Duplicate QSO").with_details(json!({
+                "critical": [],
+                "validation": [],
+                "duplicate": [summary],
+            })))
+        }
+    }
 }
 
 fn present(value: &Option<String>) -> Option<&str> {
@@ -318,6 +353,83 @@ pub(super) mod tests {
             empty["meta"],
             json!({ "page": 1, "per_page": 100, "count": 0, "total": 0, "total_pages": 0, "has_more": false })
         );
+    }
+
+    fn hislog_body() -> Value {
+        json!({
+            "station_profile_id": 3,
+            "call": "JA1XYZ",
+            "qso_date": "2026-10-20",
+            "time_on": "094127",
+            "band": "40m",
+            "freq": "7041500",
+            "mode": "CW",
+            "rst_sent": "599",
+            "rst_rcvd": "579"
+        })
+    }
+
+    impl Fixture {
+        async fn post(&self, body: Value) -> (StatusCode, Value) {
+            let uri = "/wl2/index.php/api/v2/qso";
+            self.h.send("POST", uri, Auth::Bearer(&self.token), Some(body)).await
+        }
+    }
+
+    #[tokio::test]
+    async fn creates_a_qso_and_answers_a_resend_as_a_duplicate() {
+        let f = fixture().await;
+
+        let (status, created) = f.post(hislog_body()).await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+        assert_eq!(created["data"]["id"], 7);
+        let uuid = created["data"]["uuid"].as_str().unwrap().to_owned();
+        let session = f.h.session(&f.h.world.operator).await;
+        let uri = format!("/api/logbooks/{}/qsos/{uuid}", f.h.world.logbook.id);
+        let (_, stored) = f.h.send("GET", &uri, Auth::Session(&session), None).await;
+        assert_eq!(stored["fields"]["FREQ"], "7.0415");
+        assert_eq!(stored["fields"]["QSO_DATE"], "20261020");
+        assert_eq!(stored["fields"]["STATION_CALLSIGN"], "JL1HIS/1");
+        assert_eq!(stored["fields"]["OPERATOR"], "JA1OPR");
+
+        let (status, again) = f.post(hislog_body()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{again}");
+        assert_eq!(again["error"]["code"], "validation_error");
+        assert_eq!(
+            again["error"]["details"]["duplicate"],
+            json!(["JA1XYZ 20261020 094127 40m CW"])
+        );
+
+        let (status, _, _) =
+            f.h.send_with("DELETE", &uri, Auth::Session(&session), &[("if-match", "\"1\"")], None)
+                .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _) = f.post(hislog_body()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
+        let mut nearby = hislog_body();
+        nearby["time_on"] = json!("094130");
+        let (status, body) = f.post(nearby).await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+        assert_eq!(f.calls("since_id=6").await, ["JA1XYZ"]);
+    }
+
+    #[rstest]
+    #[case(json!({ "call": "JA1XYZ" }), StatusCode::BAD_REQUEST, "validation_error")]
+    #[case(json!({ "station_profile_id": 7, "call": "JA1XYZ", "qso_date": "2026-10-20", "time_on": "0941" }), StatusCode::NOT_FOUND, "not_found")]
+    #[case(json!({ "station_profile_id": "3", "call": "JA1XYZ", "band": "40m", "mode": "CW" }), StatusCode::BAD_REQUEST, "validation_error")]
+    #[case(json!({ "station_profile_id": 3, "call": "JA1XYZ", "qso_date": "2026-10-20", "time_on": "0941", "mode": "CW" }), StatusCode::BAD_REQUEST, "validation_error")]
+    #[case(json!([]), StatusCode::BAD_REQUEST, "validation_error")]
+    #[tokio::test]
+    async fn refuses_a_qso_it_cannot_record(#[case] body: Value, #[case] status: StatusCode, #[case] code: &str) {
+        let f = fixture().await;
+        let (actual, answer) = f.post(body).await;
+        assert_eq!(
+            (actual, answer["error"]["code"].as_str()),
+            (status, Some(code)),
+            "{answer}"
+        );
+        assert!(answer["error"].get("details").is_none());
     }
 
     #[rstest]

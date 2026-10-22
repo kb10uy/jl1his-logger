@@ -5,6 +5,7 @@ source of truth is `server/migrations/`; this page explains the choices the SQL
 cannot. Applied migrations are never edited; every change is a new migration.
 `0002_constrain_kinds.sql` adds the export and reference kind constraints while
 preserving existing batches, their QSO revisions and reference versions.
+`0003_reference_dxcc.sql` adds the `dxcc` reference kind.
 sqlx applies pending migrations when the server starts and records each one
 with its checksum in `_sqlx_migrations`; see "Migrations and Deployment" in
 decisions.md.
@@ -217,11 +218,11 @@ operation.
 
 ### `reference_versions`
 
-The active version of each reference data set (`cty`, `subdivisions`,
-`parks`, enforced by a `CHECK`), written by the CLI as an admin when it
-switches versions. The data itself lives
-in the files `config.toml` points at; the web UI reads this table to show
-the versions.
+The active version of each reference data set (`cty`, `dxcc`,
+`subdivisions`, `parks`, enforced by a `CHECK`), written by the CLI as an admin
+when it installs a file, with the file's SHA-256 as `checksum`. The data itself
+lives in the files `config.toml` points at; the server reloads a file when its
+row changes, and the web UI reads this table to show the versions.
 
 ## Not in the schema
 

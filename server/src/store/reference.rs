@@ -9,6 +9,7 @@ use crate::store::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReferenceKind {
     Cty,
+    Dxcc,
     Subdivisions,
     Parks,
 }
@@ -17,6 +18,7 @@ impl ReferenceKind {
     pub fn as_str(self) -> &'static str {
         match self {
             ReferenceKind::Cty => "cty",
+            ReferenceKind::Dxcc => "dxcc",
             ReferenceKind::Subdivisions => "subdivisions",
             ReferenceKind::Parks => "parks",
         }
@@ -25,6 +27,7 @@ impl ReferenceKind {
     fn parse(s: &str) -> Result<ReferenceKind, StoreError> {
         match s {
             "cty" => Ok(ReferenceKind::Cty),
+            "dxcc" => Ok(ReferenceKind::Dxcc),
             "subdivisions" => Ok(ReferenceKind::Subdivisions),
             "parks" => Ok(ReferenceKind::Parks),
             _ => Err(StoreError::Invalid(format!("unknown reference data {s:?}"))),
@@ -86,6 +89,16 @@ pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<
         .iter()
         .map(ReferenceVersion::from_row)
         .collect()
+}
+
+pub async fn current(conn: &mut SqliteConnection, kind: ReferenceKind) -> Result<Option<ReferenceVersion>, StoreError> {
+    sqlx::query("SELECT kind, version, checksum, updated_at FROM reference_versions WHERE kind = ?")
+        .bind(kind.as_str())
+        .fetch_optional(conn)
+        .await?
+        .as_ref()
+        .map(ReferenceVersion::from_row)
+        .transpose()
 }
 
 #[cfg(test)]

@@ -3,32 +3,36 @@
 The existing clients (hislog, speech-to-qso, grayline, wavelog-tools) keep
 talking Wavelog API v2 to jl1his-logger until they move to the native API.
 Their base URL becomes `PUBLIC_ORIGIN/wl2`, so their requests arrive at
-`/wl2/index.php/api/v2/<resource>`. Only what these clients use is matched; see
+`/wl2/index.php/api/v2/<resource>`; lookup is also at `/wl2/api/v2/lookup`,
+where grayline tries first. Only what these clients use is matched; see
 "Wavelog API v2 Compatibility Layer" in [decisions.md](decisions.md).
 
 ## Requests and Errors
 
 A request carries a `wl2` API token as `Authorization: Bearer <token>`. The
-token is fixed to one Logbook, which every request reads. A missing or unknown
-token, a native token, a session cookie, or a token whose user lost the
-Logbook's Membership is `401`.
+token is fixed to one Logbook, which every request reads and writes. A missing
+or unknown token, a native token, a session cookie, or a token whose user lost
+the Logbook's Membership is `401`.
 
-Errors are Wavelog's envelope, `{"error": {"code": "...", "message": "..."}}`:
+Errors are Wavelog's envelope, `{"error": {"code": "...", "message": "..."}}`,
+with `details` where Wavelog gives them:
 
 | Status | `code` | When |
 | --- | --- | --- |
-| `400` | `validation_error` | An unsupported or malformed parameter |
+| `400` | `validation_error` | An unsupported or malformed parameter or body, or a duplicate `POST qso` |
 | `401` | `invalid_token` | See above |
-| `404` | `not_found` | An unknown path, or a `station_id` no Station has |
-| `500` | `internal_error` | A server failure |
+| `404` | `not_found` | An unknown path, a Station ID no Station has, or subdivisions not installed |
+| `409` | `conflict` | A derived QSO ID taken by another Logbook |
+| `500` | `internal_error` | A server failure, or a reference file that does not match its installed version |
 
-Successful answers are `{"data": ..., "meta": {...}}`.
+Successful answers are `{"data": ..., "meta": {...}}`. A Station is addressed
+by its Wavelog ID (`station_profile_id`, `station_id`, `station_ids`), and a
+Station without one cannot be reached through `/wl2`.
 
 ## Stations
 
 `GET station` lists the Logbook's Stations that have a Wavelog ID and are not
-archived, ordered by that ID. A Station without a Wavelog ID cannot be reached
-through `/wl2`.
+archived, ordered by that ID.
 
 | Key | Source |
 | --- | --- |
@@ -42,7 +46,7 @@ through `/wl2`.
 
 A field the Station does not have is `null`.
 
-## QSOs
+## Reading QSOs
 
 `GET qso?format=adif` reads the Logbook's live QSOs in insertion order (`seq`),
 as ADIF with codepoint lengths. `format` is required and only `adif` is
@@ -73,9 +77,59 @@ and `has_more` says whether a later page follows. Edits and deletions are not
 reported: `since_id` only ever adds QSOs. The native API's changes and event
 stream cover them.
 
+## Logging a QSO
+
+`POST qso` takes one QSO as a JSON object: `station_profile_id` and ADIF fields
+named in any case. Values are strings or numbers. `qso_date` may be
+`YYYY-MM-DD` or `YYYYMMDD`, and `freq` and `freq_rx` are in hertz, as Wavelog
+takes them; they are stored as ADIF (`20261020`, `7.0415`). The Station's
+callsign and defaults are baked in as on the native API, and `OPERATOR`
+defaults to the token user's callsign.
+
+The body carries no UUID, so the QSO's ID is derived from the converted record
+the way an ADIF import derives it. A new QSO is `201`:
+
+```json
+{ "data": { "id": 1291, "uuid": "019a0b2c-..." }, "meta": { "resource": "qso", "method": "POST" } }
+```
+
+`id` is the QSO's `seq`, the number `since_id` counts. Sending the same body
+again, after a lost answer or after the QSO was deleted, creates nothing and is
+answered as Wavelog answers a duplicate, which hislog counts as sent:
+
+```json
+{ "error": { "code": "validation_error", "message": "Duplicate QSO",
+  "details": { "critical": [], "validation": [], "duplicate": ["JA1XYZ 20261020 094127 40m CW"] } } }
+```
+
+A QSO that only looks like an earlier one (same call, band and mode within 15
+minutes) is still created.
+
+## Lookup
+
+`GET lookup?callsign=<call>&detail=basic` answers what the reference data and
+the Logbook know about a callsign. `detail` may be left out; other details are
+`400`. `station_ids` narrows the earlier QSOs to those Stations.
+
+| Key | Source |
+| --- | --- |
+| `callsign` | The callsign, upper case |
+| `dxcc`, `dxcc_lat`, `dxcc_long`, `dxcc_cqz`, `dxcc_ituz`, `cont` | The entity `cty.dat` resolves the callsign to, with the overrides of the matching alias; longitude grows towards the east |
+| `dxcc_id` | The entity's ADIF code from the `dxcc` table |
+| `name`, `gridsquare`, `location`, `state`, `us_county`, `iota_ref`, `qsl_manager` | `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`, `QSL_VIA` of the newest earlier QSO with the same base call that has the field |
+| `workedBefore` | Whether there is such a QSO |
+
+A value nothing provides is `null`, including the entity while `cty.dat` is not
+installed.
+
 ## Catalog
 
 `GET catalog?topic=contest` lists the distinct `CONTEST_ID`s of the Logbook's
 live QSOs, ignoring case, as `{"contest": "<id>", "name": null}`. There is no
-contest table, so there are no names. Other topics are `400`; `subdivisions`
-waits for the reference data.
+contest table, so there are no names.
+
+`GET catalog?topic=subdivisions&dxcc=<code>` lists the subdivisions of an
+entity from the installed `subdivisions` data, as
+`{"dxcc": 339, "state": "13", "name": "Tokyo"}` ordered by `state`. An entity
+without subdivisions is an empty list, `dxcc` is required, and the topic is
+`404` until subdivisions are installed. Other topics are `400`.

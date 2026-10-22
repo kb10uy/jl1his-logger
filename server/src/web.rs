@@ -6,6 +6,7 @@ mod extract;
 mod import;
 mod logbook;
 mod qso;
+mod references;
 mod station;
 #[cfg(test)]
 mod testing;
@@ -35,6 +36,7 @@ use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::WebauthnError};
 use self::{
     auth::{Ceremonies, SignedIn},
     error::ApiError,
+    references::References,
 };
 use crate::{config::Config, db::Db, store::reference};
 
@@ -45,6 +47,7 @@ pub struct AppState {
     origin: String,
     webauthn: Webauthn,
     ceremonies: Ceremonies,
+    references: References,
     writes: watch::Sender<u64>,
     closing: watch::Sender<bool>,
 }
@@ -62,6 +65,7 @@ impl AppState {
             public_origin,
             webauthn,
             ceremonies: Ceremonies::default(),
+            references: References::default(),
             writes: watch::Sender::new(0),
             closing: watch::Sender::new(false),
         })

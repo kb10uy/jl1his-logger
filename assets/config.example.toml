@@ -5,6 +5,8 @@
 [reference]
 # AD1C cty.dat used by lookup and callsign resolution; updated with the CLI.
 cty = "data/reference/cty.dat"
+# ADIF DXCC entity codes keyed by the primary prefixes cty.dat declares.
+dxcc = "data/reference/dxcc.toml"
 # Subdivision names keyed by DXCC entity, in the TOML qso-tools reads.
 subdivisions = "data/reference/subdivisions.toml"
 # POTA park references and names.

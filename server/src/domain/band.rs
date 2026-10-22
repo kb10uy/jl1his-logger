@@ -80,11 +80,30 @@ pub fn parse_frequency_hz(freq: &str) -> Option<u64> {
         .checked_add(u64::from(round_up))
 }
 
+pub fn format_frequency_mhz(hz: u64) -> String {
+    let micro = format!("{:06}", hz % 1_000_000);
+    match micro.trim_end_matches('0') {
+        "" => format!("{}", hz / 1_000_000),
+        micro => format!("{}.{micro}", hz / 1_000_000),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
 
     use super::*;
+
+    #[rstest]
+    #[case(7_041_500, "7.0415")]
+    #[case(432_940_000, "432.94")]
+    #[case(14_000_000, "14")]
+    #[case(135_700, "0.1357")]
+    #[case(10_489_550_001, "10489.550001")]
+    fn formats_frequencies_in_mhz(#[case] hz: u64, #[case] expected: &str) {
+        assert_eq!(format_frequency_mhz(hz), expected);
+        assert_eq!(parse_frequency_hz(expected), Some(hz));
+    }
 
     #[rstest]
     #[case("7.041", Some(7_041_000))]

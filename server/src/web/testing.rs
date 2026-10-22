@@ -39,8 +39,12 @@ pub struct Harness {
 
 impl Harness {
     pub async fn new() -> Harness {
+        Harness::with_config(Config::default()).await
+    }
+
+    pub async fn with_config(config: Config) -> Harness {
         let world = World::new().await;
-        let state = Arc::new(AppState::new(world.db.clone(), Config::default(), Url::parse(ORIGIN).unwrap()).unwrap());
+        let state = Arc::new(AppState::new(world.db.clone(), config, Url::parse(ORIGIN).unwrap()).unwrap());
         let owner = world.access(&world.owner).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let station = station::create(&mut tx, &owner.owner().unwrap(), &station_input("Home"))

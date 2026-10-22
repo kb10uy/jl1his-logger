@@ -16,6 +16,7 @@ pub struct Config {
 #[serde(default, deny_unknown_fields)]
 pub struct ReferenceConfig {
     pub cty: PathBuf,
+    pub dxcc: PathBuf,
     pub subdivisions: PathBuf,
     pub parks: PathBuf,
 }
@@ -24,6 +25,7 @@ impl Default for ReferenceConfig {
     fn default() -> Self {
         Self {
             cty: "data/reference/cty.dat".into(),
+            dxcc: "data/reference/dxcc.toml".into(),
             subdivisions: "data/reference/subdivisions.toml".into(),
             parks: "data/reference/parks.toml".into(),
         }
