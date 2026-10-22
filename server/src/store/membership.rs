@@ -50,14 +50,16 @@ pub async fn remove(tx: &mut WriteTx, owner: &OwnerAccess<'_>, user_id: &str) ->
 }
 
 async fn keep_another_owner(tx: &mut WriteTx, owner: &OwnerAccess<'_>, user_id: &str) -> Result<(), StoreError> {
-    let others: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM memberships WHERE logbook_id = ? AND role = 'owner' AND user_id <> ?")
-            .bind(owner.logbook_id())
-            .bind(user_id)
-            .fetch_one(&mut **tx)
-            .await?;
+    let others: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM memberships m JOIN users u ON u.id = m.user_id \
+             WHERE m.logbook_id = ? AND m.role = 'owner' AND m.user_id <> ? AND u.disabled_at IS NULL",
+    )
+    .bind(owner.logbook_id())
+    .bind(user_id)
+    .fetch_one(&mut **tx)
+    .await?;
     match others {
-        0 => Err(StoreError::Conflict("a Logbook keeps at least one owner".into())),
+        0 => Err(StoreError::Conflict("a Logbook keeps at least one active owner".into())),
         _ => Ok(()),
     }
 }
@@ -111,6 +113,27 @@ mod tests {
         assert!(matches!(
             remove(&mut tx, &owner, &world.operator.id).await,
             Err(StoreError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn counts_only_active_owners() {
+        let world = World::new().await;
+        let access = world.access(&world.owner).await;
+        let owner = access.owner().unwrap();
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        set(&mut tx, &owner, &world.operator.id, LogbookRole::Owner)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE users SET disabled_at = ? WHERE id = ?")
+            .bind(now())
+            .bind(&world.operator.id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert!(matches!(
+            remove(&mut tx, &owner, &world.owner.id).await,
+            Err(StoreError::Conflict(_))
         ));
     }
 }
