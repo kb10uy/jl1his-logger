@@ -326,6 +326,9 @@ are upserts. Comments are sent every 15 seconds to keep the connection open.
 
 Writes through the server reach the streams at once; writes by the CLI in
 another process reach them within 10 seconds. The stream ends when the caller
-loses the Logbook (its Membership, its user or its token) and when the server
-shuts down; the browser then reconnects with `Last-Event-ID`, and a `404` or
-`401` stops it.
+loses the Logbook (its Membership, its user or its token), its session expires
+or is deleted, and when the server shuts down; the browser then reconnects
+with `Last-Event-ID`, and a `404` or `401` stops it. Session checks do not renew
+the session. At most one page of 500 QSOs is queued per stream. Even while
+that queue is being sent, authorization is checked on server writes and every
+10 seconds, and shutdown discards the queue immediately.

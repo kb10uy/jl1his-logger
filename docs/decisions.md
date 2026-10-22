@@ -193,7 +193,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
 - The initial sync takes the maximum `updated_seq` at start as H, fetches everything, then reads `after H`. Rows that arrive twice are upserts and therefore harmless.
 - Attach `keep_alive` to axum's `Sse`.
-- A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Writes through the server wake every stream at once; the streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook. Streams close when the server shuts down, so graceful shutdown does not wait on them.
+- A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Writes through the server wake every stream at once; the streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook or whose session expired or was deleted. Session checks do not renew the session. A stream queues at most one page of 500 QSOs and rechecks authorization on writes and polling deadlines even while sending that queue. Streams discard queued events when the server shuts down, so graceful shutdown does not wait on them.
 - After restoring a backup, change the cursor generation of every Logbook to demand a full resync. A client whose stored generation differs discards its cursor and syncs from the start.
 
 ### Position of the Clients

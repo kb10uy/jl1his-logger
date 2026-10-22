@@ -21,6 +21,7 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::{self, Principal, UserAccess},
+        hash_token,
         passkey::{self, NewPasskey, Passkey},
         random_token, registration,
         session::{self, SESSION_TTL},
@@ -91,6 +92,7 @@ impl FromRequestParts<Arc<AppState>> for SignedIn {
 pub struct Caller {
     pub principal: Principal,
     pub scopes: Option<Vec<String>>,
+    pub session_hash: Option<Vec<u8>>,
 }
 
 impl FromRequestParts<Arc<AppState>> for Caller {
@@ -98,9 +100,12 @@ impl FromRequestParts<Arc<AppState>> for Caller {
 
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Caller, ApiError> {
         let Some(authorization) = parts.headers.get(header::AUTHORIZATION) else {
+            let jar = CookieJar::from_headers(&parts.headers);
+            let token = jar.get(SESSION_COOKIE).ok_or(StoreError::Unauthenticated)?.value();
             return Ok(Caller {
-                principal: session_principal(parts, state).await?,
+                principal: session::authenticate(&state.db, token).await?,
                 scopes: None,
+                session_hash: Some(hash_token(token)),
             });
         };
         let plaintext = authorization
@@ -114,6 +119,7 @@ impl FromRequestParts<Arc<AppState>> for Caller {
         Ok(Caller {
             principal,
             scopes: Some(token.logbook_ids),
+            session_hash: None,
         })
     }
 }

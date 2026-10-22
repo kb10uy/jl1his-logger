@@ -1,4 +1,5 @@
 use chrono::{TimeDelta, Utc};
+use sqlx::SqliteConnection;
 
 use crate::{
     db::Db,
@@ -65,8 +66,25 @@ pub async fn delete(tx: &mut WriteTx, plaintext: &str) -> Result<(), StoreError>
     Ok(())
 }
 
+pub async fn revalidate(conn: &mut SqliteConnection, hash: &[u8]) -> Result<(), StoreError> {
+    let valid: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM sessions s JOIN users u ON u.id = s.user_id \
+         WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled_at IS NULL)",
+    )
+    .bind(hash)
+    .bind(timestamp(Utc::now()))
+    .fetch_one(conn)
+    .await?;
+    match valid {
+        true => Ok(()),
+        false => Err(StoreError::Unauthenticated),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::store::{now, testing::World};
 
@@ -107,6 +125,34 @@ mod tests {
             authenticate(&world.db, &plaintext).await,
             Err(StoreError::Unauthenticated)
         ));
+    }
+
+    #[rstest]
+    #[case::valid(None, true)]
+    #[case::deleted(Some("DELETE FROM sessions"), false)]
+    #[case::expired(Some("UPDATE sessions SET expires_at = '2000-01-01T00:00:00Z'"), false)]
+    #[case::disabled(Some("UPDATE users SET disabled_at = '2000-01-01T00:00:00Z'"), false)]
+    #[tokio::test]
+    async fn revalidates_without_renewing_the_session(#[case] revoke: Option<&str>, #[case] valid: bool) {
+        let world = World::new().await;
+        let plaintext = signed_in(&world).await;
+        let expires_at = timestamp(Utc::now() + TimeDelta::days(3));
+        set_expiry(&world, expires_at.clone()).await;
+        let mut conn = world.db.acquire().await.unwrap();
+        if let Some(revoke) = revoke {
+            sqlx::query(sqlx::AssertSqlSafe(revoke))
+                .execute(&mut *conn)
+                .await
+                .unwrap();
+        }
+        let result = revalidate(&mut conn, &hash_token(&plaintext)).await;
+        if valid {
+            result.unwrap();
+            drop(conn);
+            assert_eq!(expiry(&world).await, expires_at);
+        } else {
+            assert!(matches!(result, Err(StoreError::Unauthenticated)));
+        }
     }
 
     #[tokio::test]
