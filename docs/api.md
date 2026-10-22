@@ -10,8 +10,9 @@ that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
 many passkey requests are in flight. Some errors add fields next to `error`, such
 as `current` on a revision conflict.
 
-Sign-in, reference versions, API tokens, Logbooks, Members, Stations and QSOs
-exist so far; bulk QSL changes, export batches, ADIF and the SSE stream follow.
+Sign-in, reference versions, API tokens, Logbooks, Members, Stations, QSOs,
+bulk QSL changes and export batches exist so far; ADIF import and the SSE
+stream follow.
 
 ## Sign-in
 
@@ -217,3 +218,43 @@ cursor and starts from 0.
 
 `next` is an opaque cursor for the following page, passed back as `cursor`, or
 `null` on the last page.
+
+## Bulk QSL Changes
+
+`POST /api/logbooks/{logbook_id}/qsl` takes
+`{qsos: [{id, revision}], fields: {...}}` and sets the given QSL fields on each
+QSO at its revision. Only the QSL fields (`QSL_SENT`, `QSL_RCVD`, `*_VIA`,
+`QSLSDATE`, `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`) are accepted, with values
+checked against the ADIF enumerations ignoring case and dates as `YYYYMMDD`, and
+stored as given. Any other field or value is `400` and changes nothing.
+
+The response is `{updated, skipped}`: `updated` holds the changed QSOs, and
+`skipped` the others as `{id, reason}` with `reason` `missing`, `deleted` or
+`revision` (with `current_revision`).
+
+## Export Batches
+
+An export selects QSOs, writes them as ADIF and records them with their
+revisions as a batch, so that sending them can later be marked on exactly
+those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, park?, length?}` | `201 {batch, records, adif}` |
+| `GET /exports` | | The batches, newest first |
+| `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
+| `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk QSL changes |
+
+A batch is `{id, kind, created_by, created_at, applied_at, qso_count}`. `kind`
+is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. The filters match as in
+Search, with `qsl_sent` a list; `park` keeps one park of a `pota` export and is
+`400` for other kinds. `length` is `codepoints` or `bytes`, by default the
+server's `[adif] length`. `adif` is the whole file, oldest QSO first; a `pota`
+export has one record per park of a QSO, with `MY_SIG` and `MY_SIG_INFO` set.
+When nothing matches, the response is `200` with `batch` and `adif` null and
+no batch is recorded.
+
+Applying an `eqsl`, `lotw` or `qsl_card` batch sets `EQSL_QSL_SENT`,
+`LOTW_QSL_SENT` or `QSL_SENT` to `Y` and its sent date to the UTC day, on the
+rows still at their recorded revisions. A batch is applied once; again is
+`409`. `adif` and `pota` batches are records only, and applying them is `400`.

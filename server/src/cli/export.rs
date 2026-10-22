@@ -5,16 +5,12 @@ use clap::{Args, Subcommand, ValueEnum};
 
 use crate::{
     cli::{CliResult, Context, LengthArg, days, import::write_adif, parse_day},
-    domain::{pota, qso::Qso},
     store::{
         WriteTx,
-        access::LogbookAccess,
         export::{self, ExportKind},
-        qso::{self, Filter, StoredQso, Target},
+        qso::Filter,
     },
 };
-
-const PAGE: u32 = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum KindArg {
@@ -122,9 +118,6 @@ pub async fn run(context: &Context<'_>, command: ExportCommand) -> CliResult<()>
 }
 
 async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
-    if args.park.is_some() && args.kind != KindArg::Pota {
-        return Err("--park is only for a pota export".into());
-    }
     let access = context.logbook_access(args.logbook.as_deref()).await?;
     let station_id = match &args.station {
         Some(key) => Some(context.station(&access, Some(key)).await?.id),
@@ -139,22 +132,20 @@ async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
         qsl_sent: args.qsl_sent.clone(),
         contest_id: args.contest_id.clone(),
     };
-    let rows = fetch_all(context, &access, &filter).await?;
-    let (records, targets) = project(&rows, args.kind, args.park.as_deref())?;
-    if targets.is_empty() {
+    let kind = ExportKind::from(args.kind);
+    let mut tx = WriteTx::begin(context.db).await?;
+    let selection = export::select(&mut tx, &access, kind, &filter, args.park.as_deref()).await?;
+    if selection.targets.is_empty() {
         println!("No QSOs to export.");
         return Ok(());
     }
-
-    let kind = ExportKind::from(args.kind);
-    let mut tx = WriteTx::begin(context.db).await?;
-    let batch = export::create(&mut tx, &access, kind, &targets).await?;
-    write_adif(&args.output, &records, context.length(args.length))?;
+    let batch = export::create(&mut tx, &access, kind, &selection.targets).await?;
+    write_adif(&args.output, &selection.records, context.length(args.length))?;
     tx.commit().await?;
     println!(
         "Wrote {} records for {} QSOs to {}",
-        records.len(),
-        targets.len(),
+        selection.records.len(),
+        selection.targets.len(),
         args.output.display()
     );
     println!("Export batch {}", batch.id);
@@ -162,93 +153,4 @@ async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
         println!("Once they are sent, mark them with: export apply {}", batch.id);
     }
     Ok(())
-}
-
-async fn fetch_all(context: &Context<'_>, access: &LogbookAccess, filter: &Filter) -> CliResult<Vec<StoredQso>> {
-    let mut conn = context.db.acquire().await?;
-    let mut rows = vec![];
-    let mut after = None;
-    loop {
-        let page = qso::search(&mut conn, access, filter, after.as_ref(), PAGE).await?;
-        rows.extend(page.rows);
-        match page.next {
-            Some(next) => after = Some(next),
-            None => break,
-        }
-    }
-    rows.reverse();
-    Ok(rows)
-}
-
-pub fn project(rows: &[StoredQso], kind: KindArg, park: Option<&str>) -> CliResult<(Vec<Qso>, Vec<Target>)> {
-    let mut records = vec![];
-    let mut targets = vec![];
-    for row in rows {
-        let projected = match kind {
-            KindArg::Pota => pota::project(&row.qso)?
-                .into_iter()
-                .filter(|r| park.is_none_or(|p| r.get("MY_POTA_REF").is_some_and(|r| r.eq_ignore_ascii_case(p.trim()))))
-                .collect(),
-            _ => vec![row.qso.clone()],
-        };
-        if projected.is_empty() {
-            continue;
-        }
-        records.extend(projected);
-        targets.push(Target {
-            id: row.id.parse()?,
-            revision: row.revision,
-        });
-    }
-    Ok((records, targets))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::qso::QsoId;
-
-    fn row(fields: &[(&str, &str)]) -> StoredQso {
-        StoredQso {
-            id: QsoId::generate().to_string(),
-            station_id: "station".into(),
-            seq: 1,
-            updated_seq: 1,
-            revision: 2,
-            created_by: "user".into(),
-            created_by_callsign: "JL1HIS".into(),
-            created_at: "2026-10-22T00:00:00Z".into(),
-            updated_by: "user".into(),
-            updated_by_callsign: "JL1HIS".into(),
-            updated_at: "2026-10-22T00:00:00Z".into(),
-            deleted_at: None,
-            qso: Qso::from_fields(fields.iter().copied()).unwrap(),
-        }
-    }
-
-    #[test]
-    fn projects_parks_and_leaves_out_qsos_without_one() {
-        let rows = [
-            row(&[("CALL", "JA1AAA"), ("MY_POTA_REF", "JP-0001,JP-0002")]),
-            row(&[("CALL", "JA1BBB")]),
-            row(&[("CALL", "JA1CCC"), ("MY_SIG", "POTA"), ("MY_SIG_INFO", "JP-0002")]),
-        ];
-        let (records, targets) = project(&rows, KindArg::Pota, None).unwrap();
-        let calls: Vec<_> = records
-            .iter()
-            .map(|r| (r.get("CALL").unwrap(), r.get("MY_SIG_INFO").unwrap()))
-            .collect();
-        assert_eq!(
-            calls,
-            [("JA1AAA", "JP-0001"), ("JA1AAA", "JP-0002"), ("JA1CCC", "JP-0002")]
-        );
-        assert_eq!(targets.len(), 2);
-        assert_eq!(targets[0].revision, 2);
-
-        let (records, targets) = project(&rows, KindArg::Pota, Some("jp-0002")).unwrap();
-        assert_eq!((records.len(), targets.len()), (2, 2));
-
-        let (records, targets) = project(&rows, KindArg::Adif, None).unwrap();
-        assert_eq!((records.len(), targets.len()), (3, 3));
-    }
 }

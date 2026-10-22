@@ -1,5 +1,6 @@
 mod auth;
 mod error;
+mod export;
 mod extract;
 mod logbook;
 mod qso;
@@ -98,6 +99,13 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
             "/api/logbooks/{logbook_id}/stations/{id}/rewrite",
             get(station::preview_rewrite).post(station::rewrite),
         )
+        .route("/api/logbooks/{logbook_id}/qsl", post(export::update_qsl))
+        .route(
+            "/api/logbooks/{logbook_id}/exports",
+            get(export::list).post(export::create),
+        )
+        .route("/api/logbooks/{logbook_id}/exports/{id}", get(export::get))
+        .route("/api/logbooks/{logbook_id}/exports/{id}/apply", post(export::apply))
         .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
         .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
         .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))

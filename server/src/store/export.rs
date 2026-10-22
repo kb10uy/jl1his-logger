@@ -1,15 +1,20 @@
 use std::collections::BTreeSet;
 
 use chrono::Utc;
-use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{Connection, Row, SqliteConnection, sqlite::SqliteRow};
 
-use crate::store::{
-    StoreError, WriteTx,
-    access::LogbookAccess,
-    new_id, now,
-    qsl::{self, Outcome},
-    qso::{self, Target},
+use crate::{
+    domain::{pota, qso::Qso},
+    store::{
+        StoreError, WriteTx,
+        access::LogbookAccess,
+        new_id, now,
+        qsl::{self, Outcome},
+        qso::{self, Filter, StoredQso, Target},
+    },
 };
+
+const PAGE: u32 = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportKind {
@@ -73,6 +78,62 @@ impl ExportBatch {
             qso_count: row.try_get("qso_count")?,
         })
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Selection {
+    pub records: Vec<Qso>,
+    pub targets: Vec<Target>,
+}
+
+pub async fn select(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    kind: ExportKind,
+    filter: &Filter,
+    park: Option<&str>,
+) -> Result<Selection, StoreError> {
+    if park.is_some() && kind != ExportKind::Pota {
+        return Err(StoreError::Invalid("a park is only for a pota export".into()));
+    }
+    let mut tx = conn.begin().await?;
+    let mut rows = vec![];
+    let mut after = None;
+    loop {
+        let page = qso::search(&mut tx, access, filter, after.as_ref(), PAGE).await?;
+        rows.extend(page.rows);
+        match page.next {
+            Some(next) => after = Some(next),
+            None => break,
+        }
+    }
+    rows.reverse();
+    project(&rows, kind, park)
+}
+
+fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<Selection, StoreError> {
+    let mut selection = Selection::default();
+    for row in rows {
+        let projected = match kind {
+            ExportKind::Pota => pota::project(&row.qso)?
+                .into_iter()
+                .filter(|r| park.is_none_or(|p| r.get("MY_POTA_REF").is_some_and(|r| r.eq_ignore_ascii_case(p.trim()))))
+                .collect(),
+            _ => vec![row.qso.clone()],
+        };
+        if projected.is_empty() {
+            continue;
+        }
+        selection.records.extend(projected);
+        selection.targets.push(Target {
+            id: row
+                .id
+                .parse()
+                .map_err(|_| StoreError::Invalid(format!("stored QSO ID {:?} is not a UUID v7", row.id)))?,
+            revision: row.revision,
+        });
+    }
+    Ok(selection)
 }
 
 pub async fn create(
@@ -217,6 +278,75 @@ mod tests {
         },
         testing::World,
     };
+
+    fn row(fields: &[(&str, &str)]) -> StoredQso {
+        StoredQso {
+            id: crate::domain::qso::QsoId::generate().to_string(),
+            station_id: "station".into(),
+            seq: 1,
+            updated_seq: 1,
+            revision: 2,
+            created_by: "user".into(),
+            created_by_callsign: "JL1HIS".into(),
+            created_at: "2026-10-22T00:00:00Z".into(),
+            updated_by: "user".into(),
+            updated_by_callsign: "JL1HIS".into(),
+            updated_at: "2026-10-22T00:00:00Z".into(),
+            deleted_at: None,
+            qso: Qso::from_fields(fields.iter().copied()).unwrap(),
+        }
+    }
+
+    #[test]
+    fn projects_parks_and_leaves_out_qsos_without_one() {
+        let rows = [
+            row(&[("CALL", "JA1AAA"), ("MY_POTA_REF", "JP-0001,JP-0002")]),
+            row(&[("CALL", "JA1BBB")]),
+            row(&[("CALL", "JA1CCC"), ("MY_SIG", "POTA"), ("MY_SIG_INFO", "JP-0002")]),
+        ];
+        let selection = project(&rows, ExportKind::Pota, None).unwrap();
+        let calls: Vec<_> = selection
+            .records
+            .iter()
+            .map(|r| (r.get("CALL").unwrap(), r.get("MY_SIG_INFO").unwrap()))
+            .collect();
+        assert_eq!(
+            calls,
+            [("JA1AAA", "JP-0001"), ("JA1AAA", "JP-0002"), ("JA1CCC", "JP-0002")]
+        );
+        assert_eq!(selection.targets.len(), 2);
+        assert_eq!(selection.targets[0].revision, 2);
+
+        let selection = project(&rows, ExportKind::Pota, Some("jp-0002")).unwrap();
+        assert_eq!((selection.records.len(), selection.targets.len()), (2, 2));
+
+        let selection = project(&rows, ExportKind::Adif, None).unwrap();
+        assert_eq!((selection.records.len(), selection.targets.len()), (3, 3));
+    }
+
+    #[tokio::test]
+    async fn selects_matching_qsos_oldest_first() {
+        let world = World::new().await;
+        let rows = three_qsos(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut conn = world.db.acquire().await.unwrap();
+        let filter = Filter {
+            call: Some(qso::CallMatch::Exact("JA1CCC".into())),
+            ..Filter::default()
+        };
+        let all = select(&mut conn, &access, ExportKind::Adif, &Filter::default(), None)
+            .await
+            .unwrap();
+        assert_eq!(all.targets, rows.iter().map(target).collect::<Vec<_>>());
+        let one = select(&mut conn, &access, ExportKind::Eqsl, &filter, None)
+            .await
+            .unwrap();
+        assert_eq!(one.targets, [target(&rows[2])]);
+        assert!(matches!(
+            select(&mut conn, &access, ExportKind::Adif, &filter, Some("JP-0001")).await,
+            Err(StoreError::Invalid(_))
+        ));
+    }
 
     #[tokio::test]
     async fn records_and_applies_a_batch_once() {
