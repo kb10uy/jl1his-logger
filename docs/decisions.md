@@ -87,6 +87,17 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - API tokens belong to a User and are limited to Logbooks by scopes. The plaintext is shown only when issued.
 - The first admin is created by a CLI setup command, which issues a one-time registration URL.
 
+### Store and Authorization Boundaries
+
+- There are no Repository traits and no separate service layer. Each operation (creating a QSO, archiving a Station and so on) is one concrete function in `server/src/store/`, shared by the native API, the `/wl2` layer and the CLI. Smaller SQL helpers inside the store take a plain connection and are not the entry points. A trait or a service layer is added only when it removes a concrete duplication.
+- Every operation that writes runs in a write transaction opened with `BEGIN IMMEDIATE`, so the write lock is taken before the first read and a later write never fails with a busy error that `busy_timeout` cannot wait out. The transaction is a type only the store can create, and every public write function requires it; a caller cannot forget to open one or open a deferred one.
+- The unit of atomicity is one operation: numbering, checking and saving one QSO happen in one transaction. Bulk work such as an import calls the same operation in batches, a bounded number per transaction, so write transactions stay short. Making a rerun of an interrupted import idempotent is decided with the import.
+- Authorization is a value. The store checks a principal (a signed-in user, or an API token with its user and Logbook scopes) against the user's state, the token's scopes and the Membership, and only then hands out a Logbook access that carries the Logbook, the user and the role. Logbook operations take the Logbook from that access rather than from a separate argument, so an access for one Logbook cannot be used on another.
+- Operations reserved for owners (Stations, Memberships) require an owner access, which can only be obtained from a Logbook access whose role is `owner`. Instance operations (users, Logbooks) require an admin access, which only a signed-in admin obtains; API tokens never do.
+- An admin outside a Logbook obtains a Logbook access only through a rescue, which records the actor, the action and the reason in `rescue_operations` in the same transaction as the operation.
+- The authorization lives in the store, not in the web layer. The CLI acts as a named user and goes through the same checks, which also gives `created_by` and `updated_by` a user.
+- A Logbook or a row the principal cannot access is reported as not found, the same as one that does not exist.
+
 ### Wavelog API v2 Compatibility Layer
 
 - Mounted under the path prefix `/wl2`. Setting a client's base URL to `https://host/wl2` makes `/wl2/index.php/api/v2/...` reach it. `/wl2/api/v2/lookup` is also exposed as an alias for grayline.
@@ -140,6 +151,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ## Open Questions
 
 - The fields QSL merge applies automatically, and the handling of ambiguous matches (at import implementation)
+- Making a rerun of an interrupted import idempotent, since ADIF records carry no UUID (at import implementation)
 - How much of the backup and restore procedure the first version includes
 - Where the ADIF writer lives
 - The crate structure
