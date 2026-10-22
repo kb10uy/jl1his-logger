@@ -12,6 +12,8 @@ use crate::{
     },
 };
 
+const TOPICS: &[&str] = &["contest", "subdivisions"];
+
 #[derive(Debug, Deserialize)]
 pub struct CatalogQuery {
     topic: Option<String>,
@@ -23,7 +25,8 @@ pub async fn get(
     Wl2Access(access): Wl2Access,
     Wl2Query(query): Wl2Query<CatalogQuery>,
 ) -> Result<Json<Value>, Wl2Error> {
-    match query.topic.as_deref().map(str::trim) {
+    match query.topic.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+        None => Ok(data(json!({ "topics": TOPICS }), json!({}))),
         Some("contest") => {
             let mut conn = state.db.acquire().await?;
             let contests = qso::contest_ids(&mut conn, &access)
@@ -55,10 +58,10 @@ pub async fn get(
                 json!({ "topic": "subdivisions", "dxcc": dxcc }),
             ))
         }
-        Some(topic) => Err(Wl2Error::validation(format!(
-            "the catalog topic {topic:?} is not available"
-        ))),
-        None => Err(Wl2Error::validation("topic is required")),
+        Some(topic) => Err(
+            Wl2Error::validation(format!("the catalog topic {topic:?} is not available"))
+                .with_details(json!({ "allowed": TOPICS })),
+        ),
     }
 }
 
@@ -126,10 +129,30 @@ mod tests {
             })
         );
 
+        let (status, body) = h
+            .send("GET", "/wl2/index.php/api/v2/catalog", Auth::Bearer(&token), None)
+            .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["data"], json!({ "topics": ["contest", "subdivisions"] }));
+
+        let (status, body) = h
+            .send(
+                "GET",
+                "/wl2/index.php/api/v2/catalog?topic=mode",
+                Auth::Bearer(&token),
+                None,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert_eq!(body["error"]["code"], "validation_error");
+        assert_eq!(
+            body["error"]["details"],
+            json!({ "allowed": ["contest", "subdivisions"] })
+        );
+
         for uri in [
-            "/wl2/index.php/api/v2/catalog",
-            "/wl2/index.php/api/v2/catalog?topic=mode",
             "/wl2/index.php/api/v2/catalog?topic=subdivisions",
+            "/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=Japan",
         ] {
             let (status, body) = h.send("GET", uri, Auth::Bearer(&token), None).await;
             assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}");

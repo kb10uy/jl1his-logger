@@ -248,7 +248,7 @@ pub(in crate::web::wl2) mod tests {
             assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {body}");
         }
         let (status, _) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ&station_ids=7").await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]

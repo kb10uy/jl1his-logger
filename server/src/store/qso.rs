@@ -170,6 +170,7 @@ pub enum Confirmation {
 pub struct InsertionQuery {
     pub filter: Filter,
     pub station_ids: Option<Vec<String>>,
+    pub mode_or_submode: Option<String>,
     pub confirmed_by: Vec<Confirmation>,
     pub after_seq: i64,
 }
@@ -471,6 +472,13 @@ pub async fn by_insertion(
     conditions.push("seq > ?", [Bind::Int(query.after_seq)]);
     if let Some(station_ids) = &query.station_ids {
         conditions.any_of("station_id", station_ids.iter().cloned());
+    }
+    if let Some(mode) = &query.mode_or_submode {
+        let mode = mode.trim().to_owned();
+        conditions.push(
+            "(trim(mode) = ? COLLATE NOCASE OR trim(coalesce(submode, '')) = ? COLLATE NOCASE)",
+            [Bind::Text(mode.clone()), Bind::Text(mode)],
+        );
     }
     if !query.confirmed_by.is_empty() {
         let any: Vec<&str> = query

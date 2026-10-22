@@ -24,7 +24,7 @@ use crate::{
     },
 };
 
-const DEFAULT_PER_PAGE: u32 = 100;
+const DEFAULT_PER_PAGE: u32 = 1000;
 const MAX_PER_PAGE: u32 = 5000;
 
 #[derive(Debug, Deserialize)]
@@ -108,11 +108,11 @@ pub async fn list(
         filter: Filter {
             time,
             band: present(&query.band).map(str::to_owned),
-            mode: present(&query.mode).map(str::to_owned),
             call,
             ..Filter::default()
         },
         station_ids,
+        mode_or_submode: present(&query.mode).map(str::to_owned),
         confirmed_by,
         after_seq: i64::try_from(since_id).map_err(|_| Wl2Error::validation("since_id is out of range"))?,
     };
@@ -126,7 +126,7 @@ pub async fn list(
         json!({
             "exported": records.len(),
             "lastfetchedid": last,
-            "adif": adif_document(&records, LengthUnit::Codepoints),
+            "adif": (!records.is_empty()).then(|| adif_document(&records, LengthUnit::Codepoints)),
         }),
         json!({
             "page": page,
@@ -278,7 +278,12 @@ pub(super) mod tests {
                 "000000",
                 vec![("QSO_DATE", "20261023"), ("NAME", "太郎")],
             ),
-            (&mapped.id, "JA1DDD", "040000", vec![]),
+            (
+                &mapped.id,
+                "JA1DDD",
+                "040000",
+                vec![("MODE", "SSB"), ("SUBMODE", "USB")],
+            ),
         ] {
             create_qso(&h, &session, station_id, call, time_on, &extra).await;
         }
@@ -310,7 +315,10 @@ pub(super) mod tests {
     }
 
     fn calls(body: &Value) -> Vec<String> {
-        read_adi(body["data"]["adif"].as_str().unwrap(), LengthUnit::Codepoints)
+        let Some(adif) = body["data"]["adif"].as_str() else {
+            return vec![];
+        };
+        read_adi(adif, LengthUnit::Codepoints)
             .unwrap()
             .into_iter()
             .map(|qso| qso.unwrap().get("CALL").unwrap().to_owned())
@@ -344,14 +352,13 @@ pub(super) mod tests {
         assert_eq!(last_page["meta"]["total_pages"], 2);
 
         let (_, empty) = f.get("format=adif&station_id=3&since_id=5").await;
-        assert_eq!(calls(&empty), Vec::<String>::new());
         assert_eq!(
-            (&empty["data"]["exported"], &empty["data"]["lastfetchedid"]),
-            (&json!(0), &json!(5))
+            empty["data"],
+            json!({ "exported": 0, "lastfetchedid": 5, "adif": null })
         );
         assert_eq!(
             empty["meta"],
-            json!({ "page": 1, "per_page": 100, "count": 0, "total": 0, "total_pages": 0, "has_more": false })
+            json!({ "page": 1, "per_page": 1000, "count": 0, "total": 0, "total_pages": 0, "has_more": false })
         );
     }
 
@@ -416,7 +423,7 @@ pub(super) mod tests {
 
     #[rstest]
     #[case(json!({ "call": "JA1XYZ" }), StatusCode::BAD_REQUEST, "validation_error")]
-    #[case(json!({ "station_profile_id": 7, "call": "JA1XYZ", "qso_date": "2026-10-20", "time_on": "0941" }), StatusCode::NOT_FOUND, "not_found")]
+    #[case(json!({ "station_profile_id": 7, "call": "JA1XYZ", "qso_date": "2026-10-20", "time_on": "0941" }), StatusCode::FORBIDDEN, "forbidden")]
     #[case(json!({ "station_profile_id": "3", "call": "JA1XYZ", "band": "40m", "mode": "CW" }), StatusCode::BAD_REQUEST, "validation_error")]
     #[case(json!({ "station_profile_id": 3, "call": "JA1XYZ", "qso_date": "2026-10-20", "time_on": "0941", "mode": "CW" }), StatusCode::BAD_REQUEST, "validation_error")]
     #[case(json!([]), StatusCode::BAD_REQUEST, "validation_error")]
@@ -438,6 +445,8 @@ pub(super) mod tests {
     #[case("callsign=ja1aaa", &["JA1AAA"])]
     #[case("callsign=JA1AAA&callsign_match=plain", &["JA1AAA", "JA1AAA/P"])]
     #[case("band=20M&mode=ft8", &["JA1AAA/P"])]
+    #[case("mode=usb", &["JA1DDD"])]
+    #[case("mode=SSB", &["JA1DDD"])]
     #[case("qsl_filter=lotw,qsl", &["JA1AAA", "JA1BBB"])]
     #[case("qso_since=2026-10-23", &["JA1CCC"])]
     #[case("qso_until=2026-10-22", &["JA1AAA", "JA1AAA/P", "JA1BBB", "JA1DDD"])]
@@ -451,7 +460,7 @@ pub(super) mod tests {
     #[rstest]
     #[case("", StatusCode::BAD_REQUEST, "validation_error")]
     #[case("format=json", StatusCode::BAD_REQUEST, "validation_error")]
-    #[case("format=adif&station_id=7", StatusCode::NOT_FOUND, "not_found")]
+    #[case("format=adif&station_id=7", StatusCode::FORBIDDEN, "forbidden")]
     #[case("format=adif&since_id=-1", StatusCode::BAD_REQUEST, "validation_error")]
     #[case("format=adif&page=0", StatusCode::BAD_REQUEST, "validation_error")]
     #[case("format=adif&qsl_filter=qrz", StatusCode::BAD_REQUEST, "validation_error")]

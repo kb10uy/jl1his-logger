@@ -21,7 +21,8 @@ with `details` where Wavelog gives them:
 | --- | --- | --- |
 | `400` | `validation_error` | An unsupported or malformed parameter or body, or a duplicate `POST qso` |
 | `401` | `invalid_token` | See above |
-| `404` | `not_found` | An unknown path, a Station ID no Station has, or subdivisions not installed |
+| `403` | `forbidden` | A Station ID that is not a Station of the Logbook |
+| `404` | `not_found` | An unknown path, or subdivisions not installed |
 | `409` | `conflict` | A derived QSO ID taken by another Logbook |
 | `500` | `internal_error` | A server failure, or a reference file that does not match its installed version |
 
@@ -55,11 +56,12 @@ supported.
 | Parameter | Meaning |
 | --- | --- |
 | `since_id` | Only QSOs whose `seq` is greater; default `0` |
-| `page`, `per_page` | Pages of that order, from 1; `per_page` defaults to 100 and is capped at 5000 |
+| `page`, `per_page` | Pages of that order, from 1; `per_page` defaults to 1000 and is capped at 5000 |
 | `station_id` | Comma-separated Wavelog IDs of Stations, archived ones included |
 | `callsign` | The call, ignoring case |
 | `callsign_match` | `exact` (the default) or `plain`, which matches the base call, so `JA1ABC` finds `JA1ABC/P` and `KH6/JA1ABC` |
-| `band`, `mode` | Ignoring case |
+| `band` | Ignoring case |
+| `mode` | `MODE` or `SUBMODE`, ignoring case, so `USB` finds `SSB`/`USB` |
 | `qsl_filter` | Comma-separated `qsl`, `lotw`, `eqsl`: QSOs confirmed by any of them (`QSL_RCVD`, `LOTW_QSL_RCVD` or `EQSL_QSL_RCVD` is `Y` or `V`). `qrz` and `clublog` are not recorded here and are refused |
 | `qso_since`, `qso_until` | `YYYY-MM-DD`, both days included |
 
@@ -71,7 +73,7 @@ supported.
 ```
 
 `lastfetchedid` is the `seq` of the last QSO on the page, or `since_id` when
-the page is empty; a client continues with it as the next `since_id`. `total`
+the page is empty, in which case `adif` is `null`; a client continues with it as the next `since_id`. `total`
 and `total_pages` count every QSO the parameters match, `since_id` included,
 and `has_more` says whether a later page follows. Edits and deletions are not
 reported: `since_id` only ever adds QSOs. The native API's changes and event
@@ -132,4 +134,8 @@ contest table, so there are no names.
 entity from the installed `subdivisions` data, as
 `{"dxcc": 339, "state": "13", "name": "Tokyo"}` ordered by `state`. An entity
 without subdivisions is an empty list, `dxcc` is required, and the topic is
-`404` until subdivisions are installed. Other topics are `400`.
+`404` until subdivisions are installed.
+
+`GET catalog` without a topic answers `{"topics": ["contest", "subdivisions"]}`
+in `data`. Another topic is `400 validation_error` with those names in
+`details.allowed`.

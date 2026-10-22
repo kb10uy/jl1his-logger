@@ -190,9 +190,9 @@ fn mapped<'a>(stations: &'a [Station], wavelog_id: &str) -> Result<&'a Station, 
         .find(|s| s.wavelog_id.is_some_and(|id| id.to_string() == wavelog_id))
         .ok_or_else(|| {
             Wl2Error::new(
-                StatusCode::NOT_FOUND,
-                "not_found",
-                format!("Station {wavelog_id:?} not found"),
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                format!("Station {wavelog_id:?} is not a Station of this Logbook"),
             )
         })
 }
