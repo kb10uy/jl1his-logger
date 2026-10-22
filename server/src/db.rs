@@ -180,6 +180,100 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn upgrades_the_initial_schema_without_losing_export_rows() {
+        let (dir, db) = temp_db().await;
+        let initial = Migrator::with_migrations(vec![MIGRATOR.iter().next().unwrap().clone()]);
+        initial.run(&db).await.unwrap();
+        sqlx::raw_sql(
+            "INSERT INTO users (id, callsign, role, created_at, updated_at)
+             VALUES ('user', 'JL1HIS', 'admin', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
+             INSERT INTO logbooks (id, name, cursor_generation, created_at, updated_at)
+             VALUES ('log', 'Club', 'generation', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
+             INSERT INTO stations (id, logbook_id, name, callsign, created_at, updated_at)
+             VALUES ('station', 'log', 'Home', 'JL1HIS', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
+             INSERT INTO qsos (
+                 id, logbook_id, station_id, seq, updated_seq, revision, created_by, created_at,
+                 updated_by, updated_at, call, qso_date, time_on, band, mode, station_callsign, call_base, qso_time
+             ) VALUES (
+                 'qso', 'log', 'station', 1, 1, 3, 'user', '2026-10-22T00:00:00Z',
+                 'user', '2026-10-22T00:00:00Z', 'JA1XYZ', '20261022', '0000', '40m', 'CW', 'JL1HIS', 'JA1XYZ', 1792627200
+             );
+             INSERT INTO export_batches (id, logbook_id, kind, created_by, created_at, applied_at)
+             VALUES ('batch', 'log', 'eqsl', 'user', '2026-10-22T00:00:00Z', '2026-10-22T01:00:00Z');
+             INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision)
+             VALUES ('log', 'batch', 'qso', 2);
+             INSERT INTO reference_versions (kind, version, checksum, updated_at)
+             VALUES ('cty', '20261022', X'abcd', '2026-10-22T00:00:00Z');",
+        )
+        .execute(&db)
+        .await
+        .unwrap();
+
+        let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
+        assert_eq!(migrated.applied, [2]);
+        assert!(migrated.snapshot.unwrap().is_file());
+        let batch: (String, String, String, String, String, Option<String>) =
+            sqlx::query_as("SELECT id, logbook_id, kind, created_by, created_at, applied_at FROM export_batches")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(
+            batch,
+            (
+                "batch".into(),
+                "log".into(),
+                "eqsl".into(),
+                "user".into(),
+                "2026-10-22T00:00:00Z".into(),
+                Some("2026-10-22T01:00:00Z".into())
+            )
+        );
+        let target: (String, String, String, i64) =
+            sqlx::query_as("SELECT logbook_id, batch_id, qso_id, revision FROM export_batch_qsos")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(target, ("log".into(), "batch".into(), "qso".into(), 2));
+        let reference: (String, String, Vec<u8>, String) =
+            sqlx::query_as("SELECT kind, version, checksum, updated_at FROM reference_versions")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(
+            reference,
+            (
+                "cty".into(),
+                "20261022".into(),
+                vec![0xab, 0xcd],
+                "2026-10-22T00:00:00Z".into()
+            )
+        );
+        assert!(
+            sqlx::query("PRAGMA foreign_key_check")
+                .fetch_all(&db)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        for sql in [
+            "UPDATE export_batches SET kind = 'unknown' WHERE id = 'batch'",
+            "UPDATE reference_versions SET kind = 'unknown' WHERE kind = 'cty'",
+            "UPDATE export_batch_qsos SET batch_id = 'missing' WHERE batch_id = 'batch'",
+        ] {
+            assert!(sqlx::query(sql).execute(&db).await.is_err(), "{sql}");
+        }
+        sqlx::query("DELETE FROM export_batches WHERE id = 'batch'")
+            .execute(&db)
+            .await
+            .unwrap();
+        let remaining: i64 = sqlx::query_scalar("SELECT count(*) FROM export_batch_qsos")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(remaining, 0);
+    }
+
+    #[tokio::test]
     async fn snapshots_before_applying_to_an_existing_schema() {
         let (dir, db) = temp_db().await;
         let snapshots = dir.path().join("snapshots");

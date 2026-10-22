@@ -1,9 +1,10 @@
 # Database Schema (Draft)
 
 The SQLite schema behind the decisions in [decisions.md](decisions.md). The
-source of truth is `server/migrations/0001_init.sql`; this page explains the
-choices the SQL cannot. The migration is a draft until the first version
-applies it, after which it is never edited and every change is a new migration.
+source of truth is `server/migrations/`; this page explains the choices the SQL
+cannot. Applied migrations are never edited; every change is a new migration.
+`0002_constrain_kinds.sql` adds the export and reference kind constraints while
+preserving existing batches, their QSO revisions and reference versions.
 sqlx applies pending migrations when the server starts and records each one
 with its checksum in `_sqlx_migrations`; see "Migrations and Deployment" in
 decisions.md.
