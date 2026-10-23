@@ -1,32 +1,49 @@
 <script lang="ts" module>
-    const PATHS = {
-        log: 'M4 6h16M4 12h16M4 18h10',
-        entry: 'M3 11a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM7 9l10-6M7 14h3M14 14h3',
-        voice: 'M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v3',
-        stations:
-            'M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11zM12 7.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z',
-        qsl: 'M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3 8l9 6 9-6',
-        transfer: 'M12 3v12M7 10l5 5 5-5M4 21h16',
-        settings:
-            'M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
-        members:
-            'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M17 4a4 4 0 0 1 0 7M22 21a7 7 0 0 0-4-6.3',
-        more: 'M5 11a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM12 11a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM19 11a1 1 0 1 1 0 2 1 1 0 0 1 0-2z',
-        close: 'M6 6l12 12M18 6L6 18',
-        search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.5-3.5',
-        warning: 'M12 3L2 21h20L12 3zM12 10v5M12 18v1',
-        back: 'M15 5l-7 7 7 7',
-        chevron: 'M6 9l6 6 6-6',
-        grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
-        columns: 'M4 4h16v16H4zM9.5 4v16M14.5 4v16',
-        offline:
-            'M2 2l20 20M5 12.5a10 10 0 0 1 3.4-2.3M12 8a10 10 0 0 1 7 4.5M8.5 16a5 5 0 0 1 7 0M12 20h.01',
-        spinner: 'M12 3a9 9 0 1 0 9 9',
-        check: 'M5 12l5 5 9-10',
-        signout: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11'
+    import AlertTriangle from '@tabler/icons-svelte-runes/icons/alert-triangle';
+    import Check from '@tabler/icons-svelte-runes/icons/check';
+    import ChevronDown from '@tabler/icons-svelte-runes/icons/chevron-down';
+    import ChevronLeft from '@tabler/icons-svelte-runes/icons/chevron-left';
+    import Columns3 from '@tabler/icons-svelte-runes/icons/columns-3';
+    import Dots from '@tabler/icons-svelte-runes/icons/dots';
+    import GripVertical from '@tabler/icons-svelte-runes/icons/grip-vertical';
+    import List from '@tabler/icons-svelte-runes/icons/list';
+    import Loader2 from '@tabler/icons-svelte-runes/icons/loader-2';
+    import Logout from '@tabler/icons-svelte-runes/icons/logout';
+    import Mail from '@tabler/icons-svelte-runes/icons/mail';
+    import MapPin from '@tabler/icons-svelte-runes/icons/map-pin';
+    import Microphone from '@tabler/icons-svelte-runes/icons/microphone';
+    import Radio from '@tabler/icons-svelte-runes/icons/radio';
+    import Search from '@tabler/icons-svelte-runes/icons/search';
+    import Settings from '@tabler/icons-svelte-runes/icons/settings';
+    import TransferVertical from '@tabler/icons-svelte-runes/icons/transfer-vertical';
+    import Users from '@tabler/icons-svelte-runes/icons/users';
+    import WifiOff from '@tabler/icons-svelte-runes/icons/wifi-off';
+    import X from '@tabler/icons-svelte-runes/icons/x';
+
+    const ICONS = {
+        log: List,
+        entry: Radio,
+        voice: Microphone,
+        stations: MapPin,
+        qsl: Mail,
+        transfer: TransferVertical,
+        settings: Settings,
+        members: Users,
+        more: Dots,
+        close: X,
+        search: Search,
+        warning: AlertTriangle,
+        back: ChevronLeft,
+        chevron: ChevronDown,
+        grip: GripVertical,
+        columns: Columns3,
+        offline: WifiOff,
+        spinner: Loader2,
+        check: Check,
+        signout: Logout
     } as const;
 
-    export type IconName = keyof typeof PATHS;
+    export type IconName = keyof typeof ICONS;
 </script>
 
 <script lang="ts">
@@ -36,19 +53,13 @@
         strokeWidth = 2,
         class: className = ''
     }: { name: IconName; size?: number; strokeWidth?: number; class?: string } = $props();
+
+    const Component = $derived(ICONS[name]);
 </script>
 
-<svg
+<Component
     aria-hidden="true"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width={strokeWidth}
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    class={[name === 'spinner' && 'animate-spin', 'shrink-0', className]}
->
-    <path d={PATHS[name]} />
-</svg>
+    {size}
+    stroke={strokeWidth}
+    class={['shrink-0', name === 'spinner' && 'animate-spin', className].filter(Boolean).join(' ')}
+/>
