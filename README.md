@@ -117,6 +117,7 @@ jl1his-logger token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
 jl1his-logger reference install cty cty.dat                       # version from its =VER entry
 jl1his-logger reference install dxcc dxcc.toml --version 2026-10
 jl1his-logger reference list
+jl1his-logger settings list                                       # instance settings (admin)
 ```
 
 Reference data (`cty`, `dxcc`, `subdivisions`, `parks`) is installed from local

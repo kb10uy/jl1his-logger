@@ -50,6 +50,8 @@ pub enum Command {
     Import(import::ImportArgs),
     #[command(subcommand, about = "Exports QSOs as ADIF and applies the results")]
     Export(export::ExportCommand),
+    #[command(subcommand, about = "Reads and writes instance settings (admin)")]
+    Settings(admin::SettingsCommand),
     #[command(subcommand, about = "Lists and installs reference data")]
     Reference(reference::ReferenceCommand),
     #[command(about = "Writes a copy of the database while the server runs")]
@@ -97,6 +99,7 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
             Command::Token(command) => admin::token(&context, command).await,
             Command::Import(args) => import::run(&context, &args).await,
             Command::Export(command) => export::run(&context, command).await,
+            Command::Settings(command) => admin::settings(&context, command).await,
             Command::Reference(command) => reference::run(&context, command).await,
             Command::Backup(args) => backup::backup(&context, &args).await,
             Command::Restore(_) => unreachable!("restore runs without an open database"),
