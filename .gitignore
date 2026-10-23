@@ -6,6 +6,7 @@ Thumbs.db
 # server/
 /server/target
 /server/data
+/server/config.toml
 
 # query/
 /query/target
