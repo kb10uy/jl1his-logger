@@ -1,20 +1,19 @@
 use std::collections::BTreeMap;
 
-use chrono::{NaiveDate, TimeDelta};
+use chrono::TimeDelta;
 use clap::{Args, Subcommand, ValueEnum};
 use url::Url;
 
 use crate::{
-    cli::{CliResult, Context, parse_day, pick, registration_url},
+    cli::{CliResult, Context, DayRange, LogbookArg, find_user, pick_logbook, registration_url},
     config::parse_public_origin,
     db,
     store::{
-        WriteTx,
-        access::{self, LogbookRole},
-        logbook, membership,
-        qso::TimeRange,
-        registration, settings,
-        station::{self, StationInput},
+        StoreError, WriteTx,
+        access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal},
+        logbook::{self, Logbook},
+        membership, registration, settings,
+        station::{self, Station, StationInput},
         token::{self, TokenInput, TokenKind},
         user::{self, Role, User},
     },
@@ -115,12 +114,6 @@ pub enum UserCommand {
     },
 }
 
-async fn find_user(conn: &mut sqlx::SqliteConnection, callsign: &str) -> CliResult<User> {
-    Ok(user::find_by_callsign(conn, callsign)
-        .await?
-        .ok_or_else(|| format!("no user has the callsign {callsign}"))?)
-}
-
 fn print_user(user: &User) {
     let state = match &user.disabled_at {
         Some(at) => format!("disabled {at}"),
@@ -129,47 +122,56 @@ fn print_user(user: &User) {
     println!("{}\t{}\t{state}", user.callsign, user.role.as_str());
 }
 
+async fn admin_tx(context: &Context<'_>, principal: &Principal) -> CliResult<(WriteTx, AdminAccess)> {
+    let mut tx = WriteTx::begin(context.db).await?;
+    let admin = access::admin(&mut tx, principal).await?;
+    Ok((tx, admin))
+}
+
 pub async fn user(context: &Context<'_>, command: UserCommand) -> CliResult<()> {
     let principal = context.principal().await?;
-    if let UserCommand::List = command {
-        let mut conn = context.db.acquire().await?;
-        let admin = access::admin(&mut conn, &principal).await?;
-        user::list(&mut conn, &admin).await?.iter().for_each(print_user);
-        return Ok(());
-    }
-    let mut tx = WriteTx::begin(context.db).await?;
-    let admin = access::admin(&mut tx, &principal).await?;
     match command {
-        UserCommand::List => unreachable!("listed above"),
+        UserCommand::List => {
+            let mut conn = context.db.acquire().await?;
+            let admin = access::admin(&mut conn, &principal).await?;
+            user::list(&mut conn, &admin).await?.iter().for_each(print_user);
+        }
         UserCommand::Add {
             callsign,
             admin: is_admin,
         } => {
+            let (mut tx, admin) = admin_tx(context, &principal).await?;
             let role = if is_admin { Role::Admin } else { Role::User };
             let added = user::create(&mut tx, &admin, &callsign, role).await?;
             tx.commit().await?;
             print_user(&added);
         }
         UserCommand::Invite { callsign, link } => {
+            let (mut tx, admin) = admin_tx(context, &principal).await?;
             let invited = find_user(&mut tx, &callsign).await?;
             let token = registration::issue(&mut tx, &admin, &invited.id, link.ttl()).await?;
             tx.commit().await?;
             link.print(&invited, &token);
         }
-        UserCommand::Disable { callsign: ref key } | UserCommand::Enable { callsign: ref key } => {
-            let disabled = matches!(command, UserCommand::Disable { .. });
-            let target = find_user(&mut tx, key).await?;
-            let changed = user::set_disabled(&mut tx, &admin, &target.id, disabled).await?;
-            tx.commit().await?;
-            print_user(&changed);
-        }
+        UserCommand::Disable { callsign } => set_disabled(context, &principal, &callsign, true).await?,
+        UserCommand::Enable { callsign } => set_disabled(context, &principal, &callsign, false).await?,
         UserCommand::Role { callsign, role } => {
+            let (mut tx, admin) = admin_tx(context, &principal).await?;
             let target = find_user(&mut tx, &callsign).await?;
             let changed = user::set_role(&mut tx, &admin, &target.id, role.into()).await?;
             tx.commit().await?;
             print_user(&changed);
         }
     }
+    Ok(())
+}
+
+async fn set_disabled(context: &Context<'_>, principal: &Principal, callsign: &str, disabled: bool) -> CliResult<()> {
+    let (mut tx, admin) = admin_tx(context, principal).await?;
+    let target = find_user(&mut tx, callsign).await?;
+    let changed = user::set_disabled(&mut tx, &admin, &target.id, disabled).await?;
+    tx.commit().await?;
+    print_user(&changed);
     Ok(())
 }
 
@@ -202,8 +204,7 @@ pub async fn settings(context: &Context<'_>, command: SettingsCommand) -> CliRes
             println!("{value}");
         }
         SettingsCommand::Set { key, value } => {
-            let mut tx = WriteTx::begin(context.db).await?;
-            let admin = access::admin(&mut tx, &principal).await?;
+            let (mut tx, admin) = admin_tx(context, &principal).await?;
             settings::set(&mut tx, &admin, &key, &value).await?;
             tx.commit().await?;
             println!("{} = {value}", key.trim());
@@ -237,38 +238,43 @@ pub enum LogbookCommand {
     },
 }
 
+async fn any_logbook(context: &Context<'_>, principal: &Principal, key: &str) -> CliResult<(AdminAccess, Logbook)> {
+    let mut conn = context.db.acquire().await?;
+    let admin = access::admin(&mut conn, principal).await?;
+    let logbooks = logbook::list_all(&mut conn, &admin).await?;
+    let found = pick_logbook(&logbooks, Some(key))?.clone();
+    Ok((admin, found))
+}
+
 pub async fn logbook(context: &Context<'_>, command: LogbookCommand) -> CliResult<()> {
     let principal = context.principal().await?;
-    let mut conn = context.db.acquire().await?;
-    let admin = access::admin(&mut conn, &principal).await;
     match command {
-        LogbookCommand::List => match admin {
-            Ok(admin) => {
-                for logbook in logbook::list_all(&mut conn, &admin).await? {
-                    println!("{}\t{}\t{} QSOs inserted", logbook.id, logbook.name, logbook.last_seq);
+        LogbookCommand::List => {
+            let mut conn = context.db.acquire().await?;
+            match access::admin(&mut conn, &principal).await {
+                Ok(admin) => {
+                    for logbook in logbook::list_all(&mut conn, &admin).await? {
+                        println!("{}\t{}\t{} QSOs inserted", logbook.id, logbook.name, logbook.last_seq);
+                    }
                 }
-            }
-            Err(_) => {
-                let user = access::user(&mut conn, &principal).await?;
-                for (logbook, role) in logbook::list(&mut conn, &user).await? {
-                    println!("{}\t{}\t{}", logbook.id, logbook.name, role.as_str());
+                Err(StoreError::Forbidden(_)) => {
+                    let user = access::user(&mut conn, &principal).await?;
+                    for (logbook, role) in logbook::list(&mut conn, &user).await? {
+                        println!("{}\t{}\t{}", logbook.id, logbook.name, role.as_str());
+                    }
                 }
+                Err(e) => return Err(e.into()),
             }
-        },
+        }
         LogbookCommand::Add { name, owner } => {
-            drop(conn);
-            let mut tx = WriteTx::begin(context.db).await?;
-            let admin = access::admin(&mut tx, &principal).await?;
+            let (mut tx, admin) = admin_tx(context, &principal).await?;
             let owner = find_user(&mut tx, &owner).await?;
             let created = logbook::create(&mut tx, &admin, &name, &owner.id).await?;
             tx.commit().await?;
             println!("{}\t{}", created.id, created.name);
         }
         LogbookCommand::Delete { logbook: key, yes } => {
-            let admin = admin?;
-            let logbooks = logbook::list_all(&mut conn, &admin).await?;
-            let target = pick(&logbooks, Some(&key), "Logbook", |l| &l.id, |l| &l.name)?.clone();
-            drop(conn);
+            let (admin, target) = any_logbook(context, &principal, &key).await?;
             if !yes {
                 return Err(format!(
                     "this deletes {} with its {} QSOs, Stations and Memberships; add --yes to confirm",
@@ -288,10 +294,7 @@ pub async fn logbook(context: &Context<'_>, command: LogbookCommand) -> CliResul
             callsign,
             reason,
         } => {
-            let admin = admin?;
-            let logbooks = logbook::list_all(&mut conn, &admin).await?;
-            let target = pick(&logbooks, Some(&key), "Logbook", |l| &l.id, |l| &l.name)?.clone();
-            drop(conn);
+            let (admin, target) = any_logbook(context, &principal, &key).await?;
             let mut tx = WriteTx::begin(context.db).await?;
             let owner = find_user(&mut tx, &callsign).await?;
             logbook::add_owner(&mut tx, &admin, &target.id, &owner.id, &reason).await?;
@@ -321,60 +324,56 @@ impl From<MemberRoleArg> for LogbookRole {
 pub enum MemberCommand {
     #[command(about = "Lists the members of a Logbook")]
     List {
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Adds a member or changes their role")]
     Set {
         callsign: String,
         #[arg(value_enum)]
         role: MemberRoleArg,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Removes a member")]
     Remove {
         callsign: String,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
 }
 
 pub async fn member(context: &Context<'_>, command: MemberCommand) -> CliResult<()> {
-    let (logbook, callsign) = match &command {
-        MemberCommand::List { logbook } => (logbook, None),
-        MemberCommand::Set { logbook, callsign, .. } | MemberCommand::Remove { logbook, callsign } => {
-            (logbook, Some(callsign))
-        }
-    };
-    let access = context.logbook_access(logbook.as_deref()).await?;
-    let Some(callsign) = callsign else {
-        let mut conn = context.db.acquire().await?;
-        for member in membership::list(&mut conn, &access).await? {
-            let state = if member.disabled { "disabled" } else { "active" };
-            println!("{}\t{}\t{state}", member.callsign, member.role.as_str());
-        }
-        return Ok(());
-    };
-    let mut tx = WriteTx::begin(context.db).await?;
-    let member = find_user(&mut tx, callsign).await?;
-    let owner = access.owner()?;
     match command {
-        MemberCommand::Set { role, .. } => {
-            membership::set(&mut tx, &owner, &member.id, role.into()).await?;
-            tx.commit().await?;
-            println!(
-                "{} is now {} of the Logbook",
-                member.callsign,
-                LogbookRole::from(role).as_str()
-            );
+        MemberCommand::List { logbook } => {
+            let access = context.logbook_access(&logbook).await?;
+            let mut conn = context.db.acquire().await?;
+            for member in membership::list(&mut conn, &access).await? {
+                let state = if member.disabled { "disabled" } else { "active" };
+                println!("{}\t{}\t{state}", member.callsign, member.role.as_str());
+            }
         }
-        MemberCommand::Remove { .. } => {
-            membership::remove(&mut tx, &owner, &member.id).await?;
+        MemberCommand::Set {
+            callsign,
+            role,
+            logbook,
+        } => {
+            let access = context.logbook_access(&logbook).await?;
+            let role = LogbookRole::from(role);
+            let mut tx = WriteTx::begin(context.db).await?;
+            let member = find_user(&mut tx, &callsign).await?;
+            membership::set(&mut tx, &access.owner()?, &member.id, role).await?;
+            tx.commit().await?;
+            println!("{} is now {} of the Logbook", member.callsign, role.as_str());
+        }
+        MemberCommand::Remove { callsign, logbook } => {
+            let access = context.logbook_access(&logbook).await?;
+            let mut tx = WriteTx::begin(context.db).await?;
+            let member = find_user(&mut tx, &callsign).await?;
+            membership::remove(&mut tx, &access.owner()?, &member.id).await?;
             tx.commit().await?;
             println!("Removed {} from the Logbook", member.callsign);
         }
-        MemberCommand::List { .. } => unreachable!("listed above"),
     }
     Ok(())
 }
@@ -399,6 +398,21 @@ pub struct StationFields {
     fields: Vec<(String, String)>,
 }
 
+impl StationFields {
+    fn apply(&self, input: &mut StationInput) {
+        if let Some(id) = self.wavelog_id {
+            input.wavelog_id = Some(id);
+        }
+        for (name, value) in &self.fields {
+            let name = name.to_ascii_uppercase();
+            match value.is_empty() {
+                true => input.fields.remove(&name),
+                false => input.fields.insert(name, value.clone()),
+            };
+        }
+    }
+}
+
 #[derive(Subcommand)]
 pub enum StationCommand {
     #[command(about = "Adds a Station")]
@@ -408,13 +422,13 @@ pub enum StationCommand {
         callsign: String,
         #[command(flatten)]
         fields: StationFields,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Lists the Stations")]
     List {
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Changes a Station; past QSOs keep their values until `station rewrite`")]
     Update {
@@ -425,36 +439,47 @@ pub enum StationCommand {
         callsign: Option<String>,
         #[command(flatten)]
         fields: StationFields,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Archives a Station")]
     Archive {
         station: String,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Brings an archived Station back")]
     Unarchive {
         station: String,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Rewrites the past QSOs of a Station with its current values")]
     Rewrite {
         station: String,
-        #[arg(long, value_parser = parse_day, help = "First QSO day (UTC), such as 2026-10-01")]
-        from: Option<NaiveDate>,
-        #[arg(long, value_parser = parse_day, help = "Last QSO day (UTC), inclusive")]
-        until: Option<NaiveDate>,
+        #[command(flatten)]
+        days: DayRange,
         #[arg(long, help = "The number of QSOs the preview reported; without it only previews")]
         expect: Option<usize>,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
 }
 
-fn print_station(station: &station::Station) {
+impl StationCommand {
+    fn logbook(&self) -> &LogbookArg {
+        match self {
+            StationCommand::Add { logbook, .. }
+            | StationCommand::List { logbook }
+            | StationCommand::Update { logbook, .. }
+            | StationCommand::Archive { logbook, .. }
+            | StationCommand::Unarchive { logbook, .. }
+            | StationCommand::Rewrite { logbook, .. } => logbook,
+        }
+    }
+}
+
+fn print_station(station: &Station) {
     let wavelog = station.wavelog_id.map(|id| format!("wavelog {id}")).unwrap_or_default();
     let archived = station.archived_at.as_ref().map(|_| "archived").unwrap_or("");
     println!(
@@ -466,29 +491,8 @@ fn print_station(station: &station::Station) {
     }
 }
 
-fn apply_fields(input: &mut StationInput, fields: &StationFields) {
-    if let Some(id) = fields.wavelog_id {
-        input.wavelog_id = Some(id);
-    }
-    for (name, value) in &fields.fields {
-        let name = name.to_ascii_uppercase();
-        match value.is_empty() {
-            true => input.fields.remove(&name),
-            false => input.fields.insert(name, value.clone()),
-        };
-    }
-}
-
 pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResult<()> {
-    let logbook = match &command {
-        StationCommand::Add { logbook, .. }
-        | StationCommand::List { logbook }
-        | StationCommand::Update { logbook, .. }
-        | StationCommand::Archive { logbook, .. }
-        | StationCommand::Unarchive { logbook, .. }
-        | StationCommand::Rewrite { logbook, .. } => logbook.clone(),
-    };
-    let access = context.logbook_access(logbook.as_deref()).await?;
+    let access = context.logbook_access(command.logbook()).await?;
     match command {
         StationCommand::List { .. } => {
             let mut conn = context.db.acquire().await?;
@@ -503,7 +507,7 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
                 wavelog_id: None,
                 fields: BTreeMap::new(),
             };
-            apply_fields(&mut input, &fields);
+            fields.apply(&mut input);
             let mut tx = WriteTx::begin(context.db).await?;
             let created = station::create(&mut tx, &access.owner()?, &input).await?;
             tx.commit().await?;
@@ -523,34 +527,26 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
                 wavelog_id: current.wavelog_id,
                 fields: current.fields,
             };
-            apply_fields(&mut input, &fields);
+            fields.apply(&mut input);
             let mut tx = WriteTx::begin(context.db).await?;
             let updated = station::update(&mut tx, &access.owner()?, &current.id, &input).await?;
             tx.commit().await?;
             print_station(&updated);
         }
-        StationCommand::Archive { station: ref key, .. } | StationCommand::Unarchive { station: ref key, .. } => {
-            let archived = matches!(command, StationCommand::Archive { .. });
-            let target = context.station(&access, Some(key)).await?;
-            let mut tx = WriteTx::begin(context.db).await?;
-            let changed = station::set_archived(&mut tx, &access.owner()?, &target.id, archived).await?;
-            tx.commit().await?;
-            print_station(&changed);
-        }
+        StationCommand::Archive { station: key, .. } => set_archived(context, &access, &key, true).await?,
+        StationCommand::Unarchive { station: key, .. } => set_archived(context, &access, &key, false).await?,
         StationCommand::Rewrite {
             station: key,
-            from,
-            until,
+            days,
             expect,
             ..
         } => {
             let target = context.station(&access, Some(&key)).await?;
-            let range = TimeRange::days(from, until);
             let owner = access.owner()?;
             match expect {
                 None => {
                     let mut conn = context.db.acquire().await?;
-                    let count = station::preview_rewrite(&mut conn, &owner, &target.id, range).await?;
+                    let count = station::preview_rewrite(&mut conn, &owner, &target.id, days.range()).await?;
                     println!(
                         "{count} QSOs of {} would change; rerun with --expect {count}",
                         target.name
@@ -558,13 +554,22 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
                 }
                 Some(expected) => {
                     let mut tx = WriteTx::begin(context.db).await?;
-                    let count = station::rewrite_qsos(&mut tx, &owner, &target.id, range, expected).await?;
+                    let count = station::rewrite_qsos(&mut tx, &owner, &target.id, days.range(), expected).await?;
                     tx.commit().await?;
                     println!("Rewrote {count} QSOs of {}", target.name);
                 }
             }
         }
     }
+    Ok(())
+}
+
+async fn set_archived(context: &Context<'_>, access: &LogbookAccess, key: &str, archived: bool) -> CliResult<()> {
+    let target = context.station(access, Some(key)).await?;
+    let mut tx = WriteTx::begin(context.db).await?;
+    let changed = station::set_archived(&mut tx, &access.owner()?, &target.id, archived).await?;
+    tx.commit().await?;
+    print_station(&changed);
     Ok(())
 }
 
@@ -606,18 +611,18 @@ pub enum TokenCommand {
 }
 
 pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()> {
-    let principal = context.principal().await?;
     match command {
         TokenCommand::Issue {
             name,
             kind,
             wl2_prefix,
-            logbooks,
+            logbooks: keys,
         } => {
-            let mut logbook_ids = vec![];
-            for key in &logbooks {
-                logbook_ids.push(context.logbook_access(Some(key)).await?.logbook_id().to_owned());
-            }
+            let (principal, logbooks) = context.logbooks().await?;
+            let logbook_ids = keys
+                .iter()
+                .map(|key| Ok(pick_logbook(&logbooks, Some(key))?.id.clone()))
+                .collect::<CliResult<_>>()?;
             let mut tx = WriteTx::begin(context.db).await?;
             let user = access::user(&mut tx, &principal).await?;
             let input = TokenInput {
@@ -635,6 +640,7 @@ pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()
             println!("{}", issued.plaintext);
         }
         TokenCommand::List { callsign } => {
+            let principal = context.principal().await?;
             let mut conn = context.db.acquire().await?;
             let user = access::user(&mut conn, &principal).await?;
             let user_id = match callsign {
@@ -653,6 +659,7 @@ pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()
             }
         }
         TokenCommand::Revoke { id } => {
+            let principal = context.principal().await?;
             let mut tx = WriteTx::begin(context.db).await?;
             let user = access::user(&mut tx, &principal).await?;
             token::revoke(&mut tx, &user, &id).await?;
@@ -661,4 +668,46 @@ pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case("MY_CITY=Minato", Ok(("MY_CITY", "Minato")))]
+    #[case(" my_rig =IC-705=x", Ok(("my_rig", "IC-705=x")))]
+    #[case("MY_RIG=", Ok(("MY_RIG", "")))]
+    #[case("=Minato", Err(()))]
+    #[case("MY_CITY", Err(()))]
+    fn reads_name_value_fields(#[case] text: &str, #[case] expected: Result<(&str, &str), ()>) {
+        let read = parse_field(text);
+        assert_eq!(
+            read.as_ref().map(|(n, v)| (n.as_str(), v.as_str())).map_err(|_| ()),
+            expected
+        );
+    }
+
+    #[test]
+    fn applies_station_fields_onto_an_input() {
+        let mut input = StationInput {
+            fields: BTreeMap::from([("MY_CITY".to_owned(), "Minato".to_owned())]),
+            ..StationInput::default()
+        };
+        let fields = StationFields {
+            wavelog_id: Some(3),
+            fields: vec![
+                ("my_city".to_owned(), String::new()),
+                ("my_rig".to_owned(), "IC-705".to_owned()),
+            ],
+        };
+        fields.apply(&mut input);
+        assert_eq!(input.wavelog_id, Some(3));
+        assert_eq!(
+            input.fields,
+            BTreeMap::from([("MY_RIG".to_owned(), "IC-705".to_owned())])
+        );
+    }
 }

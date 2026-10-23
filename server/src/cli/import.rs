@@ -3,17 +3,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chrono::Utc;
 use clap::{Args, ValueEnum};
 
 use crate::{
-    cli::{CliResult, Context, LengthArg},
+    cli::{CliResult, Context, LengthArg, LogbookArg},
     domain::{
         adif::{self, LengthUnit},
         confirmation::Source,
         qso::{Qso, QsoError, Warning},
     },
-    store::import::{MergeReport, NewReport, import_new, merge},
+    store::{
+        export,
+        import::{MergeReport, NewReport, import_new, merge},
+        today,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -22,6 +25,17 @@ pub enum SourceArg {
     Lotw,
     Eqsl,
     Card,
+}
+
+impl SourceArg {
+    fn confirmation(self) -> Option<Source> {
+        match self {
+            SourceArg::New => None,
+            SourceArg::Lotw => Some(Source::Lotw),
+            SourceArg::Eqsl => Some(Source::Eqsl),
+            SourceArg::Card => Some(Source::Card),
+        }
+    }
 }
 
 #[derive(Args)]
@@ -34,8 +48,8 @@ pub struct ImportArgs {
         help = "New QSOs, or the QSL confirmations to merge into existing ones"
     )]
     source: SourceArg,
-    #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-    logbook: Option<String>,
+    #[command(flatten)]
+    logbook: LogbookArg,
     #[arg(long, help = "Station of the new QSOs; for a merge, matches only its QSOs")]
     station: Option<String>,
     #[arg(
@@ -57,25 +71,19 @@ pub struct ImportArgs {
 pub async fn run(context: &Context<'_>, args: &ImportArgs) -> CliResult<()> {
     let unit = context.length(args.length);
     let records = read(&args.file, unit)?;
-    let access = context.logbook_access(args.logbook.as_deref()).await?;
-    let rejects = match args.source {
-        SourceArg::New => {
+    let access = context.logbook_access(&args.logbook).await?;
+    let rejects = match args.source.confirmation() {
+        None => {
             let station = context.station(&access, args.station.as_deref()).await?;
             let report = import_new(context.db, &access, &station, records, args.apply).await?;
-            report.print(args.apply);
+            print_new(&report, args.apply);
             report.rejects
         }
-        source => {
-            let source = match source {
-                SourceArg::Lotw => Source::Lotw,
-                SourceArg::Eqsl => Source::Eqsl,
-                _ => Source::Card,
-            };
+        Some(source) => {
             let station = match &args.station {
                 Some(key) => Some(context.station(&access, Some(key)).await?),
                 None => None,
             };
-            let today = Utc::now().format("%Y%m%d").to_string();
             let report = merge(
                 context.db,
                 &access,
@@ -83,10 +91,10 @@ pub async fn run(context: &Context<'_>, args: &ImportArgs) -> CliResult<()> {
                 station.as_ref(),
                 records,
                 args.apply,
-                &today,
+                &today(),
             )
             .await?;
-            report.print(args.apply);
+            print_merge(&report, args.apply);
             report.rejects
         }
     };
@@ -100,7 +108,7 @@ pub async fn run(context: &Context<'_>, args: &ImportArgs) -> CliResult<()> {
     Ok(())
 }
 
-pub fn read(path: &Path, unit: LengthUnit) -> CliResult<Vec<Result<Qso, QsoError>>> {
+fn read(path: &Path, unit: LengthUnit) -> CliResult<Vec<Result<Qso, QsoError>>> {
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let adx = path
         .extension()
@@ -112,79 +120,119 @@ pub fn read(path: &Path, unit: LengthUnit) -> CliResult<Vec<Result<Qso, QsoError
     Ok(records.map_err(|e| format!("{}: {e}", path.display()))?)
 }
 
-pub fn write_adif(path: &Path, records: &[Qso], unit: LengthUnit) -> CliResult<()> {
-    let text = adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, unit);
-    fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+pub(super) fn write_adif(path: &Path, records: &[Qso], unit: LengthUnit) -> CliResult<()> {
+    fs::write(path, export::document(records, unit)).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(())
 }
 
-impl NewReport {
-    fn print(&self, applied: bool) {
-        let verb = if applied { "Created" } else { "Would create" };
-        println!("Read {} records.", self.read);
-        println!("{verb} {} QSOs; {} were already imported.", self.created, self.existing);
-        for (index, ids) in &self.duplicates {
-            println!("  record {index}: possible duplicate of {}", ids.join(", "));
-        }
-        for (index, freq, band) in &self.outside_band {
-            println!("  record {index}: FREQ {freq} is outside {band}");
-        }
-        for (index, warning) in &self.modes {
-            match warning {
-                Warning::UnknownMode { mode } => println!("  record {index}: MODE {mode} is not an ADIF mode"),
-                Warning::UnknownSubmode { submode } => {
-                    println!("  record {index}: SUBMODE {submode} is not an ADIF submode")
-                }
-                Warning::SubmodeOfAnotherMode {
-                    mode,
-                    submode,
-                    expected,
-                } => {
-                    println!("  record {index}: SUBMODE {submode} belongs to {expected}, not {mode}")
-                }
-                _ => {}
+fn print_new(report: &NewReport, applied: bool) {
+    let verb = if applied { "Created" } else { "Would create" };
+    println!("Read {} records.", report.read);
+    println!(
+        "{verb} {} QSOs; {} were already imported.",
+        report.created, report.existing
+    );
+    for (index, ids) in &report.duplicates {
+        println!("  record {index}: possible duplicate of {}", ids.join(", "));
+    }
+    for (index, freq, band) in &report.outside_band {
+        println!("  record {index}: FREQ {freq} is outside {band}");
+    }
+    for (index, warning) in &report.modes {
+        match warning {
+            Warning::UnknownMode { mode } => println!("  record {index}: MODE {mode} is not an ADIF mode"),
+            Warning::UnknownSubmode { submode } => {
+                println!("  record {index}: SUBMODE {submode} is not an ADIF submode")
             }
+            Warning::SubmodeOfAnotherMode {
+                mode,
+                submode,
+                expected,
+            } => {
+                println!("  record {index}: SUBMODE {submode} belongs to {expected}, not {mode}")
+            }
+            _ => {}
         }
-        println!("Skipped {} invalid records.", self.invalid.len());
-        for (index, error) in &self.invalid {
-            println!("  record {index}: {error}");
-        }
+    }
+    println!("Skipped {} invalid records.", report.invalid.len());
+    for (index, error) in &report.invalid {
+        println!("  record {index}: {error}");
     }
 }
 
-impl MergeReport {
-    fn print(&self, applied: bool) {
-        let verb = if applied { "Merged" } else { "Would merge" };
+fn print_merge(report: &MergeReport, applied: bool) {
+    let verb = if applied { "Merged" } else { "Would merge" };
+    println!(
+        "Read {} records, {} of them not confirmations.",
+        report.read, report.not_confirmations
+    );
+    println!(
+        "{verb} {} confirmations; {} were already received.",
+        report.merged, report.already
+    );
+    if !report.differences.is_empty() {
+        let counts: Vec<String> = report.differences.iter().map(|(f, n)| format!("{f} {n}")).collect();
         println!(
-            "Read {} records, {} of them not confirmations.",
-            self.read, self.not_confirmations
+            "Matched QSOs differing from the records (not applied): {}",
+            counts.join(", ")
         );
-        println!(
-            "{verb} {} confirmations; {} were already received.",
-            self.merged, self.already
-        );
-        if !self.differences.is_empty() {
-            let counts: Vec<String> = self.differences.iter().map(|(f, n)| format!("{f} {n}")).collect();
-            println!(
-                "Matched QSOs differing from the records (not applied): {}",
-                counts.join(", ")
-            );
-        }
-        let unmatched: Vec<String> = self.unmatched.iter().map(usize::to_string).collect();
-        println!("Unmatched records: {}", self.unmatched.len());
-        if !unmatched.is_empty() {
-            println!("  records {}", unmatched.join(", "));
-        }
-        println!("Ambiguous records: {}", self.ambiguous.len());
-        for (index, ids) in &self.ambiguous {
-            println!("  record {index}: {}", ids.join(", "));
-        }
-        println!("Invalid records: {}", self.invalid.len());
-        for (index, error) in &self.invalid {
-            println!("  record {index}: {error}");
-        }
-        for skipped in &self.skipped {
-            println!("  skipped {}: {:?}", skipped.id, skipped.reason);
-        }
+    }
+    let unmatched: Vec<String> = report.unmatched.iter().map(usize::to_string).collect();
+    println!("Unmatched records: {}", report.unmatched.len());
+    if !unmatched.is_empty() {
+        println!("  records {}", unmatched.join(", "));
+    }
+    println!("Ambiguous records: {}", report.ambiguous.len());
+    for (index, ids) in &report.ambiguous {
+        println!("  record {index}: {}", ids.join(", "));
+    }
+    println!("Invalid records: {}", report.invalid.len());
+    for (index, error) in &report.invalid {
+        println!("  record {index}: {error}");
+    }
+    for skipped in &report.skipped {
+        println!("  skipped {}: {:?}", skipped.id, skipped.reason);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case(SourceArg::New, None)]
+    #[case(SourceArg::Lotw, Some(Source::Lotw))]
+    #[case(SourceArg::Eqsl, Some(Source::Eqsl))]
+    #[case(SourceArg::Card, Some(Source::Card))]
+    fn maps_each_source_to_its_confirmation(#[case] arg: SourceArg, #[case] expected: Option<Source>) {
+        assert_eq!(arg.confirmation(), expected);
+    }
+
+    #[rstest]
+    #[case("log.adi", "<CALL:6>JA1XYZ <EOR>")]
+    #[case(
+        "log.ADX",
+        "<?xml version=\"1.0\"?><ADX><HEADER></HEADER><RECORDS><RECORD><CALL>JA1XYZ</CALL></RECORD></RECORDS></ADX>"
+    )]
+    fn reads_adi_or_adx_by_the_extension(#[case] name: &str, #[case] text: &str) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(name);
+        fs::write(&path, text).unwrap();
+        let records = read(&path, LengthUnit::Codepoints).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].as_ref().unwrap().get("CALL"), Some("JA1XYZ"));
+    }
+
+    #[test]
+    fn writes_records_that_read_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.adi");
+        let qso = Qso::from_fields([("CALL", "JA1XYZ"), ("NAME", "太郎")]).unwrap();
+        write_adif(&path, std::slice::from_ref(&qso), LengthUnit::Codepoints).unwrap();
+        let records = read(&path, LengthUnit::Codepoints).unwrap();
+        assert_eq!(records, [Ok(qso)]);
+        assert!(read(&dir.path().join("missing.adi"), LengthUnit::Codepoints).is_err());
     }
 }

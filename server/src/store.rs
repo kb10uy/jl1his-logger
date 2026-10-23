@@ -24,7 +24,7 @@ use sqlx::{Sqlite, SqliteConnection, Transaction};
 
 use crate::{db::Db, domain::qso::QsoError};
 
-pub(crate) use crate::db::{new_id, now, timestamp};
+pub(crate) use crate::db::{new_id, now, timestamp, today};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {

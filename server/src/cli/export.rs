@@ -1,14 +1,13 @@
 use std::path::PathBuf;
 
-use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
 use crate::{
-    cli::{CliResult, Context, LengthArg, import::write_adif, parse_day},
+    cli::{CliResult, Context, DayRange, LengthArg, LogbookArg, import::write_adif},
     store::{
         WriteTx,
         export::{self, ExportKind},
-        qso::{Filter, TimeRange},
+        qso::Filter,
     },
 };
 
@@ -39,14 +38,12 @@ pub struct WriteArgs {
     kind: KindArg,
     #[arg(short, long, help = "ADIF file to write")]
     output: PathBuf,
-    #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-    logbook: Option<String>,
+    #[command(flatten)]
+    logbook: LogbookArg,
     #[arg(long, help = "Only the QSOs of this Station")]
     station: Option<String>,
-    #[arg(long, value_parser = parse_day, help = "First QSO day (UTC), such as 2026-10-01")]
-    from: Option<NaiveDate>,
-    #[arg(long, value_parser = parse_day, help = "Last QSO day (UTC), inclusive")]
-    until: Option<NaiveDate>,
+    #[command(flatten)]
+    days: DayRange,
     #[arg(long, help = "Only this band")]
     band: Option<String>,
     #[arg(long, help = "Only this mode")]
@@ -71,14 +68,14 @@ pub enum ExportCommand {
     Write(WriteArgs),
     #[command(about = "Lists the export batches")]
     List {
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
     #[command(about = "Marks the QSOs of an eqsl, lotw or qsl-card batch as sent")]
     Apply {
         batch: String,
-        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
-        logbook: Option<String>,
+        #[command(flatten)]
+        logbook: LogbookArg,
     },
 }
 
@@ -86,7 +83,7 @@ pub async fn run(context: &Context<'_>, command: ExportCommand) -> CliResult<()>
     match command {
         ExportCommand::Write(args) => write(context, &args).await,
         ExportCommand::List { logbook } => {
-            let access = context.logbook_access(logbook.as_deref()).await?;
+            let access = context.logbook_access(&logbook).await?;
             let mut conn = context.db.acquire().await?;
             for batch in export::list(&mut conn, &access).await? {
                 let applied = match &batch.applied_at {
@@ -104,7 +101,7 @@ pub async fn run(context: &Context<'_>, command: ExportCommand) -> CliResult<()>
             Ok(())
         }
         ExportCommand::Apply { batch, logbook } => {
-            let access = context.logbook_access(logbook.as_deref()).await?;
+            let access = context.logbook_access(&logbook).await?;
             let mut tx = WriteTx::begin(context.db).await?;
             let outcome = export::apply(&mut tx, &access, &batch).await?;
             tx.commit().await?;
@@ -118,13 +115,13 @@ pub async fn run(context: &Context<'_>, command: ExportCommand) -> CliResult<()>
 }
 
 async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
-    let access = context.logbook_access(args.logbook.as_deref()).await?;
+    let access = context.logbook_access(&args.logbook).await?;
     let station_id = match &args.station {
         Some(key) => Some(context.station(&access, Some(key)).await?.id),
         None => None,
     };
     let filter = Filter {
-        time: TimeRange::days(args.from, args.until),
+        time: args.days.range(),
         station_ids: station_id.map(|id| vec![id]),
         band: args.band.clone(),
         mode: args.mode.clone(),

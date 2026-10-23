@@ -6,6 +6,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::{
+        adif::{self, LengthUnit},
         pota,
         qso::{InvalidQsoId, Qso},
     },
@@ -15,6 +16,7 @@ use crate::{
         new_id, now,
         qsl::{self, Outcome},
         qso::{self, Filter, StoredQso, Target},
+        today,
     },
 };
 
@@ -86,6 +88,10 @@ impl ExportBatch {
 const SELECT: &str = "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
      (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
      FROM export_batches b";
+
+pub fn document(records: &[Qso], unit: LengthUnit) -> String {
+    adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, unit)
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Selection {
@@ -213,7 +219,7 @@ pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result
         )));
     };
     let targets = targets(tx, id).await?;
-    let changes = vec![(sent, "Y".to_owned()), (date, Utc::now().format("%Y%m%d").to_string())];
+    let changes = vec![(sent, "Y".to_owned()), (date, today())];
     let outcome = qsl::apply(tx, &access, &targets, &changes).await?;
     sqlx::query("UPDATE export_batches SET applied_at = ? WHERE id = ?")
         .bind(now())
@@ -357,7 +363,7 @@ mod tests {
             .unwrap();
 
         let outcome = apply(&mut tx, &access, &batch.id).await.unwrap();
-        let today = Utc::now().format("%Y%m%d").to_string();
+        let today = today();
         assert_eq!(outcome.updated.len(), 2);
         for row in &outcome.updated {
             assert_eq!(row.qso.get("QSL_SENT"), Some("Y"));

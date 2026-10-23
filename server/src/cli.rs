@@ -1,38 +1,42 @@
-pub mod admin;
-pub mod backup;
-pub mod export;
-pub mod import;
-pub mod reference;
+mod admin;
+mod backup;
+mod export;
+mod import;
+mod reference;
 
 use std::{error::Error, path::Path};
 
 use chrono::NaiveDate;
-use clap::{Subcommand, ValueEnum};
+use clap::{Args, Subcommand, ValueEnum};
+use sqlx::SqliteConnection;
 use url::Url;
 
 use crate::{
     config::Config,
-    db::{self, Db},
+    db::{self, Db, Migrated},
     domain::{adif::LengthUnit, qso::parse_date},
     store::{
         access::{self, LogbookAccess, Principal},
         logbook::{self, Logbook},
+        qso::TimeRange,
         station::{self, Station},
-        user,
+        user::{self, User},
     },
 };
 
 pub type CliResult<T> = Result<T, Box<dyn Error>>;
 
-pub struct Context<'a> {
-    pub db: &'a Db,
-    pub database: &'a Path,
-    pub config: &'a Config,
-    pub actor: Option<&'a str>,
+struct Context<'a> {
+    db: &'a Db,
+    database: &'a Path,
+    config: &'a Config,
+    actor: Option<&'a str>,
 }
 
 #[derive(Subcommand)]
 pub enum Command {
+    #[command(about = "Applies pending migrations after snapshotting the database")]
+    Migrate,
     #[command(about = "Creates the first admin and prints a link to register a passkey")]
     Setup(admin::SetupArgs),
     #[command(subcommand, about = "Manages users (admin)")]
@@ -65,14 +69,8 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
     }
     let db = db::open(database).await?;
     let result = async {
-        match &command {
-            Command::Setup(_) => {
-                let migrated = db::migrate(&db, &db::snapshot_dir(database)).await?;
-                if let Some(snapshot) = &migrated.snapshot {
-                    println!("Snapshot written to {}", snapshot.display());
-                }
-            }
-            _ => db::require_migrated(&db).await?,
+        if !matches!(command, Command::Migrate | Command::Setup(_)) {
+            db::require_migrated(&db).await?;
         }
         let context = Context {
             db: &db,
@@ -81,7 +79,18 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
             actor,
         };
         match command {
-            Command::Setup(args) => admin::setup(&context, &args).await,
+            Command::Migrate => {
+                let migrated = context.migrate().await?;
+                match migrated.applied.is_empty() {
+                    true => println!("The database is up to date."),
+                    false => println!("Applied migrations {:?}", migrated.applied),
+                }
+                Ok(())
+            }
+            Command::Setup(args) => {
+                context.migrate().await?;
+                admin::setup(&context, &args).await
+            }
             Command::User(command) => admin::user(&context, command).await,
             Command::Logbook(command) => admin::logbook(&context, command).await,
             Command::Member(command) => admin::member(&context, command).await,
@@ -100,41 +109,82 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
     result
 }
 
+#[derive(Args)]
+pub struct LogbookArg {
+    #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
+    logbook: Option<String>,
+}
+
+#[derive(Args)]
+pub struct DayRange {
+    #[arg(long, value_parser = parse_day, help = "First QSO day (UTC), such as 2026-10-01")]
+    from: Option<NaiveDate>,
+    #[arg(long, value_parser = parse_day, help = "Last QSO day (UTC), inclusive")]
+    until: Option<NaiveDate>,
+}
+
+impl DayRange {
+    fn range(&self) -> TimeRange {
+        TimeRange::days(self.from, self.until)
+    }
+}
+
 impl Context<'_> {
-    pub async fn principal(&self) -> CliResult<Principal> {
-        let callsign = self.actor.ok_or("name the user to act as with --as or CLI_CALLSIGN")?;
-        let mut conn = self.db.acquire().await?;
-        let user = user::find_by_callsign(&mut conn, callsign)
-            .await?
-            .ok_or_else(|| format!("no user has the callsign {callsign}"))?;
-        Ok(Principal::user(&user.id))
+    async fn migrate(&self) -> CliResult<Migrated> {
+        let migrated = db::migrate(self.db, &db::snapshot_dir(self.database)).await?;
+        if let Some(snapshot) = &migrated.snapshot {
+            println!("Snapshot written to {}", snapshot.display());
+        }
+        Ok(migrated)
     }
 
-    pub async fn logbook_access(&self, logbook: Option<&str>) -> CliResult<LogbookAccess> {
+    async fn principal(&self) -> CliResult<Principal> {
+        let callsign = self.actor.ok_or("name the user to act as with --as or CLI_CALLSIGN")?;
+        let mut conn = self.db.acquire().await?;
+        Ok(Principal::user(&find_user(&mut conn, callsign).await?.id))
+    }
+
+    async fn logbooks(&self) -> CliResult<(Principal, Vec<Logbook>)> {
         let principal = self.principal().await?;
         let mut conn = self.db.acquire().await?;
         let user = access::user(&mut conn, &principal).await?;
-        let logbooks: Vec<Logbook> = logbook::list(&mut conn, &user)
+        let logbooks = logbook::list(&mut conn, &user)
             .await?
             .into_iter()
             .map(|(logbook, _)| logbook)
             .collect();
-        let found = pick(&logbooks, logbook, "Logbook", |l| &l.id, |l| &l.name)?;
+        Ok((principal, logbooks))
+    }
+
+    async fn logbook_access(&self, arg: &LogbookArg) -> CliResult<LogbookAccess> {
+        let (principal, logbooks) = self.logbooks().await?;
+        let found = pick_logbook(&logbooks, arg.logbook.as_deref())?;
+        let mut conn = self.db.acquire().await?;
         Ok(access::logbook(&mut conn, &principal, &found.id).await?)
     }
 
-    pub async fn station(&self, access: &LogbookAccess, key: Option<&str>) -> CliResult<Station> {
+    async fn station(&self, access: &LogbookAccess, key: Option<&str>) -> CliResult<Station> {
         let mut conn = self.db.acquire().await?;
         let stations = station::list(&mut conn, access).await?;
         Ok(pick(&stations, key, "Station", |s| &s.id, |s| &s.name)?.clone())
     }
 
-    pub fn length(&self, length: Option<LengthArg>) -> LengthUnit {
+    fn length(&self, length: Option<LengthArg>) -> LengthUnit {
         length.map(LengthUnit::from).unwrap_or(self.config.adif.length)
     }
 }
 
-pub fn pick<'a, T>(
+async fn find_user(conn: &mut SqliteConnection, callsign: &str) -> CliResult<User> {
+    Ok(user::find_by_callsign(conn, callsign)
+        .await?
+        .ok_or_else(|| format!("no user has the callsign {callsign}"))?)
+}
+
+fn pick_logbook<'a>(logbooks: &'a [Logbook], key: Option<&str>) -> CliResult<&'a Logbook> {
+    pick(logbooks, key, "Logbook", |l| &l.id, |l| &l.name)
+}
+
+fn pick<'a, T>(
     items: &'a [T],
     key: Option<&str>,
     what: &str,
@@ -161,7 +211,7 @@ pub fn pick<'a, T>(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum LengthArg {
+enum LengthArg {
     Codepoints,
     Bytes,
 }
@@ -175,11 +225,11 @@ impl From<LengthArg> for LengthUnit {
     }
 }
 
-pub fn parse_day(s: &str) -> Result<NaiveDate, String> {
+fn parse_day(s: &str) -> Result<NaiveDate, String> {
     parse_date(&s.trim().replace('-', "")).ok_or_else(|| format!("{s:?} is not a date such as 2026-10-22"))
 }
 
-pub fn registration_url(origin: &Url, token: &str) -> Url {
+fn registration_url(origin: &Url, token: &str) -> Url {
     let mut url = origin.join("/register").expect("an origin takes a path");
     url.set_fragment(Some(token));
     url
@@ -190,6 +240,7 @@ mod tests {
     use rstest::rstest;
 
     use super::*;
+    use crate::store::testing::World;
 
     struct Item(&'static str, &'static str);
 
@@ -237,5 +288,27 @@ mod tests {
         let origin = Url::parse("https://log.example.com").unwrap();
         let url = registration_url(&origin, "abc");
         assert_eq!(url.as_str(), "https://log.example.com/register#abc");
+    }
+
+    #[rstest]
+    #[case::member(Some("JA1OPR"), Ok(()))]
+    #[case::outsider(Some("JA1OUT"), Err("there is no Logbook".to_owned()))]
+    #[case::unknown_user(Some("JA1NOB"), Err("no user has the callsign JA1NOB".to_owned()))]
+    #[case::no_actor(None, Err("name the user to act as with --as or CLI_CALLSIGN".to_owned()))]
+    #[tokio::test]
+    async fn acts_as_the_named_user(#[case] actor: Option<&str>, #[case] expected: Result<(), String>) {
+        let world = World::new().await;
+        let config = Config::default();
+        let context = Context {
+            db: &world.db,
+            database: Path::new("unused.db"),
+            config: &config,
+            actor,
+        };
+        let access = context.logbook_access(&LogbookArg { logbook: None }).await;
+        assert_eq!(
+            access.as_ref().map(|a| a.logbook_id()).map_err(|e| e.to_string()),
+            expected.map(|()| world.logbook.id.as_str())
+        );
     }
 }

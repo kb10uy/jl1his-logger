@@ -38,6 +38,10 @@ pub fn timestamp(time: DateTime<Utc>) -> String {
     time.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
+pub fn today() -> String {
+    Utc::now().format("%Y%m%d").to_string()
+}
+
 pub fn new_id() -> String {
     Uuid::now_v7().to_string()
 }

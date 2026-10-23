@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use axum::{body::Bytes, extract::State};
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -11,13 +10,14 @@ use crate::{
         qso::{Qso, Warning},
     },
     store::{
+        export,
         import::{MergeReport, NewReport, import_new, merge},
-        station,
+        station, today,
     },
     web::{
         AppState,
         error::ApiError,
-        export::{SkippedBody, adif_document},
+        export::SkippedBody,
         extract::{Json, Query},
         member::Member,
     },
@@ -123,7 +123,7 @@ fn record_ids(records: Vec<(usize, Vec<String>)>) -> Vec<RecordIds> {
 }
 
 fn rejects(records: &[Qso], unit: LengthUnit) -> Option<String> {
-    (!records.is_empty()).then(|| adif_document(records, unit))
+    (!records.is_empty()).then(|| export::document(records, unit))
 }
 
 impl ImportBody {
@@ -199,7 +199,6 @@ pub async fn import(
         SourceRequest::Eqsl => Source::Eqsl,
         SourceRequest::Card => Source::Card,
     };
-    let today = Utc::now().format("%Y%m%d").to_string();
     let report = merge(
         &state.db,
         &access,
@@ -207,7 +206,7 @@ pub async fn import(
         station.as_ref(),
         records,
         query.apply,
-        &today,
+        &today(),
     )
     .await?;
     Ok(Json(ImportBody::merge(report, query.apply, unit)))

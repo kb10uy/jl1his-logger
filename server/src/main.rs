@@ -1,16 +1,10 @@
-use std::{
-    error::Error,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-    process::ExitCode,
-    sync::Arc,
-};
+use std::{error::Error, net::SocketAddr, path::PathBuf, process::ExitCode, sync::Arc};
 
 use clap::{ArgAction, Parser, Subcommand};
 use jl1his_logger::{
     cli,
     config::{Config, parse_public_origin},
-    db::{self, Db, Migrated, backup},
+    db::{self, backup},
     web::{AppState, router},
 };
 use tracing_subscriber::EnvFilter;
@@ -80,8 +74,6 @@ enum Command {
         )]
         auto_migrate: bool,
     },
-    #[command(about = "Applies pending migrations after snapshotting the database")]
-    Migrate,
     #[command(flatten)]
     Cli(cli::Command),
 }
@@ -110,6 +102,10 @@ async fn main() -> ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
+    let config = match &cli.config {
+        Some(path) => Config::load(path)?,
+        None => Config::default(),
+    };
     match cli.command {
         Command::Serve {
             listen,
@@ -117,7 +113,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             web_dir,
             auto_migrate,
         } => {
-            let config = load_config(cli.config.as_deref())?;
             match &web_dir {
                 Some(dir) if !dir.join("index.html").is_file() => {
                     return Err(format!("{} has no index.html; build the client first", dir.display()).into());
@@ -129,7 +124,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             let _lock = backup::lock(&cli.database)?;
             let db = db::open(&cli.database).await?;
             if auto_migrate {
-                let migrated = migrate(&db, &cli.database).await?;
+                let migrated = db::migrate(&db, &db::snapshot_dir(&cli.database)).await?;
                 if let Some(snapshot) = &migrated.snapshot {
                     tracing::info!("snapshot written to {}", snapshot.display());
                 }
@@ -152,35 +147,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 .await?;
             db.close().await;
         }
-        Command::Migrate => {
-            let db = db::open(&cli.database).await?;
-            let migrated = migrate(&db, &cli.database).await?;
-            db.close().await;
-            if let Some(snapshot) = &migrated.snapshot {
-                println!("Snapshot written to {}", snapshot.display());
-            }
-            match migrated.applied.is_empty() {
-                true => println!("The database is up to date."),
-                false => println!("Applied migrations {:?}", migrated.applied),
-            }
-        }
-        Command::Cli(command) => {
-            let config = load_config(cli.config.as_deref())?;
-            cli::run(&cli.database, &config, cli.actor.as_deref(), command).await?;
-        }
+        Command::Cli(command) => cli::run(&cli.database, &config, cli.actor.as_deref(), command).await?,
     }
     Ok(())
-}
-
-fn load_config(path: Option<&Path>) -> Result<Config, Box<dyn Error>> {
-    Ok(match path {
-        Some(path) => Config::load(path)?,
-        None => Config::default(),
-    })
-}
-
-async fn migrate(db: &Db, database: &Path) -> Result<Migrated, db::DbError> {
-    db::migrate(db, &db::snapshot_dir(database)).await
 }
 
 async fn shutdown_signal() {

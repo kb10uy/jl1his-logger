@@ -13,13 +13,12 @@ use crate::{
         wavelog::{STATION_PROFILE_ID, qso_from_body},
     },
     store::{
-        WriteTx,
+        WriteTx, export,
         qso::{self, CallMatch, Confirmation, Created, Filter, InsertionQuery, QsoInput, TimeRange},
         station,
     },
     web::{
         AppState,
-        export::adif_document,
         wl2::{Wl2Access, Wl2Error, Wl2Json, Wl2Query, data, mapped, present, station_ids},
     },
 };
@@ -128,7 +127,7 @@ pub async fn list(
         json!({
             "exported": records.len(),
             "lastfetchedid": last,
-            "adif": (!records.is_empty()).then(|| adif_document(&records, LengthUnit::Codepoints)),
+            "adif": (!records.is_empty()).then(|| export::document(&records, LengthUnit::Codepoints)),
         }),
         json!({
             "page": page,

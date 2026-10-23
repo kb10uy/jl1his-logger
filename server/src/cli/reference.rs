@@ -80,6 +80,10 @@ pub async fn run(context: &Context<'_>, command: ReferenceCommand) -> CliResult<
 }
 
 async fn install(context: &Context<'_>, args: &InstallArgs) -> CliResult<(ReferenceVersion, PathBuf)> {
+    let principal = context.principal().await?;
+    let mut conn = context.db.acquire().await?;
+    let admin = access::admin(&mut conn, &principal).await?;
+    drop(conn);
     let bytes = fs::read(&args.file).map_err(|e| format!("{}: {e}", args.file.display()))?;
     let text = std::str::from_utf8(&bytes).map_err(|e| format!("{}: {e}", args.file.display()))?;
     let invalid = |e: &dyn std::fmt::Display| format!("{}: {e}", args.file.display());
@@ -107,9 +111,7 @@ async fn install(context: &Context<'_>, args: &InstallArgs) -> CliResult<(Refere
         .or(detected)
         .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
 
-    let principal = context.principal().await?;
     let mut tx = WriteTx::begin(context.db).await?;
-    let admin = access::admin(&mut tx, &principal).await?;
     let checksum = Sha256::digest(&bytes);
     let installed = reference::set(&mut tx, &admin, args.kind.into(), &version, Some(checksum.as_slice())).await?;
     let previous = match fs::read(path) {
@@ -146,6 +148,7 @@ fn replace(path: &Path, bytes: &[u8]) -> CliResult<()> {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use tempfile::TempDir;
 
     use super::*;
     use crate::{
@@ -154,33 +157,62 @@ mod tests {
         store::testing::World,
     };
 
+    struct Setup {
+        world: World,
+        dir: TempDir,
+        config: Config,
+        source: PathBuf,
+    }
+
+    impl Setup {
+        async fn new(cty: &str) -> Setup {
+            let world = World::new().await;
+            let dir = tempfile::tempdir().unwrap();
+            let config = Config {
+                reference: ReferenceConfig {
+                    cty: dir.path().join(cty),
+                    ..ReferenceConfig::default()
+                },
+                ..Config::default()
+            };
+            let source = dir.path().join("source.dat");
+            fs::write(&source, CTY).unwrap();
+            Setup {
+                world,
+                dir,
+                config,
+                source,
+            }
+        }
+
+        fn context<'a>(&'a self, actor: &'a str) -> Context<'a> {
+            Context {
+                db: &self.world.db,
+                database: Path::new("unused.db"),
+                config: &self.config,
+                actor: Some(actor),
+            }
+        }
+
+        fn args(&self) -> InstallArgs {
+            InstallArgs {
+                kind: KindArg::Cty,
+                file: self.source.clone(),
+                version: None,
+            }
+        }
+    }
+
     #[tokio::test]
     async fn installs_checked_files_as_an_admin() {
-        let world = World::new().await;
-        let dir = tempfile::tempdir().unwrap();
-        let config = Config {
-            reference: ReferenceConfig {
-                cty: dir.path().join("data").join("cty.dat"),
-                ..ReferenceConfig::default()
-            },
-            ..Config::default()
-        };
-        let database = dir.path().join("unused.db");
-        let source = dir.path().join("download.dat");
-        fs::write(&source, CTY).unwrap();
-        let args = InstallArgs {
-            kind: KindArg::Cty,
-            file: source.clone(),
-            version: None,
-        };
-        let context = |actor| Context {
-            db: &world.db,
-            database: &database,
-            config: &config,
-            actor: Some(actor),
-        };
+        let s = Setup::new("data/cty.dat").await;
+        let (config, source, args) = (&s.config, &s.source, s.args());
+        let context = |actor| s.context(actor);
 
-        assert!(install(&context("JA1OWN"), &args).await.is_err());
+        fs::write(source, "Japan\n").unwrap();
+        let refused = install(&context("JA1OWN"), &args).await.unwrap_err();
+        assert!(refused.to_string().contains("only an admin"), "{refused}");
+        fs::write(source, CTY).unwrap();
         assert!(!config.reference.cty.exists());
 
         let (installed, path) = install(&context("JL1HIS"), &args).await.unwrap();
@@ -192,12 +224,12 @@ mod tests {
         );
         assert_eq!(installed.checksum.as_deref(), Some(Sha256::digest(CTY).as_slice()));
 
-        fs::write(&source, "Japan\n").unwrap();
+        fs::write(source, "Japan\n").unwrap();
         assert!(install(&context("JL1HIS"), &args).await.is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), CTY);
 
         let updated = CTY.replace("Japan:", "Nippon:");
-        fs::write(&source, &updated).unwrap();
+        fs::write(source, &updated).unwrap();
         let args = InstallArgs {
             version: Some(" 2 ".into()),
             ..args
@@ -214,36 +246,17 @@ mod tests {
     #[case::database_commit("commit")]
     #[tokio::test]
     async fn preserves_reference_data_on_failed_install(#[case] failure: &str, #[values(false, true)] existing: bool) {
-        let world = World::new().await;
-        let dir = tempfile::tempdir().unwrap();
-        let config = Config {
-            reference: ReferenceConfig {
-                cty: dir.path().join("cty.dat"),
-                ..ReferenceConfig::default()
-            },
-            ..Config::default()
-        };
-        let database = dir.path().join("unused.db");
-        let source = dir.path().join("source.dat");
-        fs::write(&source, CTY).unwrap();
-        let context = Context {
-            db: &world.db,
-            database: &database,
-            config: &config,
-            actor: Some("JL1HIS"),
-        };
-        let mut args = InstallArgs {
-            kind: KindArg::Cty,
-            file: source.clone(),
-            version: None,
-        };
+        let s = Setup::new("cty.dat").await;
+        let (world, dir, config, source) = (&s.world, &s.dir, &s.config, &s.source);
+        let context = s.context("JL1HIS");
+        let mut args = s.args();
         if existing {
             install(&context, &args).await.unwrap();
         }
         let mut conn = world.db.acquire().await.unwrap();
         let previous = reference::current(&mut conn, ReferenceKind::Cty).await.unwrap();
         drop(conn);
-        fs::write(&source, CTY.replace("Japan:", "Nippon:")).unwrap();
+        fs::write(source, CTY.replace("Japan:", "Nippon:")).unwrap();
         args.version = Some("new".into());
         match failure {
             "version" => args.version = Some(" ".into()),

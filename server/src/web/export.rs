@@ -4,14 +4,10 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    domain::{
-        adif::{self, LengthUnit},
-        qso::{Qso, QsoId},
-    },
+    domain::{adif::LengthUnit, qso::QsoId},
     store::{
         WriteTx,
         export::{self, ExportBatch, ExportKind},
@@ -91,10 +87,6 @@ impl From<Outcome> for OutcomeBody {
             skipped: outcome.skipped.into_iter().map(SkippedBody::from).collect(),
         }
     }
-}
-
-pub(super) fn adif_document(records: &[Qso], unit: LengthUnit) -> String {
-    adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, unit)
 }
 
 #[derive(Debug, Serialize)]
@@ -226,7 +218,7 @@ pub async fn create(
         Json(ExportBody {
             batch: Some(batch.into()),
             records: selection.records.len(),
-            adif: Some(adif_document(&selection.records, unit)),
+            adif: Some(export::document(&selection.records, unit)),
         }),
     ))
 }
