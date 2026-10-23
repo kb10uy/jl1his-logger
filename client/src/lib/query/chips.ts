@@ -19,7 +19,13 @@ const NAMES: Record<string, string> = {
     park: 'My park',
     sent: 'QSL sent',
     rcvd: 'QSL rcvd',
+    'lotw-sent': 'LoTW sent',
+    'lotw-rcvd': 'LoTW rcvd',
+    'eqsl-sent': 'eQSL sent',
+    'eqsl-rcvd': 'eQSL rcvd',
     date: 'Date',
+    freq: 'Freq',
+    pwr: 'TX power',
     dxcc: 'DXCC'
 };
 
@@ -27,35 +33,65 @@ const FIELD_NAMES: Record<string, string> = {
     MY_POTA_REF: 'My park',
     QSL_SENT: 'QSL sent',
     QSL_RCVD: 'QSL rcvd',
-    CONTEST_ID: 'Contest'
+    CONTEST_ID: 'Contest',
+    LOTW_QSL_SENT: 'LoTW sent',
+    LOTW_QSL_RCVD: 'LoTW rcvd',
+    EQSL_QSL_SENT: 'eQSL sent',
+    EQSL_QSL_RCVD: 'eQSL rcvd',
+    TX_PWR: 'TX power'
 };
 
 const ERRORS: Record<string, string> = {
     unknown_field: 'unknown field',
     bad_field_name: 'bad field name',
     bad_date: 'bad date',
+    bad_number: 'bad number',
     unclosed_quote: 'open quote',
     too_many_values: 'too many values',
     empty: 'empty'
 };
 
-function dateChip(value: string): { op: string; value: string } {
+interface RangeWords {
+    from: string;
+    until: string;
+    after: string;
+    before: string;
+    exact: string;
+    unit: string;
+}
+
+const NUMBER_WORDS = {
+    from: 'at least',
+    until: 'at most',
+    after: 'above',
+    before: 'below',
+    exact: 'is'
+};
+
+const RANGES: Record<string, RangeWords> = {
+    date: { from: 'from', until: 'until', after: 'after', before: 'before', exact: 'on', unit: '' },
+    freq: { ...NUMBER_WORDS, unit: ' MHz' },
+    pwr: { ...NUMBER_WORDS, unit: ' W' }
+};
+
+function rangeChip(value: string, words: RangeWords): { op: string; value: string } {
     const range = value.split('..');
     if (range.length === 2) {
         const [from, until] = range;
-        if (from && until) return { op: 'between', value: `${from} – ${until}` };
-        if (from) return { op: 'from', value: from };
-        return { op: 'until', value: until };
+        if (from && until) return { op: 'between', value: `${from} – ${until}${words.unit}` };
+        if (from) return { op: words.from, value: `${from}${words.unit}` };
+        return { op: words.until, value: `${until}${words.unit}` };
     }
     for (const [prefix, op] of [
-        ['>=', 'from'],
-        ['<=', 'until'],
-        ['>', 'after'],
-        ['<', 'before']
+        ['>=', words.from],
+        ['<=', words.until],
+        ['>', words.after],
+        ['<', words.before]
     ] as const) {
-        if (value.startsWith(prefix)) return { op, value: value.slice(prefix.length) };
+        if (value.startsWith(prefix))
+            return { op, value: `${value.slice(prefix.length)}${words.unit}` };
     }
-    return { op: 'on', value };
+    return { op: words.exact, value: `${value}${words.unit}` };
 }
 
 function label(token: QueryToken): string {
@@ -94,9 +130,10 @@ export function chip(token: QueryToken): Chip {
             tone: 'normal'
         };
     }
-    if (token.key === 'date') {
-        const { op, value } = dateChip(token.values[0]);
-        return { label: 'Date', op: token.negated ? `not ${op}` : op, value, tone };
+    const words = RANGES[token.key];
+    if (words) {
+        const { op, value } = rangeChip(token.values[0], words);
+        return { label: label(token), op: token.negated ? `not ${op}` : op, value, tone };
     }
     const multi = token.values.length > 1;
     const wildcard = token.key === 'call' && token.values.some((v) => /[*?]/.test(v));
@@ -124,11 +161,17 @@ export function templates(today: string): Template[] {
         { label: 'Mode', term: 'mode:' },
         { label: 'QSL sent', term: 'sent:' },
         { label: 'QSL received', term: 'rcvd:' },
+        { label: 'LoTW sent', term: 'lotw-sent:' },
+        { label: 'LoTW received', term: 'lotw-rcvd:' },
+        { label: 'eQSL sent', term: 'eqsl-sent:' },
+        { label: 'eQSL received', term: 'eqsl-rcvd:' },
         { label: 'Station', term: 'station:' },
         { label: 'My park', term: 'park:' },
         { label: 'Date from', term: `date:${today}..` },
+        { label: 'Freq MHz', term: 'freq:' },
+        { label: 'TX power W', term: 'pwr:' },
         { label: 'FREQ missing', term: 'no:freq' },
-        { label: 'ADIF field', term: 'adif.TX_PWR:' }
+        { label: 'ADIF field', term: 'adif.GRIDSQUARE:' }
     ];
 }
 
@@ -139,10 +182,13 @@ export const SYNTAX: [string, string][] = [
     ['date:2026-10-01..', 'range, either end open'],
     ['date:>=2026-10-18', 'also > < <='],
     ['sent:R,Q rcvd:N', 'QSL_SENT / QSL_RCVD'],
+    ['lotw-sent:Y eqsl-rcvd:Y', 'also lotw-rcvd, eqsl-sent'],
+    ['freq:14.0..14.35', 'MHz, range or > < <='],
+    ['pwr:<=5', 'TX_PWR in watts, same'],
     ['station:"JL1HIS/1"', 'quote values with spaces'],
     ['park:JP-0012', 'any MY_POTA_REF'],
     ['no:freq has:park', 'missing / present'],
-    ['adif.TX_PWR:10', 'any other ADIF field'],
+    ['adif.GRIDSQUARE:PM95', 'any other ADIF field'],
     ['dxcc:339,291', 'DXCC entity code'],
     ['yokohama', 'bare word: call, name, QTH, comment']
 ];

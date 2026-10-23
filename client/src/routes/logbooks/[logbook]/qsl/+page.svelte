@@ -30,8 +30,8 @@
 
     const PRESETS: Record<SendKind, string> = {
         qsl_card: 'sent:R,Q',
-        eqsl: '-adif.EQSL_QSL_SENT:Y',
-        lotw: '-adif.LOTW_QSL_SENT:Y'
+        eqsl: '-eqsl-sent:Y',
+        lotw: '-lotw-sent:Y'
     };
 
     const logbook = useLogbook();

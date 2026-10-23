@@ -135,17 +135,20 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
   | `base:JA1XYZ` | `call_base` equals the value, ignoring case |
   | `band:40m,20m`, `mode:SSB`, `contest:ALLJA1` | `BAND`, `MODE` or `CONTEST_ID` is one of the values, ignoring case |
   | `sent:R,Q`, `rcvd:Y,V` | `QSL_SENT` or `QSL_RCVD` is one of the values, ignoring case |
+  | `lotw-sent:Y`, `lotw-rcvd:Y`, `eqsl-sent:Y`, `eqsl-rcvd:Y,V` | `LOTW_QSL_SENT`, `LOTW_QSL_RCVD`, `EQSL_QSL_SENT` or `EQSL_QSL_RCVD` is one of the values, ignoring case |
   | `station:Takao` | The Station's name or the QSO's `STATION_CALLSIGN` contains the value, ignoring case |
   | `park:JP-0012` | One of the references in `MY_POTA_REF` is the value |
   | `dxcc:339` | `DXCC` is one of the entity codes |
   | `date:2026-10-01..2026-10-19`, `date:>=2026-10-18` | The UTC date of the QSO time is in the range (either end may be open) or compares with `>`, `>=`, `<`, `<=` |
-  | `has:freq`, `no:freq` | The ADIF field, by name ignoring case, is present or absent; an empty value counts as absent. `park`, `sent`, `rcvd` and `contest` name `MY_POTA_REF`, `QSL_SENT`, `QSL_RCVD` and `CONTEST_ID` |
-  | `adif.TX_PWR:10` | The ADIF field, by name ignoring case, is one of the values, ignoring ASCII case |
+  | `freq:14.0..14.35`, `freq:>=50` | `FREQ` in MHz is the value, is in the range (either end may be open, both ends included) or compares with `>`, `>=`, `<`, `<=`; a QSO without `FREQ` never holds |
+  | `pwr:<=5`, `pwr:10..50` | `TX_PWR` in watts compares as `freq:` does; a QSO whose `TX_PWR` is missing or not a decimal number never holds |
+  | `has:freq`, `no:freq` | The ADIF field, by name ignoring case, is present or absent; an empty value counts as absent. `park`, `sent`, `rcvd`, `contest`, `lotw-sent`, `lotw-rcvd`, `eqsl-sent`, `eqsl-rcvd` and `pwr` name `MY_POTA_REF`, `QSL_SENT`, `QSL_RCVD`, `CONTEST_ID`, `LOTW_QSL_SENT`, `LOTW_QSL_RCVD`, `EQSL_QSL_SENT`, `EQSL_QSL_RCVD` and `TX_PWR` |
+  | `adif.GRIDSQUARE:PM95` | The ADIF field, by name ignoring case, is one of the values, ignoring ASCII case |
   | `yokohama` | The call, `NAME`, `QTH` or `COMMENT` contains the word, ignoring case |
   | `-term` | The term does not hold |
 
-- Values are compared as their ADIF strings, enumerations ignoring ASCII case (see Storage Shape). Wildcard and substring terms scan the Logbook's rows; at the size of one station's log no index or full-text table is needed, and FTS5 is added only when that stops being true.
-- An unknown field, a bad date or a malformed term is `400`, naming the term and its position so the client can mark it. A term is never dropped silently.
+- Values are compared as their ADIF strings, enumerations ignoring ASCII case (see Storage Shape). `freq:` and `pwr:` are the exceptions: both sides are read as decimal numbers to six places, exactly, so `freq:14.074` matches `14.0740`; the server compares `freq:` on the derived `freq_hz`. Wildcard and substring terms scan the Logbook's rows; at the size of one station's log no index or full-text table is needed, and FTS5 is added only when that stops being true.
+- An unknown field, a bad date or number or a malformed term is `400`, naming the term and its position so the client can mark it. A term is never dropped silently.
 - Parsing and matching are one implementation, the query crate (see Structure). The server translates each term into SQL, and a store test runs a set of queries both through SQL and through the crate's matcher over the same rows, so the two cannot drift apart. The client uses the crate to show the terms as chips while typing (an unfinished term such as `call:` is shown as pending and the query is not sent) and to test the rows SSE delivers against the query.
 - The structured filters of the first version (a QSO time range, the Station, band, mode, the call or `call_base`, a set of `QSL_SENT` values in which an empty value matches an absent field, and `contest_id`) stay as parameters and combine with `q`.
 - Selecting every match in the log list asks the server for the IDs and revisions of all matches (`GET /targets` with the same filters), and a bulk change takes that list (see Bulk Changes). A bulk change is never applied to a query directly, so what changes is what was selected, at the revisions it was selected at.

@@ -277,7 +277,8 @@ A `q` that cannot be read is `400` and names the term:
 
 `index` counts the terms from 0; `start` and `end` are positions in the query
 in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
-`missing_value`, `too_many_values`, `bad_date`, `unclosed_quote` and `empty`.
+`missing_value`, `too_many_values`, `bad_date`, `bad_number`, `unclosed_quote` and
+`empty`.
 
 `GET /targets` takes the same filters, without `cursor` and `limit`, and returns
 the ID and revision of every match, newest first. Checking every match in the

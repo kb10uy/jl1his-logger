@@ -844,7 +844,7 @@ mod tests {
         let (status, body) = h
             .send(
                 "GET",
-                &h.path("/qsos?q=band:40m%20freq:7"),
+                &h.path("/qsos?q=band:40m%20qrg:70"),
                 Auth::Session(&cookie),
                 None,
             )
@@ -860,7 +860,7 @@ mod tests {
             ),
             (
                 &json!("unknown_field"),
-                &json!("freq:7"),
+                &json!("qrg:70"),
                 &json!(1),
                 &json!(9),
                 &json!(15)

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{callsign, date::Day, record::Record};
+use crate::{callsign, date::Day, number::Range, record::Record};
 
 pub const MAX_VALUES: usize = 100;
 
@@ -12,6 +12,8 @@ pub enum Condition {
     Station(Vec<String>),
     Park(Vec<String>),
     Date { from: Option<Day>, until: Option<Day> },
+    Freq(Range),
+    Power(Range),
     Present(String),
     Word(String),
 }
@@ -31,6 +33,7 @@ pub enum ErrorKind {
     MissingValue,
     TooManyValues(usize),
     BadDate(String),
+    BadNumber(String),
 }
 
 impl ErrorKind {
@@ -43,6 +46,7 @@ impl ErrorKind {
             ErrorKind::MissingValue => "missing_value",
             ErrorKind::TooManyValues(_) => "too_many_values",
             ErrorKind::BadDate(_) => "bad_date",
+            ErrorKind::BadNumber(_) => "bad_number",
         }
     }
 }
@@ -57,6 +61,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::MissingValue => write!(f, "the term has no value"),
             ErrorKind::TooManyValues(n) => write!(f, "the term lists {n} values; at most {MAX_VALUES} are taken"),
             ErrorKind::BadDate(value) => write!(f, "{value:?} is not a date or a date range"),
+            ErrorKind::BadNumber(value) => write!(f, "{value:?} is not a number or a range of numbers"),
         }
     }
 }
@@ -212,10 +217,18 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
         "contest" => enumerated("CONTEST_ID"),
         "sent" => enumerated("QSL_SENT"),
         "rcvd" => enumerated("QSL_RCVD"),
+        "lotw-sent" => enumerated("LOTW_QSL_SENT"),
+        "lotw-rcvd" => enumerated("LOTW_QSL_RCVD"),
+        "eqsl-sent" => enumerated("EQSL_QSL_SENT"),
+        "eqsl-rcvd" => enumerated("EQSL_QSL_RCVD"),
         "dxcc" => enumerated("DXCC"),
         _ => adif,
     };
-    let known = field_of_key.is_some() || matches!(key, "call" | "base" | "station" | "park" | "date" | "has" | "no");
+    let known = field_of_key.is_some()
+        || matches!(
+            key,
+            "call" | "base" | "station" | "park" | "date" | "freq" | "pwr" | "has" | "no"
+        );
     if !known {
         return Err(ErrorKind::UnknownField(key.to_owned()));
     }
@@ -236,6 +249,8 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
         ("station", None) => Condition::Station(mapped(|v| v.to_ascii_lowercase())),
         ("park", None) => Condition::Park(mapped(|v| v.replace(' ', "").to_ascii_uppercase())),
         ("date", None) => date(values)?,
+        ("freq", None) => Condition::Freq(range(values)?),
+        ("pwr", None) => Condition::Power(range(values)?),
         (_, None) => {
             let [value] = values else {
                 return Err(ErrorKind::BadFieldName(values.join(",")));
@@ -245,6 +260,11 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
                 "sent" => "QSL_SENT".to_owned(),
                 "rcvd" => "QSL_RCVD".to_owned(),
                 "contest" => "CONTEST_ID".to_owned(),
+                "lotw-sent" => "LOTW_QSL_SENT".to_owned(),
+                "lotw-rcvd" => "LOTW_QSL_RCVD".to_owned(),
+                "eqsl-sent" => "EQSL_QSL_SENT".to_owned(),
+                "eqsl-rcvd" => "EQSL_QSL_RCVD".to_owned(),
+                "pwr" => "TX_PWR".to_owned(),
                 _ => field_name(value)?,
             };
             *field = Some(name.clone());
@@ -279,6 +299,13 @@ fn date(values: &[String]) -> Result<Condition, ErrorKind> {
         (Some(day), Some(day.next()))
     };
     Ok(Condition::Date { from, until })
+}
+
+fn range(values: &[String]) -> Result<Range, ErrorKind> {
+    let [value] = values else {
+        return Err(ErrorKind::BadNumber(values.join(",")));
+    };
+    Range::parse(value).ok_or_else(|| ErrorKind::BadNumber(value.clone()))
 }
 
 fn field_name(name: &str) -> Result<String, ErrorKind> {
@@ -344,6 +371,12 @@ mod tests {
     #[case("contest:ALLJA1", false, Condition::Field { name: "CONTEST_ID".into(), values: strings(&["ALLJA1"]) })]
     #[case("sent:R,Q", false, Condition::Field { name: "QSL_SENT".into(), values: strings(&["R", "Q"]) })]
     #[case("rcvd:y,v", false, Condition::Field { name: "QSL_RCVD".into(), values: strings(&["Y", "V"]) })]
+    #[case("lotw-sent:y", false, Condition::Field { name: "LOTW_QSL_SENT".into(), values: strings(&["Y"]) })]
+    #[case("lotw-rcvd:Y", false, Condition::Field { name: "LOTW_QSL_RCVD".into(), values: strings(&["Y"]) })]
+    #[case("-eqsl-sent:Y", true, Condition::Field { name: "EQSL_QSL_SENT".into(), values: strings(&["Y"]) })]
+    #[case("eqsl-rcvd:Y,V", false, Condition::Field { name: "EQSL_QSL_RCVD".into(), values: strings(&["Y", "V"]) })]
+    #[case("no:eqsl-sent", true, Condition::Present("EQSL_QSL_SENT".into()))]
+    #[case("has:pwr", false, Condition::Present("TX_PWR".into()))]
     #[case("dxcc:339", false, Condition::Field { name: "DXCC".into(), values: strings(&["339"]) })]
     #[case("adif.tx_pwr:10", false, Condition::Field { name: "TX_PWR".into(), values: strings(&["10"]) })]
     #[case("station:\"Mt Takao\"", false, Condition::Station(strings(&["mt takao"])))]
@@ -387,7 +420,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case("freq:7", ErrorKind::UnknownField("freq".into()), 0, 0, 6)]
+    #[case("qrg:7", ErrorKind::UnknownField("qrg".into()), 0, 0, 5)]
+    #[case("freq:7MHz", ErrorKind::BadNumber("7MHz".into()), 0, 0, 9)]
+    #[case("freq:..", ErrorKind::BadNumber("..".into()), 0, 0, 7)]
+    #[case("pwr:5,10", ErrorKind::BadNumber("5,10".into()), 0, 0, 8)]
     #[case("band:40m  call:", ErrorKind::MissingValue, 1, 10, 15)]
     #[case("call:,", ErrorKind::MissingValue, 0, 0, 6)]
     #[case("date:2026-13-01", ErrorKind::BadDate("2026-13-01".into()), 0, 0, 15)]
@@ -409,6 +445,17 @@ mod tests {
             (error.kind, error.index, error.start, error.end),
             (kind, index, start, end)
         );
+    }
+
+    #[test]
+    fn parses_frequency_and_power_ranges() {
+        let condition = |query| Query::parse(query).unwrap().terms()[0].condition.clone();
+        assert_eq!(
+            condition("freq:14.0..14.35"),
+            Condition::Freq(Range::parse("14..14.35").unwrap())
+        );
+        assert_eq!(condition("PWR:<=5"), Condition::Power(Range::parse("<=5").unwrap()));
+        assert_eq!(tokens("-pwr:>100")[0].key.as_deref(), Some("pwr"));
     }
 
     #[test]

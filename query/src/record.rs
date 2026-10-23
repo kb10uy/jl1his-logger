@@ -1,6 +1,7 @@
 use crate::{
     callsign,
     date::Day,
+    number::millionths,
     parse::{Condition, Term},
 };
 
@@ -50,6 +51,12 @@ impl Condition {
             Condition::Date { from, until } => value(record, "QSO_DATE")
                 .and_then(Day::parse_adif)
                 .is_some_and(|day| from.is_none_or(|from| day >= from) && until.is_none_or(|until| day < until)),
+            Condition::Freq(range) => value(record, "FREQ")
+                .and_then(millionths)
+                .is_some_and(|hz| range.contains(hz)),
+            Condition::Power(range) => value(record, "TX_PWR")
+                .and_then(millionths)
+                .is_some_and(|microwatts| range.contains(microwatts)),
             Condition::Present(name) => value(record, name).is_some(),
             Condition::Word(word) => ["CALL", "NAME", "QTH", "COMMENT"]
                 .iter()
@@ -120,6 +127,8 @@ mod tests {
                 ("BAND", "40m"),
                 ("MODE", "SSB"),
                 ("QSL_SENT", "r"),
+                ("LOTW_QSL_SENT", "Y"),
+                ("EQSL_QSL_RCVD", "v"),
                 ("STATION_CALLSIGN", "JL1HIS/1"),
                 ("MY_POTA_REF", "JP-0012, JP-0345"),
                 ("NAME", "Yuki"),
@@ -160,6 +169,18 @@ mod tests {
     #[case("no:freq", true)]
     #[case("has:freq", false)]
     #[case("has:park", true)]
+    #[case("lotw-sent:Y", true)]
+    #[case("lotw-rcvd:Y", false)]
+    #[case("no:lotw-rcvd", true)]
+    #[case("eqsl-rcvd:Y,V", true)]
+    #[case("-eqsl-sent:Y", true)]
+    #[case("freq:7..7.2", false)]
+    #[case("-freq:7..7.2", true)]
+    #[case("pwr:10", true)]
+    #[case("pwr:<=5", false)]
+    #[case("pwr:5..10", true)]
+    #[case("pwr:>10", false)]
+    #[case("pwr:>=10.0", true)]
     #[case("adif.TX_PWR:10", true)]
     #[case("adif.tx_pwr:5,20", false)]
     #[case("adif.GRIDSQUARE:PM95", false)]
@@ -171,6 +192,20 @@ mod tests {
     #[case("call:JA1* band:20m", false)]
     fn matches_rows(#[case] query: &str, #[case] expected: bool) {
         assert_eq!(Query::parse(query).unwrap().matches(&row()), expected);
+    }
+
+    #[rstest]
+    #[case("freq:7.041", true)]
+    #[case("freq:7.0..7.2", true)]
+    #[case("freq:>=7.0415", false)]
+    #[case("freq:<7.041", false)]
+    #[case("freq:..7.041", true)]
+    #[case("pwr:>=1", false)]
+    fn matches_frequencies_and_powers(#[case] query: &str, #[case] expected: bool) {
+        let mut row = row();
+        row.fields.insert("FREQ", "7.0410");
+        row.fields.insert("TX_PWR", "0.5");
+        assert_eq!(Query::parse(query).unwrap().matches(&row), expected);
     }
 
     #[rstest]

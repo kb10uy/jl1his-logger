@@ -38,7 +38,15 @@ describe('matcher', () => {
     });
 
     it('has nothing for a bad query', () => {
-        expect(matcher('freq:7')).toBeUndefined();
+        expect(matcher('qrg:7')).toBeUndefined();
+        expect(matcher('freq:7MHz')).toBeUndefined();
+    });
+
+    it('compares frequencies and powers as numbers', () => {
+        const row = { ...fields, FREQ: '7.0410', TX_PWR: '5.0', LOTW_QSL_SENT: 'y' };
+        expect(matcher('freq:7.0..7.2 pwr:<=5 lotw-sent:Y')?.matches(row, undefined)).toBe(true);
+        expect(matcher('freq:>7.041')?.matches(row, undefined)).toBe(false);
+        expect(matcher('pwr:>5')?.matches(row, undefined)).toBe(false);
     });
 });
 
@@ -56,9 +64,10 @@ describe('chip', () => {
     });
 
     it('marks unfinished and bad terms', () => {
-        expect(chips('call: freq:7 -yokohama')).toEqual([
+        expect(chips('call: qrg:7 freq:7MHz -yokohama')).toEqual([
             { label: 'Call', op: 'is', value: '…', tone: 'pending' },
-            { label: 'freq:7', op: 'unknown field', value: '', tone: 'error' },
+            { label: 'qrg:7', op: 'unknown field', value: '', tone: 'error' },
+            { label: 'freq:7MHz', op: 'bad number', value: '', tone: 'error' },
             { label: 'Text', op: 'excludes', value: '"yokohama"', tone: 'negated' }
         ]);
     });
@@ -67,5 +76,15 @@ describe('chip', () => {
         expect(
             chips('date:>2026-10-18 -date:2026-10-19 date:..2026-10-20').map((c) => c.op)
         ).toEqual(['after', 'not on', 'until']);
+    });
+
+    it('reads frequency, power and LoTW / eQSL terms', () => {
+        expect(chips('freq:14.0..14.35 pwr:<=5 -pwr:>100 eqsl-rcvd:Y,V no:lotw-sent')).toEqual([
+            { label: 'Freq', op: 'between', value: '14.0 – 14.35 MHz', tone: 'normal' },
+            { label: 'TX power', op: 'at most', value: '5 W', tone: 'normal' },
+            { label: 'TX power', op: 'not above', value: '100 W', tone: 'negated' },
+            { label: 'eQSL rcvd', op: 'is any of', value: 'Y, V', tone: 'normal' },
+            { label: 'LoTW sent', op: 'is missing', value: '', tone: 'normal' }
+        ]);
     });
 });

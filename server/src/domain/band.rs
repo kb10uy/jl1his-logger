@@ -1,3 +1,5 @@
+pub use jl1his_query::millionths as parse_frequency_hz;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Band {
     pub name: &'static str,
@@ -61,23 +63,6 @@ impl Band {
     pub fn contains(&self, hz: u64) -> bool {
         (self.lower_hz..=self.upper_hz).contains(&hz)
     }
-}
-
-pub fn parse_frequency_hz(freq: &str) -> Option<u64> {
-    let (int, frac) = freq.trim().split_once('.').unwrap_or((freq.trim(), ""));
-    if (int.is_empty() && frac.is_empty()) || !int.bytes().chain(frac.bytes()).all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let mhz: u64 = match int {
-        "" => 0,
-        int => int.parse().ok()?,
-    };
-    let mut digits = frac.bytes().map(|b| u64::from(b - b'0')).chain(std::iter::repeat(0));
-    let micro = digits.by_ref().take(6).fold(0, |acc, d| acc * 10 + d);
-    let round_up = digits.next().is_some_and(|d| d >= 5);
-    mhz.checked_mul(1_000_000)?
-        .checked_add(micro)?
-        .checked_add(u64::from(round_up))
 }
 
 pub fn format_frequency_mhz(hz: u64) -> String {

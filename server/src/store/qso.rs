@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::LazyLock};
 
 use chrono::{NaiveDate, NaiveTime};
-use jl1his_query::{self as text, Condition, Term};
+use jl1his_query::{self as text, Condition, Range, Term};
 use sqlx::{
     AssertSqlSafe, Connection, Row, Sqlite, SqliteConnection,
     query::Query,
@@ -709,6 +709,7 @@ pub async fn contest_ids(conn: &mut SqliteConnection, access: &LogbookAccess) ->
 enum Bind {
     Text(String),
     Int(i64),
+    Real(f64),
 }
 
 struct Conditions {
@@ -820,6 +821,25 @@ impl Conditions {
                 }
                 format!("({})", clauses.join(" AND "))
             }
+            Condition::Freq(range) => {
+                let mut clauses = vec!["freq_hz IS NOT NULL".to_owned()];
+                for (op, value) in comparisons(range) {
+                    clauses.push(format!("freq_hz {op} ?"));
+                    binds.push(Bind::Int(value.try_into().unwrap_or(i64::MAX)));
+                }
+                format!("({})", clauses.join(" AND "))
+            }
+            Condition::Power(range) => {
+                let power = "trim(coalesce(tx_pwr, ''))";
+                let mut clauses = vec![format!(
+                    "{power} <> '' AND {power} <> '.' AND {power} NOT GLOB '*[^0-9.]*' AND {power} NOT GLOB '*.*.*'"
+                )];
+                for (op, value) in comparisons(range) {
+                    clauses.push(format!("CAST({power} AS REAL) {op} ?"));
+                    binds.push(Bind::Real(value as f64 / 1_000_000.0));
+                }
+                format!("({})", clauses.join(" AND "))
+            }
             Condition::Present(name) => {
                 let field = field_expression(name, &mut binds);
                 format!("trim(coalesce({field}, '')) <> ''")
@@ -865,10 +885,17 @@ impl Conditions {
             query = match bind {
                 Bind::Text(value) => query.bind(value.clone()),
                 Bind::Int(value) => query.bind(*value),
+                Bind::Real(value) => query.bind(*value),
             };
         }
         query
     }
+}
+
+fn comparisons(range: &Range) -> impl Iterator<Item = (&'static str, u64)> {
+    let low = range.low.map(|b| (if b.inclusive { ">=" } else { ">" }, b.value));
+    let high = range.high.map(|b| (if b.inclusive { "<=" } else { "<" }, b.value));
+    low.into_iter().chain(high)
 }
 
 fn field_expression(name: &str, binds: &mut Vec<Bind>) -> String {
@@ -1311,6 +1338,8 @@ mod tests {
                     ("QSO_DATE", "20261017"),
                     ("QSL_SENT", "r"),
                     ("NAME", "Taro"),
+                    ("LOTW_QSL_SENT", "Y"),
+                    ("TX_PWR", "0.5"),
                 ],
             ),
             (
@@ -1320,6 +1349,8 @@ mod tests {
                     ("QSO_DATE", "20261018"),
                     ("BAND", "20m"),
                     ("FREQ", "14.020"),
+                    ("EQSL_QSL_RCVD", "v"),
+                    ("TX_PWR", "100"),
                 ],
             ),
             (
@@ -1328,6 +1359,8 @@ mod tests {
                     ("CALL", "JH1XYZ"),
                     ("QSO_DATE", "20261019"),
                     ("MY_POTA_REF", "JP-0012, JP-0345"),
+                    ("LOTW_QSL_RCVD", "Y"),
+                    ("TX_PWR", "5.0"),
                 ],
             ),
             (
@@ -1337,6 +1370,8 @@ mod tests {
                     ("QSO_DATE", "20261019"),
                     ("MODE", "SSB"),
                     ("QTH", "Yokohama"),
+                    ("EQSL_QSL_SENT", "Y"),
+                    ("TX_PWR", "QRP"),
                 ],
             ),
             (
@@ -1355,6 +1390,8 @@ mod tests {
                     ("QSO_DATE", "20261021"),
                     ("STATION_CALLSIGN", "JL1HIS"),
                     ("QSL_RCVD", "V"),
+                    ("FREQ", "7.0745"),
+                    ("TX_PWR", "5"),
                 ],
             ),
             (
@@ -1364,6 +1401,8 @@ mod tests {
                     ("QSO_DATE", "20261021"),
                     ("CONTEST_ID", "ALL-JA1"),
                     ("DXCC", "339"),
+                    ("FREQ", "7.041"),
+                    ("TX_PWR", "1.2.3"),
                 ],
             ),
         ];
@@ -1421,6 +1460,26 @@ mod tests {
             "date:..2026-10-18",
             "date:>2026-10-19",
             "date:<=2026-10-19",
+            "lotw-sent:Y",
+            "-lotw-sent:Y",
+            "lotw-rcvd:y",
+            "eqsl-sent:Y",
+            "eqsl-rcvd:Y,V",
+            "no:eqsl-rcvd",
+            "has:lotw-sent",
+            "freq:7..7.3",
+            "freq:14.02",
+            "freq:>7.041",
+            "freq:<=7.041",
+            "freq:7.0745",
+            "-freq:14..14.35",
+            "pwr:5",
+            "pwr:<=5",
+            "pwr:>5",
+            "pwr:<5",
+            "pwr:0.5..10",
+            "-pwr:>=10",
+            "has:pwr",
             "has:freq",
             "no:freq",
             "no:park",
