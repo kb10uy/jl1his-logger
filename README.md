@@ -65,9 +65,9 @@ Logbooks.
 
 ```sh
 cd client
-npm ci
-npm run models                # the Vosk speech models for voice entry, about 90 MB
-npm run build                 # → client/build
+pnpm install --frozen-lockfile
+pnpm run models               # the Vosk speech models for voice entry, about 90 MB
+pnpm run build                # → client/build
 
 cd ../server
 cp .env.example .env          # edit; read from the working directory or a parent
@@ -145,19 +145,21 @@ jl1his-logger restore backups/jl1his-logger-20261022T000000Z.db --yes
 
 ## Development
 
-The client build compiles `query/` to WASM first, so it needs Rust with the
-`wasm32-unknown-unknown` target and [wasm-pack](https://github.com/drager/wasm-pack).
+The client uses [pnpm](https://pnpm.io), at the version pinned in
+`client/package.json`. Its build compiles `query/` to WASM first, so it needs
+Rust with the `wasm32-unknown-unknown` target and
+[wasm-pack](https://github.com/drager/wasm-pack).
 Voice entry needs the speech models in `client/static/models`, fetched by
-`npm run models`; without them the rest of the app works and voice entry says
+`pnpm run models`; without them the rest of the app works and voice entry says
 the model is missing.
 
 ```sh
 cd client
-npm install
-npm run dev                   # Vite; /api is forwarded to the server at API_SERVER
-npm run lint
-npm run check
-npm test
+pnpm install
+pnpm run dev                  # Vite; /api is forwarded to the server at API_SERVER
+pnpm run lint
+pnpm run check
+pnpm test
 
 cd ../query
 cargo test

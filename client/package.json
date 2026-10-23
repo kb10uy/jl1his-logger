@@ -3,22 +3,19 @@
     "private": true,
     "version": "0.1.0",
     "type": "module",
+    "packageManager": "pnpm@12.15.0",
     "scripts": {
         "wasm": "wasm-pack build ../query --target web --release --out-dir ../client/src/lib/query/wasm --out-name query --no-pack -- --features wasm",
         "vosk": "node scripts/vosk-worker.js",
         "models": "sh scripts/fetch-models.sh",
-        "predev": "npm run wasm && npm run vosk",
-        "dev": "vite dev",
-        "prebuild": "npm run wasm && npm run vosk",
-        "build": "vite build",
+        "dev": "pnpm run wasm && pnpm run vosk && vite dev",
+        "build": "pnpm run wasm && pnpm run vosk && vite build",
         "preview": "vite preview",
         "prepare": "svelte-kit sync || echo ''",
-        "precheck": "npm run wasm",
-        "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+        "check": "pnpm run wasm && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "lint": "prettier --check .",
         "format": "prettier --write .",
-        "pretest": "npm run wasm",
-        "test": "vitest --run"
+        "test": "pnpm run wasm && vitest --run"
     },
     "devDependencies": {
         "@sveltejs/adapter-static": "^4.0.0",
@@ -46,8 +43,5 @@
     },
     "imports": {
         "#lib/*": "./src/lib/*"
-    },
-    "overrides": {
-        "uuid": "14.0.3"
     }
 }

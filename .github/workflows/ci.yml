@@ -101,11 +101,14 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: client/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: client/package-lock.json
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -118,9 +121,9 @@ jobs:
         with:
           tool: wasm-pack
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run check
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run check
 
       - name: Cache the speech model vocabularies
         id: vosk-words
@@ -140,11 +143,11 @@ jobs:
             test -s "$out"
           done
 
-      - run: npm test
+      - run: pnpm test
         env:
           VOSK_WORDS_EN: ${{ runner.temp }}/vosk-words/${{ env.VOSK_MODEL_EN }}
           VOSK_WORDS_JA: ${{ runner.temp }}/vosk-words/${{ env.VOSK_MODEL_JA }}
-      - run: npm run build
+      - run: pnpm run build
 
   licenses:
     name: Licenses
