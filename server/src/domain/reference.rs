@@ -152,11 +152,7 @@ Ogasawara:                27:  45:  AS:   27.05:  -142.20:    -9.0:  JD/o:
     #[test]
     fn describes_the_entity_of_a_call() {
         let cty = parse_cty(CTY).unwrap();
-        let codes = parse_dxcc(
-            "JA = 339
-",
-        )
-        .unwrap();
+        let codes = parse_dxcc("JA = 339\n").unwrap();
         assert_eq!(
             entity(&cty, Some(&codes), " ja1xyz/p "),
             Some(Entity {
@@ -177,11 +173,7 @@ Ogasawara:                27:  45:  AS:   27.05:  -142.20:    -9.0:  JD/o:
     #[test]
     fn fills_only_the_entity_fields_a_qso_lacks() {
         let cty = parse_cty(CTY).unwrap();
-        let codes = parse_dxcc(
-            "JA = 339
-",
-        )
-        .unwrap();
+        let codes = parse_dxcc("JA = 339\n").unwrap();
         let mut qso = Qso::from_fields([("CALL", "JA1XYZ"), ("CQZ", "26")]).unwrap();
         entity(&cty, Some(&codes), "JA1XYZ").unwrap().fill(&mut qso).unwrap();
         assert_eq!(

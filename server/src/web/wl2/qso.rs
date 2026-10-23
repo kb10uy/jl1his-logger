@@ -441,13 +441,7 @@ pub(super) mod tests {
         assert_eq!(status, StatusCode::CREATED, "{created}");
 
         f.h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
-        f.h.install_reference(
-            ReferenceKind::Dxcc,
-            "JA = 339
-",
-            "1",
-        )
-        .await;
+        f.h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
         let (status, again) = f.post(hislog_body()).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{again}");
         assert_eq!(

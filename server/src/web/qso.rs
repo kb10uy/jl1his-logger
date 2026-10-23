@@ -507,13 +507,7 @@ mod tests {
         let uncoded = create(&h, &cookie, "JA1BBB", "40m", "020000").await;
         assert_eq!(entity(&uncoded), [Value::Null, json!("25"), json!("45"), json!("AS")]);
 
-        h.install_reference(
-            ReferenceKind::Dxcc,
-            "JA = 339
-",
-            "1",
-        )
-        .await;
+        h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
         let mut given = entry(&h, &QsoId::generate(), "JA1CCC", "40m", "030000");
         given["fields"]["CQZ"] = json!("26");
         given["fields"]["cont"] = json!("OC");
