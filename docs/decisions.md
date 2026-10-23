@@ -1,6 +1,6 @@
 # Design Decisions
 
-The outcome of the design review as of 2026-10-22: the direction for jl1his-logger, a QSO log of record of our own that replaces Wavelog.
+The outcome of the design review as of 2026-10-23: the direction for jl1his-logger, a QSO log of record of our own that replaces Wavelog.
 
 ## Background
 
@@ -123,7 +123,28 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### Search
 
-- The client keeps the whole Logbook and filters locally, so the server's search is the minimum the APIs, the CLI and exports need: a QSO time range, the Station, band and mode ignoring case, the call exactly (ignoring case) or by `call_base`, a set of `QSL_SENT` values in which an empty value matches an absent field, and `contest_id`. Deleted rows are excluded. Results are newest first with keyset paging on `(qso_time, id)`. There is no substring search.
+- The client keeps no copy of the Logbook. The log list sends its query to the server and reads the matches newest first, with keyset paging on `(qso_time, id)`, loading the next page as the end of the list comes into view. The first page carries the total number of matches. Deleted rows are excluded.
+- The query is one text syntax, shared by the web UI, the native API (`q` on the QSO search, open to API tokens from the start), the CLI and the filters of export batches. It is a list of terms separated by spaces, all of which must hold. A comma-separated value matches any of its parts, and a value containing spaces is quoted:
+
+  | Term | Holds when |
+  | --- | --- |
+  | `call:JA1*` | The call matches, ignoring case, with `*` and `?` as wildcards |
+  | `base:JA1XYZ` | `call_base` equals the value, ignoring case |
+  | `band:40m,20m`, `mode:SSB`, `contest:ALLJA1` | `BAND`, `MODE` or `CONTEST_ID` is one of the values, ignoring case |
+  | `sent:R,Q`, `rcvd:Y,V` | `QSL_SENT` or `QSL_RCVD` is one of the values, ignoring case |
+  | `station:Takao` | The Station's name or the QSO's `STATION_CALLSIGN` contains the value, ignoring case |
+  | `park:JP-0012` | One of the references in `MY_POTA_REF` is the value |
+  | `dxcc:339` | `DXCC` is one of the entity codes |
+  | `date:2026-10-01..2026-10-19`, `date:>=2026-10-18` | The UTC date of the QSO time is in the range (either end may be open) or compares with `>`, `>=`, `<`, `<=` |
+  | `has:freq`, `no:freq` | The column or ADIF field is present or absent; an empty value counts as absent |
+  | `adif.TX_PWR:10` | The ADIF field, by name ignoring case, is one of the values |
+  | `yokohama` | The call, `NAME`, `QTH` or `COMMENT` contains the word, ignoring case |
+  | `-term` | The term does not hold |
+
+- Values are compared as their ADIF strings, enumerations ignoring ASCII case (see Storage Shape). Wildcard and substring terms scan the Logbook's rows; at the size of one station's log no index or full-text table is needed, and FTS5 is added only when that stops being true.
+- An unknown field, a bad date or a malformed term is `400`, naming the term and its position so the client can mark it. A term is never dropped silently.
+- The structured filters of the first version (a QSO time range, the Station, band, mode, the call or `call_base`, a set of `QSL_SENT` values in which an empty value matches an absent field, and `contest_id`) stay as parameters and combine with `q`.
+- Selecting every match in the log list asks the server for the IDs and revisions of all matches, and a bulk change takes that list (see Bulk Changes). A bulk change is never applied to a query directly, so what changes is what was selected, at the revisions it was selected at.
 
 ### Store and Authorization Boundaries
 
@@ -191,9 +212,10 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Delivery and Sync
 
 - Use SSE. Do not use WebSocket.
-- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a page reload the client passes its stored cursor as `?after=`.
+- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a restart a client that keeps a copy of the Logbook passes its stored cursor as `?after=`.
 - Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
-- The initial sync takes the maximum `updated_seq` at start as H, fetches everything, then reads `after H`. Rows that arrive twice are upserts and therefore harmless.
+- A client that keeps a copy (hislog after its move to the native API) syncs initially by taking the maximum `updated_seq` at start as H, fetching everything, then reading `after H`. Rows that arrive twice are upserts and therefore harmless.
+- The web client keeps no copy (see Search) and no cursor across reloads. It opens the stream, which starts at the latest `updated_seq`, then runs its query. An event updates a loaded row in place by its ID. A row that stops matching stays where it is, marked, until the query runs again. A new row that matches is inserted in order without moving the scroll position. A new row outside the query is only counted, in a small "N new outside this query" next to the list. A changed cursor generation reruns the query.
 - Attach `keep_alive` to axum's `Sse`.
 - A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Writes through the server wake every stream at once; the streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook or whose session expired or was deleted. Session checks do not renew the session. A stream queues at most one page of 500 QSOs and rechecks authorization on writes and polling deadlines even while sending that queue. Streams discard queued events when the server shuts down, so graceful shutdown does not wait on them.
 - After restoring a backup, change the cursor generation of every Logbook to demand a full resync. A client whose stored generation differs discards its cursor and syncs from the start.
@@ -228,11 +250,25 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - The native lookup, `GET /api/logbooks/{id}/lookup?call=`, returns the `cty.dat` entity (name, ADIF DXCC code when `dxcc` is installed, continent, CQ and ITU zones, position) and the previous contacts in that Logbook matched by `call_base`: the latest non-empty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA` and `QSL_VIA` under their ADIF names, the number of QSOs and the time of the last one. It can be narrowed to Stations.
 - The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response. hislog uses the native one once it moves.
-- The client asks the server while online and falls back to its local copy of the Logbook for previous contacts while offline.
+- The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Open Questions).
 
 ## Open Questions
 
-None at present.
+### Offline Behavior of the Client
+
+The client keeps no copy of the Logbook, so offline there is no log list, no lookup and no duplicate warning. What entry does offline is one of two:
+
+1. **Entry keeps only its own QSOs.** Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue, which the screen shows, and the user sends the queue explicitly; nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send. This keeps the offline queue absorbed from speech-to-qso.
+2. **Nothing works offline.** Entry needs a connection and the PWA holds no QSOs. Voice entry in the field then needs a network, or hislog. This drops the offline queue and the local-first rule.
+
+### Sharing the Query Parser
+
+The server is the authority on the query syntax (see Search), but the client parses it too: to show the terms as chips while typing, and to test the rows SSE delivers against the query. Two ways to keep both sides in agreement:
+
+1. **Two implementations**, Rust and TypeScript, checked against shared cases under `fixtures/query/`, as the ADIF writer and the mode table already are.
+2. **One Rust crate compiled to WASM** for the client. Structure allows a crate of its own once another binary needs it, which the client then does; it would sit beside `server/` as a path dependency without a workspace, or in a repository of its own as adif-reader does, and ADIF Input and Output's "no shared crate is split out" would be revised. The cost is a `wasm32` target and `wasm-bindgen` in the client build and CI, an asynchronous load before the first query, and the size of the module, which rules out the `regex` crate.
+
+The granularity is open as well: only the query (parsing it and matching a row), or more of `domain` (bands, modes, callsign normalization, the duplicate heuristic), which would also retire the fixture checks for those tables. The voice entry grammar runs only in the client, so it gains nothing from Rust unless another program comes to parse it.
 
 ## Implementation Order (Draft)
 

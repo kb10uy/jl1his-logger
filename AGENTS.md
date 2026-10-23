@@ -59,10 +59,17 @@ not create a workspace or a shared crate.
   settled the export output; until then it is `server/src/domain/adif.rs`.
 - **Exports are batches**: record the UUIDs and `revision`s, and apply the
   external result to those rows only.
+- **The server searches; the client keeps no copy of the Logbook.** The log
+  list sends one text query syntax (`call:JA1*`, `band:40m,20m`, `-mode:FT8`,
+  `date:2026-10-01..`, `no:freq`, `adif.TX_PWR:10`, bare words) and pages
+  newest first on `(qso_time, id)`. The native API, the CLI and export filters
+  take the same syntax. An invalid term is `400`, never dropped.
 - **SSE, not WebSocket.** Event `id` is `updated_seq`; reconnection uses
-  `Last-Event-ID` and a reload passes the stored cursor as `?after=`. The
-  stream carries the whole Logbook unfiltered; clients re-evaluate their view.
-  A restored backup changes the cursor generation and forces a full resync.
+  `Last-Event-ID`, and a client that keeps a copy passes its stored cursor as
+  `?after=`. The stream carries the whole Logbook unfiltered; clients
+  re-evaluate their view. The web client updates loaded rows in place and only
+  counts new rows outside its query. A restored backup changes the cursor
+  generation and forces a full resync.
 - **Roles.** User: `admin` / `user`, signed in with passkeys only, identified
   by a personal callsign. Membership: `owner` / `operator` per Logbook.
   `admin` manages users, invitations, Logbooks, owners, tokens, reference data,
@@ -88,7 +95,9 @@ not create a workspace or a shared crate.
   never edit an applied one.
 - **Local first in the client.** Entry writes to IndexedDB before any network
   call; sync is idempotent on the UUID, so retries are always safe. Voice
-  entry and live entry share one offline queue.
+  entry and live entry share one offline queue. Whether this stays, with the
+  queue sent explicitly, or entry needs a connection is an Open Question in
+  `docs/decisions.md`.
 - **Secrets stay on the server.** No CSRF tokens: the session is a `__Host-`
   `SameSite=Lax` cookie and state-changing requests must come from
   `PUBLIC_ORIGIN`.
