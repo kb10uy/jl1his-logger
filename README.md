@@ -150,6 +150,29 @@ jl1his-logger backup --keep 14                  # into backups/ next to the data
 jl1his-logger restore backups/jl1his-logger-20261022T000000Z.db --yes
 ```
 
+### Container
+
+The `Dockerfile` builds one image holding the server and the built client,
+speech models included (`--build-arg VOSK_MODELS=false` leaves them out). It
+serves on port 8080 and works in the volume at `/data`, which holds
+`config.toml` next to the database, reference data, snapshots and backups. The
+listen address and the web app come from the image's `serve` arguments, so the
+configuration needs only `server.public_origin`. The image is based on distroless
+and runs as its `nonroot` user (UID 65532) without a shell, so `docker exec` runs
+the binary itself, files go in and out with `docker cp`, and a bind-mounted
+`/data` must be writable by UID 65532. `assets/dxcc.toml` and
+`assets/config.example.toml` are in `/usr/share/jl1his-logger`.
+
+```sh
+docker build -t jl1his-logger .
+docker create --name jl1his-logger -p 127.0.0.1:8080:8080 -v jl1his-logger:/data jl1his-logger
+printf '[server]\npublic_origin = "https://log.example.com"\n' > config.toml
+docker cp config.toml jl1his-logger:/data/config.toml
+docker start jl1his-logger
+docker exec jl1his-logger jl1his-logger setup --callsign JL1HIS
+docker exec jl1his-logger jl1his-logger --as JL1HIS reference install dxcc /usr/share/jl1his-logger/dxcc.toml
+```
+
 ## Development
 
 The client uses [pnpm](https://pnpm.io), at the version pinned in

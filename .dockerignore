@@ -1,0 +1,15 @@
+.git
+.claude
+**/.env
+**/target
+**/node_modules
+server/data
+client/.svelte-kit
+client/.vosk
+client/build
+client/static/models
+client/static/vosk-worker.js
+client/src/lib/query/wasm
+client/test-results
+client/playwright-report
+config.toml
