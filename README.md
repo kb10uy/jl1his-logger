@@ -1,4 +1,4 @@
-# jl1his-logger
+# JL1HIS Logger
 
 The QSO log of record for JL1HIS: one server, one SQLite database and a same-origin
 web app, built to replace [Wavelog](https://www.wavelog.org/) as the single source

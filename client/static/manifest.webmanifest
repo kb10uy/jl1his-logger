@@ -1,6 +1,6 @@
 {
-    "name": "jl1his-logger",
-    "short_name": "Logger",
+    "name": "JL1HIS Logger",
+    "short_name": "JL1HIS Logger",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0d1117",

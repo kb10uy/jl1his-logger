@@ -77,7 +77,7 @@ impl AppState {
     pub fn new(db: Db, config: Config, public_origin: Url) -> Result<AppState, WebauthnError> {
         let rp_id = public_origin.host_str().ok_or(WebauthnError::Configuration)?;
         let webauthn = WebauthnBuilder::new(rp_id, &public_origin)?
-            .rp_name("jl1his-logger")
+            .rp_name("JL1HIS Logger")
             .build()?;
         Ok(AppState {
             db,

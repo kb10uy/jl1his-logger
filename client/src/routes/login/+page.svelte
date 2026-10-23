@@ -35,7 +35,7 @@
 <main class="flex min-h-dvh items-center justify-center p-4">
     <div class="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-surface p-6">
         <div class="flex flex-col gap-1">
-            <h1 class="text-[22px] font-semibold">jl1his-logger</h1>
+            <h1 class="text-[22px] font-semibold">JL1HIS Logger</h1>
             <p class="text-muted">Sign in with a passkey registered to your callsign.</p>
         </div>
         {#if !isWebAuthnSupported()}
