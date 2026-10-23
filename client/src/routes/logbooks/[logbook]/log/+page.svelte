@@ -63,8 +63,7 @@
     onMount(() => {
         loadQuery().then(() => (ready = true));
         const offQso = logbook.onQso((qso) => {
-            const matches =
-                compiled?.matches(qso.fields, logbook.stationName(qso.station_id)) ?? false;
+            const matches = logbook.matches(qso, compiled) ?? false;
             const applied = applyEvent(rows, qso, matches, next === null);
             if (applied.kind === 'outside') outside += 1;
             if ('rows' in applied) rows = applied.rows;
@@ -217,11 +216,7 @@
     }
 
     function applied(updated: Qso[]) {
-        rows = replaceRows(
-            rows,
-            updated,
-            (qso) => compiled?.matches(qso.fields, logbook.stationName(qso.station_id)) ?? true
-        );
+        rows = replaceRows(rows, updated, (qso) => logbook.matches(qso, compiled) ?? true);
         const next = { ...checked };
         for (const qso of updated) if (qso.id in next) next[qso.id] = qso.revision;
         checked = next;

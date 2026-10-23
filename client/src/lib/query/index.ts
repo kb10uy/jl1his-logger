@@ -24,14 +24,19 @@ export function analyze(query: string): QueryToken[] {
 }
 
 export interface RowMatcher {
-    matches(fields: Fields, stationName: string | undefined): boolean;
+    matches(
+        fields: Fields,
+        stationName: string | undefined,
+        instrumentName: string | undefined
+    ): boolean;
 }
 
 export function matcher(query: string): RowMatcher | undefined {
     try {
         const compiled = new Matcher(query);
         return {
-            matches: (fields, stationName) => compiled.matches(fields, stationName)
+            matches: (fields, stationName, instrumentName) =>
+                compiled.matches(fields, stationName, instrumentName)
         };
     } catch {
         return undefined;

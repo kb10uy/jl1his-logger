@@ -850,6 +850,22 @@ impl Conditions {
                     })
                     .collect(),
             ),
+            Condition::Instrument(needles) => any(
+                needles
+                    .iter()
+                    .map(|needle| {
+                        binds.extend([
+                            Bind::Text(access.logbook_id().to_owned()),
+                            Bind::Text(needle.clone()),
+                            Bind::Text("$.MY_RIG".to_owned()),
+                            Bind::Text(needle.clone()),
+                        ]);
+                        "(coalesce(instrument_id, '') IN (SELECT id FROM instruments WHERE logbook_id = ? AND instr(lower(name), ?) > 0) \
+                         OR instr(lower(coalesce(json_extract(fields, ?), '')), ?) > 0)"
+                            .to_owned()
+                    })
+                    .collect(),
+            ),
             Condition::Park(parks) => any(
                 parks
                     .iter()
@@ -1441,7 +1457,7 @@ mod tests {
         assert_eq!(found(&page), expected);
     }
 
-    struct Row<'a>(&'a StoredQso, &'a str);
+    struct Row<'a>(&'a StoredQso, &'a str, Option<&'a str>);
 
     impl text::Record for Row<'_> {
         fn field(&self, name: &str) -> Option<&str> {
@@ -1451,6 +1467,10 @@ mod tests {
         fn station_name(&self) -> Option<&str> {
             Some(self.1)
         }
+
+        fn instrument_name(&self) -> Option<&str> {
+            self.2
+        }
     }
 
     #[tokio::test]
@@ -1459,10 +1479,19 @@ mod tests {
         let home = world.station("Home").await;
         let park = world.station("Mt. Takao").await;
         let access = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let portable = InstrumentInput {
+            name: "Portable QRP".into(),
+            my_rig: Some("KX2".into()),
+            ..InstrumentInput::default()
+        };
+        let rig = instrument::create(&mut tx, &access, &portable).await.unwrap();
+        tx.commit().await.unwrap();
         let rows: &[(&Station, &[(&str, &str)])] = &[
             (
                 &home,
                 &[
+                    ("MY_RIG", "IC-705"),
                     ("CALL", "JA1AAA"),
                     ("QSO_DATE", "20261017"),
                     ("QSL_SENT", "r"),
@@ -1538,6 +1567,9 @@ mod tests {
         let mut stored_rows = vec![];
         for (station, fields) in rows {
             let mut input = entry(station, "JA1AAA", "0100");
+            if station.id == park.id {
+                input.instrument_id = Some(rig.id.clone());
+            }
             input.qso.set("FREQ", None).unwrap();
             for (name, value) in *fields {
                 input.qso.set(name, Some((*value).to_owned())).unwrap();
@@ -1558,6 +1590,10 @@ mod tests {
             } else {
                 home.name.as_str()
             }
+        };
+        let instrument_of = |row: &StoredQso| match row.instrument_id == Some(rig.id.clone()) {
+            true => Some(rig.name.as_str()),
+            false => None,
         };
         let mut conn = world.db.acquire().await.unwrap();
         for q in [
@@ -1581,6 +1617,10 @@ mod tests {
             "station:home,jl1his/1",
             "station:\"jl1his\"",
             "-station:takao",
+            "instrument:qrp",
+            "instrument:kx2",
+            "instrument:ic-705,portable",
+            "-instrument:qrp",
             "park:jp-0345",
             "park:JP-0012,JP-9999",
             "-park:JP-0012",
@@ -1637,7 +1677,7 @@ mod tests {
                 .collect();
             let mut expected: Vec<QsoId> = stored_rows
                 .iter()
-                .filter(|row| filter.query.matches(&Row(row, name_of(row))))
+                .filter(|row| filter.query.matches(&Row(row, name_of(row), instrument_of(row))))
                 .map(|row| row.id)
                 .collect();
             found.sort();

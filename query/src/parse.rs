@@ -10,6 +10,7 @@ pub enum Condition {
     Base(Vec<String>),
     Field { name: String, values: Vec<String> },
     Station(Vec<String>),
+    Instrument(Vec<String>),
     Park(Vec<String>),
     Date { from: Option<Day>, until: Option<Day> },
     Freq(Range),
@@ -227,7 +228,7 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
     let known = field_of_key.is_some()
         || matches!(
             key,
-            "call" | "base" | "station" | "park" | "date" | "freq" | "pwr" | "has" | "no"
+            "call" | "base" | "station" | "instrument" | "park" | "date" | "freq" | "pwr" | "has" | "no"
         );
     if !known {
         return Err(ErrorKind::UnknownField(key.to_owned()));
@@ -247,6 +248,7 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
         ("call", None) => Condition::Call(mapped(|v| v.to_ascii_uppercase())),
         ("base", None) => Condition::Base(mapped(callsign::base)),
         ("station", None) => Condition::Station(mapped(|v| v.to_ascii_lowercase())),
+        ("instrument", None) => Condition::Instrument(mapped(|v| v.to_ascii_lowercase())),
         ("park", None) => Condition::Park(mapped(|v| v.replace(' ', "").to_ascii_uppercase())),
         ("date", None) => date(values)?,
         ("freq", None) => Condition::Freq(range(values)?),
@@ -381,6 +383,7 @@ mod tests {
     #[case("adif.tx_pwr:10", false, Condition::Field { name: "TX_PWR".into(), values: strings(&["10"]) })]
     #[case("station:\"Mt Takao\"", false, Condition::Station(strings(&["mt takao"])))]
     #[case("station:\"a,b\",c", false, Condition::Station(strings(&["a,b", "c"])))]
+    #[case("instrument:IC-705,ft-817", false, Condition::Instrument(strings(&["ic-705", "ft-817"])))]
     #[case("park:jp-0012", false, Condition::Park(strings(&["JP-0012"])))]
     #[case("has:freq", false, Condition::Present("FREQ".into()))]
     #[case("no:park", true, Condition::Present("MY_POTA_REF".into()))]

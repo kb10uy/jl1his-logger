@@ -1,11 +1,13 @@
 import { getContext, setContext } from 'svelte';
 import * as api from '#lib/api/api.ts';
-import type { Hello, Logbook, Qso, QsoEvent, Station } from '#lib/api/types.ts';
+import type { RowMatcher } from '#lib/query/index.ts';
+import type { Hello, Instrument, Logbook, Qso, QsoEvent, Station } from '#lib/api/types.ts';
 
 export type StreamStatus = 'connecting' | 'live' | 'offline';
 
 export class LogbookState {
     stations = $state<Station[]>([]);
+    instruments = $state<Instrument[]>([]);
     status = $state<StreamStatus>('connecting');
     lastUpdatedSeq = $state(0);
     private generation: string | undefined;
@@ -31,8 +33,33 @@ export class LogbookState {
         this.stations = await api.stations(this.logbook.id);
     }
 
+    get activeInstruments(): Instrument[] {
+        return this.instruments.filter((i) => i.archived_at === null);
+    }
+
+    instrumentName(id: string | null): string | undefined {
+        return this.instrument(id)?.name;
+    }
+
+    instrument(id: string | null): Instrument | undefined {
+        return this.instruments.find((i) => i.id === id);
+    }
+
+    async loadInstruments() {
+        this.instruments = await api.instruments(this.logbook.id);
+    }
+
+    matches(qso: Qso, query: RowMatcher | undefined): boolean | undefined {
+        return query?.matches(
+            qso.fields,
+            this.stationName(qso.station_id),
+            this.instrumentName(qso.instrument_id)
+        );
+    }
+
     start() {
         this.loadStations().catch(() => undefined);
+        this.loadInstruments().catch(() => undefined);
         const source = new EventSource(api.eventsUrl(this.logbook.id));
         this.source = source;
         source.addEventListener('hello', (event) => {

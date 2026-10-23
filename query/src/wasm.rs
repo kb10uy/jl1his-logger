@@ -48,6 +48,7 @@ pub fn analyze(query: &str) -> String {
 struct Row {
     fields: HashMap<String, String>,
     station: Option<String>,
+    instrument: Option<String>,
 }
 
 impl Record for Row {
@@ -57,6 +58,10 @@ impl Record for Row {
 
     fn station_name(&self) -> Option<&str> {
         self.station.as_deref()
+    }
+
+    fn instrument_name(&self) -> Option<&str> {
+        self.instrument.as_deref()
     }
 }
 
@@ -72,7 +77,12 @@ impl Matcher {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
-    pub fn matches(&self, fields: &js_sys::Object, station_name: Option<String>) -> bool {
+    pub fn matches(
+        &self,
+        fields: &js_sys::Object,
+        station_name: Option<String>,
+        instrument_name: Option<String>,
+    ) -> bool {
         let fields = js_sys::Object::entries(fields)
             .iter()
             .filter_map(|entry| {
@@ -83,6 +93,7 @@ impl Matcher {
         self.0.matches(&Row {
             fields,
             station: station_name,
+            instrument: instrument_name,
         })
     }
 }

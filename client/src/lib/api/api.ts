@@ -5,6 +5,7 @@ import type {
     ExportKind,
     Fields,
     ImportSource,
+    Instrument,
     LengthUnit,
     Logbook,
     LogbookRole,
@@ -125,6 +126,9 @@ export const updateStation = (logbook: string, id: string, input: StationInput) 
 
 export const archiveStation = (logbook: string, id: string, archived: boolean) =>
     request<Station>(archived ? 'POST' : 'DELETE', `${station(logbook, id)}/archive`);
+
+export const instruments = (logbook: string) =>
+    request<Instrument[]>('GET', `${base(logbook)}/instruments`);
 
 export interface Range {
     from?: string;

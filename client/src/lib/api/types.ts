@@ -28,9 +28,22 @@ export interface Station {
     updated_at: string;
 }
 
+export interface Instrument {
+    id: string;
+    name: string;
+    my_rig: string | null;
+    my_antenna: string | null;
+    tx_pwr: string | null;
+    fields: Fields;
+    archived_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface Qso {
     id: string;
     station_id: string;
+    instrument_id: string | null;
     seq: number;
     updated_seq: number;
     revision: number;
@@ -113,6 +126,14 @@ export interface StationInput {
     name: string;
     callsign: string;
     wavelog_id: number | null;
+    fields: Fields;
+}
+
+export interface InstrumentInput {
+    name: string;
+    my_rig: string | null;
+    my_antenna: string | null;
+    tx_pwr: string | null;
     fields: Fields;
 }
 

@@ -6,6 +6,7 @@ function qso(id: string, time: string, patch: Partial<Qso> = {}, fields = {}): Q
     return {
         id,
         station_id: 'st',
+        instrument_id: null,
         seq: 1,
         updated_seq: 1,
         revision: 1,

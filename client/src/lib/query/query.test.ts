@@ -32,9 +32,13 @@ describe('matcher', () => {
     const fields = { CALL: 'JA1XYZ/P', BAND: '40m', MODE: 'SSB', QSO_DATE: '20261019' };
 
     it('matches rows as the server does', () => {
-        expect(matcher('call:JA1* -mode:FT8 date:2026-10-19')?.matches(fields, 'Home')).toBe(true);
-        expect(matcher('station:takao')?.matches(fields, 'Mt. Takao')).toBe(true);
-        expect(matcher('band:20m')?.matches(fields, undefined)).toBe(false);
+        expect(
+            matcher('call:JA1* -mode:FT8 date:2026-10-19')?.matches(fields, 'Home', undefined)
+        ).toBe(true);
+        expect(matcher('station:takao')?.matches(fields, 'Mt. Takao', undefined)).toBe(true);
+        expect(matcher('band:20m')?.matches(fields, undefined, undefined)).toBe(false);
+        expect(matcher('instrument:qrp')?.matches(fields, 'Home', 'Portable QRP')).toBe(true);
+        expect(matcher('instrument:ic-705')?.matches(fields, 'Home', undefined)).toBe(false);
     });
 
     it('has nothing for a bad query', () => {
@@ -44,9 +48,11 @@ describe('matcher', () => {
 
     it('compares frequencies and powers as numbers', () => {
         const row = { ...fields, FREQ: '7.0410', TX_PWR: '5.0', LOTW_QSL_SENT: 'y' };
-        expect(matcher('freq:7.0..7.2 pwr:<=5 lotw-sent:Y')?.matches(row, undefined)).toBe(true);
-        expect(matcher('freq:>7.041')?.matches(row, undefined)).toBe(false);
-        expect(matcher('pwr:>5')?.matches(row, undefined)).toBe(false);
+        expect(
+            matcher('freq:7.0..7.2 pwr:<=5 lotw-sent:Y')?.matches(row, undefined, undefined)
+        ).toBe(true);
+        expect(matcher('freq:>7.041')?.matches(row, undefined, undefined)).toBe(false);
+        expect(matcher('pwr:>5')?.matches(row, undefined, undefined)).toBe(false);
     });
 });
 
