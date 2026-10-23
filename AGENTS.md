@@ -17,8 +17,8 @@ The repository contains:
   reference data, backup). Serves `client/build` on one origin.
 - `client/`: SvelteKit + Svelte 5 (runes) + TypeScript, built with
   `adapter-static` as a client-only SPA/PWA. Log list and search, QSO editing,
-  live entry, voice entry, Station Location
-  editing, ADIF import and export, bulk QSL changes.
+  live entry, voice entry, Station Location and
+  Instrument editing, ADIF import and export, bulk QSL changes.
 - `query/`: the query syntax of the log list as a Rust crate (parsing and
   matching a row), used by the server and compiled to WASM for the client.
 - `assets/`: example files, such as `config.example.toml`.
@@ -49,6 +49,11 @@ or another shared crate.
   at creation. Editing a Station never rewrites past QSOs; a bulk update that
   states its count does. `station_location_id` is kept separately for
   search. Stations are archived rather than deleted.
+- **Instruments are optional equipment** (`MY_RIG`, `MY_ANTENNA`, `TX_PWR` and
+  other defaults) of a Logbook, independent of Stations, which never hold
+  those three. Their values are baked in before the Station's, so they win;
+  `instrument_id` is kept like `station_id`. Without one, nothing fills them.
+  `/wl2` QSOs have none.
 - **FREQ may be missing**; the server never fills it with a representative
   frequency. In the client's editors, choosing a band sets the frequency field
   to the band's representative frequency, and typing a frequency moves the band.
@@ -83,7 +88,8 @@ or another shared crate.
   setup and backups, and still needs a Membership to read QSOs; a rescue
   operation is explicit and records its reason and actor. `owner` manages its
   Logbook's Stations and Memberships but creates no users. `operator` edits
-  and deletes anyone's QSOs. API tokens belong to a User and are scoped to
+  and deletes anyone's QSOs and manages Instruments; rewriting the past QSOs
+  of a Station or an Instrument is for owners. API tokens belong to a User and are scoped to
   Logbooks; the plaintext is shown once.
 - **The `/wl2` layer matches a subset of Wavelog API v2**:
   `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`,
