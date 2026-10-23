@@ -1,11 +1,15 @@
-use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use serde::{Deserialize, Serialize};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::callsign,
     store::{StoreError, WriteTx, access::AdminAccess, is_unique_violation, new_id, now},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+const SELECT: &str = "SELECT id, callsign, role, disabled_at FROM users";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Role {
     Admin,
     User,
@@ -68,7 +72,7 @@ pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, callsign: &str, role:
 
 pub async fn find_by_callsign(conn: &mut SqliteConnection, callsign: &str) -> Result<Option<User>, StoreError> {
     let callsign = normalize_callsign(callsign)?;
-    sqlx::query("SELECT id, callsign, role, disabled_at FROM users WHERE callsign = ?")
+    sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE callsign = ?")))
         .bind(callsign)
         .fetch_optional(conn)
         .await?
@@ -78,7 +82,7 @@ pub async fn find_by_callsign(conn: &mut SqliteConnection, callsign: &str) -> Re
 
 pub async fn list(conn: &mut SqliteConnection, admin: &AdminAccess) -> Result<Vec<User>, StoreError> {
     admin.revalidate(conn).await?;
-    sqlx::query("SELECT id, callsign, role, disabled_at FROM users ORDER BY callsign")
+    sqlx::query(AssertSqlSafe(format!("{SELECT} ORDER BY callsign")))
         .fetch_all(conn)
         .await?
         .iter()
@@ -169,12 +173,21 @@ async fn keep_another_admin(tx: &mut WriteTx, user_id: &str) -> Result<(), Store
 }
 
 pub(crate) async fn find(conn: &mut SqliteConnection, id: &str) -> Result<Option<User>, StoreError> {
-    sqlx::query("SELECT id, callsign, role, disabled_at FROM users WHERE id = ?")
+    sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE id = ?")))
         .bind(id)
         .fetch_optional(conn)
         .await?
         .map(|row| User::from_row(&row))
         .transpose()
+}
+
+pub(crate) async fn is_active(conn: &mut SqliteConnection, id: &str) -> Result<bool, StoreError> {
+    Ok(
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND disabled_at IS NULL)")
+            .bind(id)
+            .fetch_one(conn)
+            .await?,
+    )
 }
 
 async fn insert(tx: &mut WriteTx, callsign: &str, role: Role) -> Result<User, StoreError> {

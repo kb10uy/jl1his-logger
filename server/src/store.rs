@@ -19,12 +19,12 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{DateTime, SecondsFormat, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
-use uuid::Uuid;
 
 use crate::{db::Db, domain::qso::QsoError};
+
+pub(crate) use crate::db::{new_id, now, timestamp};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -78,14 +78,6 @@ impl DerefMut for WriteTx {
     }
 }
 
-pub(crate) fn now() -> String {
-    timestamp(Utc::now())
-}
-
-pub(crate) fn timestamp(time: DateTime<Utc>) -> String {
-    time.to_rfc3339_opts(SecondsFormat::Secs, true)
-}
-
 pub(crate) fn random_token() -> String {
     let mut bytes = [0u8; 32];
     rand::fill(&mut bytes);
@@ -96,16 +88,14 @@ pub(crate) fn hash_token(token: &str) -> Vec<u8> {
     Sha256::digest(token.as_bytes()).to_vec()
 }
 
-pub(crate) fn new_id() -> String {
-    Uuid::now_v7().to_string()
-}
-
 pub(crate) fn is_unique_violation(e: &sqlx::Error) -> bool {
     e.as_database_error().is_some_and(|e| e.is_unique_violation())
 }
 
 #[cfg(test)]
 pub(crate) mod testing {
+    use std::collections::BTreeMap;
+
     use tempfile::TempDir;
 
     use super::{
@@ -113,9 +103,24 @@ pub(crate) mod testing {
         access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal, UserAccess},
         logbook::{self, Logbook},
         membership,
+        station::{self, Station, StationInput},
         user::{self, Role, User},
     };
-    use crate::db::{self, Db};
+    use crate::{
+        db::{self, Db},
+        domain::qso::Qso,
+    };
+
+    pub fn contact(call: &str, time_on: &str) -> Qso {
+        Qso::from_fields([
+            ("CALL", call),
+            ("QSO_DATE", "20261022"),
+            ("TIME_ON", time_on),
+            ("BAND", "40m"),
+            ("MODE", "CW"),
+        ])
+        .unwrap()
+    }
 
     pub struct World {
         pub _dir: TempDir,
@@ -189,6 +194,40 @@ pub(crate) mod testing {
             access::logbook(&mut conn, &Principal::user(&user.id), &self.logbook.id)
                 .await
                 .unwrap()
+        }
+
+        pub async fn station(&self, name: &str) -> Station {
+            let access = self.access(&self.owner).await;
+            let mut tx = WriteTx::begin(&self.db).await.unwrap();
+            let station = station::create(&mut tx, &access.owner().unwrap(), &station_input(name))
+                .await
+                .unwrap();
+            tx.commit().await.unwrap();
+            station
+        }
+
+        pub async fn other_logbook(&self) -> (Logbook, LogbookAccess) {
+            let admin = self.admin_access().await;
+            let mut tx = WriteTx::begin(&self.db).await.unwrap();
+            let other = logbook::create(&mut tx, &admin, "Other", &self.owner.id).await.unwrap();
+            let access = access::logbook(&mut tx, &Principal::user(&self.owner.id), &other.id)
+                .await
+                .unwrap();
+            tx.commit().await.unwrap();
+            (other, access)
+        }
+    }
+
+    pub fn station_input(name: &str) -> StationInput {
+        StationInput {
+            name: name.into(),
+            callsign: "jl1his/1".into(),
+            wavelog_id: None,
+            fields: BTreeMap::from([
+                ("my_city".to_owned(), "Minato".to_owned()),
+                ("MY_CNTY".to_owned(), "100103".to_owned()),
+                ("MY_RIG".to_owned(), String::new()),
+            ]),
         }
     }
 }

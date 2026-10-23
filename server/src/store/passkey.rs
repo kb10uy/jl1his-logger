@@ -1,6 +1,9 @@
-use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::store::{StoreError, WriteTx, access::UserAccess, is_unique_violation, new_id, now};
+
+const SELECT: &str =
+    "SELECT p.id, p.user_id, p.credential_id, p.passkey, p.name, p.created_at, p.last_used_at FROM passkeys p";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewPasskey {
@@ -73,17 +76,18 @@ pub async fn delete(tx: &mut WriteTx, user: &UserAccess, id: &str) -> Result<(),
     Ok(())
 }
 
-pub async fn find_by_credential(conn: &mut SqliteConnection, credential_id: &[u8]) -> Result<Passkey, StoreError> {
-    let row = sqlx::query(
-        "SELECT p.id, p.user_id, p.credential_id, p.passkey, p.name, p.created_at, p.last_used_at \
-         FROM passkeys p JOIN users u ON u.id = p.user_id \
-         WHERE p.credential_id = ? AND u.disabled_at IS NULL",
-    )
+pub async fn find_by_credential(
+    conn: &mut SqliteConnection,
+    credential_id: &[u8],
+) -> Result<Option<Passkey>, StoreError> {
+    sqlx::query(AssertSqlSafe(format!(
+        "{SELECT} JOIN users u ON u.id = p.user_id WHERE p.credential_id = ? AND u.disabled_at IS NULL"
+    )))
     .bind(credential_id)
     .fetch_optional(conn)
     .await?
-    .ok_or(StoreError::Unauthenticated)?;
-    Passkey::from_row(&row)
+    .map(|row| Passkey::from_row(&row))
+    .transpose()
 }
 
 pub async fn record_use(tx: &mut WriteTx, id: &str, passkey: &str) -> Result<(), StoreError> {
@@ -128,25 +132,23 @@ pub(crate) async fn insert(tx: &mut WriteTx, user_id: &str, new: &NewPasskey) ->
         }
         Err(e) => return Err(e.into()),
     }
-    let row = sqlx::query(
-        "SELECT id, user_id, credential_id, passkey, name, created_at, last_used_at FROM passkeys WHERE id = ?",
-    )
-    .bind(&id)
-    .fetch_one(&mut **tx)
-    .await?;
+    let row = sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE p.id = ?")))
+        .bind(&id)
+        .fetch_one(&mut **tx)
+        .await?;
     Passkey::from_row(&row)
 }
 
 pub(crate) async fn of_user(conn: &mut SqliteConnection, user_id: &str) -> Result<Vec<Passkey>, StoreError> {
-    sqlx::query(
-        "SELECT id, user_id, credential_id, passkey, name, created_at, last_used_at FROM passkeys          WHERE user_id = ? ORDER BY created_at, id",
-    )
-        .bind(user_id)
-        .fetch_all(conn)
-        .await?
-        .iter()
-        .map(Passkey::from_row)
-        .collect()
+    sqlx::query(AssertSqlSafe(format!(
+        "{SELECT} WHERE p.user_id = ? ORDER BY p.created_at, p.id"
+    )))
+    .bind(user_id)
+    .fetch_all(conn)
+    .await?
+    .iter()
+    .map(Passkey::from_row)
+    .collect()
 }
 
 fn check_json(passkey: &str) -> Result<(), StoreError> {
@@ -188,17 +190,14 @@ pub(crate) mod tests {
         };
         assert!(matches!(add(&mut tx, &user, &bad).await, Err(StoreError::Invalid(_))));
 
-        assert_eq!(find_by_credential(&mut tx, &[1]).await.unwrap(), added);
+        assert_eq!(find_by_credential(&mut tx, &[1]).await.unwrap().as_ref(), Some(&added));
         record_use(&mut tx, &added.id, r#"{"cred":1,"counter":2}"#)
             .await
             .unwrap();
-        let used = find_by_credential(&mut tx, &[1]).await.unwrap();
+        let used = find_by_credential(&mut tx, &[1]).await.unwrap().unwrap();
         assert_eq!(used.passkey, r#"{"cred":1,"counter":2}"#);
         assert!(used.last_used_at.is_some());
-        assert!(matches!(
-            find_by_credential(&mut tx, &[9]).await,
-            Err(StoreError::Unauthenticated)
-        ));
+        assert_eq!(find_by_credential(&mut tx, &[9]).await.unwrap(), None);
     }
 
     #[tokio::test]

@@ -3,22 +3,21 @@ use std::collections::{BTreeMap, HashSet};
 use crate::{
     db::Db,
     domain::{
-        confirmation::{self, Source},
+        confirmation::{self, Changes, Source},
         duplicate::DuplicateKey,
         import::RecordIds,
-        qso::{InvalidQsoId, Qso, QsoError, QsoId, Warning},
+        qso::{Qso, QsoError, QsoId, Warning},
     },
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
-        qsl::{self, SkipReason},
+        qsl::{self, Skipped},
         qso::{self, CallMatch, Created, Filter, QsoInput, Target, TimeRange},
         station::Station,
     },
 };
 
-pub const BATCH: usize = 500;
-const CANDIDATES: u32 = 100;
+const BATCH: usize = 500;
 
 #[derive(Debug, Default)]
 pub struct NewReport {
@@ -91,7 +90,10 @@ pub async fn import_new(
                                 .filter(|(_, previous)| key.matches(previous))
                                 .map(|(id, _)| id.clone()),
                         );
-                        previewed.entry(key.qso_time).or_default().push((stored.id, key));
+                        previewed
+                            .entry(key.qso_time)
+                            .or_default()
+                            .push((stored.id.to_string(), key));
                     }
                     duplicates.sort();
                     duplicates.dedup();
@@ -120,7 +122,7 @@ pub struct MergeReport {
     pub unmatched: Vec<usize>,
     pub ambiguous: Vec<(usize, Vec<String>)>,
     pub invalid: Vec<(usize, String)>,
-    pub skipped: Vec<(String, SkipReason)>,
+    pub skipped: Vec<Skipped>,
     pub differences: BTreeMap<&'static str, usize>,
     pub rejects: Vec<Qso>,
 }
@@ -138,7 +140,7 @@ pub async fn merge(
         read: records.len(),
         ..MergeReport::default()
     };
-    let mut planned: Vec<(Target, confirmation::Changes)> = vec![];
+    let mut planned: Vec<(Target, Changes)> = vec![];
     let mut targeted = HashSet::new();
     let mut conn = db.acquire().await?;
     for (index, record) in (1..).zip(records) {
@@ -176,22 +178,15 @@ pub async fn merge(
                 from: Some(*key.time_range().start()),
                 until: Some(key.time_range().end() + 1),
             },
-            station_id: station.map(|s| s.id.clone()),
+            station_ids: station.map(|s| vec![s.id.clone()]),
             call: Some(CallMatch::Exact(key.call.clone())),
             ..Filter::default()
         };
-        let mut candidates = vec![];
-        let mut after = None;
-        loop {
-            let page = qso::search(&mut conn, access, &filter, after.as_ref(), CANDIDATES).await?;
-            candidates.extend(page.rows.into_iter().filter(|row| {
-                DuplicateKey::of(&row.qso).is_ok_and(|other| key.matches(&other) && key.same_station(&other))
-            }));
-            match page.next {
-                Some(next) => after = Some(next),
-                None => break,
-            }
-        }
+        let candidates: Vec<_> = qso::search_all(&mut conn, access, &filter)
+            .await?
+            .into_iter()
+            .filter(|row| DuplicateKey::of(&row.qso).is_ok_and(|other| key.matches(&other) && key.same_station(&other)))
+            .collect();
         match candidates.as_slice() {
             [] => {
                 report.unmatched.push(index);
@@ -201,14 +196,11 @@ pub async fn merge(
                 for field in confirmation::differences(&record, &row.qso) {
                     *report.differences.entry(field).or_default() += 1;
                 }
-                if source.received(&row.qso) || !targeted.insert(row.id.clone()) {
+                if source.received(&row.qso) || !targeted.insert(row.id) {
                     report.already += 1;
                 } else {
                     let target = Target {
-                        id: row
-                            .id
-                            .parse()
-                            .map_err(|e: InvalidQsoId| StoreError::Invalid(e.to_string()))?,
+                        id: row.id,
                         revision: row.revision,
                     };
                     planned.push((target, changes));
@@ -218,7 +210,7 @@ pub async fn merge(
             rows => {
                 report
                     .ambiguous
-                    .push((index, rows.iter().map(|row| row.id.clone()).collect()));
+                    .push((index, rows.iter().map(|row| row.id.to_string()).collect()));
                 report.rejects.push(record);
             }
         }
@@ -230,18 +222,15 @@ pub async fn merge(
         return Ok(report);
     }
     for batch in planned.chunks(BATCH) {
-        let mut groups: BTreeMap<&confirmation::Changes, Vec<Target>> = BTreeMap::new();
+        let mut groups: BTreeMap<&Changes, Vec<Target>> = BTreeMap::new();
         for (target, changes) in batch {
             groups.entry(changes).or_default().push(target.clone());
         }
         let mut tx = WriteTx::begin(db).await?;
         for (changes, targets) in groups {
-            let changes: BTreeMap<String, String> = changes.iter().map(|(f, v)| ((*f).to_owned(), v.clone())).collect();
-            let outcome = qsl::update(&mut tx, access, &targets, &changes).await?;
+            let outcome = qsl::apply(&mut tx, access, &targets, changes).await?;
             report.merged += outcome.updated.len();
-            report
-                .skipped
-                .extend(outcome.skipped.into_iter().map(|s| (s.id, s.reason)));
+            report.skipped.extend(outcome.skipped);
         }
         tx.commit().await?;
     }
@@ -255,32 +244,17 @@ mod tests {
     use super::*;
     use crate::store::{
         qso::StoredQso,
-        station::{self, tests::input as station_input},
-        testing::World,
+        testing::{World, contact},
     };
 
     fn record(fields: &[(&str, &str)]) -> Qso {
         Qso::from_fields(fields.iter().copied()).unwrap()
     }
 
-    fn contact(call: &str, time_on: &str) -> Qso {
-        record(&[
-            ("CALL", call),
-            ("QSO_DATE", "20261022"),
-            ("TIME_ON", time_on),
-            ("BAND", "40m"),
-            ("MODE", "CW"),
-        ])
-    }
-
     async fn setup() -> (World, LogbookAccess, Station) {
         let world = World::new().await;
         let access = world.access(&world.owner).await;
-        let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let station = station::create(&mut tx, &access.owner().unwrap(), &station_input("Home"))
-            .await
-            .unwrap();
-        tx.commit().await.unwrap();
+        let station = world.station("Home").await;
         (world, access, station)
     }
 
@@ -381,7 +355,7 @@ mod tests {
             newest.set("LOTW_QSL_RCVD", Some("Y".into())).unwrap();
         }
         let mut records = vec![Ok(oldest)];
-        records.extend((1..CANDIDATES).map(|i| {
+        records.extend((1..100).map(|i| {
             let mut qso = contact("JA1AAA", "0101");
             qso.set("BAND", Some("20m".into())).unwrap();
             qso.set("COMMENT", Some(i.to_string())).unwrap();
@@ -427,9 +401,7 @@ mod tests {
         import_new(&world.db, &access, &station, records(), true).await.unwrap();
         let row = all(&world, &access).await.remove(0);
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        qso::delete(&mut tx, &access, &row.id.parse().unwrap(), row.revision)
-            .await
-            .unwrap();
+        qso::delete(&mut tx, &access, &row.id, row.revision).await.unwrap();
         tx.commit().await.unwrap();
 
         let again = import_new(&world.db, &access, &station, records(), true).await.unwrap();
@@ -440,18 +412,13 @@ mod tests {
     #[tokio::test]
     async fn merges_confirmations_once_and_reports_the_rest() {
         let (world, access, station) = setup().await;
+        let mut received = contact("JA1CCC", "0303");
+        received.set("LOTW_QSL_RCVD", Some("Y".into())).unwrap();
         let stored = vec![
             Ok(contact("JA1AAA", "0101")),
             Ok(contact("JA1BBB", "0202")),
             Ok(contact("JA1BBB", "0210")),
-            Ok(record(&[
-                ("CALL", "JA1CCC"),
-                ("QSO_DATE", "20261022"),
-                ("TIME_ON", "0303"),
-                ("BAND", "40m"),
-                ("MODE", "CW"),
-                ("LOTW_QSL_RCVD", "Y"),
-            ])),
+            Ok(received),
         ];
         import_new(&world.db, &access, &station, stored, true).await.unwrap();
 
@@ -550,15 +517,9 @@ mod tests {
             .await
             .unwrap();
 
-        let card = record(&[
-            ("CALL", "JA1AAA"),
-            ("QSO_DATE", "20261022"),
-            ("TIME_ON", "0101"),
-            ("BAND", "40m"),
-            ("MODE", "CW"),
-            ("QSL_RCVD", "Y"),
-            ("QSL_RCVD_VIA", "B"),
-        ]);
+        let mut card = contact("JA1AAA", "0101");
+        card.set("QSL_RCVD", Some("Y".into())).unwrap();
+        card.set("QSL_RCVD_VIA", Some("B".into())).unwrap();
         let report = merge(
             &world.db,
             &access,

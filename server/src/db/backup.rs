@@ -5,10 +5,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chrono::{SecondsFormat, Utc};
-use uuid::Uuid;
+use chrono::Utc;
 
-use crate::db::{self, Db, DbError, Migrated, create_dir, vacuum_into};
+use crate::db::{self, Db, DbError, Migrated, create_dir, new_id, now, vacuum_into};
 
 const PREFIX: &str = "jl1his-logger-";
 
@@ -69,12 +68,8 @@ fn sibling(database: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(name)
 }
 
-fn parent(path: &Path) -> Option<&Path> {
-    path.parent().filter(|d| !d.as_os_str().is_empty())
-}
-
 pub fn lock(database: &Path) -> Result<Lock, BackupError> {
-    if let Some(dir) = parent(database) {
+    if let Some(dir) = db::parent(database) {
         create_dir(dir)?;
     }
     let path = sibling(database, ".lock");
@@ -92,18 +87,18 @@ pub fn lock(database: &Path) -> Result<Lock, BackupError> {
 }
 
 pub fn backup_dir(database: &Path) -> PathBuf {
-    parent(database).unwrap_or(Path::new("")).join("backups")
+    db::parent(database).unwrap_or(Path::new("")).join("backups")
 }
 
 pub fn backup_path(dir: &Path) -> PathBuf {
-    dir.join(format!("{PREFIX}{}.db", Utc::now().format("%Y%m%dT%H%M%SZ")))
+    dir.join(format!("{PREFIX}{}.db", db::file_stamp(Utc::now())))
 }
 
 pub async fn backup(db: &Db, path: &Path) -> Result<(), BackupError> {
     if path.exists() {
         return Err(BackupError::Exists { path: path.to_owned() });
     }
-    if let Some(dir) = parent(path) {
+    if let Some(dir) = db::parent(path) {
         create_dir(dir)?;
     }
     Ok(vacuum_into(db, path).await?)
@@ -200,14 +195,14 @@ async fn prepare(staging: &Path, source: &Path) -> Result<Restored, BackupError>
 
 async fn reset(db: &Db, database: &Path) -> Result<Restored, BackupError> {
     let migrated = db::migrate(db, &db::snapshot_dir(database)).await?;
-    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let now = now();
     let mut tx = db.begin_with("BEGIN IMMEDIATE").await?;
     let logbooks: Vec<String> = sqlx::query_scalar("SELECT id FROM logbooks")
         .fetch_all(&mut *tx)
         .await?;
     for id in &logbooks {
         sqlx::query("UPDATE logbooks SET cursor_generation = ?, updated_at = ? WHERE id = ?")
-            .bind(Uuid::now_v7().to_string())
+            .bind(new_id())
             .bind(&now)
             .bind(id)
             .execute(&mut *tx)

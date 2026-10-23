@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
+use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection};
 
 use crate::store::{StoreError, WriteTx, new_id, now, user::Role};
@@ -27,7 +28,8 @@ impl Principal {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum LogbookRole {
     Owner,
     Operator,
@@ -301,7 +303,7 @@ mod tests {
     use super::*;
     use crate::store::{
         logbook, membership, station,
-        testing::World,
+        testing::{World, station_input},
         user::{self, Role},
     };
 
@@ -460,7 +462,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let input = station::tests::input("Rescue");
+        let input = station_input("Rescue");
         let station = station::create(&mut tx, &access.owner().unwrap(), &input)
             .await
             .unwrap();
@@ -518,7 +520,7 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let denied = station::create(&mut tx, &owner, &station::tests::input("Denied")).await;
+        let denied = station::create(&mut tx, &owner, &station_input("Denied")).await;
         assert!(matches!(
             denied,
             Err(StoreError::NotFound(_) | StoreError::Forbidden(_))
@@ -533,7 +535,7 @@ mod tests {
 
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         assert!(
-            station::create(&mut tx, &owner, &station::tests::input("Denied"))
+            station::create(&mut tx, &owner, &station_input("Denied"))
                 .await
                 .is_err()
         );
@@ -569,7 +571,7 @@ mod tests {
             Err(StoreError::NotFound("Logbook"))
         ));
         assert!(matches!(
-            station::create(&mut tx, &access.owner().unwrap(), &station::tests::input("Denied")).await,
+            station::create(&mut tx, &access.owner().unwrap(), &station_input("Denied")).await,
             Err(StoreError::NotFound("Logbook"))
         ));
     }

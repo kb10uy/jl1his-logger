@@ -1,10 +1,12 @@
-use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::store::{
     StoreError, WriteTx,
     access::{AdminAccess, UserAccess},
     now,
 };
+
+const SELECT: &str = "SELECT kind, version, checksum, updated_at FROM reference_versions";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReferenceKind {
@@ -83,7 +85,7 @@ pub async fn set(
 
 pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<ReferenceVersion>, StoreError> {
     user.revalidate(conn).await?;
-    sqlx::query("SELECT kind, version, checksum, updated_at FROM reference_versions ORDER BY kind")
+    sqlx::query(AssertSqlSafe(format!("{SELECT} ORDER BY kind")))
         .fetch_all(conn)
         .await?
         .iter()
@@ -92,7 +94,7 @@ pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<
 }
 
 pub async fn current(conn: &mut SqliteConnection, kind: ReferenceKind) -> Result<Option<ReferenceVersion>, StoreError> {
-    sqlx::query("SELECT kind, version, checksum, updated_at FROM reference_versions WHERE kind = ?")
+    sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE kind = ?")))
         .bind(kind.as_str())
         .fetch_optional(conn)
         .await?

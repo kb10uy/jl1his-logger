@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::qso::{Qso, field_name},
@@ -14,6 +14,8 @@ use crate::{
 };
 
 const NOT_DEFAULTS: &[&str] = &["CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE", "STATION_CALLSIGN"];
+
+const SELECT: &str = "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at FROM stations";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StationInput {
@@ -107,7 +109,7 @@ pub async fn create(tx: &mut WriteTx, owner: &OwnerAccess<'_>, input: &StationIn
     .execute(&mut **tx)
     .await
     .map_err(|e| wavelog_id_taken(e, input.wavelog_id))?;
-    get(tx, owner, &id).await
+    fetch(tx, owner, &id).await
 }
 
 pub async fn update(
@@ -135,7 +137,7 @@ pub async fn update(
     if updated.rows_affected() == 0 {
         return Err(StoreError::NotFound("Station"));
     }
-    get(tx, owner, id).await
+    fetch(tx, owner, id).await
 }
 
 pub async fn set_archived(
@@ -160,7 +162,7 @@ pub async fn set_archived(
     if updated.rows_affected() == 0 {
         return Err(StoreError::NotFound("Station"));
     }
-    get(tx, owner, id).await
+    fetch(tx, owner, id).await
 }
 
 pub async fn preview_rewrite(
@@ -200,7 +202,7 @@ async fn rewrite_plan(
     id: &str,
     range: TimeRange,
 ) -> Result<Vec<(StoredQso, Qso)>, StoreError> {
-    let station = get(conn, access, id).await?;
+    let station = fetch(conn, access, id).await?;
     let mut plan = vec![];
     for current in qso::of_station(conn, access, &station.id, range).await? {
         let mut rewritten = current.qso.clone();
@@ -217,24 +219,28 @@ async fn rewrite_plan(
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<Station, StoreError> {
     access.revalidate(conn).await?;
-    let row = sqlx::query(
-        "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \
-         FROM stations WHERE logbook_id = ? AND id = ?",
-    )
-    .bind(access.logbook_id())
-    .bind(id)
-    .fetch_optional(conn)
-    .await?
-    .ok_or(StoreError::NotFound("Station"))?;
+    fetch(conn, access, id).await
+}
+
+pub(crate) async fn fetch(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &str,
+) -> Result<Station, StoreError> {
+    let row = sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE logbook_id = ? AND id = ?")))
+        .bind(access.logbook_id())
+        .bind(id)
+        .fetch_optional(conn)
+        .await?
+        .ok_or(StoreError::NotFound("Station"))?;
     Station::from_row(&row)
 }
 
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Station>, StoreError> {
     access.revalidate(conn).await?;
-    sqlx::query(
-        "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at \
-         FROM stations WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id",
-    )
+    sqlx::query(AssertSqlSafe(format!(
+        "{SELECT} WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id"
+    )))
     .bind(access.logbook_id())
     .fetch_all(conn)
     .await?
@@ -244,22 +250,14 @@ pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-    use crate::store::testing::World;
+mod tests {
+    use rstest::rstest;
 
-    pub(crate) fn input(name: &str) -> StationInput {
-        StationInput {
-            name: name.into(),
-            callsign: "jl1his/1".into(),
-            wavelog_id: None,
-            fields: BTreeMap::from([
-                ("my_city".to_owned(), "Minato".to_owned()),
-                ("MY_CNTY".to_owned(), "100103".to_owned()),
-                ("MY_RIG".to_owned(), String::new()),
-            ]),
-        }
-    }
+    use super::*;
+    use crate::{
+        domain::qso::QsoId,
+        store::testing::{World, contact, station_input as input},
+    };
 
     #[tokio::test]
     async fn creates_a_station_with_normalized_values() {
@@ -280,26 +278,23 @@ pub(crate) mod tests {
         assert_eq!(station.archived_at, None);
     }
 
+    #[rstest]
+    #[case::station_callsign("STATION_CALLSIGN", "x")]
+    #[case::call("call", "x")]
+    #[case::bad_name("My:City", "x")]
+    #[case::repeated("MY_CITY", "Shiba")]
     #[tokio::test]
-    async fn refuses_identity_fields_as_defaults() {
+    async fn refuses_identity_fields_as_defaults(#[case] name: &str, #[case] value: &str) {
         let world = World::new().await;
         let access = world.access(&world.owner).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        for name in ["STATION_CALLSIGN", "call", "My:City"] {
-            let mut bad = input("Home");
-            bad.fields.insert(name.into(), "x".into());
-            let refused = create(&mut tx, &access.owner().unwrap(), &bad).await;
-            assert!(
-                matches!(refused, Err(StoreError::Invalid(_) | StoreError::Qso(_))),
-                "{name}: {refused:?}"
-            );
-        }
-        let mut repeated = input("Home");
-        repeated.fields.insert("MY_CITY".into(), "Shiba".into());
-        assert!(matches!(
-            create(&mut tx, &access.owner().unwrap(), &repeated).await,
-            Err(StoreError::Invalid(_))
-        ));
+        let mut bad = input("Home");
+        bad.fields.insert(name.into(), value.into());
+        let refused = create(&mut tx, &access.owner().unwrap(), &bad).await;
+        assert!(
+            matches!(refused, Err(StoreError::Invalid(_) | StoreError::Qso(_))),
+            "{refused:?}"
+        );
     }
 
     #[tokio::test]
@@ -354,22 +349,15 @@ pub(crate) mod tests {
         let station = create(&mut tx, &owner, &input("Home")).await.unwrap();
         let mut ids = vec![];
         for (time_on, my_rig) in [("0101", "IC-705"), ("0202", "IC-705"), ("0303", "")] {
-            let qso = Qso::from_fields([
-                ("CALL", "JA1XYZ"),
-                ("QSO_DATE", "20261022"),
-                ("TIME_ON", time_on),
-                ("BAND", "40m"),
-                ("MODE", "CW"),
-                ("MY_RIG", my_rig),
-            ])
-            .unwrap();
+            let mut qso = contact("JA1XYZ", time_on);
+            qso.set("MY_RIG", Some(my_rig.into())).unwrap();
             let input = qso::QsoInput {
                 station_id: station.id.clone(),
                 qso,
             };
-            let id = crate::domain::qso::QsoId::generate();
+            let id = QsoId::generate();
             qso::create(&mut tx, &access, &id, input).await.unwrap();
-            ids.push(id.to_string());
+            ids.push(id);
         }
 
         let mut moved = input("Home");
@@ -377,10 +365,7 @@ pub(crate) mod tests {
         moved.fields.insert("my_city".into(), "Kawasaki".into());
         update(&mut tx, &owner, &station.id, &moved).await.unwrap();
 
-        let first = Qso::from_fields([("QSO_DATE", "20261022"), ("TIME_ON", "0202")])
-            .unwrap()
-            .qso_time()
-            .unwrap();
+        let first = contact("JA1XYZ", "0202").qso_time().unwrap();
         let range = TimeRange {
             from: Some(first),
             until: None,
@@ -395,7 +380,7 @@ pub(crate) mod tests {
 
         let mut rows = vec![];
         for id in &ids {
-            rows.push(qso::get(&mut tx, &access, &id.parse().unwrap()).await.unwrap());
+            rows.push(qso::get(&mut tx, &access, id).await.unwrap());
         }
         assert_eq!(rows[0].qso.get("STATION_CALLSIGN"), Some("JL1HIS/1"));
         assert_eq!(rows[1].qso.get("STATION_CALLSIGN"), Some("JL1HIS/2"));

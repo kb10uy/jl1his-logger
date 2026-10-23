@@ -166,7 +166,7 @@ impl ImportBody {
             skipped: report
                 .skipped
                 .into_iter()
-                .map(|(id, reason)| SkippedBody::new(id, reason))
+                .map(|s| SkippedBody::new(s.id.to_string(), s.reason))
                 .collect(),
             differences: report.differences,
             rejects: rejects(&report.rejects, unit),

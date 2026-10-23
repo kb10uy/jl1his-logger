@@ -1,10 +1,12 @@
-use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::store::{
     StoreError, WriteTx,
     access::{self, AdminAccess, LogbookAccess, LogbookRole, UserAccess},
-    membership, new_id, now,
+    membership, new_id, now, user,
 };
+
+const SELECT: &str = "SELECT id, name, last_seq, last_updated_seq, cursor_generation FROM logbooks";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Logbook {
@@ -33,12 +35,7 @@ pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, name: &str, owner_id:
     if name.is_empty() {
         return Err(StoreError::Invalid("a Logbook needs a name".into()));
     }
-    let owner_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND disabled_at IS NULL)")
-            .bind(owner_id)
-            .fetch_one(&mut **tx)
-            .await?;
-    if !owner_exists {
+    if !user::is_active(tx, owner_id).await? {
         return Err(StoreError::NotFound("user"));
     }
 
@@ -93,7 +90,7 @@ pub async fn add_owner(
 
 pub async fn list_all(conn: &mut SqliteConnection, admin: &AdminAccess) -> Result<Vec<Logbook>, StoreError> {
     admin.revalidate(conn).await?;
-    sqlx::query("SELECT id, name, last_seq, last_updated_seq, cursor_generation FROM logbooks ORDER BY name, id")
+    sqlx::query(AssertSqlSafe(format!("{SELECT} ORDER BY name, id")))
         .fetch_all(conn)
         .await?
         .iter()
@@ -118,7 +115,7 @@ pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Logbook, StoreError> {
     access.revalidate(conn).await?;
-    let row = sqlx::query("SELECT id, name, last_seq, last_updated_seq, cursor_generation FROM logbooks WHERE id = ?")
+    let row = sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE id = ?")))
         .bind(access.logbook_id())
         .fetch_optional(conn)
         .await?
@@ -155,11 +152,10 @@ pub(crate) async fn next_update(tx: &mut WriteTx, logbook_id: &str) -> Result<i6
 mod tests {
     use super::*;
     use crate::{
-        domain::qso::{Qso, QsoId},
+        domain::qso::QsoId,
         store::{
             qso::{self, QsoInput},
-            station::{self, tests::input as station_input},
-            testing::World,
+            testing::{World, contact},
         },
     };
 
@@ -167,20 +163,11 @@ mod tests {
     async fn deletes_a_logbook_with_everything_it_owns() {
         let world = World::new().await;
         let access = world.access(&world.owner).await;
+        let station = world.station("Home").await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let station = station::create(&mut tx, &access.owner().unwrap(), &station_input("Home"))
-            .await
-            .unwrap();
         let input = QsoInput {
             station_id: station.id,
-            qso: Qso::from_fields([
-                ("CALL", "JA1XYZ"),
-                ("QSO_DATE", "20261022"),
-                ("TIME_ON", "0405"),
-                ("BAND", "40m"),
-                ("MODE", "CW"),
-            ])
-            .unwrap(),
+            qso: contact("JA1XYZ", "0405"),
         };
         qso::create(&mut tx, &access, &QsoId::generate(), input).await.unwrap();
         let admin = world.admin_access().await;

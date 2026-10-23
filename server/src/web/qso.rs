@@ -50,7 +50,7 @@ impl From<StoredQso> for QsoBody {
                 .iter()
                 .map(|(name, value)| (name.to_owned(), value.to_owned()))
                 .collect(),
-            id: stored.id,
+            id: stored.id.to_string(),
             station_id: stored.station_id,
             seq: stored.seq,
             updated_seq: stored.updated_seq,
@@ -307,8 +307,7 @@ pub async fn search(
             from: query.from.as_deref().map(|t| time("from", t)).transpose()?,
             until: query.until.as_deref().map(|t| time("until", t)).transpose()?,
         },
-        station_id: query.station_id,
-        station_ids: None,
+        station_ids: query.station_id.map(|id| vec![id]),
         band: query.band,
         mode: query.mode,
         call,
@@ -342,9 +341,14 @@ pub async fn duplicates(
         .into_iter()
         .filter_map(|(name, value)| Some((name, value?))),
     )?;
+    let except = query
+        .except
+        .as_deref()
+        .map(|id| id.parse::<QsoId>().map_err(|e| StoreError::Invalid(e.to_string())))
+        .transpose()?;
     let mut conn = state.db.acquire().await?;
     let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let rows = qso::possible_duplicates(&mut conn, &access, &candidate, query.except.as_deref()).await?;
+    let rows = qso::possible_duplicates(&mut conn, &access, &candidate, except.as_ref()).await?;
     Ok(Json(DuplicatesBody {
         qsos: rows.into_iter().map(QsoBody::from).collect(),
     }))

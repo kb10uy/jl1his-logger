@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{TimeDelta, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
@@ -15,7 +16,8 @@ use crate::{
 const WL2_PREFIX: &str = "wl2_";
 const TOUCH_INTERVAL: TimeDelta = TimeDelta::days(1);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TokenKind {
     Native,
     Wl2,
@@ -126,7 +128,7 @@ pub async fn issue(tx: &mut WriteTx, user: &UserAccess, input: &TokenInput) -> R
             .await?;
     }
     Ok(Issued {
-        token: fetch(tx, &id).await?.ok_or(StoreError::NotFound("API token"))?,
+        token: find(tx, &id).await?.ok_or(StoreError::NotFound("API token"))?,
         plaintext,
     })
 }
@@ -149,7 +151,7 @@ pub async fn list(conn: &mut SqliteConnection, user: &UserAccess, user_id: &str)
 
 pub async fn revoke(tx: &mut WriteTx, user: &UserAccess, token_id: &str) -> Result<(), StoreError> {
     let user = user.revalidate(tx).await?;
-    match fetch(tx, token_id).await? {
+    match find(tx, token_id).await? {
         Some(token) if user.may_manage(&token.user_id) => {}
         _ => return Err(StoreError::NotFound("API token")),
     }
@@ -199,7 +201,7 @@ pub async fn authenticate(db: &Db, plaintext: &str, kind: TokenKind) -> Result<(
     Ok((principal, token))
 }
 
-async fn fetch(conn: &mut SqliteConnection, id: &str) -> Result<Option<ApiToken>, StoreError> {
+async fn find(conn: &mut SqliteConnection, id: &str) -> Result<Option<ApiToken>, StoreError> {
     sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE t.id = ?")))
         .bind(id)
         .fetch_optional(conn)
@@ -292,6 +294,10 @@ mod tests {
             input(TokenKind::Wl2, &[&world.logbook.id, &other.id]),
             TokenInput {
                 wl2_prefix: true,
+                ..input(TokenKind::Native, &[&world.logbook.id])
+            },
+            TokenInput {
+                name: " ".into(),
                 ..input(TokenKind::Native, &[&world.logbook.id])
             },
         ];

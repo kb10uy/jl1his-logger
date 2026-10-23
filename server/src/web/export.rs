@@ -112,7 +112,7 @@ impl From<Outcome> for OutcomeBody {
             skipped: outcome
                 .skipped
                 .into_iter()
-                .map(|s| SkippedBody::new(s.id, s.reason))
+                .map(|s| SkippedBody::new(s.id.to_string(), s.reason))
                 .collect(),
         }
     }
@@ -232,18 +232,18 @@ pub async fn create(
             from: req.from.as_deref().map(|t| time("from", t)).transpose()?,
             until: req.until.as_deref().map(|t| time("until", t)).transpose()?,
         },
-        station_id: req.station_id,
-        station_ids: None,
+        station_ids: req.station_id.map(|id| vec![id]),
         band: req.band,
         mode: req.mode,
-        call: None,
         qsl_sent: req.qsl_sent,
         contest_id: req.contest_id,
+        ..Filter::default()
     };
     let unit = req.length.unwrap_or(state.config.adif.length);
-    let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let selection = export::select(&mut tx, &access, kind, &filter, req.park.as_deref()).await?;
+    let mut conn = state.db.acquire().await?;
+    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
+    let selection = export::select(&mut conn, &access, kind, &filter, req.park.as_deref()).await?;
+    drop(conn);
     if selection.targets.is_empty() {
         return Ok((
             StatusCode::OK,
@@ -254,6 +254,7 @@ pub async fn create(
             }),
         ));
     }
+    let mut tx = WriteTx::begin(&state.db).await?;
     let batch = export::create(&mut tx, &access, kind, &selection.targets).await?;
     tx.commit().await?;
     Ok((

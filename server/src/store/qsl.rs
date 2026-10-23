@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    domain::qsl,
+    domain::{confirmation::Changes, qsl, qso::QsoId},
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
@@ -18,7 +18,7 @@ pub enum SkipReason {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Skipped {
-    pub id: String,
+    pub id: QsoId,
     pub reason: SkipReason,
 }
 
@@ -27,8 +27,6 @@ pub struct Outcome {
     pub updated: Vec<StoredQso>,
     pub skipped: Vec<Skipped>,
 }
-
-pub(crate) type Changes = Vec<(&'static str, String)>;
 
 pub async fn update(
     tx: &mut WriteTx,
@@ -49,20 +47,19 @@ pub async fn update(
         qsl::check(field, value)?;
         checked.push((field, value.clone()));
     }
-    let targets: Vec<_> = targets.iter().map(|t| (t.id.to_string(), t.revision)).collect();
-    apply(tx, &access, &targets, &checked).await
+    apply(tx, &access, targets, &checked).await
 }
 
 pub(crate) async fn apply(
     tx: &mut WriteTx,
     access: &LogbookAccess,
-    targets: &[(String, i64)],
+    targets: &[Target],
     changes: &Changes,
 ) -> Result<Outcome, StoreError> {
     let mut outcome = Outcome::default();
-    for (id, revision) in targets {
-        let skip = |reason| Skipped { id: id.clone(), reason };
-        let current = match qso::fetch(tx, access, id).await {
+    for target in targets {
+        let skip = |reason| Skipped { id: target.id, reason };
+        let current = match qso::fetch(tx, access, &target.id).await {
             Ok(current) => current,
             Err(StoreError::NotFound(_)) => {
                 outcome.skipped.push(skip(SkipReason::Missing));
@@ -74,7 +71,7 @@ pub(crate) async fn apply(
             outcome.skipped.push(skip(SkipReason::Deleted));
             continue;
         }
-        if current.revision != *revision {
+        if current.revision != target.revision {
             outcome.skipped.push(skip(SkipReason::Revision {
                 current: current.revision,
             }));
@@ -93,35 +90,25 @@ pub(crate) async fn apply(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use rstest::rstest;
+
     use super::*;
-    use crate::{
-        domain::qso::{Qso, QsoId},
-        store::{
-            qso::{Created, QsoInput},
-            station::{self, tests::input as station_input},
-            testing::World,
-        },
+    use crate::store::{
+        qso::{Created, QsoInput},
+        testing::{World, contact},
     };
 
     pub(crate) async fn three_qsos(world: &World) -> Vec<StoredQso> {
+        let station = world.station("Home").await;
         let access = world.access(&world.owner).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let station = station::create(&mut tx, &access.owner().unwrap(), &station_input("Home"))
-            .await
-            .unwrap();
         let mut stored = vec![];
         for (call, time_on) in [("JA1AAA", "0101"), ("JA1BBB", "0202"), ("JA1CCC", "0303")] {
+            let mut qso = contact(call, time_on);
+            qso.set("QSL_SENT", Some("R".into())).unwrap();
             let input = QsoInput {
                 station_id: station.id.clone(),
-                qso: Qso::from_fields([
-                    ("CALL", call),
-                    ("QSO_DATE", "20261022"),
-                    ("TIME_ON", time_on),
-                    ("BAND", "40m"),
-                    ("MODE", "CW"),
-                    ("QSL_SENT", "R"),
-                ])
-                .unwrap(),
+                qso,
             };
             match qso::create(&mut tx, &access, &QsoId::generate(), input).await.unwrap() {
                 Created::New { stored: row, .. } => stored.push(row),
@@ -134,7 +121,7 @@ pub(crate) mod tests {
 
     pub(crate) fn target(row: &StoredQso) -> Target {
         Target {
-            id: row.id.parse().unwrap(),
+            id: row.id,
             revision: row.revision,
         }
     }
@@ -145,7 +132,7 @@ pub(crate) mod tests {
         let rows = three_qsos(&world).await;
         let access = world.access(&world.operator).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        qso::delete(&mut tx, &access, &rows[2].id.parse().unwrap(), rows[2].revision)
+        qso::delete(&mut tx, &access, &rows[2].id, rows[2].revision)
             .await
             .unwrap();
         let stale = Target {
@@ -183,43 +170,50 @@ pub(crate) mod tests {
             outcome.skipped,
             [
                 Skipped {
-                    id: rows[1].id.clone(),
+                    id: rows[1].id,
                     reason: SkipReason::Revision { current: 1 }
                 },
                 Skipped {
-                    id: rows[2].id.clone(),
+                    id: rows[2].id,
                     reason: SkipReason::Deleted
                 },
                 Skipped {
-                    id: missing.id.to_string(),
+                    id: missing.id,
                     reason: SkipReason::Missing
                 },
             ]
         );
     }
 
+    #[rstest]
+    #[case::not_a_qsl_field(&[("CALL", "JA1ZZZ")])]
+    #[case::invalid_value(&[("QSL_SENT", "V")])]
+    #[case::invalid_date(&[("QSLRDATE", "2026")])]
+    #[case::repeated(&[("QSL_SENT", "Y"), ("qsl_sent", "N")])]
+    #[case::empty(&[])]
     #[tokio::test]
-    async fn refuses_other_fields_and_invalid_values() {
+    async fn refuses_other_fields_and_invalid_values(#[case] changes: &[(&str, &str)]) {
         let world = World::new().await;
         let rows = three_qsos(&world).await;
         let access = world.access(&world.operator).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        for (name, value) in [("CALL", "JA1ZZZ"), ("QSL_SENT", "V"), ("QSLRDATE", "2026")] {
-            let changes = BTreeMap::from([(name.to_owned(), value.to_owned())]);
-            let refused = update(&mut tx, &access, &[target(&rows[0])], &changes).await;
-            assert!(
-                matches!(refused, Err(StoreError::Invalid(_) | StoreError::Qso(_))),
-                "{name}: {refused:?}"
-            );
-        }
-        let repeated = BTreeMap::from([
-            ("QSL_SENT".to_owned(), "Y".to_owned()),
-            ("qsl_sent".to_owned(), "N".to_owned()),
-        ]);
-        assert!(matches!(
-            update(&mut tx, &access, &[target(&rows[0])], &repeated).await,
-            Err(StoreError::Invalid(_))
-        ));
+        let changes: BTreeMap<String, String> = changes
+            .iter()
+            .map(|(n, v)| ((*n).to_owned(), (*v).to_owned()))
+            .collect();
+        let refused = update(&mut tx, &access, &[target(&rows[0])], &changes).await;
+        assert!(
+            matches!(refused, Err(StoreError::Invalid(_) | StoreError::Qso(_))),
+            "{refused:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn clears_a_qsl_field_with_an_empty_value() {
+        let world = World::new().await;
+        let rows = three_qsos(&world).await;
+        let access = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let cleared = BTreeMap::from([("QSL_SENT".to_owned(), String::new())]);
         let outcome = update(&mut tx, &access, &[target(&rows[0])], &cleared).await.unwrap();
         assert_eq!(outcome.updated[0].qso.get("QSL_SENT"), None);

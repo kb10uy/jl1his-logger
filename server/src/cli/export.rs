@@ -4,11 +4,11 @@ use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
 use crate::{
-    cli::{CliResult, Context, LengthArg, days, import::write_adif, parse_day},
+    cli::{CliResult, Context, LengthArg, import::write_adif, parse_day},
     store::{
         WriteTx,
         export::{self, ExportKind},
-        qso::Filter,
+        qso::{Filter, TimeRange},
     },
 };
 
@@ -124,25 +124,26 @@ async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
         None => None,
     };
     let filter = Filter {
-        time: days(args.from, args.until),
-        station_id,
-        station_ids: None,
+        time: TimeRange::days(args.from, args.until),
+        station_ids: station_id.map(|id| vec![id]),
         band: args.band.clone(),
         mode: args.mode.clone(),
-        call: None,
         qsl_sent: args.qsl_sent.clone(),
         contest_id: args.contest_id.clone(),
+        ..Filter::default()
     };
     let kind = ExportKind::from(args.kind);
-    let mut tx = WriteTx::begin(context.db).await?;
-    let selection = export::select(&mut tx, &access, kind, &filter, args.park.as_deref()).await?;
+    let mut conn = context.db.acquire().await?;
+    let selection = export::select(&mut conn, &access, kind, &filter, args.park.as_deref()).await?;
+    drop(conn);
     if selection.targets.is_empty() {
         println!("No QSOs to export.");
         return Ok(());
     }
+    let mut tx = WriteTx::begin(context.db).await?;
     let batch = export::create(&mut tx, &access, kind, &selection.targets).await?;
-    write_adif(&args.output, &selection.records, context.length(args.length))?;
     tx.commit().await?;
+    write_adif(&args.output, &selection.records, context.length(args.length))?;
     println!(
         "Wrote {} records for {} QSOs to {}",
         selection.records.len(),

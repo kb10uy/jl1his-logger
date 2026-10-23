@@ -232,11 +232,9 @@ pub async fn login_finish(
         .identify_discoverable_authentication(&req.credential)
         .map_err(|_| unknown_passkey())?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let stored = match passkey::find_by_credential(&mut tx, credential_id).await {
-        Ok(stored) => stored,
-        Err(StoreError::Unauthenticated) => return Err(unknown_passkey()),
-        Err(e) => return Err(e.into()),
-    };
+    let stored = passkey::find_by_credential(&mut tx, credential_id)
+        .await?
+        .ok_or_else(unknown_passkey)?;
     if Uuid::parse_str(&stored.user_id).ok() != Some(user_handle) {
         return Err(unknown_passkey());
     }
@@ -716,7 +714,7 @@ mod tests {
         assert_eq!(me.status, StatusCode::OK);
 
         let mut conn = h.world.db.acquire().await.unwrap();
-        let stored = passkey::find_by_credential(&mut conn, &[1; 16]).await.unwrap();
+        let stored = passkey::find_by_credential(&mut conn, &[1; 16]).await.unwrap().unwrap();
         assert_eq!(stored.name, "Phone");
         assert!(stored.last_used_at.is_some());
         assert_eq!(decode(&stored.passkey).unwrap().cred_id().as_slice(), [1; 16]);

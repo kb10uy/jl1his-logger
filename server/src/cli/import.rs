@@ -183,8 +183,8 @@ impl MergeReport {
         for (index, error) in &self.invalid {
             println!("  record {index}: {error}");
         }
-        for (id, reason) in &self.skipped {
-            println!("  skipped {id}: {reason:?}");
+        for skipped in &self.skipped {
+            println!("  skipped {}: {:?}", skipped.id, skipped.reason);
         }
     }
 }

@@ -6,7 +6,7 @@ pub mod reference;
 
 use std::{error::Error, path::Path};
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::NaiveDate;
 use clap::{Subcommand, ValueEnum};
 use url::Url;
 
@@ -17,7 +17,6 @@ use crate::{
     store::{
         access::{self, LogbookAccess, Principal},
         logbook::{self, Logbook},
-        qso::TimeRange,
         station::{self, Station},
         user,
     },
@@ -73,16 +72,7 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
                     println!("Snapshot written to {}", snapshot.display());
                 }
             }
-            _ => {
-                let status = db::migration_status(&db).await?;
-                if !status.pending.is_empty() {
-                    return Err(format!(
-                        "migrations {:?} are pending; run the migrate subcommand first",
-                        status.pending
-                    )
-                    .into());
-                }
-            }
+            _ => db::require_migrated(&db).await?,
         }
         let context = Context {
             db: &db,
@@ -189,14 +179,6 @@ pub fn parse_day(s: &str) -> Result<NaiveDate, String> {
     parse_date(&s.trim().replace('-', "")).ok_or_else(|| format!("{s:?} is not a date such as 2026-10-22"))
 }
 
-pub fn days(from: Option<NaiveDate>, until: Option<NaiveDate>) -> TimeRange {
-    let start = |day: NaiveDate| day.and_time(NaiveTime::MIN).and_utc().timestamp();
-    TimeRange {
-        from: from.map(start),
-        until: until.and_then(|day| day.succ_opt()).map(start),
-    }
-}
-
 pub fn registration_url(origin: &Url, token: &str) -> Url {
     let mut url = origin.join("/register").expect("an origin takes a path");
     url.set_fragment(Some(token));
@@ -241,15 +223,13 @@ mod tests {
         assert_eq!(pick(&items, None, "Station", |i| i.0, |i| i.1).unwrap().0, "1");
     }
 
-    #[test]
-    fn turns_days_into_a_time_range() {
-        let range = days(
-            Some(parse_day("2026-10-01").unwrap()),
-            Some(parse_day("20261031").unwrap()),
-        );
-        assert_eq!(range.from, Some(1_790_812_800));
-        assert_eq!(range.until, Some(1_790_812_800 + 31 * 86_400));
-        assert!(parse_day("2026-13-01").is_err());
+    #[rstest]
+    #[case("2026-10-01", Some((2026, 10, 1)))]
+    #[case("20261031", Some((2026, 10, 31)))]
+    #[case("2026-13-01", None)]
+    fn parses_days_with_or_without_hyphens(#[case] text: &str, #[case] expected: Option<(i32, u32, u32)>) {
+        let expected = expected.map(|(y, m, d)| NaiveDate::from_ymd_opt(y, m, d).unwrap());
+        assert_eq!(parse_day(text).ok(), expected);
     }
 
     #[test]

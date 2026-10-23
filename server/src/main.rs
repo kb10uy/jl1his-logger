@@ -137,14 +137,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                     tracing::info!("applied migrations {:?}", migrated.applied);
                 }
             } else {
-                let status = db::migration_status(&db).await?;
-                if !status.pending.is_empty() {
-                    return Err(format!(
-                        "migrations {:?} are pending; run the migrate subcommand first",
-                        status.pending
-                    )
-                    .into());
-                }
+                db::require_migrated(&db).await?;
             }
 
             let state = Arc::new(AppState::new(db.clone(), config, public_origin.clone())?);

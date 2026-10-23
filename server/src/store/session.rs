@@ -3,18 +3,14 @@ use sqlx::SqliteConnection;
 
 use crate::{
     db::Db,
-    store::{StoreError, WriteTx, access::Principal, hash_token, random_token, timestamp},
+    store::{StoreError, WriteTx, access::Principal, hash_token, random_token, timestamp, user},
 };
 
 pub const SESSION_TTL: TimeDelta = TimeDelta::days(30);
 const SESSION_REFRESH: TimeDelta = TimeDelta::days(1);
 
 pub async fn create(tx: &mut WriteTx, user_id: &str) -> Result<String, StoreError> {
-    let active: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND disabled_at IS NULL)")
-        .bind(user_id)
-        .fetch_one(&mut **tx)
-        .await?;
-    if !active {
+    if !user::is_active(tx, user_id).await? {
         return Err(StoreError::Unauthenticated);
     }
     let now = Utc::now();

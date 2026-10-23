@@ -83,9 +83,8 @@ async fn insert(
             "a registration link needs a positive lifetime".into(),
         ));
     }
-    match user::find(tx, user_id).await? {
-        Some(user) if user.disabled_at.is_none() => {}
-        _ => return Err(StoreError::NotFound("user")),
+    if !user::is_active(tx, user_id).await? {
+        return Err(StoreError::NotFound("user"));
     }
     sqlx::query("DELETE FROM registration_tokens WHERE user_id = ? AND used_at IS NULL")
         .bind(user_id)

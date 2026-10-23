@@ -1,10 +1,14 @@
 use std::collections::BTreeSet;
 
 use chrono::Utc;
-use sqlx::{Connection, Row, SqliteConnection, sqlite::SqliteRow};
+use serde::{Deserialize, Serialize};
+use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
-    domain::{pota, qso::Qso},
+    domain::{
+        pota,
+        qso::{InvalidQsoId, Qso},
+    },
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
@@ -14,9 +18,8 @@ use crate::{
     },
 };
 
-const PAGE: u32 = 500;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ExportKind {
     Adif,
     Pota,
@@ -80,6 +83,10 @@ impl ExportBatch {
     }
 }
 
+const SELECT: &str = "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
+     (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
+     FROM export_batches b";
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Selection {
     pub records: Vec<Qso>,
@@ -96,17 +103,7 @@ pub async fn select(
     if park.is_some() && kind != ExportKind::Pota {
         return Err(StoreError::Invalid("a park is only for a pota export".into()));
     }
-    let mut tx = conn.begin().await?;
-    let mut rows = vec![];
-    let mut after = None;
-    loop {
-        let page = qso::search(&mut tx, access, filter, after.as_ref(), PAGE).await?;
-        rows.extend(page.rows);
-        match page.next {
-            Some(next) => after = Some(next),
-            None => break,
-        }
-    }
+    let mut rows = qso::search_all(conn, access, filter).await?;
     rows.reverse();
     project(&rows, kind, park)
 }
@@ -126,10 +123,7 @@ fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<S
         }
         selection.records.extend(projected);
         selection.targets.push(Target {
-            id: row
-                .id
-                .parse()
-                .map_err(|_| StoreError::Invalid(format!("stored QSO ID {:?} is not a UUID v7", row.id)))?,
+            id: row.id,
             revision: row.revision,
         });
     }
@@ -148,14 +142,15 @@ pub async fn create(
     }
     let mut seen = BTreeSet::new();
     for target in qsos {
-        let id = target.id.to_string();
         if !seen.insert(target.id) {
-            return Err(StoreError::Invalid(format!("QSO {id} is given more than once")));
+            return Err(StoreError::Invalid(format!(
+                "QSO {} is given more than once",
+                target.id
+            )));
         }
-        let current = qso::fetch(tx, &access, &id).await?;
-        if current.deleted_at.is_some() || current.revision != target.revision {
-            return Err(StoreError::Conflict(format!("QSO {id} changed since it was exported")));
-        }
+        qso::fetch(tx, &access, &target.id)
+            .await?
+            .require_revision(target.revision)?;
     }
 
     let id = new_id();
@@ -176,7 +171,7 @@ pub async fn create(
             .execute(&mut **tx)
             .await?;
     }
-    Ok(fetch(tx, &access, &id).await?.0)
+    fetch(tx, &access, &id).await
 }
 
 pub async fn get(
@@ -185,16 +180,16 @@ pub async fn get(
     id: &str,
 ) -> Result<(ExportBatch, Vec<Target>), StoreError> {
     let access = access.revalidate(conn).await?;
-    fetch(conn, &access, id).await
+    let batch = fetch(conn, &access, id).await?;
+    let targets = targets(conn, id).await?;
+    Ok((batch, targets))
 }
 
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<ExportBatch>, StoreError> {
     let access = access.revalidate(conn).await?;
-    sqlx::query(
-        "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
-         (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
-         FROM export_batches b WHERE b.logbook_id = ? ORDER BY b.created_at DESC, b.id DESC",
-    )
+    sqlx::query(AssertSqlSafe(format!(
+        "{SELECT} WHERE b.logbook_id = ? ORDER BY b.created_at DESC, b.id DESC"
+    )))
     .bind(access.logbook_id())
     .fetch_all(conn)
     .await?
@@ -205,7 +200,7 @@ pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result
 
 pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result<Outcome, StoreError> {
     let access = access.revalidate(tx).await?;
-    let (batch, _) = fetch(tx, &access, id).await?;
+    let batch = fetch(tx, &access, id).await?;
     if batch.applied_at.is_some() {
         return Err(StoreError::Conflict(format!(
             "export batch {id} has already been applied"
@@ -217,11 +212,7 @@ pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result
             batch.kind.as_str()
         )));
     };
-    let targets: Vec<(String, i64)> =
-        sqlx::query_as("SELECT qso_id, revision FROM export_batch_qsos WHERE batch_id = ? ORDER BY qso_id")
-            .bind(id)
-            .fetch_all(&mut **tx)
-            .await?;
+    let targets = targets(tx, id).await?;
     let changes = vec![(sent, "Y".to_owned()), (date, Utc::now().format("%Y%m%d").to_string())];
     let outcome = qsl::apply(tx, &access, &targets, &changes).await?;
     sqlx::query("UPDATE export_batches SET applied_at = ? WHERE id = ?")
@@ -232,37 +223,30 @@ pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result
     Ok(outcome)
 }
 
-async fn fetch(
-    conn: &mut SqliteConnection,
-    access: &LogbookAccess,
-    id: &str,
-) -> Result<(ExportBatch, Vec<Target>), StoreError> {
-    let row = sqlx::query(
-        "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
-         (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
-         FROM export_batches b WHERE b.logbook_id = ? AND b.id = ?",
-    )
-    .bind(access.logbook_id())
-    .bind(id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .ok_or(StoreError::NotFound("export batch"))?;
-    let batch = ExportBatch::from_row(&row)?;
-    let targets: Vec<(String, i64)> =
+async fn fetch(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<ExportBatch, StoreError> {
+    let row = sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE b.logbook_id = ? AND b.id = ?")))
+        .bind(access.logbook_id())
+        .bind(id)
+        .fetch_optional(conn)
+        .await?
+        .ok_or(StoreError::NotFound("export batch"))?;
+    ExportBatch::from_row(&row)
+}
+
+async fn targets(conn: &mut SqliteConnection, batch_id: &str) -> Result<Vec<Target>, StoreError> {
+    let rows: Vec<(String, i64)> =
         sqlx::query_as("SELECT qso_id, revision FROM export_batch_qsos WHERE batch_id = ? ORDER BY qso_id")
-            .bind(id)
+            .bind(batch_id)
             .fetch_all(conn)
             .await?;
-    let targets = targets
-        .into_iter()
+    rows.into_iter()
         .map(|(id, revision)| {
             let id = id
                 .parse()
-                .map_err(|_| StoreError::Invalid(format!("stored QSO ID {id:?} is not a UUID v7")))?;
+                .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}")))?;
             Ok(Target { id, revision })
         })
-        .collect::<Result<_, StoreError>>()?;
-    Ok((batch, targets))
+        .collect()
 }
 
 #[cfg(test)]
@@ -270,18 +254,20 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-    use crate::store::{
-        logbook,
-        qsl::{
-            SkipReason,
-            tests::{target, three_qsos},
+    use crate::{
+        domain::qso::QsoId,
+        store::{
+            qsl::{
+                SkipReason,
+                tests::{target, three_qsos},
+            },
+            testing::World,
         },
-        testing::World,
     };
 
     fn row(fields: &[(&str, &str)]) -> StoredQso {
         StoredQso {
-            id: crate::domain::qso::QsoId::generate().to_string(),
+            id: QsoId::generate(),
             station_id: "station".into(),
             seq: 1,
             updated_seq: 1,
@@ -431,21 +417,11 @@ mod tests {
         let world = World::new().await;
         let rows = three_qsos(&world).await;
         let access = world.access(&world.owner).await;
-        let admin = world.admin_access().await;
+        let (_, other_access) = world.other_logbook().await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let batch = create(&mut tx, &access, ExportKind::Lotw, &[target(&rows[0])])
             .await
             .unwrap();
-        let other = logbook::create(&mut tx, &admin, "Other", &world.owner.id)
-            .await
-            .unwrap();
-        let other_access = crate::store::access::logbook(
-            &mut tx,
-            &crate::store::access::Principal::user(&world.owner.id),
-            &other.id,
-        )
-        .await
-        .unwrap();
         assert!(matches!(
             get(&mut tx, &other_access, &batch.id).await,
             Err(StoreError::NotFound(_))

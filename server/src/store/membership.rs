@@ -3,7 +3,7 @@ use sqlx::SqliteConnection;
 use crate::store::{
     StoreError, WriteTx,
     access::{LogbookAccess, LogbookRole, OwnerAccess},
-    now,
+    now, user,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,7 +17,8 @@ pub struct Member {
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Member>, StoreError> {
     access.revalidate(conn).await?;
     let rows: Vec<(String, String, String, bool)> = sqlx::query_as(
-        "SELECT u.id, u.callsign, m.role, u.disabled_at IS NOT NULL FROM memberships m          JOIN users u ON u.id = m.user_id WHERE m.logbook_id = ? ORDER BY u.callsign",
+        "SELECT u.id, u.callsign, m.role, u.disabled_at IS NOT NULL FROM memberships m \
+         JOIN users u ON u.id = m.user_id WHERE m.logbook_id = ? ORDER BY u.callsign",
     )
     .bind(access.logbook_id())
     .fetch_all(conn)
@@ -41,12 +42,7 @@ pub async fn set(
     role: LogbookRole,
 ) -> Result<(), StoreError> {
     owner.revalidate(tx).await?;
-    let user_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND disabled_at IS NULL)")
-            .bind(user_id)
-            .fetch_one(&mut **tx)
-            .await?;
-    if !user_exists {
+    if !user::is_active(tx, user_id).await? {
         return Err(StoreError::NotFound("user"));
     }
     if role == LogbookRole::Operator {

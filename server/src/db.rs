@@ -5,11 +5,12 @@ use std::{
     time::Duration,
 };
 
-use chrono::Utc;
+use chrono::{DateTime, SecondsFormat, Utc};
 use sqlx::{
     migrate::{Migrate, MigrateError, Migrator},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions},
 };
+use uuid::Uuid;
 
 pub type Db = SqlitePool;
 
@@ -21,10 +22,24 @@ pub enum DbError {
     CreateDir { path: PathBuf, source: std::io::Error },
     #[error("{} is not valid UTF-8", path.display())]
     NonUtf8Path { path: PathBuf },
+    #[error("migrations {0:?} are pending; run the migrate subcommand first")]
+    Pending(Vec<i64>),
     #[error("database error: {0}")]
     Sqlx(#[from] sqlx::Error),
     #[error("migration error: {0}")]
     Migrate(#[from] MigrateError),
+}
+
+pub fn now() -> String {
+    timestamp(Utc::now())
+}
+
+pub fn timestamp(time: DateTime<Utc>) -> String {
+    time.to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+pub fn new_id() -> String {
+    Uuid::now_v7().to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +55,7 @@ pub struct Migrated {
 }
 
 pub async fn open(path: &Path) -> Result<Db, DbError> {
-    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+    if let Some(dir) = parent(path) {
         create_dir(dir)?;
     }
     let options = SqliteConnectOptions::new()
@@ -58,6 +73,13 @@ pub async fn migration_status(db: &Db) -> Result<MigrationStatus, DbError> {
 
 pub async fn migrate(db: &Db, snapshot_dir: &Path) -> Result<Migrated, DbError> {
     migrate_with(&MIGRATOR, db, snapshot_dir).await
+}
+
+pub async fn require_migrated(db: &Db) -> Result<(), DbError> {
+    match migration_status(db).await?.pending {
+        pending if pending.is_empty() => Ok(()),
+        pending => Err(DbError::Pending(pending)),
+    }
 }
 
 async fn status_with(migrator: &Migrator, db: &Db) -> Result<MigrationStatus, DbError> {
@@ -105,14 +127,22 @@ async fn migrate_with(migrator: &Migrator, db: &Db, snapshot_dir: &Path) -> Resu
 }
 
 pub fn snapshot_dir(database: &Path) -> PathBuf {
-    database.parent().unwrap_or(Path::new("")).join("snapshots")
+    parent(database).unwrap_or(Path::new("")).join("snapshots")
 }
 
 pub async fn snapshot(db: &Db, dir: &Path, label: &str) -> Result<PathBuf, DbError> {
     create_dir(dir)?;
-    let path = dir.join(format!("{}-{label}.db", Utc::now().format("%Y%m%dT%H%M%SZ")));
+    let path = dir.join(format!("{}-{label}.db", file_stamp(Utc::now())));
     vacuum_into(db, &path).await?;
     Ok(path)
+}
+
+pub(crate) fn parent(path: &Path) -> Option<&Path> {
+    path.parent().filter(|d| !d.as_os_str().is_empty())
+}
+
+pub(crate) fn file_stamp(time: DateTime<Utc>) -> String {
+    time.format("%Y%m%dT%H%M%SZ").to_string()
 }
 
 async fn vacuum_into(db: &Db, path: &Path) -> Result<(), DbError> {
@@ -188,6 +218,16 @@ mod tests {
         assert!(again.applied.is_empty());
         let status = migration_status(&db).await.unwrap();
         assert_eq!((status.applied, status.pending), (all, vec![]));
+        require_migrated(&db).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn names_the_pending_migrations() {
+        let (_dir, db) = temp_db().await;
+        let all: Vec<i64> = MIGRATOR.iter().map(|m| m.version).collect();
+        let err = require_migrated(&db).await.unwrap_err();
+        assert!(matches!(&err, DbError::Pending(pending) if *pending == all), "{err}");
+        assert!(err.to_string().ends_with("run the migrate subcommand first"));
     }
 
     #[tokio::test]

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{Json, extract::State, http::StatusCode};
-use chrono::{Days, NaiveDate};
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
@@ -73,10 +73,10 @@ pub async fn list(
             )));
         }
     };
-    let time = TimeRange {
-        from: date("qso_since", present(&query.qso_since), 0)?,
-        until: date("qso_until", present(&query.qso_until), 1)?,
-    };
+    let time = TimeRange::days(
+        date("qso_since", present(&query.qso_since))?,
+        date("qso_until", present(&query.qso_until))?,
+    );
 
     let mut conn = state.db.acquire().await?;
     let station_ids = match present(&query.station_id) {
@@ -167,7 +167,7 @@ pub async fn create(
             Ok((
                 StatusCode::CREATED,
                 data(
-                    json!({ "id": stored.seq, "uuid": stored.id }),
+                    json!({ "id": stored.seq, "uuid": stored.id.to_string() }),
                     json!({ "resource": "qso", "method": "POST" }),
                 ),
             ))
@@ -199,16 +199,13 @@ fn integer(name: &str, value: Option<&str>) -> Result<Option<u64>, Wl2Error> {
     }
 }
 
-fn date(name: &str, value: Option<&str>, add_days: u64) -> Result<Option<i64>, Wl2Error> {
-    let Some(value) = value else {
-        return Ok(None);
-    };
-    NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .ok()
-        .and_then(|d| d.checked_add_days(Days::new(add_days)))
-        .and_then(|d| d.and_hms_opt(0, 0, 0))
-        .map(|t| Some(t.and_utc().timestamp()))
-        .ok_or_else(|| Wl2Error::validation(format!("{name} {value:?} is not a YYYY-MM-DD date")))
+fn date(name: &str, value: Option<&str>) -> Result<Option<NaiveDate>, Wl2Error> {
+    value
+        .map(|value| {
+            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .map_err(|_| Wl2Error::validation(format!("{name} {value:?} is not a YYYY-MM-DD date")))
+        })
+        .transpose()
 }
 
 #[cfg(test)]

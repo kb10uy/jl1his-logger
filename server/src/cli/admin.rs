@@ -5,13 +5,15 @@ use clap::{Args, Subcommand, ValueEnum};
 use url::Url;
 
 use crate::{
-    cli::{CliResult, Context, days, parse_day, pick, registration_url},
+    cli::{CliResult, Context, parse_day, pick, registration_url},
     config::parse_public_origin,
     db,
     store::{
         WriteTx,
         access::{self, LogbookRole},
-        logbook, membership, registration, settings,
+        logbook, membership,
+        qso::TimeRange,
+        registration, settings,
         station::{self, StationInput},
         token::{self, TokenInput, TokenKind},
         user::{self, Role, User},
@@ -543,7 +545,7 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
             ..
         } => {
             let target = context.station(&access, Some(&key)).await?;
-            let range = days(from, until);
+            let range = TimeRange::days(from, until);
             let owner = access.owner()?;
             match expect {
                 None => {

@@ -18,7 +18,7 @@ use crate::{
         WriteTx,
         reference::{self, ReferenceKind},
         session,
-        station::{self, Station, tests::input as station_input},
+        station::Station,
         testing::World,
         token::{self, TokenInput, TokenKind},
         user::User,
@@ -49,12 +49,7 @@ impl Harness {
     pub async fn with_config(config: Config) -> Harness {
         let world = World::new().await;
         let state = Arc::new(AppState::new(world.db.clone(), config, Url::parse(ORIGIN).unwrap()).unwrap());
-        let owner = world.access(&world.owner).await;
-        let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let station = station::create(&mut tx, &owner.owner().unwrap(), &station_input("Home"))
-            .await
-            .unwrap();
-        tx.commit().await.unwrap();
+        let station = world.station("Home").await;
         Harness {
             app: router(state.clone(), None),
             state,
