@@ -163,6 +163,10 @@ the binary itself, files go in and out with `docker cp`, and a bind-mounted
 `/data` must be writable by UID 65532. `assets/dxcc.toml` and
 `assets/config.example.toml` are in `/usr/share/jl1his-logger`.
 
+The Image workflow pushes it to `ghcr.io/kb10uy/jl1his-logger`: `edge` follows
+`master`, a `v*` tag publishes its version and `latest`, and every build is also
+tagged `sha-<commit>`.
+
 ```sh
 docker build -t jl1his-logger .
 docker create --name jl1his-logger -p 127.0.0.1:8080:8080 -v jl1his-logger:/data jl1his-logger
