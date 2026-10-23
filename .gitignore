@@ -15,6 +15,8 @@ node_modules
 /client/.svelte-kit
 /client/build
 /client/src/lib/query/wasm
+/client/static/models
+/client/static/vosk-worker.js
 /client/test-results
 /client/playwright-report
 vite.config.ts.timestamp-*

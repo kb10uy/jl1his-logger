@@ -1,5 +1,6 @@
 <script lang="ts">
     import AppShell from '#lib/components/AppShell.svelte';
+    import SettingsFrame from '#lib/components/SettingsFrame.svelte';
     import { lastLogbook, session } from '#lib/state/session.svelte.ts';
 
     let { children } = $props();
@@ -10,5 +11,7 @@
 </script>
 
 <AppShell {logbookId}>
-    {@render children()}
+    <SettingsFrame {logbookId}>
+        {@render children()}
+    </SettingsFrame>
 </AppShell>

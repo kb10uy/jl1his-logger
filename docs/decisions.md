@@ -228,7 +228,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Web Client Routes
 
 - Every screen has a path of its own, so moving between screens adds browser history and a screen can be bookmarked or reloaded. The client routes as a single-page app; the server already answers any other path outside `/api` and `/wl2` with `index.html`.
-- Screens of a Logbook carry its ID: `/logbooks/{logbook_id}/log`, `/entry`, `/voice`, `/qsos/{qso_id}` (editing one QSO), `/stations`, `/stations/{station_id}`, `/qsl`, `/import-export`, `/members` and, on mobile, `/more`. Switching the Logbook keeps the screen. Screens of the user or the instance do not: `/settings/account`, `/settings/tokens` and `/settings/reference`. `/` opens the log of the Logbook last used on the device; sign-in is `/login` and registration `/register` (see Sign-in and Credentials).
+- Screens of a Logbook carry its ID: `/logbooks/{logbook_id}/log`, `/entry`, `/voice`, `/qsos/{qso_id}` (editing one QSO), `/stations`, `/stations/{station_id}`, `/qsl`, `/import-export`, `/members` and, on mobile, `/more`. Switching the Logbook keeps the screen. Screens of the user or the instance do not: `/settings/account`, `/settings/tokens` and `/settings/reference`, with `/settings` listing them on mobile. Settings shows the members of the current Logbook as one of its sections, at that Logbook's `/members`. `/` opens the log of the Logbook last used on the device; sign-in is `/login` and registration `/register` (see Sign-in and Credentials).
 - The log keeps its query in the URL as `?q=`, in the text syntax of Search, so a query can be bookmarked and reopened later. The QSO open in the detail overlay is `?qso={qso_id}`. Typing a query, opening or closing the overlay replace the current history entry rather than adding one. Checked rows stay out of the URL.
 
 ### Offline Entry
@@ -240,6 +240,8 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Position of the Clients
 
 - speech-to-qso: absorbed into the web UI. The voice entry screen becomes one screen of the PWA, and the offline queue is shared with Live entry.
+- Voice entry shares Live entry's per-device settings (Station, frequency, band, mode and contest, the serial included), so switching between the two screens carries them over. The spoken QSL requests keep speech-to-qso's mapping: "requested" sets `QSL_SENT = R`, "one way" sets `QSL_SENT = N` and `QSL_RCVD = R`, and JCC / JCG go to `CNTY`.
+- Speech recognition is Vosk in the browser. The models are not in the repository: `npm run models` downloads them into `client/static/models`, the server serves them with the app, and the browser keeps a loaded model in IndexedDB so voice entry works offline. The service worker does not precache them. The Vosk worker is copied out of `vosk-browser` into `static/vosk-worker.js` at build time and started as a same-origin worker, so the page's CSP needs neither `blob:` workers nor `unsafe-eval`.
 - hislog: moves to the native API after implementing a persistent unsent queue with UUIDs.
 - grayline: lookup compatibility for the time being. Moving to the native API is low priority.
 - wavelog-tools: export / subdivisions compatibility for the time being. Moves once the native CLI is complete.

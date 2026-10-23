@@ -1,15 +1,30 @@
 import { query, request } from './client.ts';
 import type {
+    Batch,
+    Exported,
+    ExportKind,
     Fields,
+    ImportSource,
+    LengthUnit,
     Logbook,
+    LogbookRole,
     Lookup,
     Me,
+    Member,
+    MergeReport,
+    NewReport,
     Outcome,
     Page,
+    Passkey,
     Qso,
+    ReferenceVersion,
     Saved,
     Station,
-    Target
+    StationInput,
+    Subdivision,
+    Target,
+    Token,
+    TokenKind
 } from './types.ts';
 import {
     authenticationJson,
@@ -57,11 +72,82 @@ export async function finishRegistration(
 
 export const signOut = () => request<void>('POST', '/api/auth/logout');
 
+export const passkeys = () => request<Passkey[]>('GET', '/api/passkeys');
+
+export async function addPasskey(name: string): Promise<Passkey> {
+    const { ceremony, options } = await request<Ceremony>('POST', '/api/passkeys/register/start');
+    const credential = (await navigator.credentials.create(
+        creationOptions(options)
+    )) as PublicKeyCredential | null;
+    if (credential === null) throw new Error('No passkey was created.');
+    return request<Passkey>('POST', '/api/passkeys/register/finish', {
+        body: { ceremony, credential: registrationJson(credential), name }
+    });
+}
+
+export const deletePasskey = (id: string) =>
+    request<void>('DELETE', `/api/passkeys/${encodeURIComponent(id)}`);
+
+export const references = () => request<ReferenceVersion[]>('GET', '/api/reference');
+
+export const subdivisions = (dxcc: number) =>
+    request<Subdivision[]>('GET', `/api/reference/subdivisions/${dxcc}`);
+
+export const tokens = () => request<Token[]>('GET', '/api/tokens');
+
+export interface TokenRequest {
+    kind: TokenKind;
+    name: string;
+    logbook_ids: string[];
+    wl2_prefix?: boolean;
+}
+
+export const issueToken = (token: TokenRequest) =>
+    request<{ token: Token; plaintext: string }>('POST', '/api/tokens', { body: token });
+
+export const revokeToken = (id: string) =>
+    request<void>('DELETE', `/api/tokens/${encodeURIComponent(id)}`);
+
 export const logbooks = () => request<Logbook[]>('GET', '/api/logbooks');
 
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
 
 export const stations = (logbook: string) => request<Station[]>('GET', `${base(logbook)}/stations`);
+
+const station = (logbook: string, id: string) =>
+    `${base(logbook)}/stations/${encodeURIComponent(id)}`;
+
+export const createStation = (logbook: string, input: StationInput) =>
+    request<Station>('POST', `${base(logbook)}/stations`, { body: input });
+
+export const updateStation = (logbook: string, id: string, input: StationInput) =>
+    request<Station>('PUT', station(logbook, id), { body: input });
+
+export const archiveStation = (logbook: string, id: string, archived: boolean) =>
+    request<Station>(archived ? 'POST' : 'DELETE', `${station(logbook, id)}/archive`);
+
+export interface Range {
+    from?: string;
+    until?: string;
+}
+
+export const previewRewrite = (logbook: string, id: string, range: Range) =>
+    request<{ count: number }>('GET', `${station(logbook, id)}/rewrite${query({ ...range })}`);
+
+export const rewrite = (logbook: string, id: string, range: Range, count: number) =>
+    request<{ count: number }>('POST', `${station(logbook, id)}/rewrite`, {
+        body: { ...range, count }
+    });
+
+export const members = (logbook: string) => request<Member[]>('GET', `${base(logbook)}/members`);
+
+export const setMember = (logbook: string, callsign: string, role: LogbookRole) =>
+    request<Member[]>('PUT', `${base(logbook)}/members/${encodeURIComponent(callsign)}`, {
+        body: { role }
+    });
+
+export const removeMember = (logbook: string, callsign: string) =>
+    request<void>('DELETE', `${base(logbook)}/members/${encodeURIComponent(callsign)}`);
 
 export interface Search {
     q?: string;
@@ -117,5 +203,46 @@ export const lookup = (logbook: string, call: string, signal?: AbortSignal) =>
 
 export const updateQsl = (logbook: string, qsos: Target[], fields: Fields) =>
     request<Outcome>('POST', `${base(logbook)}/qsl`, { body: { qsos, fields } });
+
+export interface ExportRequest {
+    kind: ExportKind;
+    q?: string;
+    park?: string;
+    length?: LengthUnit;
+}
+
+export const createExport = (logbook: string, req: ExportRequest) =>
+    request<Exported>('POST', `${base(logbook)}/exports`, { body: req });
+
+export const batches = (logbook: string) => request<Batch[]>('GET', `${base(logbook)}/exports`);
+
+export const applyBatch = (logbook: string, id: string) =>
+    request<Outcome>('POST', `${base(logbook)}/exports/${encodeURIComponent(id)}/apply`);
+
+export interface ImportRequest {
+    station_id?: string;
+    format: 'adi' | 'adx';
+    length?: LengthUnit;
+    apply: boolean;
+}
+
+export function importAdif(
+    logbook: string,
+    source: 'new',
+    req: ImportRequest,
+    file: Blob
+): Promise<NewReport>;
+export function importAdif(
+    logbook: string,
+    source: Exclude<ImportSource, 'new'>,
+    req: ImportRequest,
+    file: Blob
+): Promise<MergeReport>;
+export function importAdif(logbook: string, source: ImportSource, req: ImportRequest, file: Blob) {
+    const params = query({ source, ...req, apply: req.apply ? 'true' : undefined });
+    return request<NewReport | MergeReport>('POST', `${base(logbook)}/imports${params}`, {
+        raw: file
+    });
+}
 
 export const eventsUrl = (logbook: string) => `${base(logbook)}/events`;

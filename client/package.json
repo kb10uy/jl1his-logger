@@ -5,9 +5,11 @@
     "type": "module",
     "scripts": {
         "wasm": "wasm-pack build ../query --target web --release --out-dir ../client/src/lib/query/wasm --out-name query --no-pack -- --features wasm",
-        "predev": "npm run wasm",
+        "vosk": "node scripts/vosk-worker.js",
+        "models": "sh scripts/fetch-models.sh",
+        "predev": "npm run wasm && npm run vosk",
         "dev": "vite dev",
-        "prebuild": "npm run wasm",
+        "prebuild": "npm run wasm && npm run vosk",
         "build": "vite build",
         "preview": "vite preview",
         "prepare": "svelte-kit sync || echo ''",
@@ -39,9 +41,13 @@
         "@fontsource-variable/inter": "^5.3.0",
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "bits-ui": "^2.20.2",
-        "idb": "^8.0.4"
+        "idb": "^8.0.4",
+        "vosk-browser": "0.0.8"
     },
     "imports": {
         "#lib/*": "./src/lib/*"
+    },
+    "overrides": {
+        "uuid": "14.0.3"
     }
 }

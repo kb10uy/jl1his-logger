@@ -108,3 +108,106 @@ export interface QsoEvent {
     cursor_generation: string;
     qso: Qso;
 }
+
+export interface StationInput {
+    name: string;
+    callsign: string;
+    wavelog_id: number | null;
+    fields: Fields;
+}
+
+export interface Member {
+    user_id: string;
+    callsign: string;
+    role: LogbookRole;
+    disabled: boolean;
+}
+
+export interface Passkey {
+    id: string;
+    name: string;
+    created_at: string;
+    last_used_at: string | null;
+}
+
+export type TokenKind = 'native' | 'wl2';
+
+export interface Token {
+    id: string;
+    user_id: string;
+    kind: TokenKind;
+    name: string;
+    logbook_ids: string[];
+    created_at: string;
+    last_used_at: string | null;
+}
+
+export type ReferenceKind = 'cty' | 'dxcc' | 'subdivisions' | 'parks';
+
+export interface ReferenceVersion {
+    kind: ReferenceKind;
+    version: string;
+    updated_at: string;
+}
+
+export interface Subdivision {
+    code: string;
+    name: string;
+}
+
+export type ExportKind = 'adif' | 'pota' | 'eqsl' | 'lotw' | 'qsl_card';
+
+export type LengthUnit = 'codepoints' | 'bytes';
+
+export interface Batch {
+    id: string;
+    kind: ExportKind;
+    created_by: string;
+    created_at: string;
+    applied_at: string | null;
+    qso_count: number;
+}
+
+export interface Exported {
+    batch: Batch | null;
+    records: number;
+    adif: string | null;
+}
+
+export type ImportSource = 'new' | 'lotw' | 'eqsl' | 'card';
+
+export interface RecordIds {
+    record: number;
+    ids: string[];
+}
+
+export interface Invalid {
+    record: number;
+    error: string;
+}
+
+export interface NewReport {
+    applied: boolean;
+    read: number;
+    created: number;
+    existing: number;
+    duplicates: RecordIds[];
+    outside_band: { record: number; freq: string; band: string }[];
+    modes: ({ record: number } & Warning)[];
+    invalid: Invalid[];
+    rejects: string | null;
+}
+
+export interface MergeReport {
+    applied: boolean;
+    read: number;
+    not_confirmations: number;
+    merged: number;
+    already: number;
+    unmatched: number[];
+    ambiguous: RecordIds[];
+    invalid: Invalid[];
+    skipped: Skipped[];
+    differences: Record<string, number>;
+    rejects: string | null;
+}

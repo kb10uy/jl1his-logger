@@ -1,5 +1,6 @@
 <script lang="ts">
-    import NotBuilt from '#lib/components/NotBuilt.svelte';
+    import { page } from '$app/state';
+    import StationsScreen from '#lib/components/stations/StationsScreen.svelte';
 </script>
 
-<NotBuilt title="Station" />
+<StationsScreen selected={page.params.station} />

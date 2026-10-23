@@ -66,6 +66,7 @@ Logbooks.
 ```sh
 cd client
 npm ci
+npm run models                # the Vosk speech models for voice entry, about 90 MB
 npm run build                 # → client/build
 
 cd ../server
@@ -146,6 +147,9 @@ jl1his-logger restore backups/jl1his-logger-20261022T000000Z.db --yes
 
 The client build compiles `query/` to WASM first, so it needs Rust with the
 `wasm32-unknown-unknown` target and [wasm-pack](https://github.com/drager/wasm-pack).
+Voice entry needs the speech models in `client/static/models`, fetched by
+`npm run models`; without them the rest of the app works and voice entry says
+the model is missing.
 
 ```sh
 cd client

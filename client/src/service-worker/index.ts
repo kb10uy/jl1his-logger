@@ -10,7 +10,10 @@ const toUrl = (path: string) => new URL(path, scope()).href;
 const precacheUrls = () => [
     ...new Set([
         scope().href,
-        ...[...immutable, ...assets, ...prerendered].map(({ path }) => path).map(toUrl)
+        ...[...immutable, ...assets, ...prerendered]
+            .map(({ path }) => path)
+            .filter((path) => !path.startsWith('models/'))
+            .map(toUrl)
     ])
 ];
 

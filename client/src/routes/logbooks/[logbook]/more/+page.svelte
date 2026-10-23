@@ -18,7 +18,7 @@
         { label: 'QSL', icon: 'qsl', href: `${root}/qsl` },
         { label: 'Import / Export', icon: 'transfer', href: `${root}/import-export` },
         { label: 'Members', icon: 'members', href: `${root}/members` },
-        { label: 'Settings', icon: 'settings', href: '/settings/account' }
+        { label: 'Settings', icon: 'settings', href: '/settings' }
     ];
 
     async function signOut() {

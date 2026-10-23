@@ -1,5 +1,5 @@
 <script lang="ts">
-    import NotBuilt from '#lib/components/NotBuilt.svelte';
+    import StationsScreen from '#lib/components/stations/StationsScreen.svelte';
 </script>
 
-<NotBuilt title="Stations" />
+<StationsScreen selected={undefined} />

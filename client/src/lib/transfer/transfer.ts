@@ -1,0 +1,50 @@
+import type { ExportKind, MergeReport, NewReport, Outcome } from '#lib/api/types.ts';
+
+export const MAX_IMPORT = 64 * 1024 * 1024;
+
+export const KIND_LABELS: Record<ExportKind, string> = {
+    adif: 'ADIF',
+    pota: 'POTA',
+    qsl_card: 'QSL card',
+    eqsl: 'eQSL',
+    lotw: 'LoTW'
+};
+
+export const SENT_FIELDS: Partial<Record<ExportKind, [string, string]>> = {
+    qsl_card: ['QSL_SENT', 'QSLSDATE'],
+    eqsl: ['EQSL_QSL_SENT', 'EQSL_QSLSDATE'],
+    lotw: ['LOTW_QSL_SENT', 'LOTW_QSLSDATE']
+};
+
+export function recordOnly(kind: ExportKind): boolean {
+    return SENT_FIELDS[kind] === undefined;
+}
+
+export function formatOf(name: string): 'adi' | 'adx' {
+    return name.toLowerCase().endsWith('.adx') ? 'adx' : 'adi';
+}
+
+export function fileName(logbook: string, kind: ExportKind, at: Date, suffix = ''): string {
+    const stamp = at.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+    const safe = logbook.replace(/[^A-Za-z0-9_-]+/g, '_');
+    return `${safe}-${kind.replace('_', '-')}${suffix}-${stamp}.adi`;
+}
+
+export function rejectCount(report: NewReport | MergeReport): number {
+    return 'unmatched' in report
+        ? report.invalid.length + report.unmatched.length + report.ambiguous.length
+        : report.invalid.length;
+}
+
+export function differencesText(differences: Record<string, number>): string {
+    return Object.entries(differences)
+        .filter(([, n]) => n > 0)
+        .sort(([, a], [, b]) => b - a)
+        .map(([field, n]) => `${field} ${n}`)
+        .join(', ');
+}
+
+export function outcomeText(outcome: Outcome): string {
+    const skipped = outcome.skipped.length;
+    return `${outcome.updated.length} updated${skipped > 0 ? `, ${skipped} skipped` : ''}`;
+}

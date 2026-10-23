@@ -1,5 +1,10 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
 
-    goto('/settings/account', { replace: true });
+    onMount(() => {
+        if (window.matchMedia('(min-width: 48rem)').matches) {
+            goto('/settings/account', { replace: true });
+        }
+    });
 </script>

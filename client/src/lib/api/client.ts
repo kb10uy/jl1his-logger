@@ -17,6 +17,7 @@ export class ApiError extends Error {
 
 export interface RequestOptions {
     body?: unknown;
+    raw?: Blob;
     revision?: number;
     signal?: AbortSignal;
 }
@@ -30,17 +31,18 @@ export function onUnauthorized(handler: () => void) {
 export async function request<T>(
     method: string,
     path: string,
-    { body, revision, signal }: RequestOptions = {}
+    { body, raw, revision, signal }: RequestOptions = {}
 ): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (raw !== undefined) headers['Content-Type'] = 'application/octet-stream';
     if (revision !== undefined) headers['If-Match'] = `"${revision}"`;
     let response: Response;
     try {
         response = await fetch(path, {
             method,
             headers,
-            body: body === undefined ? undefined : JSON.stringify(body),
+            body: raw ?? (body === undefined ? undefined : JSON.stringify(body)),
             credentials: 'same-origin',
             signal
         });

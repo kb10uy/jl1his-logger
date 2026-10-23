@@ -70,7 +70,9 @@
 
     const current = (href: string) =>
         page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
-    const onSettings = $derived(page.url.pathname.startsWith('/settings'));
+    const onSettings = $derived(
+        page.url.pathname.startsWith('/settings') || page.url.pathname === `${root}/members`
+    );
     const onMore = $derived(
         root !== null &&
             !items.some((i) => i.mobile && current(i.href)) &&
