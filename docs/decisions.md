@@ -19,7 +19,8 @@ The outcome of the design review as of 2026-10-23: the direction for jl1his-logg
 - A new, separate repository (this one) holding one server, one SQLite database and a same-origin SPA / PWA.
 - The server is Rust + axum; the client is SvelteKit. The authentication (passkeys), delivery and offline entry of speech-to-qso serve as the reference.
 - One SQLite database. Set WAL and `busy_timeout`, and keep write transactions short.
-- The server is one package: no workspace and no shared crate. `domain` stays free of the database, network and file system by convention and review. It is split into a crate of its own only when another binary or repository needs it, or when build times call for it.
+- The server is one package: no workspace. `domain` stays free of the database, network and file system by convention and review. It is split into a crate of its own only when another binary or repository needs it, or when build times call for it.
+- The query syntax of Search is the one shared crate, `query/` beside `server/`: a path dependency of the server, without a workspace, and compiled to WASM with `wasm-bindgen` (its `wasm` feature) for the client. It holds parsing a query and matching a row, with the `call_base` rule matching needs, and nothing else; the server turns the parsed terms into SQL. It has no dependencies outside the `wasm` feature, so no `regex`, and the module is about 70 KB. The client builds it with `wasm-pack` before it builds itself, and loads it asynchronously before the first query.
 
 ## Required Features
 
@@ -137,15 +138,16 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
   | `park:JP-0012` | One of the references in `MY_POTA_REF` is the value |
   | `dxcc:339` | `DXCC` is one of the entity codes |
   | `date:2026-10-01..2026-10-19`, `date:>=2026-10-18` | The UTC date of the QSO time is in the range (either end may be open) or compares with `>`, `>=`, `<`, `<=` |
-  | `has:freq`, `no:freq` | The column or ADIF field is present or absent; an empty value counts as absent |
-  | `adif.TX_PWR:10` | The ADIF field, by name ignoring case, is one of the values |
+  | `has:freq`, `no:freq` | The ADIF field, by name ignoring case, is present or absent; an empty value counts as absent. `park`, `sent`, `rcvd` and `contest` name `MY_POTA_REF`, `QSL_SENT`, `QSL_RCVD` and `CONTEST_ID` |
+  | `adif.TX_PWR:10` | The ADIF field, by name ignoring case, is one of the values, ignoring ASCII case |
   | `yokohama` | The call, `NAME`, `QTH` or `COMMENT` contains the word, ignoring case |
   | `-term` | The term does not hold |
 
 - Values are compared as their ADIF strings, enumerations ignoring ASCII case (see Storage Shape). Wildcard and substring terms scan the Logbook's rows; at the size of one station's log no index or full-text table is needed, and FTS5 is added only when that stops being true.
 - An unknown field, a bad date or a malformed term is `400`, naming the term and its position so the client can mark it. A term is never dropped silently.
+- Parsing and matching are one implementation, the query crate (see Structure). The server translates each term into SQL, and a store test runs a set of queries both through SQL and through the crate's matcher over the same rows, so the two cannot drift apart. The client uses the crate to show the terms as chips while typing (an unfinished term such as `call:` is shown as pending and the query is not sent) and to test the rows SSE delivers against the query.
 - The structured filters of the first version (a QSO time range, the Station, band, mode, the call or `call_base`, a set of `QSL_SENT` values in which an empty value matches an absent field, and `contest_id`) stay as parameters and combine with `q`.
-- Selecting every match in the log list asks the server for the IDs and revisions of all matches, and a bulk change takes that list (see Bulk Changes). A bulk change is never applied to a query directly, so what changes is what was selected, at the revisions it was selected at.
+- Selecting every match in the log list asks the server for the IDs and revisions of all matches (`GET /targets` with the same filters), and a bulk change takes that list (see Bulk Changes). A bulk change is never applied to a query directly, so what changes is what was selected, at the revisions it was selected at.
 
 ### Store and Authorization Boundaries
 
@@ -177,7 +179,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - A field value is at most 2048 bytes and a QSO has at most 1024 fields outside the columns; the names of passkeys, tokens, Stations and Logbooks are at most 2048 bytes. The bounds are checked where a `Qso` is built and again when it is checked before a write, so nothing larger is stored. A filter lists at most 100 values.
 - Reading uses adif-reader (github.com/kb10uy/adif-reader).
 - The writer moves into adif-reader as a `write` module of the same crate once the migration rehearsal has settled the export output, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
-- No shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
+- Apart from the query crate (see Structure), no shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
 - An export records the target UUIDs and `revision`s as a batch, and after the external processing only the matching rows of that batch are updated.
@@ -229,6 +231,12 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Screens of a Logbook carry its ID: `/logbooks/{logbook_id}/log`, `/entry`, `/voice`, `/qsos/{qso_id}` (editing one QSO), `/stations`, `/stations/{station_id}`, `/qsl`, `/import-export`, `/members` and, on mobile, `/more`. Switching the Logbook keeps the screen. Screens of the user or the instance do not: `/settings/account`, `/settings/tokens` and `/settings/reference`. `/` opens the log of the Logbook last used on the device; sign-in is `/login` and registration `/register` (see Sign-in and Credentials).
 - The log keeps its query in the URL as `?q=`, in the text syntax of Search, so a query can be bookmarked and reopened later. The QSO open in the detail overlay is `?qso={qso_id}`. Typing a query, opening or closing the overlay replace the current history entry rather than adding one. Checked rows stay out of the URL.
 
+### Offline Entry
+
+- The client keeps no copy of the Logbook, so offline there is no log list, no lookup and no duplicate warning.
+- Entry keeps only its own QSOs. Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue with the reason, which the screen shows; the user sends the queue explicitly or discards an entry, and nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send.
+- The service worker caches the app shell, so the PWA starts offline; it never caches `/api` or `/wl2`.
+
 ### Position of the Clients
 
 - speech-to-qso: absorbed into the web UI. The voice entry screen becomes one screen of the PWA, and the offline queue is shared with Live entry.
@@ -261,25 +269,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - The native lookup, `GET /api/logbooks/{id}/lookup?call=`, returns the `cty.dat` entity (name, ADIF DXCC code when `dxcc` is installed, continent, CQ and ITU zones, position) and the previous contacts in that Logbook matched by `call_base`: the latest non-empty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA` and `QSL_VIA` under their ADIF names, the number of QSOs and the time of the last one. It can be narrowed to Stations.
 - The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response. hislog uses the native one once it moves.
-- The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Open Questions).
-
-## Open Questions
-
-### Offline Behavior of the Client
-
-The client keeps no copy of the Logbook, so offline there is no log list, no lookup and no duplicate warning. What entry does offline is one of two:
-
-1. **Entry keeps only its own QSOs.** Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue, which the screen shows, and the user sends the queue explicitly; nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send. This keeps the offline queue absorbed from speech-to-qso.
-2. **Nothing works offline.** Entry needs a connection and the PWA holds no QSOs. Voice entry in the field then needs a network, or hislog. This drops the offline queue and the local-first rule.
-
-### Sharing the Query Parser
-
-The server is the authority on the query syntax (see Search), but the client parses it too: to show the terms as chips while typing, and to test the rows SSE delivers against the query. Two ways to keep both sides in agreement:
-
-1. **Two implementations**, Rust and TypeScript, checked against shared cases under `fixtures/query/`, as the ADIF writer and the mode table already are.
-2. **One Rust crate compiled to WASM** for the client. Structure allows a crate of its own once another binary needs it, which the client then does; it would sit beside `server/` as a path dependency without a workspace, or in a repository of its own as adif-reader does, and ADIF Input and Output's "no shared crate is split out" would be revised. The cost is a `wasm32` target and `wasm-bindgen` in the client build and CI, an asynchronous load before the first query, and the size of the module, which rules out the `regex` crate.
-
-The granularity is open as well: only the query (parsing it and matching a row), or more of `domain` (bands, modes, callsign normalization, the duplicate heuristic), which would also retire the fixture checks for those tables. The voice entry grammar runs only in the client, so it gains nothing from Rust unless another program comes to parse it.
+- The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Offline Entry).
 
 ## Implementation Order (Draft)
 

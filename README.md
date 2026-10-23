@@ -54,6 +54,8 @@ Logbooks.
   backup). Serves `client/build` on the same origin.
 - `client/` — SvelteKit + TypeScript PWA, built with `adapter-static` as a
   client-only app with offline entry.
+- `query/` — the log's query syntax as a Rust crate, used by the server and
+  compiled to WASM for the client.
 - `assets/` — example files, such as `config.example.toml`.
 - `docs/` — development documentation. `decisions.md` is the design record,
   `schema.md` the database and `api.md` the native API.
@@ -142,6 +144,9 @@ jl1his-logger restore backups/jl1his-logger-20261022T000000Z.db --yes
 
 ## Development
 
+The client build compiles `query/` to WASM first, so it needs Rust with the
+`wasm32-unknown-unknown` target and [wasm-pack](https://github.com/drager/wasm-pack).
+
 ```sh
 cd client
 npm install
@@ -149,6 +154,9 @@ npm run dev                   # Vite; /api is forwarded to the server at API_SER
 npm run lint
 npm run check
 npm test
+
+cd ../query
+cargo test
 
 cd ../server
 cargo fmt --check

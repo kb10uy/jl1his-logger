@@ -1,0 +1,5 @@
+package-lock.json
+/build/
+/.svelte-kit/
+/src/lib/query/wasm/
+/static/

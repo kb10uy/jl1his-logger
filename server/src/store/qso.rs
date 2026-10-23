@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, sync::LazyLock};
 
 use chrono::{NaiveDate, NaiveTime};
+use jl1his_query::{self as text, Condition, Term};
 use sqlx::{
     AssertSqlSafe, Connection, Row, Sqlite, SqliteConnection,
     query::Query,
@@ -187,6 +188,7 @@ pub struct Filter {
     pub call: Option<CallMatch>,
     pub qsl_sent: Option<Vec<String>>,
     pub contest_id: Option<String>,
+    pub query: text::Query,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -509,6 +511,46 @@ pub async fn search_all(
     }
 }
 
+pub async fn count(conn: &mut SqliteConnection, access: &LogbookAccess, filter: &Filter) -> Result<u64, StoreError> {
+    access.revalidate(conn).await?;
+    let conditions = Conditions::of(access, filter)?;
+    let sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
+    let count: i64 = conditions
+        .bind(sqlx::query(AssertSqlSafe(sql)))
+        .fetch_one(conn)
+        .await?
+        .try_get(0)?;
+    Ok(count as u64)
+}
+
+pub async fn targets(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    filter: &Filter,
+) -> Result<Vec<Target>, StoreError> {
+    access.revalidate(conn).await?;
+    let conditions = Conditions::of(access, filter)?;
+    let sql = format!(
+        "SELECT id, revision FROM qsos WHERE {} ORDER BY qso_time DESC, id DESC",
+        conditions.sql()
+    );
+    conditions
+        .bind(sqlx::query(AssertSqlSafe(sql)))
+        .fetch_all(conn)
+        .await?
+        .iter()
+        .map(|row| {
+            let id: String = row.try_get("id")?;
+            Ok(Target {
+                id: id
+                    .parse()
+                    .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}")))?,
+                revision: row.try_get("revision")?,
+            })
+        })
+        .collect()
+}
+
 async fn page(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
@@ -712,7 +754,86 @@ impl Conditions {
         if let Some(until) = filter.time.until {
             conditions.push("qso_time < ?", [Bind::Int(until)]);
         }
+        for term in filter.query.terms() {
+            conditions.term(access, term);
+        }
         Ok(conditions)
+    }
+
+    fn term(&mut self, access: &LogbookAccess, term: &Term) {
+        let mut binds = vec![];
+        let any = |clauses: Vec<String>| format!("({})", clauses.join(" OR "));
+        let clause = match &term.condition {
+            Condition::Call(patterns) => any(
+                patterns
+                    .iter()
+                    .map(|pattern| {
+                        binds.push(Bind::Text(pattern.replace('[', "[[]")));
+                        "upper(trim(coalesce(call, ''))) GLOB ?".to_owned()
+                    })
+                    .collect(),
+            ),
+            Condition::Base(bases) => {
+                binds.extend(bases.iter().cloned().map(Bind::Text));
+                format!("call_base IN ({})", vec!["?"; bases.len()].join(", "))
+            }
+            Condition::Field { name, values } => {
+                let field = field_expression(name, &mut binds);
+                binds.extend(values.iter().cloned().map(Bind::Text));
+                format!(
+                    "upper(trim(coalesce({field}, ''))) IN ({})",
+                    vec!["?"; values.len()].join(", ")
+                )
+            }
+            Condition::Station(needles) => any(
+                needles
+                    .iter()
+                    .map(|needle| {
+                        binds.extend([
+                            Bind::Text(access.logbook_id().to_owned()),
+                            Bind::Text(needle.clone()),
+                            Bind::Text(needle.clone()),
+                        ]);
+                        "(station_id IN (SELECT id FROM stations WHERE logbook_id = ? AND instr(lower(name), ?) > 0)                          OR instr(lower(coalesce(station_callsign, '')), ?) > 0)"
+                            .to_owned()
+                    })
+                    .collect(),
+            ),
+            Condition::Park(parks) => any(
+                parks
+                    .iter()
+                    .map(|park| {
+                        binds.push(Bind::Text(format!(",{park},")));
+                        "instr(',' || upper(replace(coalesce(my_pota_ref, ''), ' ', '')) || ',', ?) > 0".to_owned()
+                    })
+                    .collect(),
+            ),
+            Condition::Date { from, until } => {
+                let mut clauses = vec![];
+                if let Some(from) = from {
+                    clauses.push("qso_time >= ?");
+                    binds.push(Bind::Int(from.unix_seconds()));
+                }
+                if let Some(until) = until {
+                    clauses.push("qso_time < ?");
+                    binds.push(Bind::Int(until.unix_seconds()));
+                }
+                format!("({})", clauses.join(" AND "))
+            }
+            Condition::Present(name) => {
+                let field = field_expression(name, &mut binds);
+                format!("trim(coalesce({field}, '')) <> ''")
+            }
+            Condition::Word(word) => {
+                binds.extend((0..4).map(|_| Bind::Text(word.clone())));
+                "(instr(lower(coalesce(call, '')), ?) > 0 OR instr(lower(coalesce(name, '')), ?) > 0                  OR instr(lower(coalesce(qth, '')), ?) > 0 OR instr(lower(coalesce(comment, '')), ?) > 0)"
+                    .to_owned()
+            }
+        };
+        match term.negated {
+            true => self.push(format!("NOT ({clause})"), binds),
+            false => self.push(clause, binds),
+        }
     }
 
     fn push(&mut self, clause: impl Into<String>, binds: impl IntoIterator<Item = Bind>) {
@@ -747,6 +868,17 @@ impl Conditions {
             };
         }
         query
+    }
+}
+
+fn field_expression(name: &str, binds: &mut Vec<Bind>) -> String {
+    let column = name.to_ascii_lowercase();
+    match ADIF_COLUMNS.contains(&column) {
+        true => column,
+        false => {
+            binds.push(Bind::Text(format!("$.\"{name}\"")));
+            "json_extract(fields, ?)".to_owned()
+        }
     }
 }
 
@@ -1151,6 +1283,191 @@ mod tests {
         let page = search(&mut conn, &access, &filter(&station), None, 10).await.unwrap();
         let expected: Vec<QsoId> = expected.iter().map(|i| ids[*i]).collect();
         assert_eq!(found(&page), expected);
+    }
+
+    struct Row<'a>(&'a StoredQso, &'a str);
+
+    impl text::Record for Row<'_> {
+        fn field(&self, name: &str) -> Option<&str> {
+            self.0.qso.get(name)
+        }
+
+        fn station_name(&self) -> Option<&str> {
+            Some(self.1)
+        }
+    }
+
+    #[tokio::test]
+    async fn searches_text_queries_as_the_matcher_does() {
+        let world = World::new().await;
+        let home = world.station("Home").await;
+        let park = world.station("Mt. Takao").await;
+        let access = world.access(&world.operator).await;
+        let rows: &[(&Station, &[(&str, &str)])] = &[
+            (
+                &home,
+                &[
+                    ("CALL", "JA1AAA"),
+                    ("QSO_DATE", "20261017"),
+                    ("QSL_SENT", "r"),
+                    ("NAME", "Taro"),
+                ],
+            ),
+            (
+                &home,
+                &[
+                    ("CALL", "ja1aaa/p"),
+                    ("QSO_DATE", "20261018"),
+                    ("BAND", "20m"),
+                    ("FREQ", "14.020"),
+                ],
+            ),
+            (
+                &park,
+                &[
+                    ("CALL", "JH1XYZ"),
+                    ("QSO_DATE", "20261019"),
+                    ("MY_POTA_REF", "JP-0012, JP-0345"),
+                ],
+            ),
+            (
+                &park,
+                &[
+                    ("CALL", "7K1XYZ"),
+                    ("QSO_DATE", "20261019"),
+                    ("MODE", "SSB"),
+                    ("QTH", "Yokohama"),
+                ],
+            ),
+            (
+                &home,
+                &[
+                    ("CALL", "W6ABC"),
+                    ("QSO_DATE", "20261020"),
+                    ("TX_PWR", "10"),
+                    ("COMMENT", "big [pile]"),
+                ],
+            ),
+            (
+                &home,
+                &[
+                    ("CALL", "KH6/W1AW"),
+                    ("QSO_DATE", "20261021"),
+                    ("STATION_CALLSIGN", "JL1HIS"),
+                    ("QSL_RCVD", "V"),
+                ],
+            ),
+            (
+                &home,
+                &[
+                    ("CALL", "JA1ZZZ"),
+                    ("QSO_DATE", "20261021"),
+                    ("CONTEST_ID", "ALL-JA1"),
+                    ("DXCC", "339"),
+                ],
+            ),
+        ];
+        let mut stored_rows = vec![];
+        for (station, fields) in rows {
+            let mut input = entry(station, "JA1AAA", "0100");
+            input.qso.set("FREQ", None).unwrap();
+            for (name, value) in *fields {
+                input.qso.set(name, Some((*value).to_owned())).unwrap();
+            }
+            let (id, _) = create_one(&world, &access, input).await;
+            let mut conn = world.db.acquire().await.unwrap();
+            stored_rows.push(get(&mut conn, &access, &id).await.unwrap());
+        }
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        delete(&mut tx, &access, &stored_rows.pop().unwrap().id, 1)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let name_of = |row: &StoredQso| {
+            if row.station_id == park.id {
+                park.name.as_str()
+            } else {
+                home.name.as_str()
+            }
+        };
+        let mut conn = world.db.acquire().await.unwrap();
+        for q in [
+            "call:JA1*",
+            "call:ja1aaa",
+            "call:*XYZ",
+            "call:J?1*",
+            "call:[*",
+            "-call:JA1*",
+            "base:JA1AAA",
+            "base:w1aw",
+            "band:20m,15m",
+            "-band:40m",
+            "mode:ssb",
+            "sent:R,Q",
+            "-sent:R",
+            "rcvd:Y,V",
+            "contest:all-ja1",
+            "dxcc:339",
+            "station:takao",
+            "station:home,jl1his/1",
+            "station:\"jl1his\"",
+            "-station:takao",
+            "park:jp-0345",
+            "park:JP-0012,JP-9999",
+            "-park:JP-0012",
+            "date:2026-10-19",
+            "date:2026-10-18..2026-10-20",
+            "date:..2026-10-18",
+            "date:>2026-10-19",
+            "date:<=2026-10-19",
+            "has:freq",
+            "no:freq",
+            "no:park",
+            "has:name",
+            "-has:qth",
+            "adif.TX_PWR:10",
+            "adif.tx_pwr:5",
+            "-adif.TX_PWR:10",
+            "adif.MY_CITY:minato",
+            "has:app_hislog_note",
+            "taro",
+            "yoko",
+            "-xyz",
+            "\"[pile]\"",
+            "call:JA1* band:40m -sent:R",
+        ] {
+            let filter = Filter {
+                query: text::Query::parse(q).unwrap(),
+                ..Filter::default()
+            };
+            let mut found: Vec<QsoId> = search_all(&mut conn, &access, &filter)
+                .await
+                .unwrap()
+                .iter()
+                .map(|r| r.id)
+                .collect();
+            let mut expected: Vec<QsoId> = stored_rows
+                .iter()
+                .filter(|row| filter.query.matches(&Row(row, name_of(row))))
+                .map(|row| row.id)
+                .collect();
+            found.sort();
+            expected.sort();
+            assert_eq!(found, expected, "{q}");
+            assert_eq!(
+                count(&mut conn, &access, &filter).await.unwrap(),
+                expected.len() as u64,
+                "{q}"
+            );
+            let targets: Vec<QsoId> = targets(&mut conn, &access, &filter)
+                .await
+                .unwrap()
+                .iter()
+                .map(|t| t.id)
+                .collect();
+            assert_eq!(targets.len(), expected.len(), "{q}");
+        }
     }
 
     #[tokio::test]

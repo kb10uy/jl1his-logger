@@ -2,6 +2,17 @@ use chrono::DateTime;
 
 use crate::{store::qso::TimeRange, web::error::ApiError};
 
+pub fn text(query: Option<&str>) -> Result<jl1his_query::Query, ApiError> {
+    jl1his_query::Query::parse(query.unwrap_or_default()).map_err(|e| {
+        ApiError::bad_request(e.to_string())
+            .with("code", e.kind.code().into())
+            .with("term", e.text.into())
+            .with("index", e.index.into())
+            .with("start", e.start.into())
+            .with("end", e.end.into())
+    })
+}
+
 pub fn time(name: &str, value: &str) -> Result<i64, ApiError> {
     DateTime::parse_from_rfc3339(value)
         .map(|t| t.timestamp())

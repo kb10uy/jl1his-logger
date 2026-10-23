@@ -1601,6 +1601,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "jl1his-query",
  "p256",
  "rand 0.10.3",
  "rstest",
@@ -1621,6 +1622,10 @@ dependencies = [
  "uuid",
  "webauthn-rs",
 ]
+
+[[package]]
+name = "jl1his-query"
+version = "0.1.0"
 
 [[package]]
 name = "js-sys"

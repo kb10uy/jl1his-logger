@@ -20,7 +20,7 @@ use crate::{
         extract::Json,
         member::{Item, Member},
         qso::QsoBody,
-        query::range,
+        query::{range, text},
     },
 };
 
@@ -125,6 +125,7 @@ pub struct ExportRequest {
     mode: Option<String>,
     qsl_sent: Option<Vec<String>>,
     contest_id: Option<String>,
+    q: Option<String>,
     park: Option<String>,
     length: Option<LengthUnit>,
 }
@@ -194,6 +195,7 @@ pub async fn create(
         mode: req.mode,
         qsl_sent: req.qsl_sent,
         contest_id: req.contest_id,
+        query: text(req.q.as_deref())?,
         ..Filter::default()
     };
     let unit = req.length.unwrap_or(state.config.adif.length);

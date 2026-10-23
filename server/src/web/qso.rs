@@ -16,9 +16,10 @@ use crate::{
     web::{
         AppState,
         error::ApiError,
+        export::TargetBody,
         extract::{Json, Query},
         member::{Item, Member},
-        query::range,
+        query::{range, text},
     },
 };
 
@@ -137,6 +138,7 @@ pub struct SearchQuery {
     call_base: Option<String>,
     qsl_sent: Option<String>,
     contest_id: Option<String>,
+    q: Option<String>,
     cursor: Option<String>,
     limit: Option<u32>,
 }
@@ -145,6 +147,13 @@ pub struct SearchQuery {
 pub struct PageBody {
     qsos: Vec<QsoBody>,
     next: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TargetsBody {
+    qsos: Vec<TargetBody>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -277,12 +286,7 @@ pub async fn changes(
     }))
 }
 
-pub async fn search(
-    State(state): State<Arc<AppState>>,
-    member: Member,
-    Query(query): Query<SearchQuery>,
-) -> Result<Json<PageBody>, ApiError> {
-    let limit = limit(query.limit, DEFAULT_SEARCH_LIMIT)?;
+fn search_filter(query: SearchQuery) -> Result<Filter, ApiError> {
     let call = match (query.call, query.call_base) {
         (Some(_), Some(_)) => return Err(ApiError::bad_request("give call or call_base, not both")),
         (Some(call), None) => Some(CallMatch::Exact(call)),
@@ -297,13 +301,45 @@ pub async fn search(
         call,
         qsl_sent: query.qsl_sent.map(|v| v.split(',').map(str::to_owned).collect()),
         contest_id: query.contest_id,
+        query: text(query.q.as_deref())?,
     };
-    let after = query.cursor.as_deref().map(parse_cursor).transpose()?;
+    Ok(filter)
+}
+
+pub async fn search(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Query(mut query): Query<SearchQuery>,
+) -> Result<Json<PageBody>, ApiError> {
+    let limit = limit(query.limit, DEFAULT_SEARCH_LIMIT)?;
+    let after = query.cursor.take().as_deref().map(parse_cursor).transpose()?;
+    let filter = search_filter(query)?;
     let mut conn = state.db.acquire().await?;
     let page = qso::search(&mut conn, &member.access, &filter, after.as_ref(), limit).await?;
+    let total = match after {
+        Some(_) => None,
+        None => Some(qso::count(&mut conn, &member.access, &filter).await?),
+    };
     Ok(Json(PageBody {
         qsos: page.rows.into_iter().map(QsoBody::from).collect(),
         next: page.next.map(|c| format!("{}_{}", c.qso_time, c.id)),
+        total,
+    }))
+}
+
+pub async fn targets(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Query(mut query): Query<SearchQuery>,
+) -> Result<Json<TargetsBody>, ApiError> {
+    if query.cursor.take().is_some() || query.limit.take().is_some() {
+        return Err(ApiError::bad_request("targets take no cursor or limit"));
+    }
+    let filter = search_filter(query)?;
+    let mut conn = state.db.acquire().await?;
+    let targets = qso::targets(&mut conn, &member.access, &filter).await?;
+    Ok(Json(TargetsBody {
+        qsos: targets.into_iter().map(TargetBody::from).collect(),
     }))
 }
 
@@ -767,6 +803,7 @@ mod tests {
             .await;
         assert_eq!(status, StatusCode::OK, "{first}");
         assert_eq!(first["qsos"], json!([late, middle]));
+        assert_eq!(first["total"], 3);
         let cursor = first["next"].as_str().unwrap();
         let (_, second) = h
             .send(
@@ -778,6 +815,57 @@ mod tests {
             .await;
         assert_eq!(second["qsos"], json!([early]));
         assert_eq!(second["next"], Value::Null);
+        assert!(second.get("total").is_none(), "{second}");
+    }
+
+    #[tokio::test]
+    async fn lists_the_targets_of_a_query() {
+        let h = Harness::new().await;
+        let (cookie, [early, middle, _]) = three(&h).await;
+        let (status, body) = h
+            .send("GET", &h.path("/targets?q=call:JA1XYZ*"), Auth::Session(&cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let targets = json!([
+            { "id": middle["id"], "revision": 1 },
+            { "id": early["id"], "revision": 1 },
+        ]);
+        assert_eq!(body["qsos"], targets);
+        let (status, _) = h
+            .send("GET", &h.path("/targets?limit=1"), Auth::Session(&cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn names_the_bad_term_of_a_query() {
+        let h = Harness::new().await;
+        let (cookie, _) = three(&h).await;
+        let (status, body) = h
+            .send(
+                "GET",
+                &h.path("/qsos?q=band:40m%20freq:7"),
+                Auth::Session(&cookie),
+                None,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            (
+                &body["code"],
+                &body["term"],
+                &body["index"],
+                &body["start"],
+                &body["end"]
+            ),
+            (
+                &json!("unknown_field"),
+                &json!("freq:7"),
+                &json!(1),
+                &json!(9),
+                &json!(15)
+            )
+        );
     }
 
     #[rstest]
@@ -787,6 +875,8 @@ mod tests {
     #[case::time("from=2026-10-22T01:30:00Z&until=2026-10-22T03:00:00Z", &[1])]
     #[case::qsl_sent_empty("qsl_sent=", &[2, 1, 0])]
     #[case::qsl_sent("qsl_sent=Y", &[])]
+    #[case::text("q=-band:20m%20call:JA1*", &[2, 0])]
+    #[case::text_and_filter("q=call:JA1XYZ*&band=40m", &[0])]
     #[tokio::test]
     async fn filters_searches(#[case] query: &str, #[case] expected: &[usize]) {
         let h = Harness::new().await;

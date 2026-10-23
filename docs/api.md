@@ -183,7 +183,8 @@ Paths below are relative to `/api/logbooks/{logbook_id}`.
 | `GET /qsos/{id}` | | The QSO, deleted or not |
 | `PUT /qsos/{id}` with `If-Match` | `{station_id, fields}` | `{qso, warnings}` |
 | `DELETE /qsos/{id}` with `If-Match` | | The deleted QSO; deleting a deleted QSO returns it unchanged |
-| `GET /qsos?...` | | `{qsos, next}`, see Search |
+| `GET /qsos?...` | | `{qsos, next, total}`, see Search |
+| `GET /targets?...` | | `{qsos: [{id, revision}]}` of every match, see Search |
 | `GET /changes?after=N&limit=L` | | `{cursor_generation, last_updated_seq, qsos, has_more}` |
 | `GET /duplicates?call=&band=&mode=&qso_date=&time_on=&except=` | | `{qsos}` |
 
@@ -248,9 +249,33 @@ cursor and starts from 0.
 | `call_base` | The call without prefixes and suffixes (`JA1XYZ` matches `JA1XYZ/P`); not together with `call` |
 | `qsl_sent` | Comma-separated `QSL_SENT` values ignoring case; an empty value matches an absent field |
 | `contest_id` | `CONTEST_ID`, ignoring case |
+| `q` | The text query of decisions.md, "Search" (`call:JA1* -mode:FT8 date:2026-10-01..`) |
 
-`next` is an opaque cursor for the following page, passed back as `cursor`, or
-`null` on the last page.
+All the filters given must hold. `next` is an opaque cursor for the following
+page, passed back as `cursor`, or `null` on the last page. The first page, the
+one without a `cursor`, also carries `total`, the number of matches.
+
+A `q` that cannot be read is `400` and names the term:
+
+```json
+{
+  "status": "error",
+  "error": "freq is not a search field (term \"freq:7\" at 9)",
+  "code": "unknown_field",
+  "term": "freq:7",
+  "index": 1,
+  "start": 9,
+  "end": 15
+}
+```
+
+`index` counts the terms from 0; `start` and `end` are positions in the query
+in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
+`missing_value`, `too_many_values`, `bad_date`, `unclosed_quote` and `empty`.
+
+`GET /targets` takes the same filters, without `cursor` and `limit`, and returns
+the ID and revision of every match, newest first. Checking every match in the
+log list uses it, and a bulk QSL change takes the result as it is.
 
 ## Lookup
 
@@ -303,7 +328,7 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, park?, length?}` | `201 {batch, records, adif}` |
+| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, q?, park?, length?}` | `201 {batch, records, adif}` |
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk QSL changes |

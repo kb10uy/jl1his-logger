@@ -31,6 +31,34 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --check
+      - name: Check formatting of the query crate
+        run: cargo fmt --check
+        working-directory: query
+
+  query:
+    name: Query
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: query
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: query
+          shared-key: query
+          save-if: ${{ env.SAVE_CACHE }}
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Run Clippy on the WASM bindings
+        run: cargo clippy --lib --features wasm --target wasm32-unknown-unknown -- -D warnings
+      - name: Run tests
+        run: cargo test
 
   server:
     name: Server
@@ -75,11 +103,23 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: client/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: query
+          shared-key: client
+          save-if: ${{ env.SAVE_CACHE }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
 
       - run: npm ci
       - run: npm run lint
       - run: npm run check
       - run: npm test
+      - run: npm run build
 
   licenses:
     name: Licenses

@@ -1,0 +1,47 @@
+{
+    "name": "jl1his-logger-client",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "wasm": "wasm-pack build ../query --target web --release --out-dir ../client/src/lib/query/wasm --out-name query --no-pack -- --features wasm",
+        "predev": "npm run wasm",
+        "dev": "vite dev",
+        "prebuild": "npm run wasm",
+        "build": "vite build",
+        "preview": "vite preview",
+        "prepare": "svelte-kit sync || echo ''",
+        "precheck": "npm run wasm",
+        "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+        "lint": "prettier --check .",
+        "format": "prettier --write .",
+        "pretest": "npm run wasm",
+        "test": "vitest --run"
+    },
+    "devDependencies": {
+        "@sveltejs/adapter-static": "^4.0.0",
+        "@sveltejs/kit": "^3.1.0",
+        "@sveltejs/vite-plugin-svelte": "^7.3.1",
+        "@tailwindcss/vite": "^4.3.3",
+        "@types/node": "^22.20.5",
+        "fake-indexeddb": "^6.2.6",
+        "prettier": "^3.8.3",
+        "prettier-plugin-svelte": "^4.1.1",
+        "prettier-plugin-tailwindcss": "^0.8.1",
+        "svelte": "^5.57.2",
+        "svelte-check": "^4.7.7",
+        "tailwindcss": "^4.3.3",
+        "typescript": "^6.0.3",
+        "vite": "^8.3.5",
+        "vitest": "^4.1.12"
+    },
+    "dependencies": {
+        "@fontsource-variable/inter": "^5.3.0",
+        "@fontsource-variable/jetbrains-mono": "^5.3.0",
+        "bits-ui": "^2.20.2",
+        "idb": "^8.0.4"
+    },
+    "imports": {
+        "#lib/*": "./src/lib/*"
+    }
+}
