@@ -90,8 +90,9 @@ jl1his-logger migrate         # apply pending migrations explicitly
 ```
 
 Passkeys need HTTPS (or `http://localhost`), so put a TLS-terminating reverse proxy
-in front. The first admin is created by the setup command, which prints a one-time
-registration URL:
+in front; it is also where HSTS and any request rate limits belong, since the server
+applies neither. The first admin is created by the setup command, which prints a
+one-time registration URL:
 
 ```sh
 jl1his-logger setup --callsign JL1HIS

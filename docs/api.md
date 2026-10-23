@@ -6,11 +6,11 @@ An error is `{"status": "error", "error": "<message>"}` with the HTTP status:
 in or a passkey or registration link is refused, `403` for a cross-origin write or
 a missing right, `404` for anything not found or not visible, `409` for a
 conflict, `412` when `If-Match` names another revision, `415` / `422` for a body
-that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
-many passkey requests are in flight. Some errors add fields next to `error`, such
+that is not the expected JSON, `428` when `If-Match` is missing. Some errors add fields next to `error`, such
 as `current` on a revision conflict. Under `/api/logbooks/{logbook_id}` the
 caller's Membership is checked before the request itself, so a caller outside
-the Logbook gets `404` whatever it sends.
+the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
+and carry the security headers listed in [decisions.md](decisions.md).
 
 It covers sign-in, reference versions, API tokens, Logbooks, Members,
 Stations, QSOs with their event stream, bulk QSL changes, export batches and

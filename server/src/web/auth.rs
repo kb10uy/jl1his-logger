@@ -33,7 +33,7 @@ use crate::{
 
 pub const SESSION_COOKIE: &str = "__Host-session";
 const CEREMONY_TTL: Duration = Duration::from_secs(300);
-const MAX_CEREMONIES: usize = 1000;
+const MAX_CEREMONIES: usize = 10_000;
 const DEFAULT_PASSKEY_NAME: &str = "Passkey";
 
 enum Ceremony {
@@ -45,35 +45,60 @@ enum Ceremony {
     },
 }
 
+struct Pending {
+    started: Instant,
+    order: u64,
+    ceremony: Ceremony,
+}
+
 #[derive(Default)]
-pub struct Ceremonies(Mutex<HashMap<String, (Instant, Ceremony)>>);
+struct Table {
+    next_order: u64,
+    pending: HashMap<String, Pending>,
+}
+
+#[derive(Default)]
+pub struct Ceremonies(Mutex<Table>);
 
 impl Ceremonies {
-    fn start(&self, ceremony: Ceremony) -> Result<String, ApiError> {
-        let mut map = self.0.lock().expect("ceremony lock poisoned");
-        map.retain(|_, (started, _)| started.elapsed() < CEREMONY_TTL);
-        if map.len() >= MAX_CEREMONIES {
-            return Err(ApiError::new(
-                StatusCode::TOO_MANY_REQUESTS,
-                "too many passkey requests in flight; try again later",
-            ));
+    fn start(&self, ceremony: Ceremony) -> String {
+        let mut table = self.0.lock().expect("ceremony lock poisoned");
+        table.pending.retain(|_, p| p.started.elapsed() < CEREMONY_TTL);
+        if table.pending.len() >= MAX_CEREMONIES
+            && let Some(oldest) = table
+                .pending
+                .iter()
+                .min_by_key(|(_, p)| p.order)
+                .map(|(id, _)| id.clone())
+        {
+            table.pending.remove(&oldest);
         }
         let id = random_token();
-        map.insert(id.clone(), (Instant::now(), ceremony));
-        Ok(id)
+        let order = table.next_order;
+        table.next_order += 1;
+        table.pending.insert(
+            id.clone(),
+            Pending {
+                started: Instant::now(),
+                order,
+                ceremony,
+            },
+        );
+        id
     }
 
     fn finish(&self, id: &str) -> Result<Ceremony, ApiError> {
-        let (started, ceremony) = self
+        let pending = self
             .0
             .lock()
             .expect("ceremony lock poisoned")
+            .pending
             .remove(id)
             .ok_or_else(expired)?;
-        if started.elapsed() >= CEREMONY_TTL {
+        if pending.started.elapsed() >= CEREMONY_TTL {
             return Err(expired());
         }
-        Ok(ceremony)
+        Ok(pending.ceremony)
     }
 }
 
@@ -220,7 +245,7 @@ pub async fn login_start(State(state): State<Arc<AppState>>) -> Result<Json<Valu
         .webauthn
         .start_discoverable_authentication()
         .map_err(webauthn_failed)?;
-    let ceremony = state.ceremonies.start(Ceremony::Authentication(auth))?;
+    let ceremony = state.ceremonies.start(Ceremony::Authentication(auth));
     let mut options = serde_json::to_value(challenge).map_err(|e| ApiError::internal(e.to_string()))?;
     if let Some(options) = options.as_object_mut() {
         options.remove("mediation");
@@ -387,7 +412,7 @@ fn start_registration(
         user_id: user_id.to_owned(),
         link,
         state: registration,
-    })?;
+    });
     Ok(json!({ "ceremony": ceremony, "options": require_resident_key(challenge)? }))
 }
 
@@ -469,7 +494,7 @@ fn webauthn_failed(e: WebauthnError) -> ApiError {
 mod tests {
     use std::{collections::BTreeMap, future::poll_fn, pin::pin, task::Poll};
 
-    use axum::{http::header, response::IntoResponse};
+    use axum::http::header;
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use p256::ecdsa::{Signature, SigningKey, signature::Signer};
     use serde_cbor_2::Value as Cbor;
@@ -885,20 +910,28 @@ mod tests {
     }
 
     #[test]
-    fn ceremonies_are_used_once_and_bounded() {
+    fn ceremonies_are_used_once_and_evict_the_oldest_when_full() {
         let ceremonies = Ceremonies::default();
         let webauthn = WebauthnBuilder::new("log.example.com", &Url::parse(ORIGIN).unwrap())
             .unwrap()
             .build()
             .unwrap();
         let start = || Ceremony::Authentication(webauthn.start_discoverable_authentication().unwrap().1);
-        let id = ceremonies.start(start()).unwrap();
+        let pending = || ceremonies.0.lock().unwrap().pending.len();
+        let id = ceremonies.start(start());
         assert!(matches!(ceremonies.finish(&id), Ok(Ceremony::Authentication(_))));
         assert!(ceremonies.finish(&id).is_err());
-        for _ in 0..MAX_CEREMONIES {
-            ceremonies.start(start()).unwrap();
+
+        let oldest = ceremonies.start(start());
+        let second = ceremonies.start(start());
+        for _ in 2..MAX_CEREMONIES {
+            ceremonies.start(start());
         }
-        let full = ceremonies.start(start()).unwrap_err().into_response();
-        assert_eq!(full.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(pending(), MAX_CEREMONIES);
+        let newest = ceremonies.start(start());
+        assert_eq!(pending(), MAX_CEREMONIES);
+        assert!(ceremonies.finish(&oldest).is_err());
+        assert!(ceremonies.finish(&second).is_ok());
+        assert!(ceremonies.finish(&newest).is_ok());
     }
 }
