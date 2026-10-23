@@ -1,6 +1,5 @@
 import { toasts } from '#lib/state/toast.svelte.ts';
 import { formatSpeech, formatTokens } from '#lib/voice/dsl/display.ts';
-import type { SpeechLanguage } from '#lib/voice/dsl/lexicon.ts';
 import { parseSpeech, type SpokenUpdate } from '#lib/voice/dsl/parser.ts';
 import { AudioCapture } from '#lib/voice/speech/capture.ts';
 import type { SpeechRecognizer } from '#lib/voice/speech/recognizer.ts';
@@ -143,15 +142,6 @@ export class VoiceState {
             if (load !== this.#load) return;
             this.engine = 'error';
             this.engineError = errorMessage(e);
-        }
-    }
-
-    setLanguage(language: SpeechLanguage) {
-        if (language === this.settings.language) return;
-        this.#save({ ...this.settings, language });
-        if (this.engine !== 'unloaded') {
-            this.engine = 'unloaded';
-            void this.loadEngine();
         }
     }
 

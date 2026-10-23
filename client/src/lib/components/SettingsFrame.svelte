@@ -10,6 +10,7 @@
         [
             { label: 'Account', scope: 'you', href: '/settings/account' },
             { label: 'API tokens', scope: 'you', href: '/settings/tokens' },
+            { label: 'Voice entry', scope: 'this device', href: '/settings/voice' },
             logbookId === null
                 ? undefined
                 : {

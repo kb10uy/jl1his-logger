@@ -22,7 +22,6 @@
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
-    import type { SpeechLanguage } from '#lib/voice/dsl/lexicon.ts';
     import {
         FREE_TEXT_MAX_LENGTH,
         withBand,
@@ -262,21 +261,11 @@
 
 <svelte:window onkeydown={keydown} onkeyup={keyup} onblur={() => void voice.pttCancel()} />
 
-{#snippet carried()}
-    <span class="font-mono"
-        >{draft.freq ? `${draft.freq} MHz` : '—'} · {draft.band} · {draft.mode}
-        <span class="text-muted">{draft.submode}</span></span
-    >
-{/snippet}
-
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <header
         class="flex flex-wrap items-center gap-2 max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:-mt-4 max-md:border-b max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-3 md:gap-3"
     >
-        <div class="flex flex-col">
-            <h1 class="text-xl font-semibold">Voice entry</h1>
-            <span class="text-xs text-muted md:hidden">{@render carried()}</span>
-        </div>
+        <h1 class="text-xl font-semibold">Voice entry</h1>
         <div class="flex-1"></div>
         {#if logbook.status === 'offline'}
             <span
@@ -372,103 +361,9 @@
 
     <div class="flex flex-wrap items-start gap-4">
         <div class="flex min-w-0 flex-[1_1_440px] flex-col gap-4">
-            <div
-                class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-[13px] max-md:hidden"
-            >
-                <span
-                    ><span class="text-muted">Freq</span>
-                    <span class="font-mono">{draft.freq ? `${draft.freq} MHz` : '—'}</span></span
-                >
-                <span
-                    ><span class="text-muted">Band</span>
-                    <span class="font-mono">{draft.band}</span></span
-                >
-                <span
-                    ><span class="text-muted">Mode</span>
-                    <span class="font-mono"
-                        >{draft.mode} <span class="text-muted">{draft.submode}</span></span
-                    ></span
-                >
-                <span class="flex-1"></span>
-                <span class="text-xs text-muted">Carried over to the next QSO</span>
-            </div>
-
-            <section
-                aria-label="Speech engine"
-                class={[
-                    'flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] max-md:order-3',
-                    voice.engine !== 'ready' &&
-                        'rounded-lg border border-border bg-surface px-4 py-3'
-                ]}
-            >
-                {#if voice.engine === 'ready'}
-                    <PttButton {voice} />
-                {:else}
-                    <div class="flex min-w-0 flex-[1_1_240px] flex-col gap-0.5">
-                        <strong class="font-semibold"
-                            >{voice.engine === 'loading'
-                                ? 'Loading the speech engine…'
-                                : 'The speech engine is not loaded'}</strong
-                        >
-                        <span class={voice.engine === 'error' ? 'text-error-text' : 'text-muted'}
-                            >{voice.engine === 'error'
-                                ? voice.engineError
-                                : 'The model is downloaded once and then kept on this device, so voice entry works offline.'}</span
-                        >
-                    </div>
-                    <Button
-                        variant="primary"
-                        size="lg"
-                        disabled={voice.engine === 'loading'}
-                        onclick={() => void voice.loadEngine()}
-                        >{#if voice.engine === 'loading'}<Icon
-                                name="spinner"
-                                size={16}
-                            />{/if}{voice.engine === 'error' ? 'Try again' : 'Load'}</Button
-                    >
-                {/if}
-                <div class="flex w-full items-center gap-2 text-xs text-muted">
-                    <label for="voice-language">Speech</label>
-                    <select
-                        id="voice-language"
-                        class="control h-8 text-xs"
-                        value={voice.settings.language}
-                        onchange={(e) => voice.setLanguage(e.currentTarget.value as SpeechLanguage)}
-                    >
-                        {#each Object.entries(LANGUAGE_LABELS) as [value, label] (value)}
-                            <option {value}>{label}</option>
-                        {/each}
-                    </select>
-                    <span>Vosk · {voice.engine === 'ready' ? 'ready' : voice.engine}</span>
-                </div>
-            </section>
-
-            <section
-                aria-label="Heard"
-                class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-4 py-3 max-md:order-1"
-            >
-                <div class="flex items-center justify-between text-xs text-muted">
-                    <span class="tracking-[0.06em] uppercase">Heard</span>
-                    {#if voice.heard}
-                        <span class="font-mono">{time(voice.heard.at)}</span>
-                    {/if}
-                </div>
-                {#if voice.heard}
-                    <p class="text-base leading-snug">{voice.heard.heard}</p>
-                    <span class={['text-xs', voice.heard.ok ? 'text-muted' : 'text-error-text']}
-                        >{voice.heard.message}</span
-                    >
-                {:else}
-                    <p class="text-muted">
-                        Hold the button and say the call, such as “juliett lima one hotel india
-                        sierra”, then the reports: “received five seven sent five nine”.
-                    </p>
-                {/if}
-            </section>
-
             <section
                 aria-label="Parsed QSO"
-                class="flex flex-col gap-3 rounded-lg border border-accent bg-surface p-4 max-md:order-2"
+                class="flex flex-col gap-3 rounded-lg border border-accent bg-surface p-4"
             >
                 <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
                     <span class="text-xs text-muted">Call</span>
@@ -478,6 +373,16 @@
                             draft.call === undefined && 'text-muted'
                         ]}>{draft.call ?? '—'}</span
                     >
+                    <span class="text-xs text-muted">Band / Mode</span>
+                    <span class="flex flex-col gap-0.5">
+                        <span class="flex flex-wrap gap-x-2 font-mono text-lg">
+                            <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
+                            <span>{draft.band} ·</span>
+                            <span>{draft.mode} <span class="text-muted">{draft.submode}</span></span
+                            >
+                        </span>
+                        <span class="text-xs text-muted">Carried over to the next QSO</span>
+                    </span>
                     <span class="text-xs text-muted">RST</span>
                     <span class="font-mono text-lg"
                         ><span class="font-sans text-xs text-muted">Sent</span>
@@ -663,6 +568,74 @@
                 </div>
 
                 <WarningList {warnings} />
+            </section>
+
+            <section
+                aria-label="Speech engine"
+                class={[
+                    'flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]',
+                    voice.engine !== 'ready' &&
+                        'rounded-lg border border-border bg-surface px-4 py-3'
+                ]}
+            >
+                {#if voice.engine === 'ready'}
+                    <PttButton {voice} />
+                {:else}
+                    <div class="flex min-w-0 flex-[1_1_240px] flex-col gap-0.5">
+                        <strong class="font-semibold"
+                            >{voice.engine === 'loading'
+                                ? 'Loading the speech engine…'
+                                : 'The speech engine is not loaded'}</strong
+                        >
+                        <span class={voice.engine === 'error' ? 'text-error-text' : 'text-muted'}
+                            >{voice.engine === 'error'
+                                ? voice.engineError
+                                : 'The model is downloaded once and then kept on this device, so voice entry works offline.'}</span
+                        >
+                    </div>
+                    <Button
+                        variant="primary"
+                        size="lg"
+                        disabled={voice.engine === 'loading'}
+                        onclick={() => void voice.loadEngine()}
+                        >{#if voice.engine === 'loading'}<Icon
+                                name="spinner"
+                                size={16}
+                            />{/if}{voice.engine === 'error' ? 'Try again' : 'Load'}</Button
+                    >
+                {/if}
+                <div class="flex w-full items-center gap-2 text-xs text-muted">
+                    <span
+                        >Vosk · {LANGUAGE_LABELS[voice.settings.language]} · {voice.engine ===
+                        'ready'
+                            ? 'ready'
+                            : voice.engine}</span
+                    >
+                    <a href="/settings/voice">Change the language</a>
+                </div>
+            </section>
+
+            <section
+                aria-label="Heard"
+                class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-4 py-3"
+            >
+                <div class="flex items-center justify-between text-xs text-muted">
+                    <span class="tracking-[0.06em] uppercase">Heard</span>
+                    {#if voice.heard}
+                        <span class="font-mono">{time(voice.heard.at)}</span>
+                    {/if}
+                </div>
+                {#if voice.heard}
+                    <p class="text-base leading-snug">{voice.heard.heard}</p>
+                    <span class={['text-xs', voice.heard.ok ? 'text-muted' : 'text-error-text']}
+                        >{voice.heard.message}</span
+                    >
+                {:else}
+                    <p class="text-muted">
+                        Hold the button and say the call, such as “juliett lima one hotel india
+                        sierra”, then the reports: “received five seven sent five nine”.
+                    </p>
+                {/if}
             </section>
 
             {#if voice.utterances.length > 0}
