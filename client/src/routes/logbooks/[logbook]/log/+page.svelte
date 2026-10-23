@@ -297,6 +297,9 @@
         saveColumns(next);
     }
 
+    const checkHalo =
+        '-m-2 inline-flex size-8 items-center justify-center rounded-full align-middle group-hover/check:bg-surface-2';
+
     const stationOf = (qso: Qso) =>
         [qso.fields.STATION_CALLSIGN, logbook.stationName(qso.station_id)]
             .filter((s) => s)
@@ -422,14 +425,23 @@
                 <table class="w-full border-collapse text-[13px]">
                     <thead class="sticky top-0 z-[1] bg-bg">
                         <tr class="text-left text-xs text-muted [&>th:last-child]:pr-6">
-                            <th scope="col" class="w-12 border-b border-border py-2 pr-2 pl-6">
-                                <input
-                                    type="checkbox"
-                                    aria-label="Check all loaded"
-                                    checked={allLoadedChecked}
-                                    onclick={toggleAll}
-                                    class="size-4 accent-info"
-                                />
+                            <th
+                                scope="col"
+                                class="group/check w-14 cursor-pointer border-b border-border py-2 pr-3 pl-6"
+                                onclick={toggleAll}
+                            >
+                                <span class={checkHalo}>
+                                    <input
+                                        type="checkbox"
+                                        aria-label="Check all loaded"
+                                        checked={allLoadedChecked}
+                                        onclick={(e) => {
+                                            e.stopPropagation();
+                                            toggleAll();
+                                        }}
+                                        class="size-4 cursor-pointer accent-info"
+                                    />
+                                </span>
                             </th>
                             {#each shown as c (c.id)}
                                 <th
@@ -464,14 +476,22 @@
                                 ]}
                                 onclick={() => open(row.qso)}
                             >
-                                <td class="pr-2 pl-6">
-                                    <input
-                                        type="checkbox"
-                                        aria-label={`Check ${f.CALL} at ${isoDate(f.QSO_DATE)} ${hhmm(f.TIME_ON)}`}
-                                        checked={isChecked}
-                                        onclick={(e) => toggle(e, row.qso)}
-                                        class="size-4 accent-info"
-                                    />
+                                <td
+                                    class="group/check pr-3 pl-6"
+                                    onclick={(e) => toggle(e, row.qso)}
+                                    onmousedown={(e) => {
+                                        if (e.shiftKey) e.preventDefault();
+                                    }}
+                                >
+                                    <span class={checkHalo}>
+                                        <input
+                                            type="checkbox"
+                                            aria-label={`Check ${f.CALL} at ${isoDate(f.QSO_DATE)} ${hhmm(f.TIME_ON)}`}
+                                            checked={isChecked}
+                                            onclick={(e) => toggle(e, row.qso)}
+                                            class="size-4 cursor-pointer accent-info"
+                                        />
+                                    </span>
                                 </td>
                                 {#each shown as c (c.id)}
                                     {@render cell(c.id, row.qso)}
