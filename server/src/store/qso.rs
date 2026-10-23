@@ -22,6 +22,7 @@ use crate::{
 };
 
 const PAGE: u32 = 500;
+const MAX_LIST: usize = 100;
 
 const BOOKKEEPING: &[&str] = &[
     "id",
@@ -250,6 +251,58 @@ pub struct ChangeSet {
     pub has_more: bool,
 }
 
+enum Prepared {
+    Existing(StoredQso),
+    New {
+        station_id: String,
+        qso: Qso,
+        checked: Checked,
+    },
+}
+
+async fn prepare(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &QsoId,
+    input: QsoInput,
+) -> Result<Prepared, StoreError> {
+    let owner: Option<String> = sqlx::query_scalar("SELECT logbook_id FROM qsos WHERE id = ?")
+        .bind(id.to_string())
+        .fetch_optional(&mut *conn)
+        .await?;
+    match owner {
+        Some(logbook_id) if logbook_id == access.logbook_id() => {
+            return Ok(Prepared::Existing(fetch(conn, access, id).await?));
+        }
+        Some(_) => return Err(StoreError::Conflict(format!("the ID {id} belongs to another QSO"))),
+        None => {}
+    }
+
+    let station = station::fetch(conn, access, &input.station_id).await?;
+    let mut qso = input.qso;
+    qso.bake_station(&station.callsign, &station.fields)?;
+    qso.fill("OPERATOR", access.callsign())?;
+    let checked = check(conn, access, &qso, None).await?;
+    Ok(Prepared::New {
+        station_id: station.id,
+        qso,
+        checked,
+    })
+}
+
+pub async fn preview(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &QsoId,
+    input: QsoInput,
+) -> Result<Option<(Qso, Vec<Warning>)>, StoreError> {
+    let access = &access.revalidate(conn).await?;
+    Ok(match prepare(conn, access, id, input).await? {
+        Prepared::Existing(_) => None,
+        Prepared::New { qso, checked, .. } => Some((qso, checked.warnings)),
+    })
+}
+
 pub async fn create(
     tx: &mut WriteTx,
     access: &LogbookAccess,
@@ -257,30 +310,21 @@ pub async fn create(
     input: QsoInput,
 ) -> Result<Created, StoreError> {
     let access = &access.revalidate(tx).await?;
-    let owner: Option<String> = sqlx::query_scalar("SELECT logbook_id FROM qsos WHERE id = ?")
-        .bind(id.to_string())
-        .fetch_optional(&mut **tx)
-        .await?;
-    match owner {
-        Some(logbook_id) if logbook_id == access.logbook_id() => {
-            return Ok(Created::Existing(fetch(tx, access, id).await?));
-        }
-        Some(_) => return Err(StoreError::Conflict(format!("the ID {id} belongs to another QSO"))),
-        None => {}
-    }
-
-    let station = station::fetch(tx, access, &input.station_id).await?;
-    let mut qso = input.qso;
-    qso.bake_station(&station.callsign, &station.fields)?;
-    qso.fill("OPERATOR", access.callsign())?;
-    let checked = check(tx, access, &qso, None).await?;
+    let (station_id, qso, checked) = match prepare(tx, access, id, input).await? {
+        Prepared::Existing(stored) => return Ok(Created::Existing(stored)),
+        Prepared::New {
+            station_id,
+            qso,
+            checked,
+        } => (station_id, qso, checked),
+    };
 
     let sequence = next_insert(tx, access.logbook_id()).await?;
     let now = now();
     let mut query = sqlx::query(AssertSqlSafe(INSERT.as_str()))
         .bind(id.to_string())
         .bind(access.logbook_id())
-        .bind(&station.id)
+        .bind(&station_id)
         .bind(sequence.seq)
         .bind(sequence.updated_seq)
         .bind(access.user_id())
@@ -472,7 +516,7 @@ async fn page(
     after: Option<&Cursor>,
     limit: u32,
 ) -> Result<Page, StoreError> {
-    let mut conditions = Conditions::of(access, filter);
+    let mut conditions = Conditions::of(access, filter)?;
     if let Some(after) = after {
         conditions.push(
             "(qso_time, id) < (?, ?)",
@@ -519,7 +563,7 @@ pub async fn previous(
         station_ids,
         ..Filter::default()
     };
-    let conditions = Conditions::of(access, &filter);
+    let conditions = Conditions::of(access, &filter)?;
     let sql = format!("SELECT count(*), max(qso_time) FROM qsos WHERE {}", conditions.sql());
     let row = conditions
         .bind(sqlx::query(AssertSqlSafe(sql)))
@@ -562,7 +606,7 @@ pub async fn by_insertion(
     if limit == 0 {
         return Err(StoreError::Invalid("a page needs at least one row".into()));
     }
-    let mut conditions = Conditions::of(access, &query.filter);
+    let mut conditions = Conditions::of(access, &query.filter)?;
     conditions.push("seq > ?", [Bind::Int(query.after_seq)]);
     if let Some(mode) = &query.mode_or_submode {
         let mode = mode.trim().to_owned();
@@ -631,7 +675,7 @@ struct Conditions {
 }
 
 impl Conditions {
-    fn of(access: &LogbookAccess, filter: &Filter) -> Conditions {
+    fn of(access: &LogbookAccess, filter: &Filter) -> Result<Conditions, StoreError> {
         let mut conditions = Conditions {
             clauses: vec![],
             binds: vec![],
@@ -640,7 +684,7 @@ impl Conditions {
         conditions.push("deleted_at IS NULL", []);
         let text = |value: &str| [Bind::Text(value.trim().to_owned())];
         if let Some(station_ids) = &filter.station_ids {
-            conditions.any_of("station_id", station_ids.iter().cloned());
+            conditions.any_of("station_id", station_ids.iter().cloned())?;
         }
         if let Some(band) = &filter.band {
             conditions.push("trim(band) = ? COLLATE NOCASE", text(band));
@@ -660,7 +704,7 @@ impl Conditions {
             conditions.any_of(
                 "upper(trim(coalesce(qsl_sent, '')))",
                 values.iter().map(|v| v.trim().to_ascii_uppercase()),
-            );
+            )?;
         }
         if let Some(from) = filter.time.from {
             conditions.push("qso_time >= ?", [Bind::Int(from)]);
@@ -668,7 +712,7 @@ impl Conditions {
         if let Some(until) = filter.time.until {
             conditions.push("qso_time < ?", [Bind::Int(until)]);
         }
-        conditions
+        Ok(conditions)
     }
 
     fn push(&mut self, clause: impl Into<String>, binds: impl IntoIterator<Item = Bind>) {
@@ -676,13 +720,19 @@ impl Conditions {
         self.binds.extend(binds);
     }
 
-    fn any_of(&mut self, expression: &str, values: impl IntoIterator<Item = String>) {
+    fn any_of(&mut self, expression: &str, values: impl IntoIterator<Item = String>) -> Result<(), StoreError> {
         let values: Vec<Bind> = values.into_iter().map(Bind::Text).collect();
         let clause = match values.len() {
             0 => "0".to_owned(),
+            n if n > MAX_LIST => {
+                return Err(StoreError::Invalid(format!(
+                    "a filter lists {n} values; at most {MAX_LIST} are taken"
+                )));
+            }
             n => format!("{expression} IN ({})", vec!["?"; n].join(", ")),
         };
         self.push(clause, values);
+        Ok(())
     }
 
     fn sql(&self) -> String {

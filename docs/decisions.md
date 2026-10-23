@@ -100,7 +100,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - `PUBLIC_ORIGIN` requires a DNS hostname for WebAuthn. IP addresses are refused during configuration validation; local development uses `http://localhost`.
 - Sessions, API tokens and registration tokens are random 256-bit values; only their SHA-256 is stored. A `wl2` token for grayline carries the `wl2_` prefix as part of its plaintext.
-- A session lasts 30 days and is extended on use: once its expiry is more than a day old, it is pushed to 30 days from now. Signing out deletes it.
+- A session lasts 30 days and is extended on use: at most once a day, its use is recorded and its expiry pushed to 30 days from now, but never past 90 days from its creation; after that the user signs in again. Signing out deletes it. A session records the `User-Agent` it was created with (at most 256 characters), so a user can tell their sessions apart, list them and revoke any of them; an admin can do the same for another user.
 - A token's kind decides which API it opens: a `native` token works only on the native API, a `wl2` token only under `/wl2`.
 - Issuing a token requires a Membership in every Logbook of its scopes. A token is revoked by its user or by an admin; an owner cannot revoke the tokens of the Logbook's members.
 - A token's `last_used_at` is written at most once a day, so that reads do not become writes.
@@ -173,6 +173,8 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### ADIF Input and Output
 
 - Lengths are codepoints by default; bytes can be chosen as an export option. qso-tools is given `--lenient codepoints`.
+- A field name is what the ADIF specification allows: ASCII letters, digits and underscores, starting with a letter, read ignoring case and stored upper-cased. `EOR` and `EOH` are not field names. A record with another name (a `USERDEF` name with spaces, say) is refused, on entry and in an import.
+- A field value is at most 2048 bytes and a QSO has at most 1024 fields outside the columns; the names of passkeys, tokens, Stations and Logbooks are at most 2048 bytes. The bounds are checked where a `Qso` is built and again when it is checked before a write, so nothing larger is stored. A filter lists at most 100 values.
 - Reading uses adif-reader (github.com/kb10uy/adif-reader).
 - The writer moves into adif-reader as a `write` module of the same crate once the migration rehearsal has settled the export output, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
 - No shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
@@ -183,7 +185,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### ADIF Import
 
 - An import either adds new QSOs or merges QSL confirmations into existing ones. The CLI is told which by the source (`new`, `lotw`, `eqsl` or `card`); it is never guessed from the file.
-- Without `--apply` an import only previews: it reads, checks and matches every record and reports what applying would do, writing nothing. Duplicate warnings include earlier records across all preview batches. With `--apply` it writes, a bounded number of records per write transaction.
+- Without `--apply` an import only previews: it reads, checks and matches every record and reports what applying would do, writing nothing. The preview runs in one read transaction and takes no write lock, so a large preview never blocks entry; duplicate warnings against the earlier records of the file are computed in memory. With `--apply` it writes, a bounded number of records per write transaction.
 - A new QSO's ID is derived from its record: a UUID v7 whose timestamp is the QSO time and whose remaining bits come from the SHA-256 of the Logbook ID, the record's fields as read (names upper-cased and sorted, values as they arrived) and the number of identical records before it in the file. A rerun of an interrupted or repeated import meets the rows it already created and the idempotent create returns them; a deleted row stays deleted. Editing some records and rerunning adds only those records.
 - The timestamp of such an ID is the QSO time rather than the time of entry. Nothing relies on it: insertion order is `seq`.
 - Records that cannot be read or checked are skipped and reported by their position; the others go ahead. A possible duplicate of an existing row is a warning, as on entry.
@@ -218,7 +220,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - A client that keeps a copy (hislog after its move to the native API) syncs initially by taking the maximum `updated_seq` at start as H, fetching everything, then reading `after H`. Rows that arrive twice are upserts and therefore harmless.
 - The web client keeps no copy (see Search) and no cursor across reloads. It opens the stream, which starts at the latest `updated_seq`, then runs its query. An event updates a loaded row in place by its ID. A row that stops matching stays where it is, marked, until the query runs again. A new row that matches is inserted in order without moving the scroll position. A new row outside the query is only counted, in a small "N new outside this query" next to the list. A changed cursor generation reruns the query.
 - Attach `keep_alive` to axum's `Sse`.
-- A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Successful state-changing requests wake every stream at once, except those under `/api/auth`, which anyone can call and which would otherwise let an anonymous caller make every stream reread. The streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook or whose session expired or was deleted. Session checks do not renew the session. A stream queues at most one page of 500 QSOs and rechecks authorization on writes and polling deadlines even while sending that queue. Streams discard queued events when the server shuts down, so graceful shutdown does not wait on them.
+- A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Successful state-changing requests wake every stream at once, except those under `/api/auth`, which anyone can call and which would otherwise let an anonymous caller make every stream reread. At most 64 streams are open per server; a further one is refused with `503` and the client retries later. The streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook or whose session expired or was deleted. Session checks do not renew the session. A stream queues at most one page of 500 QSOs and rechecks authorization on writes and polling deadlines even while sending that queue. Streams discard queued events when the server shuts down, so graceful shutdown does not wait on them.
 - After restoring a backup, change the cursor generation of every Logbook to demand a full resync. A client whose stored generation differs discards its cursor and syncs from the start.
 
 ### Web Client Routes
@@ -252,6 +254,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - sqlx records each applied migration with its checksum in `_sqlx_migrations`, so an edited applied file stops the server at startup instead of running.
 - Before applying pending migrations, the server snapshots the database with `VACUUM INTO` under the data directory. There is no downgrade; rolling back means restoring that snapshot.
 - One process owns the database file, so there is no separate migration job or init container. A deployment is one container holding the binary and `client/build`, with the data directory (database, reference data, snapshots) on a volume and TLS terminated outside.
+- The server accepts connections itself with hyper's automatic HTTP/1 and HTTP/2 handling: request headers must arrive within 30 seconds, a request body may pause for at most 30 seconds between chunks, and HTTP/2 connections are pinged every 30 seconds and dropped after 10 seconds without an answer. Shutdown stops accepting, ends the event streams and gives open connections 10 seconds. The reverse proxy adds its own limits, HSTS and request rate limits.
 - Query macros that need the schema at compile time keep their `cargo sqlx prepare` output in the repository, refreshed whenever a migration is added.
 
 ### Lookup

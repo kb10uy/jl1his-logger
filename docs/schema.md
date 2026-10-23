@@ -63,9 +63,11 @@ without an access.
   issuing one deletes the user's unused ones. `setup` can issue one only for
   an admin without passkeys.
 - `sessions` is the `__Host-` cookie session, looked up by the hash of the
-  cookie value. It lasts 30 days; using it pushes `expires_at` back to 30
-  days from now once the stored expiry is more than a day old. Expired rows
-  are deleted when a session is created.
+  cookie value; `id` names it to the user. It lasts 30 days; at most once a
+  day a use sets `last_used_at` and pushes `expires_at` to 30 days from now,
+  never past 90 days after `created_at`. `user_agent` is the browser it was
+  created from, truncated. Expired rows are deleted when a session is
+  created.
 - Disabling a user deletes their `sessions`, `api_tokens` and unused
   `registration_tokens`; `passkeys` stay.
 

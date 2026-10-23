@@ -259,8 +259,8 @@ mod tests {
              VALUES ('user', 'JL1HIS', 'admin', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
              INSERT INTO logbooks (id, name, cursor_generation, created_at, updated_at)
              VALUES ('log', 'Club', 'generation', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
-             INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
-             VALUES (X'01', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z');
+             INSERT INTO sessions (id, token_hash, user_id, created_at, last_used_at, expires_at)
+             VALUES ('session', X'01', 'user', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z');
              INSERT INTO registration_tokens (token_hash, user_id, created_at, expires_at, used_at)
              VALUES (X'02', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z', NULL),
                     (X'03', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z', '2026-10-22T01:00:00Z');
@@ -454,7 +454,7 @@ mod tests {
 
         let held = lock(&path).unwrap();
         let restored = restore(&held, &path, &source).await.unwrap();
-        assert_eq!(restored.migrated.applied, [2, 3]);
+        assert_eq!(restored.migrated.applied, [2, 3, 4]);
         assert!(restored.migrated.snapshot.unwrap().is_file());
         assert!(restored.snapshot.unwrap().is_file());
         assert_eq!(fs::read(&source).unwrap(), saved);

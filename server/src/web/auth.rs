@@ -142,6 +142,10 @@ impl FromRequestParts<Arc<AppState>> for Caller {
     }
 }
 
+fn user_agent(headers: &HeaderMap) -> Option<&str> {
+    headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok())
+}
+
 fn session_token(headers: &HeaderMap) -> Result<String, StoreError> {
     CookieJar::from_headers(headers)
         .get(SESSION_COOKIE)
@@ -256,6 +260,7 @@ pub async fn login_start(State(state): State<Arc<AppState>>) -> Result<Json<Valu
 pub async fn login_finish(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
+    headers: HeaderMap,
     Json(req): Json<SignIn>,
 ) -> Result<(CookieJar, Json<Me>), ApiError> {
     let Ceremony::Authentication(auth) = state.ceremonies.finish(&req.ceremony)? else {
@@ -283,7 +288,7 @@ pub async fn login_finish(
     credential.update_credential(&result);
 
     passkey::record_use(&mut tx, &stored.id, &encode(&credential)?).await?;
-    let token = session::create(&mut tx, &stored.user_id).await?;
+    let token = session::create(&mut tx, &stored.user_id, user_agent(&headers)).await?;
     let user = access::user(&mut tx, &Principal::user(&stored.user_id)).await?;
     tx.commit().await?;
     tracing::info!("{} signed in", user.callsign());
@@ -311,6 +316,7 @@ pub async fn link_start(
 pub async fn link_finish(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
+    headers: HeaderMap,
     Json(req): Json<Register>,
 ) -> Result<(CookieJar, Json<Me>), ApiError> {
     let Ceremony::Registration {
@@ -329,7 +335,7 @@ pub async fn link_finish(
     if user.id != user_id {
         return Err(expired());
     }
-    let token = session::create(&mut tx, &user.id).await?;
+    let token = session::create(&mut tx, &user.id, user_agent(&headers)).await?;
     tx.commit().await?;
     tracing::info!("{} registered a passkey through a link", user.callsign);
     Ok((jar.add(session_cookie(token)), Json(Me::from(&user))))

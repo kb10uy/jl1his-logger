@@ -39,6 +39,20 @@ browser's `credential`; a ceremony is used once and expires after 5 minutes.
 `role` is `admin` or `user`. A passkey `name` left out or blank becomes
 `Passkey`.
 
+## Sessions
+
+A session is `{id, user_id, user_agent, created_at, last_used_at, expires_at,
+current}`: `user_agent` is the browser's `User-Agent` at sign-in, possibly
+`null`; `last_used_at` and `expires_at` move at most once a day; `current` marks
+the session making the request. A session ends 30 days after its last use and
+90 days after it was created at the latest. These endpoints take the session
+cookie only.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /api/sessions?user_id=` | | The live sessions of the signed-in user, or of `user_id` for an admin |
+| `DELETE /api/sessions/{id}` | | `204`; the session's user or an admin |
+
 ## Reference Data
 
 `GET /api/reference` returns the versions of the reference data in use,
@@ -154,7 +168,10 @@ A QSO is:
 `fields` holds every ADIF field of the QSO, as the strings they arrived as;
 which of them are columns is not visible. Names in a request are read ignoring
 case and stored upper-cased; an empty value is the same as an absent field.
-`CALL`, `QSO_DATE`, `TIME_ON`, `BAND` and `MODE` are required. A deleted QSO
+A name is ASCII letters, digits and underscores starting with a letter, a
+value at most 2048 bytes, and a QSO has at most 1024 fields outside the
+columns; anything else is `400`. A comma-separated filter takes at most 100
+values. `CALL`, `QSO_DATE`, `TIME_ON`, `BAND` and `MODE` are required. A deleted QSO
 keeps its fields and has `deleted_at` set. `created_by_callsign` and
 `updated_by_callsign` are those users' current callsigns.
 
@@ -378,4 +395,5 @@ or is deleted, and when the server shuts down; the browser then reconnects
 with `Last-Event-ID`, and a `404` or `401` stops it. Session checks do not renew
 the session. At most one page of 500 QSOs is queued per stream. Even while
 that queue is being sent, authorization is checked on server writes and every
-10 seconds, and shutdown discards the queue immediately.
+10 seconds, and shutdown discards the queue immediately. At most 64 streams
+are open per server; one more is `503`, and the client retries later.

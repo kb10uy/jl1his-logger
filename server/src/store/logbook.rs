@@ -3,7 +3,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 use crate::store::{
     StoreError, WriteTx,
     access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal, UserAccess},
-    membership, new_id, now, user,
+    membership, name as store_name, new_id, now, user,
 };
 
 const SELECT: &str = "SELECT id, name, last_seq, last_updated_seq, cursor_generation FROM logbooks";
@@ -31,10 +31,7 @@ impl Logbook {
 
 pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, name: &str, owner_id: &str) -> Result<Logbook, StoreError> {
     admin.revalidate(tx).await?;
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(StoreError::Invalid("a Logbook needs a name".into()));
-    }
+    let name = store_name("a Logbook", name)?;
     if !user::is_active(tx, owner_id).await? {
         return Err(StoreError::NotFound("user"));
     }

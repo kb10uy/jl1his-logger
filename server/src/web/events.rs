@@ -2,12 +2,15 @@ use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration}
 
 use axum::{
     extract::State,
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
     response::sse::{Event, KeepAlive, Sse},
 };
 use futures_util::{Stream, stream};
 use serde::{Deserialize, Serialize};
-use tokio::{sync::watch, time::Instant};
+use tokio::{
+    sync::{OwnedSemaphorePermit, watch},
+    time::Instant,
+};
 
 use crate::{
     store::{StoreError, access::LogbookAccess, logbook, qso, session},
@@ -36,6 +39,7 @@ struct Change<'a> {
 }
 
 struct Feed {
+    _permit: OwnedSemaphorePermit,
     state: Arc<AppState>,
     access: LogbookAccess,
     session_hash: Option<Vec<u8>>,
@@ -143,6 +147,12 @@ pub async fn stream(
         ),
         None => None,
     };
+    let permit = state.streams.clone().try_acquire_owned().map_err(|_| {
+        ApiError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "too many event streams are open; try again later",
+        )
+    })?;
     let Member { caller, access } = member;
     let mut conn = state.db.acquire().await?;
     let current = logbook::get(&mut conn, &access).await?;
@@ -159,6 +169,7 @@ pub async fn stream(
         .json_data(&hello)
         .expect("a greeting serializes");
     let feed = Feed {
+        _permit: permit,
         writes: state.writes.subscribe(),
         closing: state.closing.subscribe(),
         state,
@@ -186,7 +197,10 @@ mod tests {
     use super::*;
     use crate::{
         store::token::TokenKind,
-        web::testing::{Auth, Harness, authorize},
+        web::{
+            MAX_STREAMS,
+            testing::{Auth, Harness, authorize},
+        },
     };
 
     struct Events {
@@ -442,6 +456,25 @@ mod tests {
         }
         h.state.close_streams();
         assert_eq!(events.next().await, None);
+    }
+
+    #[tokio::test]
+    async fn caps_the_open_streams_for_the_whole_server() {
+        let h = Harness::new().await;
+        let operator = h.session(&h.world.operator).await;
+        let mut open = Vec::new();
+        for _ in 0..MAX_STREAMS {
+            let (status, events) = Events::open(&h, Auth::Session(&operator), "", None).await;
+            assert_eq!(status, StatusCode::OK);
+            open.push(events);
+        }
+        let (status, _) = Events::open(&h, Auth::Session(&operator), "", None).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+
+        drop(open.pop());
+        let (status, mut events) = Events::open(&h, Auth::Session(&operator), "", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(events.next().await, Some(hello(&h, 0, 0)));
     }
 
     #[tokio::test]

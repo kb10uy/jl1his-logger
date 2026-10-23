@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
+use sqlx::Connection;
+
 use crate::{
     db::Db,
     domain::{
@@ -36,6 +38,26 @@ impl NewReport {
         self.invalid.push((index, error.to_string()));
         self.rejects.extend(record);
     }
+
+    fn note(&mut self, index: usize, warnings: Vec<Warning>) -> Vec<String> {
+        let mut duplicates = vec![];
+        for warning in warnings {
+            match warning {
+                Warning::PossibleDuplicate { ids } => duplicates.extend(ids),
+                Warning::FrequencyOutsideBand { freq, band } => self.outside_band.push((index, freq, band)),
+                mode => self.modes.push((index, mode)),
+            }
+        }
+        duplicates
+    }
+
+    fn duplicates_of(&mut self, index: usize, mut duplicates: Vec<String>) {
+        duplicates.sort();
+        duplicates.dedup();
+        if !duplicates.is_empty() {
+            self.duplicates.push((index, duplicates));
+        }
+    }
 }
 
 pub async fn import_new(
@@ -60,55 +82,52 @@ pub async fn import_new(
             Err(e) => report.reject(index, e, None),
         }
     }
-    let mut previewed: BTreeMap<i64, Vec<(String, DuplicateKey)>> = BTreeMap::new();
+    let input = |qso: &Qso| QsoInput {
+        station_id: station.id.clone(),
+        qso: qso.clone(),
+    };
+    if !apply {
+        let mut previewed: BTreeMap<i64, Vec<(String, DuplicateKey)>> = BTreeMap::new();
+        let mut conn = db.acquire().await?;
+        let mut tx = conn.begin().await?;
+        for (index, id, qso) in &planned {
+            match qso::preview(&mut tx, access, id, input(qso)).await {
+                Ok(Some((baked, warnings))) => {
+                    report.created += 1;
+                    let mut duplicates = report.note(*index, warnings);
+                    let key = DuplicateKey::of(&baked)?;
+                    duplicates.extend(
+                        previewed
+                            .range(key.time_range())
+                            .flat_map(|(_, rows)| rows)
+                            .filter(|(_, previous)| key.matches(previous))
+                            .map(|(id, _)| id.clone()),
+                    );
+                    previewed.entry(key.qso_time).or_default().push((id.to_string(), key));
+                    report.duplicates_of(*index, duplicates);
+                }
+                Ok(None) => report.existing += 1,
+                Err(StoreError::Qso(e)) => report.reject(*index, e, Some(qso.clone())),
+                Err(e) => return Err(e),
+            }
+        }
+        return Ok(report);
+    }
     for batch in planned.chunks(BATCH) {
         let mut tx = WriteTx::begin(db).await?;
         for (index, id, qso) in batch {
-            let input = QsoInput {
-                station_id: station.id.clone(),
-                qso: qso.clone(),
-            };
-            match qso::create(&mut tx, access, id, input).await {
-                Ok(Created::New { stored, warnings }) => {
+            match qso::create(&mut tx, access, id, input(qso)).await {
+                Ok(Created::New { warnings, .. }) => {
                     report.created += 1;
-                    let mut duplicates = vec![];
-                    for warning in warnings {
-                        match warning {
-                            Warning::PossibleDuplicate { ids } => duplicates.extend(ids),
-                            Warning::FrequencyOutsideBand { freq, band } => {
-                                report.outside_band.push((*index, freq, band))
-                            }
-                            mode => report.modes.push((*index, mode)),
-                        }
-                    }
-                    if !apply {
-                        let key = DuplicateKey::of(&stored.qso)?;
-                        duplicates.extend(
-                            previewed
-                                .range(key.time_range())
-                                .flat_map(|(_, rows)| rows)
-                                .filter(|(_, previous)| key.matches(previous))
-                                .map(|(id, _)| id.clone()),
-                        );
-                        previewed
-                            .entry(key.qso_time)
-                            .or_default()
-                            .push((stored.id.to_string(), key));
-                    }
-                    duplicates.sort();
-                    duplicates.dedup();
-                    if !duplicates.is_empty() {
-                        report.duplicates.push((*index, duplicates));
-                    }
+                    let duplicates = report.note(*index, warnings);
+                    report.duplicates_of(*index, duplicates);
                 }
                 Ok(Created::Existing(_)) => report.existing += 1,
                 Err(StoreError::Qso(e)) => report.reject(*index, e, Some(qso.clone())),
                 Err(e) => return Err(e),
             }
         }
-        if apply {
-            tx.commit().await?;
-        }
+        tx.commit().await?;
     }
     Ok(report)
 }
@@ -333,6 +352,22 @@ mod tests {
         let rerun = import_new(&world.db, &access, &station, records, false).await.unwrap();
         assert_eq!((rerun.created, rerun.existing), (0, BATCH + 2));
         assert!(rerun.duplicates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn previews_while_another_write_is_open() {
+        let (world, access, station) = setup().await;
+        let held = WriteTx::begin(&world.db).await.unwrap();
+        let records = vec![Ok(contact("JA1AAA", "0101")), Ok(contact("JA1AAA", "0101"))];
+        let preview = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            import_new(&world.db, &access, &station, records, false),
+        )
+        .await
+        .expect("a preview takes no write lock")
+        .unwrap();
+        assert_eq!((preview.created, preview.duplicates.len()), (2, 1));
+        drop(held);
     }
 
     #[rstest]

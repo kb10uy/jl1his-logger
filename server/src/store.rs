@@ -88,6 +88,22 @@ pub(crate) fn hash_token(token: &str) -> Vec<u8> {
     Sha256::digest(token.as_bytes()).to_vec()
 }
 
+pub(crate) const MAX_TEXT_BYTES: usize = 2048;
+
+pub(crate) fn name<'a>(what: &str, value: &'a str) -> Result<&'a str, StoreError> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(StoreError::Invalid(format!("{what} needs a name")));
+    }
+    if value.len() > MAX_TEXT_BYTES {
+        return Err(StoreError::Invalid(format!(
+            "the name of {what} is {} bytes long; at most {MAX_TEXT_BYTES} are kept",
+            value.len()
+        )));
+    }
+    Ok(value)
+}
+
 pub(crate) fn is_unique_violation(e: &sqlx::Error) -> bool {
     e.as_database_error().is_some_and(|e| e.is_unique_violation())
 }

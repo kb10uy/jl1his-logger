@@ -15,6 +15,8 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 cookie = "0.18.2"
 dotenvy = "0.15.7"
 futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
+hyper = { version = "1.12.0", default-features = false, features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1.21", features = ["server-auto", "server-graceful", "tokio"] }
 rand = "0.10.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
@@ -23,7 +25,8 @@ sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs"] }
 toml = "1.1.8"
-tower-http = { version = "0.7.1", features = ["fs", "set-header", "trace"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.1", features = ["fs", "set-header", "timeout", "trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url = "2.5.8"
@@ -37,4 +40,3 @@ p256 = { version = "0.13.2", features = ["ecdsa"] }
 rstest = "0.28.0"
 serde_cbor_2 = "0.13.0"
 tempfile = "3.27.0"
-tower = { version = "0.5.3", features = ["util"] }

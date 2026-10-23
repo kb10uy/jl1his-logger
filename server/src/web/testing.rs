@@ -100,7 +100,7 @@ impl Harness {
 
     pub async fn session(&self, user: &User) -> String {
         let mut tx = WriteTx::begin(&self.world.db).await.unwrap();
-        let token = session::create(&mut tx, &user.id).await.unwrap();
+        let token = session::create(&mut tx, &user.id, None).await.unwrap();
         tx.commit().await.unwrap();
         format!("__Host-session={token}")
     }

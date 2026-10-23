@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
-    domain::qso::{Qso, field_name},
+    domain::qso::{MAX_FIELDS, Qso, QsoError, field_name, field_value},
     store::{
         StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
-        is_unique_violation, new_id, now,
+        is_unique_violation, name as store_name, new_id, now,
         qso::{self, StoredQso, TimeRange},
         user::normalize_callsign,
     },
@@ -61,19 +61,20 @@ struct Normalized {
 }
 
 fn normalize(input: &StationInput) -> Result<Normalized, StoreError> {
-    let name = input.name.trim();
-    if name.is_empty() {
-        return Err(StoreError::Invalid("a Station needs a name".into()));
-    }
+    let name = store_name("a Station", &input.name)?;
     let mut fields = BTreeMap::new();
     for (name, value) in &input.fields {
         let name = field_name(name)?;
+        field_value(&name, value)?;
         if NOT_DEFAULTS.contains(&name.as_str()) {
             return Err(StoreError::Invalid(format!("{name} cannot be a Station default")));
         }
         if !value.is_empty() && fields.insert(name.clone(), value.clone()).is_some() {
             return Err(StoreError::Invalid(format!("{name} is given more than once")));
         }
+    }
+    if fields.len() > MAX_FIELDS {
+        return Err(QsoError::TooManyFields(fields.len()).into());
     }
     Ok(Normalized {
         name: name.to_owned(),

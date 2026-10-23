@@ -816,6 +816,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn refuses_a_filter_list_longer_than_a_hundred_values() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let query = format!("qsl_sent={}", vec!["Y"; 101].join(","));
+        let (status, body) = h
+            .send("GET", &h.path(&format!("/qsos?{query}")), Auth::Session(&cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(body["error"].as_str().unwrap().contains("at most 100"));
+    }
+
+    #[tokio::test]
     async fn accepts_native_tokens_scoped_to_the_logbook() {
         let h = Harness::new().await;
         let logbook_id = h.world.logbook.id.as_str();

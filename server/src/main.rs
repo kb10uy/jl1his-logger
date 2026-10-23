@@ -5,7 +5,7 @@ use jl1his_logger::{
     cli,
     config::{Config, parse_public_origin},
     db::{self, backup},
-    web::{AppState, router},
+    web::{AppState, router, serve},
 };
 use tracing_subscriber::EnvFilter;
 use url::Url;
@@ -139,12 +139,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             let listener = tokio::net::TcpListener::bind(listen).await?;
             tracing::info!("listening on http://{} for {public_origin}", listener.local_addr()?);
             let closing = state.clone();
-            axum::serve(listener, router(state, web_dir.as_deref()))
-                .with_graceful_shutdown(async move {
-                    shutdown_signal().await;
-                    closing.close_streams();
-                })
-                .await?;
+            serve(listener, router(state, web_dir.as_deref()), async move {
+                shutdown_signal().await;
+                closing.close_streams();
+            })
+            .await?;
             db.close().await;
         }
         Command::Cli(command) => cli::run(&cli.database, &config, cli.actor.as_deref(), command).await?,

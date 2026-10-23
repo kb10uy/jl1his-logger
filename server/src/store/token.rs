@@ -9,7 +9,7 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::{self, Principal, UserAccess},
-        hash_token, new_id, now, random_token, timestamp,
+        hash_token, name as store_name, new_id, now, random_token, timestamp,
     },
 };
 
@@ -88,10 +88,7 @@ const SELECT: &str = "SELECT t.id, t.user_id, t.kind, t.name, t.created_at, t.la
 
 pub async fn issue(tx: &mut WriteTx, user: &UserAccess, input: &TokenInput) -> Result<Issued, StoreError> {
     let user = user.revalidate(tx).await?;
-    let name = input.name.trim();
-    if name.is_empty() {
-        return Err(StoreError::Invalid("a token needs a name".into()));
-    }
+    let name = store_name("a token", &input.name)?;
     let scopes: BTreeSet<&str> = input.logbook_ids.iter().map(String::as_str).collect();
     match (input.kind, scopes.len()) {
         (_, 0) => return Err(StoreError::Invalid("a token needs a Logbook".into())),

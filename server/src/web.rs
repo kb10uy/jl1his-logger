@@ -10,13 +10,15 @@ mod member;
 mod qso;
 mod query;
 mod references;
+mod serve;
+mod session;
 mod station;
 #[cfg(test)]
 mod testing;
 mod token;
 mod wl2;
 
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
@@ -27,10 +29,11 @@ use axum::{
     routing::{any, delete, get, post, put},
 };
 use serde_json::json;
-use tokio::sync::watch;
+use tokio::sync::{Semaphore, watch};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeader,
+    timeout::RequestBodyTimeoutLayer,
     trace::TraceLayer,
 };
 use url::Url;
@@ -38,6 +41,11 @@ use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::WebauthnError};
 
 use self::{auth::Ceremonies, error::ApiError, references::References};
 use crate::{config::Config, db::Db};
+
+pub use self::serve::serve;
+
+pub const MAX_STREAMS: usize = 64;
+const BODY_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 const SECURITY_HEADERS: [(HeaderName, &str); 5] = [
     (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
@@ -60,6 +68,7 @@ pub struct AppState {
     webauthn: Webauthn,
     ceremonies: Ceremonies,
     references: References,
+    streams: Arc<Semaphore>,
     writes: watch::Sender<u64>,
     closing: watch::Sender<bool>,
 }
@@ -77,6 +86,7 @@ impl AppState {
             webauthn,
             ceremonies: Ceremonies::default(),
             references: References::default(),
+            streams: Arc::new(Semaphore::new(MAX_STREAMS)),
             writes: watch::Sender::new(0),
             closing: watch::Sender::new(false),
         })
@@ -100,6 +110,8 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/passkeys/register/start", post(auth::add_start))
         .route("/api/passkeys/register/finish", post(auth::add_finish))
         .route("/api/passkeys/{id}", delete(auth::delete_passkey))
+        .route("/api/sessions", get(session::list))
+        .route("/api/sessions/{id}", delete(session::revoke))
         .route("/api/reference", get(references::list))
         .route("/api/tokens", get(token::list).post(token::issue))
         .route("/api/tokens/{id}", delete(token::revoke))
@@ -170,6 +182,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         None => api,
     };
     app.layer(middleware::from_fn(security_headers))
+        .layer(RequestBodyTimeoutLayer::new(BODY_IDLE_TIMEOUT))
         .layer(TraceLayer::new_for_http())
 }
 

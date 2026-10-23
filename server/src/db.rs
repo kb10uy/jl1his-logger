@@ -258,15 +258,27 @@ mod tests {
              INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision)
              VALUES ('log', 'batch', 'qso', 2);
              INSERT INTO reference_versions (kind, version, checksum, updated_at)
-             VALUES ('cty', '20261022', X'abcd', '2026-10-22T00:00:00Z');",
+             VALUES ('cty', '20261022', X'abcd', '2026-10-22T00:00:00Z');
+             INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
+             VALUES (X'01', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z');",
         )
         .execute(&db)
         .await
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3]);
+        assert_eq!(migrated.applied, [2, 3, 4]);
         assert!(migrated.snapshot.unwrap().is_file());
+        let session: (String, Vec<u8>, String, Option<String>) =
+            sqlx::query_as("SELECT id, token_hash, last_used_at, user_agent FROM sessions")
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(session.0.len(), 32);
+        assert_eq!(
+            (session.1, session.2.as_str(), session.3),
+            (vec![1], "2026-10-22T00:00:00Z", None)
+        );
         let batch: (String, String, String, String, String, Option<String>) =
             sqlx::query_as("SELECT id, logbook_id, kind, created_by, created_at, applied_at FROM export_batches")
                 .fetch_one(&db)

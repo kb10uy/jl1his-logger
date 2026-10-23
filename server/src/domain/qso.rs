@@ -14,6 +14,9 @@ use crate::domain::{
 pub use columns::Columns;
 pub use id::{InvalidQsoId, QsoId};
 
+pub const MAX_FIELDS: usize = 1024;
+pub const MAX_VALUE_BYTES: usize = 2048;
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum QsoError {
     #[error("{0} is required")]
@@ -26,6 +29,10 @@ pub enum QsoError {
     Repeated(String),
     #[error("{0} belongs in the QSO columns, not the extra fields")]
     ColumnField(String),
+    #[error("{name} is {bytes} bytes long; a value has at most {MAX_VALUE_BYTES}")]
+    TooLong { name: String, bytes: usize },
+    #[error("the QSO has {0} extra fields; at most {MAX_FIELDS} are kept")]
+    TooManyFields(usize),
 }
 
 impl QsoError {
@@ -92,7 +99,7 @@ impl Qso {
             if qso.get(&name).is_some() {
                 return Err(QsoError::Repeated(name));
             }
-            qso.put(name, value.into());
+            qso.put(name, value.into())?;
         }
         Ok(qso)
     }
@@ -105,8 +112,7 @@ impl Qso {
     }
 
     pub fn set(&mut self, name: &str, value: Option<String>) -> Result<(), QsoError> {
-        self.put(field_name(name)?, value.unwrap_or_default());
-        Ok(())
+        self.put(field_name(name)?, value.unwrap_or_default())
     }
 
     pub fn fill(&mut self, name: &str, value: &str) -> Result<(), QsoError> {
@@ -132,13 +138,22 @@ impl Qso {
     }
 
     pub fn check(&self) -> Result<Checked, QsoError> {
-        for name in self.fields.keys() {
+        for (name, value) in &self.fields {
             let normalized = field_name(name)?;
             if Columns::NAMES.contains(&normalized.as_str()) {
                 return Err(QsoError::ColumnField(normalized));
             }
             if *name != normalized {
                 return Err(QsoError::FieldName(name.clone()));
+            }
+            field_value(name, value)?;
+        }
+        if self.fields.len() > MAX_FIELDS {
+            return Err(QsoError::TooManyFields(self.fields.len()));
+        }
+        for name in Columns::NAMES {
+            if let Some(value) = self.columns.get(name) {
+                field_value(name, value)?;
             }
         }
         let required = |name: &'static str| self.get(name).ok_or(QsoError::Missing(name));
@@ -190,32 +205,44 @@ impl Qso {
         })
     }
 
-    fn put(&mut self, name: String, value: String) {
+    fn put(&mut self, name: String, value: String) -> Result<(), QsoError> {
+        field_value(&name, &value)?;
         let value = Some(value).filter(|v| !v.is_empty());
         match (self.columns.slot(&name), value) {
             (Some(slot), value) => *slot = value,
             (None, Some(value)) => {
+                if !self.fields.contains_key(&name) && self.fields.len() >= MAX_FIELDS {
+                    return Err(QsoError::TooManyFields(self.fields.len() + 1));
+                }
                 self.fields.insert(name, value);
             }
             (None, None) => {
                 self.fields.remove(&name);
             }
         }
+        Ok(())
     }
 }
 
 pub fn field_name(name: &str) -> Result<String, QsoError> {
-    let valid = !name.is_empty()
-        && !name.starts_with(' ')
-        && !name.ends_with(' ')
-        && name
-            .bytes()
-            .all(|b| (b.is_ascii_graphic() || b == b' ') && !b",:<>{}".contains(&b))
+    let mut bytes = name.bytes();
+    let valid = bytes.next().is_some_and(|b| b.is_ascii_alphabetic())
+        && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
         && !name.eq_ignore_ascii_case("EOR")
         && !name.eq_ignore_ascii_case("EOH");
     match valid {
         true => Ok(name.to_ascii_uppercase()),
         false => Err(QsoError::FieldName(name.to_owned())),
+    }
+}
+
+pub fn field_value(name: &str, value: &str) -> Result<(), QsoError> {
+    match value.len() {
+        bytes if bytes > MAX_VALUE_BYTES => Err(QsoError::TooLong {
+            name: name.to_owned(),
+            bytes,
+        }),
+        _ => Ok(()),
     }
 }
 
@@ -316,6 +343,11 @@ pub(crate) mod tests {
     #[case("CA<LL")]
     #[case("CA,LL")]
     #[case("CA{LL}")]
+    #[case("MY RIG")]
+    #[case("A-B")]
+    #[case("A.B")]
+    #[case("_X")]
+    #[case("1A")]
     #[case("NAMÉ")]
     #[case("eor")]
     #[case("EOH")]
@@ -324,6 +356,42 @@ pub(crate) mod tests {
             Qso::from_fields([(name, "x")]),
             Err(QsoError::FieldName(name.to_owned()))
         );
+    }
+
+    #[rstest]
+    #[case("app_hislog_note")]
+    #[case("A1")]
+    #[case("X_")]
+    fn accepts_adif_field_names(#[case] name: &str) {
+        assert_eq!(field_name(name).unwrap(), name.to_ascii_uppercase());
+    }
+
+    #[test]
+    fn bounds_value_length_and_extra_field_count() {
+        let long = "x".repeat(MAX_VALUE_BYTES + 1);
+        let too_long = QsoError::TooLong {
+            name: "NAME".into(),
+            bytes: MAX_VALUE_BYTES + 1,
+        };
+        assert_eq!(Qso::from_fields([("NAME", long.as_str())]), Err(too_long.clone()));
+        let mut qso = sample();
+        assert_eq!(qso.set("NAME", Some(long.clone())), Err(too_long));
+        qso.set("COMMENT", Some("x".repeat(MAX_VALUE_BYTES))).unwrap();
+        qso.fields.insert("APP_X_NOTE".into(), long);
+        assert!(matches!(qso.check(), Err(QsoError::TooLong { .. })));
+
+        let mut qso = sample();
+        for i in 0..MAX_FIELDS {
+            qso.set(&format!("APP_X_F{i}"), Some("v".into())).unwrap();
+        }
+        qso.set("APP_X_F0", Some("again".into())).unwrap();
+        assert!(qso.check().is_ok());
+        assert_eq!(
+            qso.set("APP_X_MORE", Some("v".into())),
+            Err(QsoError::TooManyFields(MAX_FIELDS + 1))
+        );
+        qso.fields.insert("APP_X_MORE".into(), "v".into());
+        assert_eq!(qso.check(), Err(QsoError::TooManyFields(MAX_FIELDS + 1)));
     }
 
     #[test]

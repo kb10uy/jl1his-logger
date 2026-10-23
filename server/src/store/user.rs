@@ -284,7 +284,7 @@ mod tests {
         let admin = world.admin_access().await;
         let operator = world.user_access(&world.operator).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        session::create(&mut tx, &world.operator.id).await.unwrap();
+        session::create(&mut tx, &world.operator.id, None).await.unwrap();
         let input = token::TokenInput {
             kind: token::TokenKind::Native,
             name: "hislog".into(),

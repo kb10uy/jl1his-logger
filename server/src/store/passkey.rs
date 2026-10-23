@@ -1,6 +1,6 @@
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
-use crate::store::{StoreError, WriteTx, access::UserAccess, is_unique_violation, new_id, now};
+use crate::store::{StoreError, WriteTx, access::UserAccess, is_unique_violation, name as store_name, new_id, now};
 
 const SELECT: &str =
     "SELECT p.id, p.user_id, p.credential_id, p.passkey, p.name, p.created_at, p.last_used_at FROM passkeys p";
@@ -105,10 +105,7 @@ pub async fn record_use(tx: &mut WriteTx, id: &str, passkey: &str) -> Result<(),
 }
 
 pub(crate) async fn insert(tx: &mut WriteTx, user_id: &str, new: &NewPasskey) -> Result<Passkey, StoreError> {
-    let name = new.name.trim();
-    if name.is_empty() {
-        return Err(StoreError::Invalid("a passkey needs a name".into()));
-    }
+    let name = store_name("a passkey", &new.name)?;
     if new.credential_id.is_empty() {
         return Err(StoreError::Invalid("a passkey needs a credential ID".into()));
     }
