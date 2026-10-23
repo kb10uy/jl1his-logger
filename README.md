@@ -174,6 +174,9 @@ Rust with the `wasm32-unknown-unknown` target and
 Voice entry needs the speech models in `client/static/models`, fetched by
 `pnpm run models`; without them the rest of the app works and voice entry says
 the model is missing.
+The favicon and app icons in `client/static` are generated from
+`client/static/logo.svg` by `pnpm run icons`, which needs
+[ImageMagick](https://imagemagick.org) with librsvg.
 
 ```sh
 cd client

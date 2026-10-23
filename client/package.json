@@ -8,6 +8,7 @@
         "wasm": "wasm-pack build ../query --target web --release --out-dir ../client/src/lib/query/wasm --out-name query --no-pack -- --features wasm",
         "vosk": "node scripts/vosk-worker.js",
         "models": "bash scripts/setup-vosk.sh",
+        "icons": "bash scripts/icons.sh",
         "dev": "pnpm run wasm && pnpm run vosk && vite dev",
         "build": "pnpm run wasm && pnpm run vosk && vite build",
         "preview": "vite preview",
