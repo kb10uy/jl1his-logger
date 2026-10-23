@@ -57,6 +57,13 @@
                       href: `${root}/stations`,
                       mobile: false
                   },
+                  {
+                      label: 'Instruments',
+                      short: 'Instruments',
+                      icon: 'instruments',
+                      href: `${root}/instruments`,
+                      mobile: false
+                  },
                   { label: 'QSL', short: 'QSL', icon: 'qsl', href: `${root}/qsl`, mobile: false },
                   {
                       label: 'Import / Export',

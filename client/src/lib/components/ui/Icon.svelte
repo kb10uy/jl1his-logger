@@ -1,5 +1,6 @@
 <script lang="ts" module>
     import AlertTriangle from '@tabler/icons-svelte-runes/icons/alert-triangle';
+    import Antenna from '@tabler/icons-svelte-runes/icons/antenna';
     import Check from '@tabler/icons-svelte-runes/icons/check';
     import ChevronDown from '@tabler/icons-svelte-runes/icons/chevron-down';
     import ChevronLeft from '@tabler/icons-svelte-runes/icons/chevron-left';
@@ -25,6 +26,7 @@
         entry: Radio,
         voice: Microphone,
         stations: MapPin,
+        instruments: Antenna,
         qsl: Mail,
         transfer: TransferVertical,
         settings: Settings,

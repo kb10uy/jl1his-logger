@@ -16,6 +16,12 @@
             href: `${root}/stations`,
             detail: () => `${logbook.activeStations.length} active`
         },
+        {
+            label: 'Instruments',
+            icon: 'instruments',
+            href: `${root}/instruments`,
+            detail: () => `${logbook.activeInstruments.length} active`
+        },
         { label: 'QSL', icon: 'qsl', href: `${root}/qsl` },
         { label: 'Import / Export', icon: 'transfer', href: `${root}/import-export` },
         { label: 'Members', icon: 'members', href: `${root}/members` },

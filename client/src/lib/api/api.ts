@@ -6,6 +6,7 @@ import type {
     Fields,
     ImportSource,
     Instrument,
+    InstrumentInput,
     LengthUnit,
     Logbook,
     LogbookRole,
@@ -127,9 +128,6 @@ export const updateStation = (logbook: string, id: string, input: StationInput) 
 export const archiveStation = (logbook: string, id: string, archived: boolean) =>
     request<Station>(archived ? 'POST' : 'DELETE', `${station(logbook, id)}/archive`);
 
-export const instruments = (logbook: string) =>
-    request<Instrument[]>('GET', `${base(logbook)}/instruments`);
-
 export interface Range {
     from?: string;
     until?: string;
@@ -140,6 +138,29 @@ export const previewRewrite = (logbook: string, id: string, range: Range) =>
 
 export const rewrite = (logbook: string, id: string, range: Range, count: number) =>
     request<{ count: number }>('POST', `${station(logbook, id)}/rewrite`, {
+        body: { ...range, count }
+    });
+
+export const instruments = (logbook: string) =>
+    request<Instrument[]>('GET', `${base(logbook)}/instruments`);
+
+const instrument = (logbook: string, id: string) =>
+    `${base(logbook)}/instruments/${encodeURIComponent(id)}`;
+
+export const createInstrument = (logbook: string, input: InstrumentInput) =>
+    request<Instrument>('POST', `${base(logbook)}/instruments`, { body: input });
+
+export const updateInstrument = (logbook: string, id: string, input: InstrumentInput) =>
+    request<Instrument>('PUT', instrument(logbook, id), { body: input });
+
+export const archiveInstrument = (logbook: string, id: string, archived: boolean) =>
+    request<Instrument>(archived ? 'POST' : 'DELETE', `${instrument(logbook, id)}/archive`);
+
+export const previewInstrumentRewrite = (logbook: string, id: string, range: Range) =>
+    request<{ count: number }>('GET', `${instrument(logbook, id)}/rewrite${query({ ...range })}`);
+
+export const rewriteInstrument = (logbook: string, id: string, range: Range, count: number) =>
+    request<{ count: number }>('POST', `${instrument(logbook, id)}/rewrite`, {
         body: { ...range, count }
     });
 
