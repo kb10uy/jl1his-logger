@@ -220,6 +220,36 @@ cursor and starts from 0.
 `next` is an opaque cursor for the following page, passed back as `cursor`, or
 `null` on the last page.
 
+## Lookup
+
+`GET /api/logbooks/{logbook_id}/lookup?call=&station_ids=` answers what the
+reference data and the Logbook know about a callsign:
+
+```json
+{
+  "call": "JA1XYZ",
+  "entity": {
+    "name": "Japan", "dxcc": 339, "continent": "AS", "cq_zone": 25, "itu_zone": 45,
+    "latitude": 36.4, "longitude": 138.38
+  },
+  "previous": {
+    "count": 2,
+    "last_qso_at": "2026-10-22T03:00:00Z",
+    "fields": { "NAME": "Hanako", "QTH": "Chiba", "GRIDSQUARE": "PM95" }
+  }
+}
+```
+
+`call` is required and answered upper-cased. `entity` is what `cty.dat`
+resolves the call to, with the overrides of the matching alias and longitude
+growing towards the east; it is `null` when `cty.dat` is not installed or does
+not know the call, and `dxcc` is `null` when the `dxcc` table has no code for
+the entity. `previous` covers the live QSOs whose call has the same base
+(`JA1XYZ` matches `JA1XYZ/P`), optionally narrowed by `station_ids`, a
+comma-separated list of Station IDs: their number, the QSO time of the latest,
+and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`
+and `QSL_VIA` across all of them.
+
 ## Bulk QSL Changes
 
 `POST /api/logbooks/{logbook_id}/qsl` takes

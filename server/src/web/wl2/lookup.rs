@@ -1,23 +1,16 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    domain::reference::dxcc_code,
-    store::{
-        qso::{self, CallMatch, Filter},
-        station,
-    },
+    store::{qso, station},
     web::{
         AppState,
         wl2::{Wl2Access, Wl2Error, Wl2Query, data, mapped},
     },
 };
-
-const PREVIOUS_PAGE_SIZE: u32 = 1000;
-const PREVIOUS_FIELDS: [&str; 7] = ["NAME", "GRIDSQUARE", "QTH", "STATE", "CNTY", "IOTA", "QSL_VIA"];
 
 #[derive(Debug, Deserialize)]
 pub struct LookupQuery {
@@ -45,11 +38,6 @@ pub async fn get(
         return Err(Wl2Error::validation("only detail=basic is supported"));
     }
 
-    let paths = &state.config.reference;
-    let cty = state.references.cty(&state.db, paths).await?;
-    let codes = state.references.dxcc(&state.db, paths).await?;
-    let found = cty.as_deref().and_then(|cty| cty.database.lookup(&callsign));
-
     let mut conn = state.db.acquire().await?;
     let station_ids = match query.station_ids.as_deref().filter(|s| !s.trim().is_empty()) {
         None => None,
@@ -62,43 +50,25 @@ pub async fn get(
             Some(ids)
         }
     };
-    let filter = Filter {
-        call: Some(CallMatch::Base(callsign.clone())),
-        station_ids,
-        ..Filter::default()
-    };
-    let mut previous = BTreeMap::new();
-    let mut worked_before = false;
-    let mut after = None;
-    loop {
-        let page = qso::search(&mut conn, &access, &filter, after.as_ref(), PREVIOUS_PAGE_SIZE).await?;
-        worked_before |= !page.rows.is_empty();
-        for row in page.rows {
-            for name in PREVIOUS_FIELDS {
-                if !previous.contains_key(name)
-                    && let Some(value) = row.qso.get(name).map(str::trim).filter(|v| !v.is_empty())
-                {
-                    previous.insert(name, value.to_owned());
-                }
-            }
-        }
-        after = page.next;
-        if after.is_none() || previous.len() == PREVIOUS_FIELDS.len() {
-            break;
-        }
-    }
-    let latest = |name: &str| previous.get(name);
+    let previous = qso::previous(&mut conn, &access, &callsign, station_ids).await?;
+    drop(conn);
+    let entity = state
+        .references
+        .entity(&state.db, &state.config.reference, &callsign)
+        .await?;
+    let entity = entity.as_ref();
+    let latest = |name: &str| previous.fields.get(name);
 
     Ok(data(
         json!({
             "callsign": callsign,
-            "dxcc": found.map(|f| f.entity.name.clone()),
-            "dxcc_id": found.and_then(|f| codes.as_deref().and_then(|codes| dxcc_code(codes, &f))),
-            "dxcc_lat": found.map(|f| f.location.latitude),
-            "dxcc_long": found.map(|f| f.location.longitude),
-            "dxcc_cqz": found.map(|f| f.location.cq_zone),
-            "dxcc_ituz": found.map(|f| f.location.itu_zone),
-            "cont": found.map(|f| f.location.continent.abbreviation()),
+            "dxcc": entity.map(|e| &e.name),
+            "dxcc_id": entity.and_then(|e| e.dxcc),
+            "dxcc_lat": entity.map(|e| e.latitude),
+            "dxcc_long": entity.map(|e| e.longitude),
+            "dxcc_cqz": entity.map(|e| e.cq_zone),
+            "dxcc_ituz": entity.map(|e| e.itu_zone),
+            "cont": entity.map(|e| e.continent),
             "name": latest("NAME"),
             "gridsquare": latest("GRIDSQUARE"),
             "location": latest("QTH"),
@@ -106,7 +76,7 @@ pub async fn get(
             "us_county": latest("CNTY"),
             "iota_ref": latest("IOTA"),
             "qsl_manager": latest("QSL_VIA"),
-            "workedBefore": worked_before,
+            "workedBefore": previous.count > 0,
         }),
         json!({ "resource": "lookup", "detail": "basic" }),
     ))
@@ -118,16 +88,14 @@ pub(in crate::web::wl2) mod tests {
 
     use axum::http::StatusCode;
     use serde_json::{Value, json};
-    use sha2::{Digest, Sha256};
     use tempfile::TempDir;
 
     use crate::{
-        config::{Config, ReferenceConfig},
         domain::{qso::Qso, reference::tests::CTY},
         store::{
             WriteTx,
             qso::{self, QsoInput},
-            reference::{self, ReferenceKind},
+            reference::ReferenceKind,
             station::{self, StationInput},
             token::TokenKind,
         },
@@ -140,39 +108,18 @@ pub(in crate::web::wl2) mod tests {
     pub(in crate::web::wl2) struct Fixture {
         pub(in crate::web::wl2) h: Harness,
         token: String,
-        dir: TempDir,
+        _dir: TempDir,
     }
 
     impl Fixture {
         pub(in crate::web::wl2) async fn new() -> Fixture {
-            let dir = tempfile::tempdir().unwrap();
-            let config = Config {
-                reference: ReferenceConfig {
-                    cty: dir.path().join("cty.dat"),
-                    dxcc: dir.path().join("dxcc.toml"),
-                    subdivisions: dir.path().join("subdivisions.toml"),
-                    parks: dir.path().join("parks.toml"),
-                },
-                ..Config::default()
-            };
-            let h = Harness::with_config(config).await;
+            let (h, _dir) = Harness::with_references().await;
             let token = h.token(&h.world.operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
-            Fixture { h, token, dir }
+            Fixture { h, token, _dir }
         }
 
-        pub(in crate::web::wl2) async fn install(&self, kind: ReferenceKind, file: &str, text: &str, version: &str) {
-            fs::write(self.dir.path().join(file), text).unwrap();
-            self.record(kind, version, text).await;
-        }
-
-        async fn record(&self, kind: ReferenceKind, version: &str, text: &str) {
-            let admin = self.h.world.admin_access().await;
-            let mut tx = WriteTx::begin(&self.h.world.db).await.unwrap();
-            let checksum = Sha256::digest(text);
-            reference::set(&mut tx, &admin, kind, version, Some(checksum.as_slice()))
-                .await
-                .unwrap();
-            tx.commit().await.unwrap();
+        pub(in crate::web::wl2) async fn install(&self, kind: ReferenceKind, text: &str, version: &str) {
+            self.h.install_reference(kind, text, version).await;
         }
 
         pub(in crate::web::wl2) async fn get(&self, uri: &str) -> (StatusCode, Value) {
@@ -221,8 +168,8 @@ pub(in crate::web::wl2) mod tests {
     #[tokio::test]
     async fn answers_the_entity_and_the_latest_own_contacts() {
         let f = Fixture::new().await;
-        f.install(ReferenceKind::Cty, "cty.dat", CTY, "20260915").await;
-        f.install(ReferenceKind::Dxcc, "dxcc.toml", "JA = 339\n", "1").await;
+        f.install(ReferenceKind::Cty, CTY, "20260915").await;
+        f.install(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
         worked(&f).await;
 
         let (status, body) = f.get("/wl2/index.php/api/v2/lookup?callsign=ja1xyz&detail=basic").await;
@@ -348,19 +295,19 @@ pub(in crate::web::wl2) mod tests {
             (&Value::Null, &json!("Hanako"))
         );
 
-        f.install(ReferenceKind::Cty, "cty.dat", CTY, "20260915").await;
+        f.install(ReferenceKind::Cty, CTY, "20260915").await;
         let (_, first) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(first["data"]["dxcc"], "Japan");
 
         let renamed = CTY.replace("Japan:", "Nippon:");
-        f.install(ReferenceKind::Cty, "cty.dat", &renamed, "20261001").await;
+        f.install(ReferenceKind::Cty, &renamed, "20261001").await;
         let (_, second) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(second["data"]["dxcc"], "Nippon");
 
-        fs::write(f.dir.path().join("cty.dat"), CTY).unwrap();
+        fs::write(f.h.reference_path(ReferenceKind::Cty), CTY).unwrap();
         let (_, cached) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(cached["data"]["dxcc"], "Nippon");
-        f.record(ReferenceKind::Cty, "20261015", &renamed).await;
+        f.h.record_reference(ReferenceKind::Cty, "20261015", &renamed).await;
         let (status, body) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
         assert_eq!(body["error"]["code"], "internal_error");

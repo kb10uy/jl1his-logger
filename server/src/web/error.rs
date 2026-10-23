@@ -5,7 +5,7 @@ use axum::{
 };
 use serde_json::{Map, Value};
 
-use crate::{domain::qso::QsoError, store::StoreError};
+use crate::{domain::qso::QsoError, store::StoreError, web::references::LoadError};
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -50,6 +50,15 @@ impl From<StoreError> for ApiError {
 impl From<QsoError> for ApiError {
     fn from(e: QsoError) -> ApiError {
         StoreError::from(e).into()
+    }
+}
+
+impl From<LoadError> for ApiError {
+    fn from(e: LoadError) -> ApiError {
+        match e {
+            LoadError::Store(e) => e.into(),
+            LoadError::File(message) => ApiError::internal(message),
+        }
     }
 }
 

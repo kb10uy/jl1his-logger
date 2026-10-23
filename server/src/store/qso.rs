@@ -193,6 +193,16 @@ pub struct Page {
     pub next: Option<Cursor>,
 }
 
+pub const PREVIOUS_FIELDS: [&str; 7] = ["NAME", "GRIDSQUARE", "QTH", "STATE", "CNTY", "IOTA", "QSL_VIA"];
+const PREVIOUS_PAGE_SIZE: u32 = 1000;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Previous {
+    pub count: u64,
+    pub last_qso_time: Option<i64>,
+    pub fields: BTreeMap<&'static str, String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QsoInput {
     pub station_id: String,
@@ -455,6 +465,50 @@ pub async fn search(
         false => None,
     };
     Ok(Page { rows, next })
+}
+
+pub async fn previous(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    call: &str,
+    station_ids: Option<Vec<String>>,
+) -> Result<Previous, StoreError> {
+    access.revalidate(conn).await?;
+    let filter = Filter {
+        call: Some(CallMatch::Base(call.to_owned())),
+        station_ids,
+        ..Filter::default()
+    };
+    let conditions = Conditions::of(access, &filter);
+    let sql = format!("SELECT count(*), max(qso_time) FROM qsos WHERE {}", conditions.sql());
+    let row = conditions
+        .bind(sqlx::query(AssertSqlSafe(sql)))
+        .fetch_one(&mut *conn)
+        .await?;
+    let mut previous = Previous {
+        count: row.try_get::<i64, _>(0)? as u64,
+        last_qso_time: row.try_get(1)?,
+        fields: BTreeMap::new(),
+    };
+
+    let mut after = None;
+    while previous.count > 0 {
+        let page = search(conn, access, &filter, after.as_ref(), PREVIOUS_PAGE_SIZE).await?;
+        for row in page.rows {
+            for name in PREVIOUS_FIELDS {
+                if !previous.fields.contains_key(name)
+                    && let Some(value) = row.qso.get(name).map(str::trim).filter(|v| !v.is_empty())
+                {
+                    previous.fields.insert(name, value.to_owned());
+                }
+            }
+        }
+        after = page.next;
+        if after.is_none() || previous.fields.len() == PREVIOUS_FIELDS.len() {
+            break;
+        }
+    }
+    Ok(previous)
 }
 
 pub async fn by_insertion(

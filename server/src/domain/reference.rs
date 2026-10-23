@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use callfind::cty::{CtyDatabase, CtyError, Resolution};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReferenceError {
@@ -23,6 +23,17 @@ pub struct Cty {
 pub struct Park {
     pub name_en: Option<String>,
     pub name_ja: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Entity {
+    pub name: String,
+    pub dxcc: Option<u32>,
+    pub continent: &'static str,
+    pub cq_zone: u8,
+    pub itu_zone: u8,
+    pub latitude: f64,
+    pub longitude: f64,
 }
 
 pub type DxccCodes = BTreeMap<String, u32>;
@@ -81,6 +92,19 @@ pub fn dxcc_code(codes: &DxccCodes, resolution: &Resolution<'_>) -> Option<u32> 
     codes.get(&resolution.entity.primary_prefix).copied()
 }
 
+pub fn entity(cty: &Cty, codes: Option<&DxccCodes>, call: &str) -> Option<Entity> {
+    let found = cty.database.lookup(call)?;
+    Some(Entity {
+        name: found.entity.name.clone(),
+        dxcc: codes.and_then(|codes| dxcc_code(codes, &found)),
+        continent: found.location.continent.abbreviation(),
+        cq_zone: found.location.cq_zone,
+        itu_zone: found.location.itu_zone,
+        latitude: found.location.latitude,
+        longitude: found.location.longitude,
+    })
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use rstest::rstest;
@@ -110,6 +134,31 @@ Ogasawara:                27:  45:  AS:   27.05:  -142.20:    -9.0:  JD/o:
                 .version,
             None
         );
+    }
+
+    #[test]
+    fn describes_the_entity_of_a_call() {
+        let cty = parse_cty(CTY).unwrap();
+        let codes = parse_dxcc(
+            "JA = 339
+",
+        )
+        .unwrap();
+        assert_eq!(
+            entity(&cty, Some(&codes), " ja1xyz/p "),
+            Some(Entity {
+                name: "Japan".into(),
+                dxcc: Some(339),
+                continent: "AS",
+                cq_zone: 25,
+                itu_zone: 45,
+                latitude: 36.4,
+                longitude: 138.38,
+            })
+        );
+        assert_eq!(entity(&cty, Some(&codes), "JD1ABC").unwrap().dxcc, None);
+        assert_eq!(entity(&cty, None, "JA1XYZ").unwrap().dxcc, None);
+        assert_eq!(entity(&cty, Some(&codes), "XX0XX"), None);
     }
 
     #[test]

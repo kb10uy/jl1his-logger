@@ -5,6 +5,7 @@ mod export;
 mod extract;
 mod import;
 mod logbook;
+mod lookup;
 mod qso;
 mod references;
 mod station;
@@ -129,6 +130,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
         .route("/api/logbooks/{logbook_id}/events", get(events::stream))
         .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
+        .route("/api/logbooks/{logbook_id}/lookup", get(lookup::get))
         .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))
         .route(
             "/api/logbooks/{logbook_id}/qsos/{id}",

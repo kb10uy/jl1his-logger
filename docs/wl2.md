@@ -117,7 +117,8 @@ minutes) is still created.
 the Logbook know about a callsign. `detail` may be left out; other details are
 `400`. `station_ids` narrows the earlier QSOs to those Stations before paging.
 The lookup searches across all matching live QSOs for each field's newest
-nonempty value; it does not stop after the first page of history.
+nonempty value; it does not stop after the first page of history. It is the
+native lookup (see [api.md](api.md)) in Wavelog's shape.
 
 | Key | Source |
 | --- | --- |

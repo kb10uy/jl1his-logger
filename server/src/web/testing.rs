@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fs, path::Path, sync::Arc};
 
 use axum::{
     Router,
@@ -7,13 +7,17 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
+use tempfile::TempDir;
 use tower::ServiceExt;
 use url::Url;
 
 use crate::{
-    config::Config,
+    config::{Config, ReferenceConfig},
     store::{
-        WriteTx, session,
+        WriteTx,
+        reference::{self, ReferenceKind},
+        session,
         station::{self, Station, tests::input as station_input},
         testing::World,
         token::{self, TokenInput, TokenKind},
@@ -57,6 +61,45 @@ impl Harness {
             world,
             station,
         }
+    }
+
+    pub async fn with_references() -> (Harness, TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            reference: ReferenceConfig {
+                cty: dir.path().join("cty.dat"),
+                dxcc: dir.path().join("dxcc.toml"),
+                subdivisions: dir.path().join("subdivisions.toml"),
+                parks: dir.path().join("parks.toml"),
+            },
+            ..Config::default()
+        };
+        (Harness::with_config(config).await, dir)
+    }
+
+    pub fn reference_path(&self, kind: ReferenceKind) -> &Path {
+        let paths = &self.state.config.reference;
+        match kind {
+            ReferenceKind::Cty => &paths.cty,
+            ReferenceKind::Dxcc => &paths.dxcc,
+            ReferenceKind::Subdivisions => &paths.subdivisions,
+            ReferenceKind::Parks => &paths.parks,
+        }
+    }
+
+    pub async fn install_reference(&self, kind: ReferenceKind, text: &str, version: &str) {
+        fs::write(self.reference_path(kind), text).unwrap();
+        self.record_reference(kind, version, text).await;
+    }
+
+    pub async fn record_reference(&self, kind: ReferenceKind, version: &str, text: &str) {
+        let admin = self.world.admin_access().await;
+        let mut tx = WriteTx::begin(&self.world.db).await.unwrap();
+        let checksum = Sha256::digest(text);
+        reference::set(&mut tx, &admin, kind, version, Some(checksum.as_slice()))
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
     }
 
     pub async fn session(&self, user: &User) -> String {

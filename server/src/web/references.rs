@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     config::ReferenceConfig,
     db::Db,
-    domain::reference::{self, Cty, DxccCodes, ReferenceError, Subdivisions},
+    domain::reference::{self, Cty, DxccCodes, Entity, ReferenceError, Subdivisions},
     store::{
         StoreError,
         reference::{ReferenceKind, current},
@@ -45,6 +45,14 @@ impl References {
 
     pub async fn dxcc(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<DxccCodes>>, LoadError> {
         load(db, &self.dxcc, ReferenceKind::Dxcc, &paths.dxcc, reference::parse_dxcc).await
+    }
+
+    pub async fn entity(&self, db: &Db, paths: &ReferenceConfig, call: &str) -> Result<Option<Entity>, LoadError> {
+        let Some(cty) = self.cty(db, paths).await? else {
+            return Ok(None);
+        };
+        let codes = self.dxcc(db, paths).await?;
+        Ok(reference::entity(&cty, codes.as_deref(), call))
     }
 
     pub async fn subdivisions(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<Subdivisions>>, LoadError> {

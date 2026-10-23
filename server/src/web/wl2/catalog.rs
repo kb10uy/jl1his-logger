@@ -172,7 +172,6 @@ mod tests {
 
         f.install(
             ReferenceKind::Subdivisions,
-            "subdivisions.toml",
             "[339]\n13 = \"Tokyo\"\n01 = \"Hokkaido\"\n[291]\nCA = \"California\"\n",
             "2026-10-23",
         )
