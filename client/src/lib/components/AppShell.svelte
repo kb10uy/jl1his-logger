@@ -113,7 +113,8 @@
         aria-label="Main"
         class="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface px-3 py-4 md:flex"
     >
-        <div class="px-3 pt-1 pb-3.5">
+        <div class="flex items-center gap-2 px-3 pt-1 pb-3.5">
+            <img src="/logo.svg" alt="" class="size-6" />
             <span class="text-[15px] font-bold">JL1HIS Logger</span>
         </div>
         {#each items as item (item.href)}
