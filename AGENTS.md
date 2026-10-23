@@ -87,8 +87,10 @@ not create a workspace or a shared crate.
   is the insertion `seq`. Stations keep a mapping to their old Wavelog
   integer IDs. No Host-based routing.
 - **Reference data** (`cty.dat`, bands, modes, subdivisions, POTA parks) is
-  updated by CLI subcommands; the web UI only shows versions. Updating it
-  never rewrites DXCC or zones already recorded on QSOs.
+  updated by CLI subcommands; the web UI shows versions and gets the
+  subdivisions of one DXCC entity from the native API for `STATE` and
+  `MY_STATE` choices. Updating it never rewrites DXCC or zones already
+  recorded on QSOs.
 - **JCX codes are strings** (leading zeros matter).
 - **One SQLite database**, WAL and `busy_timeout` set, short write
   transactions. Schema changes are migrations under `server/migrations/`;
