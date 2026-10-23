@@ -13,7 +13,10 @@ const entry: Entry = {
     received: '',
     name: '',
     qth: 'Tokyo',
-    comment: ''
+    comment: '',
+    txPwr: '',
+    notes: '',
+    extra: []
 };
 const at = new Date('2026-10-19T09:44:12Z');
 
@@ -45,6 +48,50 @@ describe('entry records', () => {
             STX_STRING: '59007M',
             SRX_STRING: '571001H'
         });
+    });
+
+    it('adds TX power, notes and other ADIF fields with a value', () => {
+        const extra = {
+            ...entry,
+            txPwr: ' 10 ',
+            notes: ' from the park ',
+            extra: [
+                { name: ' sota_ref ', value: ' JA/TK-001 ' },
+                { name: 'app_test_x', value: 'y' },
+                { name: 'GRIDSQUARE', value: ' ' }
+            ]
+        };
+        expect(entryProblem(extra, defaultContest())).toBeUndefined();
+        expect(entryFields(extra, defaultContest(), at)).toMatchObject({
+            TX_PWR: '10',
+            NOTES: 'from the park',
+            SOTA_REF: 'JA/TK-001',
+            APP_TEST_X: 'y'
+        });
+        expect(entryFields(extra, defaultContest(), at)).not.toHaveProperty('GRIDSQUARE');
+    });
+
+    it.each([
+        [{ txPwr: '10W' }, 'TX power is a number of watts.'],
+        [{ extra: [{ name: 'SOTA', value: 'x' }] }, 'SOTA is not an ADIF QSO field.'],
+        [{ extra: [{ name: 'call', value: 'x' }] }, 'CALL has its own field.'],
+        [{ extra: [{ name: 'VE_PROV', value: 'x' }] }, 'VE_PROV is not an ADIF QSO field.'],
+        [
+            { extra: [{ name: 'STATION_CALLSIGN', value: 'x' }] },
+            'STATION_CALLSIGN comes from the Station.'
+        ],
+        [{ extra: [{ name: '', value: 'x' }] }, 'Name the extra field, or clear its value.'],
+        [
+            {
+                extra: [
+                    { name: 'age', value: '1' },
+                    { name: 'AGE', value: '2' }
+                ]
+            },
+            'AGE is entered twice.'
+        ]
+    ])('refuses extra fields such as %j', (change, problem) => {
+        expect(entryProblem({ ...entry, ...change }, defaultContest())).toBe(problem);
     });
 
     it('says what blocks logging', () => {

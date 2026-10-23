@@ -4,12 +4,13 @@
     import type { Fields, Lookup, Qso } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
+    import Icon from '#lib/components/ui/Icon.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
-    import { entryFields, entryProblem, type Entry } from '#lib/entry/record.ts';
+    import { EXTRA_FIELD_NAMES, entryFields, entryProblem, type Entry } from '#lib/entry/record.ts';
     import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
     import { bandOf, representativeFreq } from '#lib/qso/bands.ts';
     import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
@@ -44,7 +45,10 @@
         received: '',
         name: '',
         qth: '',
-        comment: ''
+        comment: '',
+        txPwr: '',
+        notes: '',
+        extra: []
     });
     let now = $state(new Date());
     let locked = $state<Date | undefined>(undefined);
@@ -75,6 +79,11 @@
         return undefined;
     });
     const problem = $derived(entryProblem(entry, settings.contest));
+    const extraCount = $derived(
+        [entry.txPwr, entry.notes, ...entry.extra.map((f) => f.value)].filter(
+            (v) => v.trim() !== ''
+        ).length
+    );
     const sent = $derived(
         expandExchange(settings.contest.exchangeTemplate, settings.contest.nextSerial)
     );
@@ -200,6 +209,8 @@
         entry.name = '';
         entry.qth = '';
         entry.comment = '';
+        entry.notes = '';
+        entry.extra = [];
         warnings = [];
         callInput?.focus();
     }
@@ -561,6 +572,82 @@
                         bind:value={entry.comment}
                     />
                 </div>
+
+                <details class="group">
+                    <summary
+                        class="-ml-2 inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-text [&::-webkit-details-marker]:hidden"
+                        >Extra fields{#if extraCount > 0}<span>&nbsp;· {extraCount}</span>{/if}<Icon
+                            name="chevron"
+                            size={14}
+                            class="transition-transform group-open:rotate-180"
+                        /></summary
+                    >
+                    <div class="flex flex-col gap-2.5 pt-2.5">
+                        <div
+                            class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
+                        >
+                            <label for="tx-pwr" class="text-xs text-muted">TX power (W)</label>
+                            <input
+                                id="tx-pwr"
+                                inputmode="decimal"
+                                placeholder="the Station's"
+                                class="control h-10 rounded-lg px-3 font-mono"
+                                bind:value={entry.txPwr}
+                            />
+                        </div>
+                        <div
+                            class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
+                        >
+                            <label for="notes" class="text-xs text-muted">Notes</label>
+                            <input
+                                id="notes"
+                                placeholder="optional"
+                                class="control h-10 rounded-lg px-3"
+                                bind:value={entry.notes}
+                            />
+                        </div>
+                        {#each entry.extra as extra, i (i)}
+                            <div
+                                class="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2 md:gap-3"
+                            >
+                                <label for={`extra-name-${i}`} class="sr-only">ADIF field</label>
+                                <input
+                                    id={`extra-name-${i}`}
+                                    list="adif-fields"
+                                    placeholder="ADIF field"
+                                    autocomplete="off"
+                                    autocapitalize="characters"
+                                    spellcheck="false"
+                                    class="control h-10 w-full rounded-lg px-2 font-mono text-xs uppercase"
+                                    bind:value={extra.name}
+                                />
+                                <label for={`extra-value-${i}`} class="sr-only">Value</label>
+                                <input
+                                    id={`extra-value-${i}`}
+                                    class="control h-10 rounded-lg px-3"
+                                    bind:value={extra.value}
+                                />
+                                <button
+                                    type="button"
+                                    aria-label="Remove this field"
+                                    class="inline-flex size-10 items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                                    onclick={() => entry.extra.splice(i, 1)}
+                                    ><Icon name="close" size={16} /></button
+                                >
+                            </div>
+                        {/each}
+                        <div>
+                            <Button onclick={() => entry.extra.push({ name: '', value: '' })}
+                                >+ Add ADIF field</Button
+                            >
+                        </div>
+                        <datalist id="adif-fields">
+                            {#each EXTRA_FIELD_NAMES as name (name)}
+                                <option value={name}></option>
+                            {/each}
+                        </datalist>
+                    </div>
+                </details>
 
                 <div
                     class="mt-1 flex flex-wrap items-center justify-end gap-3 max-md:sticky max-md:bottom-[84px] max-md:z-10 max-md:-mx-4 max-md:flex-nowrap max-md:border-t max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-2.5"

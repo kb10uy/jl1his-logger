@@ -1,4 +1,5 @@
 import type { Fields } from '#lib/api/types.ts';
+import { ADIF_QSO_FIELDS } from '#lib/qso/adif-fields.ts';
 import {
     contestProblem,
     exchangeString,
@@ -6,6 +7,11 @@ import {
     type ContestSettings
 } from '#lib/qso/contest.ts';
 import { utcFields } from '#lib/qso/format.ts';
+
+export interface ExtraField {
+    name: string;
+    value: string;
+}
 
 export interface Entry {
     call: string;
@@ -19,6 +25,47 @@ export interface Entry {
     name: string;
     qth: string;
     comment: string;
+    txPwr: string;
+    notes: string;
+    extra: ExtraField[];
+}
+
+const ENTERED = new Set([
+    'CALL',
+    'QSO_DATE',
+    'TIME_ON',
+    'FREQ',
+    'BAND',
+    'MODE',
+    'SUBMODE',
+    'RST_SENT',
+    'RST_RCVD',
+    'NAME',
+    'QTH',
+    'COMMENT',
+    'TX_PWR',
+    'NOTES',
+    'CONTEST_ID',
+    'STX_STRING',
+    'SRX_STRING'
+]);
+const KNOWN = new Set(ADIF_QSO_FIELDS);
+
+export const EXTRA_FIELD_NAMES = ADIF_QSO_FIELDS.filter(
+    (name) => !ENTERED.has(name) && name !== 'STATION_CALLSIGN'
+);
+
+export function extraFieldProblem(name: string): string | undefined {
+    if (ENTERED.has(name)) return `${name} has its own field.`;
+    if (name === 'STATION_CALLSIGN') return 'STATION_CALLSIGN comes from the Station.';
+    if (!KNOWN.has(name) && !name.startsWith('APP_')) return `${name} is not an ADIF QSO field.`;
+    return undefined;
+}
+
+function filledExtras(entry: Entry): ExtraField[] {
+    return entry.extra
+        .map(({ name, value }) => ({ name: name.trim().toUpperCase(), value: value.trim() }))
+        .filter(({ value }) => value !== '');
 }
 
 export function entryProblem(entry: Entry, contest: ContestSettings): string | undefined {
@@ -28,11 +75,21 @@ export function entryProblem(entry: Entry, contest: ContestSettings): string | u
     if (problem !== undefined) return problem;
     if (contest.enabled && entry.received.trim() === '')
         return 'Contest: the received number is required.';
+    if (!/^(\d+(\.\d*)?|\.\d+)?$/.test(entry.txPwr.trim())) return 'TX power is a number of watts.';
+    const seen = new Set<string>();
+    for (const { name } of filledExtras(entry)) {
+        if (name === '') return 'Name the extra field, or clear its value.';
+        const extra = extraFieldProblem(name);
+        if (extra !== undefined) return extra;
+        if (seen.has(name)) return `${name} is entered twice.`;
+        seen.add(name);
+    }
     return undefined;
 }
 
 export function entryFields(entry: Entry, contest: ContestSettings, at: Date): Fields {
     const fields: Fields = {
+        ...Object.fromEntries(filledExtras(entry).map(({ name, value }) => [name, value])),
         CALL: entry.call.trim().toUpperCase(),
         ...utcFields(at),
         FREQ: entry.freq.trim(),
@@ -43,7 +100,9 @@ export function entryFields(entry: Entry, contest: ContestSettings, at: Date): F
         RST_RCVD: entry.rstRcvd.trim(),
         NAME: entry.name.trim(),
         QTH: entry.qth.trim(),
-        COMMENT: entry.comment.trim()
+        COMMENT: entry.comment.trim(),
+        TX_PWR: entry.txPwr.trim(),
+        NOTES: entry.notes.trim()
     };
     if (contest.enabled) {
         const sent = expandExchange(contest.exchangeTemplate, contest.nextSerial);
