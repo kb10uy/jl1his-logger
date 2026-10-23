@@ -7,6 +7,7 @@ import {
     isPristine,
     newDraft,
     setFreeText,
+    withBand,
     withFreq,
     withFrequency,
     withMode,
@@ -105,6 +106,16 @@ describe('Draft', () => {
             submode: 'USB'
         });
         expect(withFreq(newDraft(ssb), '')).toMatchObject({ freq: '', band: '40m' });
+    });
+
+    it('moves the frequency to the representative one of a chosen band', () => {
+        const draft = withFreq(newDraft(ssb), '7.144');
+        expect(withBand(draft, '20m')).toMatchObject({
+            freq: '14.000',
+            band: '20m',
+            submode: 'USB'
+        });
+        expect(withBand(draft, 'unknown')).toMatchObject({ freq: '7.144', band: 'unknown' });
     });
 
     it('takes a spoken submode with its ADIF mode', () => {

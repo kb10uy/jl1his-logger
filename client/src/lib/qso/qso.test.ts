@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BANDS, bandOf, frequencyHz } from './bands.ts';
+import { BANDS, bandOf, frequencyHz, representativeFreq } from './bands.ts';
 import { MODE_CHOICES, followsBand, modeKey, parseModeKey, sidebandFor } from './modes.ts';
 import { uuidv7 } from './uuid.ts';
 import { compareNewestFirst, hhmm, isoDate, parks, rst, utcFields } from './format.ts';
@@ -46,6 +46,12 @@ describe('bands', () => {
         expect(bandOf('7.144')?.name).toBe('40m');
         expect(bandOf('54.000001')?.name).toBe('5m');
         expect(bandOf('7.5')).toBeUndefined();
+    });
+
+    it('keep each representative frequency in its band', () => {
+        for (const b of BANDS) expect(bandOf(representativeFreq(b.name) ?? '')?.name).toBe(b.name);
+        expect(representativeFreq('20M')).toBe('14.000');
+        expect(representativeFreq('11m')).toBeUndefined();
     });
 });
 

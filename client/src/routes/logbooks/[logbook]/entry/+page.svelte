@@ -11,7 +11,7 @@
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
     import { entryFields, entryProblem, type Entry } from '#lib/entry/record.ts';
     import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
-    import { bandOf } from '#lib/qso/bands.ts';
+    import { bandOf, representativeFreq } from '#lib/qso/bands.ts';
     import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
     import {
         compareNewestFirst,
@@ -189,6 +189,11 @@
     function setBand(band: string) {
         entry.band = band;
         if (followsBand(entry.mode, entry.submode)) entry.submode = sidebandFor(band);
+    }
+
+    function selectBand(band: string) {
+        entry.freq = representativeFreq(band) ?? entry.freq;
+        setBand(band);
     }
 
     function setMode(mode: string, submode: string, previous: string) {
@@ -390,7 +395,7 @@
                             class="h-11 rounded-lg text-[15px] md:min-w-[168px] md:flex-1"
                             detailed
                             value={entry.band}
-                            onchange={setBand}
+                            onchange={selectBand}
                         />
                     </div>
                     {#if bandWarning}

@@ -72,7 +72,8 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### FREQ and Parks
 
-- A QSO without FREQ can be saved. qso-tools is to be changed to make FREQ optional. No representative frequency is filled in.
+- A QSO without FREQ can be saved. qso-tools is to be changed to make FREQ optional. The server, imports and the `/wl2` layer never fill in a representative frequency.
+- In the web client's editors (live entry, voice entry, QSO editing), choosing a band sets the frequency field to that band's representative frequency, overwriting what was there, and typing a frequency moves the band to the one containing it. The representative frequencies are a client table next to the band table, each inside its band (for example 7.000, 14.000, 18.100, 144.000 and 430.000 MHz). A frequency outside every band leaves the band alone.
 - Several parks are one row in the store, with several references in `MY_POTA_REF`; the POTA submission export projects one record per park with `MY_SIG_INFO` expanded. QSOs are not duplicated.
 
 ### Users and Permissions

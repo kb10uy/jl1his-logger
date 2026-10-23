@@ -12,7 +12,7 @@
     import Field from '#lib/components/ui/Field.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
-    import { bandOf } from '#lib/qso/bands.ts';
+    import { bandOf, representativeFreq } from '#lib/qso/bands.ts';
     import { EDITED, draftOf, fieldsOf, missing, type Draft } from '#lib/qso/edit.ts';
     import { QSL_RCVD_VALUES, QSL_SENT_VALUES, QSL_VIA_VALUES } from '#lib/qso/qsl.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
@@ -131,6 +131,12 @@
         const band = bandOf(value);
         if (band) draft.band = band.name;
     }
+
+    function onBand(band: string) {
+        if (draft === undefined) return;
+        draft.band = band;
+        draft.freq = representativeFreq(band) ?? draft.freq;
+    }
 </script>
 
 <header
@@ -235,7 +241,7 @@
                     />
                 </Field>
                 <Field label="Band" adif="BAND" for="e-band">
-                    <BandSelect id="e-band" class="h-11" bind:value={draft.band} />
+                    <BandSelect id="e-band" class="h-11" value={draft.band} onchange={onBand} />
                 </Field>
             </div>
             <Field label="Mode / Submode" adif="MODE · SUBMODE" for="e-mode">

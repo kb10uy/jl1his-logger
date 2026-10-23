@@ -132,7 +132,7 @@ the field is absent. The field is removed from `fields` when it has a column.
 | Group | Columns | Notes |
 | --- | --- | --- |
 | Required | `call`, `qso_date`, `time_on`, `band`, `mode`, `station_callsign` | The minimum for a record. `station_callsign` is baked from the Station. |
-| Contact | `time_off`, `submode`, `freq`, `rst_sent`, `rst_rcvd`, `operator`, `name`, `qth`, `gridsquare`, `state`, `cnty`, `dxcc`, `tx_pwr`, `comment` | `freq` may be `NULL`; nothing fills it in. `cnty` holds JCC / JCG / ward codes as strings. `dxcc` is the entity number as a string and is not rewritten by reference data updates. |
+| Contact | `time_off`, `submode`, `freq`, `rst_sent`, `rst_rcvd`, `operator`, `name`, `qth`, `gridsquare`, `state`, `cnty`, `dxcc`, `tx_pwr`, `comment` | `freq` may be `NULL`; the server never fills it in. `cnty` holds JCC / JCG / ward codes as strings. `dxcc` is the entity number as a string and is not rewritten by reference data updates. |
 | Contest | `contest_id`, `stx_string`, `srx_string` | `STX` / `SRX` numeric serials stay in `fields`. |
 | QSL | `qsl_sent`, `qsl_sent_via`, `qslsdate`, `qsl_rcvd`, `qsl_rcvd_via`, `qslrdate`, `eqsl_qsl_sent`, `eqsl_qslsdate`, `eqsl_qsl_rcvd`, `eqsl_qslrdate`, `lotw_qsl_sent`, `lotw_qslsdate`, `lotw_qsl_rcvd`, `lotw_qslrdate` | The QSL state of record. `qsl_required` is `qsl_sent IN ('R', 'Q')`, received is `qsl_rcvd IN ('Y', 'V')`; neither is stored. |
 | Own station | `my_gridsquare`, `my_city`, `my_state`, `my_cnty`, `my_pota_ref`, `my_sig`, `my_sig_info` | Baked from the Station at creation. `my_pota_ref` holds several parks comma-separated as ADIF does; the POTA export splits it. |

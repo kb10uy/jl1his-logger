@@ -49,7 +49,9 @@ or another shared crate.
   at creation. Editing a Station never rewrites past QSOs; a bulk update that
   states its count does. `station_location_id` is kept separately for
   search. Stations are archived rather than deleted.
-- **FREQ may be missing**; never fill it with a representative frequency.
+- **FREQ may be missing**; the server never fills it with a representative
+  frequency. In the client's editors, choosing a band sets the frequency field
+  to the band's representative frequency, and typing a frequency moves the band.
   Several parks are one row with several `MY_POTA_REF` references; the POTA
   export projects one record per park. QSOs are never duplicated.
 - **QSL state is the ADIF fields** (`QSL_SENT`, `QSL_RCVD`, `*_VIA`,

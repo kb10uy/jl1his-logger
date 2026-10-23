@@ -1,4 +1,4 @@
-import { bandNamed, bandOf, frequencyHz } from '#lib/qso/bands.ts';
+import { bandNamed, bandOf, formatMhz, frequencyHz, representativeFreq } from '#lib/qso/bands.ts';
 import { defaultRst, followsBand, sidebandFor } from '#lib/qso/modes.ts';
 import { formatFrequencyPattern, resolveFrequency } from '#lib/voice/dsl/frequency.ts';
 import type { QslStatus } from '#lib/voice/dsl/lexicon.ts';
@@ -42,10 +42,6 @@ export function isPristine(draft: Draft): boolean {
     return draft.startedAt === undefined;
 }
 
-export function formatMhz(hz: number): string {
-    return (hz / 1_000_000).toFixed(6).replace(/(\.\d{3}\d*?)0+$/, '$1');
-}
-
 export function anchorHz(carry: Carry): number {
     const current = frequencyHz(carry.freq);
     if (current !== undefined && current > 0) return current;
@@ -65,7 +61,7 @@ export function withMode(draft: Draft, mode: string, submode: string): Draft {
     };
 }
 
-export function withBand(draft: Draft, band: string): Draft {
+function movedTo(draft: Draft, band: string): Draft {
     const submode =
         band !== draft.band && followsBand(draft.mode, draft.submode)
             ? sidebandFor(band)
@@ -73,9 +69,13 @@ export function withBand(draft: Draft, band: string): Draft {
     return { ...draft, band, submode };
 }
 
+export function withBand(draft: Draft, band: string): Draft {
+    return movedTo({ ...draft, freq: representativeFreq(band) ?? draft.freq }, band);
+}
+
 export function withFreq(draft: Draft, freq: string): Draft {
     const band = bandOf(freq)?.name ?? draft.band;
-    return withBand({ ...draft, freq }, band);
+    return movedTo({ ...draft, freq }, band);
 }
 
 export function withFrequency(draft: Draft, hz: number): Draft {
