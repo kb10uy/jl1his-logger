@@ -11,7 +11,7 @@ use crate::{
     domain::{
         adif::{self, LengthUnit},
         confirmation::Source,
-        qso::{Qso, QsoError},
+        qso::{Qso, QsoError, Warning},
     },
     store::import::{MergeReport, NewReport, import_new, merge},
 };
@@ -128,6 +128,22 @@ impl NewReport {
         }
         for (index, freq, band) in &self.outside_band {
             println!("  record {index}: FREQ {freq} is outside {band}");
+        }
+        for (index, warning) in &self.modes {
+            match warning {
+                Warning::UnknownMode { mode } => println!("  record {index}: MODE {mode} is not an ADIF mode"),
+                Warning::UnknownSubmode { submode } => {
+                    println!("  record {index}: SUBMODE {submode} is not an ADIF submode")
+                }
+                Warning::SubmodeOfAnotherMode {
+                    mode,
+                    submode,
+                    expected,
+                } => {
+                    println!("  record {index}: SUBMODE {submode} belongs to {expected}, not {mode}")
+                }
+                _ => {}
+            }
         }
         println!("Skipped {} invalid records.", self.invalid.len());
         for (index, error) in &self.invalid {

@@ -4,6 +4,7 @@ pub mod callsign;
 pub mod confirmation;
 pub mod duplicate;
 pub mod import;
+pub mod mode;
 pub mod pota;
 pub mod qsl;
 pub mod qso;

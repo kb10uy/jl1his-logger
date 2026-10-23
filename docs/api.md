@@ -193,6 +193,14 @@ defaults are not baked in again, and a field left out is removed.
 | --- | --- | --- |
 | `possible_duplicate` | `ids` | Live QSOs with the same call, band and mode, ignoring case, within 15 minutes |
 | `frequency_outside_band` | `freq`, `band` | `FREQ` is outside `BAND` |
+| `unknown_mode` | `mode` | `MODE` is neither an ADIF mode nor an import-only one |
+| `unknown_submode` | `submode` | `SUBMODE` is not an ADIF submode |
+| `submode_of_another_mode` | `mode`, `submode`, `expected` | `SUBMODE` belongs to the mode `expected`, not to `MODE` |
+
+Modes are the Mode enumeration of ADIF 3.1.8, compared ignoring case; the table
+is `fixtures/reference/modes.json`. An import-only mode such as `C4FM` or
+`PSK31` is accepted and stands for the mode it is a submode of
+(`DIGITALVOICE`, `PSK`), so `MODE` `DSTAR` with no `SUBMODE` warns of nothing.
 
 `/duplicates` runs the same check for a QSO being entered and returns the
 matching QSOs by QSO time; `except` leaves out the QSO being edited.
@@ -313,13 +321,14 @@ only the records it has not created before. A file that cannot be read at all is
 `400`; a record that cannot be read or checked is reported and skipped.
 
 The response for `new` is
-`{applied, read, created, existing, duplicates, outside_band, invalid, rejects}`,
+`{applied, read, created, existing, duplicates, outside_band, modes, invalid, rejects}`,
 and for a merge
 `{applied, read, not_confirmations, merged, already, unmatched, ambiguous, invalid, skipped, differences, rejects}`:
 
 - `duplicates` and `ambiguous` are `[{record, ids}]`, `outside_band` is
-  `[{record, freq, band}]`, `invalid` is `[{record, error}]` and `unmatched` is
-  a list of record numbers, counted from 1 in file order.
+  `[{record, freq, band}]`, `modes` is `[{record, kind, ...}]` with the mode
+  warnings of QSOs, `invalid` is `[{record, error}]` and `unmatched` is a list
+  of record numbers, counted from 1 in file order.
 - `skipped` lists the QSOs that changed between matching and writing, as in bulk
   QSL changes.
 - `differences` counts, per field, the matched QSOs whose `DXCC`, `CQZ`, `ITUZ`,

@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::domain::{
     band::{Band, parse_frequency_hz},
-    callsign,
+    callsign, mode,
 };
 
 pub use columns::Columns;
@@ -31,8 +31,24 @@ pub enum QsoError {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Warning {
-    FrequencyOutsideBand { freq: String, band: String },
-    PossibleDuplicate { ids: Vec<String> },
+    FrequencyOutsideBand {
+        freq: String,
+        band: String,
+    },
+    PossibleDuplicate {
+        ids: Vec<String>,
+    },
+    UnknownMode {
+        mode: String,
+    },
+    UnknownSubmode {
+        submode: String,
+    },
+    SubmodeOfAnotherMode {
+        mode: String,
+        submode: String,
+        expected: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,7 +146,7 @@ impl Qso {
         required("QSO_DATE")?;
         required("TIME_ON")?;
         let band_name = required("BAND")?;
-        required("MODE")?;
+        let mode_name = required("MODE")?;
         required("STATION_CALLSIGN")?;
 
         let invalid = |name: &'static str, value: &str| QsoError::Invalid {
@@ -144,7 +160,7 @@ impl Qso {
         let qso_time = self.qso_time()?;
         let band = Band::named(band_name).ok_or_else(|| invalid("BAND", band_name))?;
 
-        let mut warnings = vec![];
+        let mut warnings: Vec<Warning> = mode::warning(mode_name, self.get("SUBMODE")).into_iter().collect();
         let freq_hz = match self.get("FREQ") {
             None => None,
             Some(freq) => {

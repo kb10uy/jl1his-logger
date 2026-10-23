@@ -584,6 +584,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn warns_about_modes_outside_the_adif_table() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        for (mode, submode, expected) in [
+            ("MFSK", "FT4", json!([])),
+            ("DSTAR", "", json!([])),
+            ("FT9", "", json!([{ "kind": "unknown_mode", "mode": "FT9" }])),
+            ("SSB", "XSB", json!([{ "kind": "unknown_submode", "submode": "XSB" }])),
+            (
+                "FT8",
+                "ft4",
+                json!([{ "kind": "submode_of_another_mode", "mode": "FT8", "submode": "ft4", "expected": "MFSK" }]),
+            ),
+        ] {
+            let mut body = entry(&h, &QsoId::generate(), "JA1XYZ", "40m", "040506");
+            body["fields"]["MODE"] = json!(mode);
+            body["fields"]["SUBMODE"] = json!(submode);
+            let (status, reply) = h.send("POST", &qsos(&h), Auth::Session(&cookie), Some(body)).await;
+            assert_eq!(status, StatusCode::CREATED, "{mode} {submode}: {reply}");
+            let warnings: Vec<&Value> = reply["warnings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|w| w["kind"] != "possible_duplicate")
+                .collect();
+            assert_eq!(json!(warnings), expected, "{mode} {submode}");
+        }
+    }
+
+    #[tokio::test]
     async fn warns_about_possible_duplicates() {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;

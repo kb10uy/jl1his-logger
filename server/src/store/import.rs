@@ -27,6 +27,7 @@ pub struct NewReport {
     pub existing: usize,
     pub duplicates: Vec<(usize, Vec<String>)>,
     pub outside_band: Vec<(usize, String, String)>,
+    pub modes: Vec<(usize, Warning)>,
     pub invalid: Vec<(usize, String)>,
     pub rejects: Vec<Qso>,
 }
@@ -78,6 +79,7 @@ pub async fn import_new(
                             Warning::FrequencyOutsideBand { freq, band } => {
                                 report.outside_band.push((*index, freq, band))
                             }
+                            mode => report.modes.push((*index, mode)),
                         }
                     }
                     if !apply {

@@ -11,7 +11,7 @@ use crate::{
     domain::{
         adif::{self, LengthUnit},
         confirmation::Source,
-        qso::Qso,
+        qso::{Qso, Warning},
     },
     store::{
         StoreError, access,
@@ -71,6 +71,13 @@ pub struct OutsideBand {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ModeWarning {
+    record: usize,
+    #[serde(flatten)]
+    warning: Warning,
+}
+
+#[derive(Debug, Serialize)]
 pub struct Invalid {
     record: usize,
     error: String,
@@ -86,6 +93,7 @@ pub enum ImportBody {
         existing: usize,
         duplicates: Vec<RecordIds>,
         outside_band: Vec<OutsideBand>,
+        modes: Vec<ModeWarning>,
         invalid: Vec<Invalid>,
         rejects: Option<String>,
     },
@@ -134,6 +142,11 @@ impl ImportBody {
                 .outside_band
                 .into_iter()
                 .map(|(record, freq, band)| OutsideBand { record, freq, band })
+                .collect(),
+            modes: report
+                .modes
+                .into_iter()
+                .map(|(record, warning)| ModeWarning { record, warning })
                 .collect(),
             invalid: invalid(report.invalid),
             rejects: rejects(&report.rejects, unit),
@@ -284,6 +297,27 @@ mod tests {
             .send_text(&imports(&h, "source=paper"), Auth::Session(&cookie), NEW)
             .await;
         assert_eq!((status, &body["status"]), (StatusCode::BAD_REQUEST, &json!("error")));
+    }
+
+    #[tokio::test]
+    async fn reports_modes_outside_the_adif_table() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let adi = "header\n<EOH>\n\
+                   <CALL:6>JA1AAA<QSO_DATE:8>20261022<TIME_ON:4>0101<BAND:3>40m<MODE:3>FT9<EOR>\n\
+                   <CALL:6>JA1BBB<QSO_DATE:8>20261022<TIME_ON:4>0202<BAND:3>40m<MODE:3>FT8<SUBMODE:3>FT4<EOR>\n\
+                   <CALL:6>JA1CCC<QSO_DATE:8>20261022<TIME_ON:4>0303<BAND:3>40m<MODE:4>C4FM<EOR>\n";
+        let query = format!("source=new&station_id={}", h.station.id);
+        let (status, report) = h.send_text(&imports(&h, &query), Auth::Session(&cookie), adi).await;
+        assert_eq!(status, StatusCode::OK, "{report}");
+        assert_eq!(report["created"], 3);
+        assert_eq!(
+            report["modes"],
+            json!([
+                { "record": 1, "kind": "unknown_mode", "mode": "FT9" },
+                { "record": 2, "kind": "submode_of_another_mode", "mode": "FT8", "submode": "FT4", "expected": "MFSK" },
+            ])
+        );
     }
 
     #[tokio::test]
