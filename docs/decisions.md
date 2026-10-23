@@ -1,6 +1,6 @@
 # Design Decisions
 
-The outcome of the design review as of 2026-10-23: the direction for jl1his-logger, a QSO log of record of our own that replaces Wavelog.
+The outcome of the design review as of 2026-10-24: the direction for jl1his-logger, a QSO log of record of our own that replaces Wavelog.
 
 ## Background
 
@@ -18,13 +18,13 @@ The outcome of the design review as of 2026-10-23: the direction for jl1his-logg
 
 ## Required Features
 
-- QSO store, Station Location, Logbook, User, Membership, API tokens.
+- QSO store, Station Location, Instrument, Logbook, User, Membership, API tokens.
 - Write API (create, update, delete), read API (filters and ADIF output), differential fetch, SSE.
 - ADIF import (the first migration, and merging QSL fields into existing QSOs).
 - Confirmation state (paper QSL, eQSL and LoTW held separately).
 - Reference data: cty.dat, frequencies and bands, modes and submodes, subdivisions, POTA parks.
 - lookup: entity information from cty.dat and previous contacts in the own log (name / grid / QTH).
-- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry, Station Location editing, ADIF import and export, bulk QSL state changes.
+- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry, Station Location and Instrument editing, ADIF import and export, bulk QSL state changes.
 
 ## Dropped
 
@@ -54,6 +54,19 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - Past rows are corrected with an explicit bulk update that states the number of affected rows.
 - Stations are archived rather than deleted.
 - When a QSO is created through the native API or `/wl2`, the server fills the `DXCC`, `CQZ`, `ITUZ` and `CONT` the record lacks from `cty.dat`, `DXCC` needing the `dxcc` table as well. Values given are never overwritten, nothing is filled for a kind that is not installed, and editing a QSO later does not fill them again. Reference data that cannot be read is logged and never refuses the QSO. On `/wl2` the fill comes after the ID is derived, so a resend keeps its ID across reference data updates. An ADIF import keeps its records as they arrived.
+- A Station holds no equipment: `MY_RIG`, `MY_ANTENNA` and `TX_PWR` are refused in its fields and belong to Instruments. A migration removes them from the fields of existing Stations; QSOs keep the values already baked into them.
+
+### Instruments
+
+- An Instrument is the equipment of a QSO: a rig, an antenna and a default TX power. It sits above the Station and is independent of it, so any Instrument can be used with any Station of the Logbook. A QSO may have none, and then nothing fills `MY_RIG`, `MY_ANTENNA` or `TX_PWR`.
+- A Logbook owns its Instruments, as it owns its Stations. A rig that several Logbooks use is registered in each of them.
+- An Instrument has a name, the fixed fields `MY_RIG`, `MY_ANTENNA` and `TX_PWR`, each optional, and a map of other fields like a Station's. The map refuses the fixed fields and `STATION_CALLSIGN`; it may hold keys a Station also holds, and the Instrument's value then wins. A rig whose power or antenna differs by band is registered as one Instrument per band.
+- `TX_PWR` is a decimal number of watts greater than zero, with at most six decimal places (`0.5`, `5`, `100`), so QRP and QRPP powers can be written; anything else is refused. It is stored as given.
+- The `_INTL` fields are not used. ADIF can write them only in ADX, so `MY_RIG` and `MY_ANTENNA` carry text outside ASCII as the other fields already do.
+- When a QSO is created, the given fields win, then the Instrument's values, then the Station's, then the default `OPERATOR`; each fills only what is still absent. `instrument_id` is held on the QSO next to `station_id` for classification and search, and is `NULL` without an Instrument.
+- Editing an Instrument does not change past QSOs, and changing a QSO's Instrument does not bake its values in again. Past rows are corrected with an explicit rewrite that states the number of affected rows (see Bulk Changes).
+- Instruments are archived rather than deleted. As for Stations, archiving only takes an Instrument out of the client's choices.
+- The CLI lists, creates, edits and archives the Instruments of a Logbook, as it does Stations.
 
 ### Storage Shape
 
@@ -61,7 +74,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - A field that has a column is not duplicated in the JSON. Unknown standard fields and `APP_*` are not dropped.
 - Values are kept as their ADIF strings; normalized forms for search (the normalized callsign, time in seconds, frequency in Hz) go to derived columns.
 - Because values are kept as they arrived, ADIF enumerations (`BAND`, `MODE`, `QSL_SENT`, `QSL_RCVD` and so on) are compared ignoring ASCII case.
-- Composite foreign keys enforce that a QSO belongs to the same Logbook as its Station, and that an export batch contains only QSOs from its own Logbook.
+- Composite foreign keys enforce that a QSO belongs to the same Logbook as its Station and its Instrument, and that an export batch contains only QSOs from its own Logbook.
 - The tables are described in [schema.md](schema.md).
 
 ### FREQ and Parks
@@ -75,13 +88,14 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - Instance roles (held by a User): `admin` / `user`.
 - Logbook roles (held by a Membership): `owner` / `operator`.
 - A User is a person. Signs in with a passkey. Has a personal callsign.
-- A Logbook is the unit of a personal or club station and owns its Station Locations.
+- A Logbook is the unit of a personal or club station and owns its Station Locations and Instruments.
 - A QSO's `OPERATOR` defaults to the callsign of the person who entered it, and `created_by` / `updated_by` record the User.
 - `Membership.owner` is an application administration right, separate from ADIF's `OWNER_CALLSIGN`.
 - An admin's responsibilities lie outside Logbooks: creating and disabling users, invitation links, passkey re-registration, creating and deleting Logbooks and reassigning their owner, revoking other people's tokens, reference data updates, initial setup, backups, and instance settings.
 - An owner manages the Stations and Memberships of its own Logbook but cannot create Users.
 - Even an admin needs a Membership to read QSOs. A rescue operation is explicit and records its reason and actor.
 - An operator can edit and delete QSOs entered by others.
+- Unlike Stations, Instruments are managed by every member: an operator creates, edits, archives and restores any Instrument of the Logbook, so a member who brings a rig to a club station registers it. Rewriting the past QSOs of an Instrument stays with owners.
 - API tokens belong to a User and are limited to Logbooks by scopes. The plaintext is shown only when issued.
 - The first admin is created by a CLI setup command, which issues a one-time registration URL.
 - Disabling or demoting the last active admin is refused.
@@ -117,6 +131,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - A bulk QSL change takes QSO IDs, each with the revision it is based on, and assignments to the QSL columns only. Values are checked against the ADIF enumerations ignoring case and dates as `YYYYMMDD`, and stored as given. Rows that are missing, deleted or at another revision are skipped and reported; the others are updated. Operators can do it.
 - Applying an export batch is a bulk QSL change over the batch rows at their recorded revisions, dated with the UTC day of the application: `qsl_card` sets `QSL_SENT = Y` and `QSLSDATE`, `eqsl` sets `EQSL_QSL_SENT = Y` and `EQSL_QSLSDATE`, and `lotw` sets `LOTW_QSL_SENT = Y` and `LOTW_QSLSDATE`. `QSL_SENT_VIA` is not written. `adif` and `pota` batches are records only and cannot be applied. A batch is applied once, in one transaction.
 - Rewriting the past QSOs of a Station is reserved for owners. It covers the Station's QSOs, optionally within a QSO time range, and overwrites `STATION_CALLSIGN` and the keys present in the Station's fields, leaving the other fields alone; rows that already match are not touched. A preview returns the number of rows; applying takes that number and refuses with a conflict if it no longer matches.
+- Rewriting the past QSOs of an Instrument works the same way and is reserved for owners too. It covers the Instrument's QSOs, optionally within a QSO time range, and overwrites the fixed fields the Instrument has a value for and the keys present in its fields.
 
 ### Search
 
@@ -131,6 +146,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
   | `sent:R,Q`, `rcvd:Y,V` | `QSL_SENT` or `QSL_RCVD` is one of the values, ignoring case |
   | `lotw-sent:Y`, `lotw-rcvd:Y`, `eqsl-sent:Y`, `eqsl-rcvd:Y,V` | `LOTW_QSL_SENT`, `LOTW_QSL_RCVD`, `EQSL_QSL_SENT` or `EQSL_QSL_RCVD` is one of the values, ignoring case |
   | `station:Takao` | The Station's name or the QSO's `STATION_CALLSIGN` contains the value, ignoring case |
+  | `instrument:IC-705` | The Instrument's name or the QSO's `MY_RIG` contains the value, ignoring case |
   | `park:JP-0012` | One of the references in `MY_POTA_REF` is the value |
   | `dxcc:339` | `DXCC` is one of the entity codes |
   | `date:2026-10-01..2026-10-19`, `date:>=2026-10-18` | The UTC date of the QSO time is in the range (either end may be open) or compares with `>`, `>=`, `<`, `<=` |
@@ -154,7 +170,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - The unit of atomicity is one operation: numbering, checking and saving one QSO happen in one transaction. Bulk work such as an import calls the same operation in batches, a bounded number per transaction, so write transactions stay short. A rerun of an interrupted import is idempotent through IDs derived from the records (see ADIF Import).
 - Authorization is a value. The store checks a principal (a signed-in user, or an API token with its user and Logbook scopes) against the user's state, the token's scopes and the Membership, and only then hands out a Logbook access that carries the Logbook, the user and the role. Logbook operations take the Logbook from that access rather than from a separate argument, so an access for one Logbook cannot be used on another.
 - Access values retain their principal and are revalidated at each store operation. Writes revalidate inside their write transaction, including the current user state, token scopes and required role; an old access cannot bypass removal, demotion or revocation. QSO creation uses the user's current callsign for the default `OPERATOR`.
-- Operations reserved for owners (Stations, Memberships) require an owner access, which can only be obtained from a Logbook access whose role is `owner`. Instance operations (users, Logbooks) require an admin access, which only a signed-in admin obtains; API tokens never do.
+- Operations reserved for owners (Stations, Memberships, rewriting the QSOs of an Instrument) require an owner access, which can only be obtained from a Logbook access whose role is `owner`. Instance operations (users, Logbooks) require an admin access, which only a signed-in admin obtains; API tokens never do.
 - An admin outside a Logbook obtains a Logbook access only through a rescue, which records the actor, the action and the reason in `rescue_operations` in the same transaction as the operation.
 - A rescue access is valid only while its issuing write transaction is active and its uncommitted audit row is visible on the operation's connection. Commit or rollback invalidates it, and it cannot be used from another connection. Each rescue operation also revalidates the admin's current authority.
 - The authorization lives in the store, not in the web layer. The CLI acts as a named user and goes through the same checks, which also gives `created_by` and `updated_by` a user. The user is named by callsign with `--as`; the CLI is not authenticated, since whoever runs it can already read the database file.
@@ -166,6 +182,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - Branching on the Host subdomain is possible with axum but not adopted.
 - A compatibility token is fixed to one Logbook when issued. It can be issued with the `wl2_` prefix, by which some clients choose API v2.
 - Each Station keeps its old Wavelog integer ID as a mapping, so existing clients keep their `station_id` setting unchanged.
+- Instruments have no place in `/wl2`: a QSO logged there has none, and the `station` list no longer carries `power`, since a Station has no `TX_PWR`. A client that needs an Instrument uses the native API, where creating and replacing a QSO take an optional `instrument_id`.
 - Only a subset is matched: `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`, `format=adif`, `400 validation_error` with `details.duplicate` on duplicates, `lookup?detail=basic`, and the `contest` and `subdivisions` topics of `catalog`.
 - The compatibility `since_id` is fixed to the insertion `seq`. Differential sync of edits and deletions belongs to the native API.
 - A legacy `POST qso` carries no UUID, so its ID is derived from the record as an import does (see ADIF Import): a UUID v7 from the QSO time and the SHA-256 of the Logbook ID, the Station UUID and the record's fields after conversion, as the first occurrence. The Station UUID scopes the ID without depending on mutable Station defaults. A resend of the same body meets the row it created, deleted or not, and is answered `400 validation_error` with `details.duplicate`, so a client resending after a lost answer can count it as sent. A possible duplicate found by the heuristic is still created. The answer's `id` is the row's `seq`.
@@ -187,6 +204,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - An import either adds new QSOs or merges QSL confirmations into existing ones. The CLI is told which by the source (`new`, `lotw`, `eqsl` or `card`); it is never guessed from the file.
 - Without `--apply` an import only previews: it reads, checks and matches every record and reports what applying would do, writing nothing. The preview runs in one read transaction and takes no write lock, so a large preview never blocks entry; duplicate warnings against the earlier records of the file are computed in memory. With `--apply` it writes, a bounded number of records per write transaction.
 - A new QSO's ID is derived from its record: a UUID v7 whose timestamp is the QSO time and whose remaining bits come from the SHA-256 of the Logbook ID, the record's fields as read (names upper-cased and sorted, values as they arrived) and the number of identical records before it in the file. A rerun of an interrupted or repeated import meets the rows it already created and the idempotent create returns them; a deleted row stays deleted. Editing some records and rerunning adds only those records.
+- A new-QSO import takes an optional Instrument besides its Station. Its values are baked in after the ID is derived, and only where the record has none, so the record's own `MY_RIG`, `MY_ANTENNA` and `TX_PWR` win and choosing another Instrument for a rerun does not change the IDs.
 - The timestamp of such an ID is the QSO time rather than the time of entry. Nothing relies on it: insertion order is `seq`.
 - Records that cannot be read or checked are skipped and reported by their position; the others go ahead. A possible duplicate of an existing row is a warning, as on entry.
 - A QSL merge writes only the fields of its source, and only towards received:
@@ -226,7 +244,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Web Client Routes
 
 - Every screen has a path of its own, so moving between screens adds browser history and a screen can be bookmarked or reloaded. The client routes as a single-page app; the server already answers any other path outside `/api` and `/wl2` with `index.html`.
-- Screens of a Logbook carry its ID: `/logbooks/{logbook_id}/log`, `/entry`, `/voice`, `/qsos/{qso_id}` (editing one QSO), `/stations`, `/stations/{station_id}`, `/qsl`, `/import-export`, `/members` and, on mobile, `/more`. Switching the Logbook keeps the screen. Screens of the user or the instance do not: `/settings/account`, `/settings/tokens`, `/settings/voice` (the speech language of this device) and `/settings/reference`, with `/settings` listing them on mobile. Settings shows the members of the current Logbook as one of its sections, at that Logbook's `/members`. `/` opens the log of the Logbook last used on the device; sign-in is `/login` and registration `/register` (see Sign-in and Credentials). The document title is the name of the screen alone, as in `Live entry` or `QSL Management`; a Station and a settings section add the screen after their own name (`Home - Stations`, `Account - Settings`). A screen without a name of its own is `JL1HIS Logger`.
+- Screens of a Logbook carry its ID: `/logbooks/{logbook_id}/log`, `/entry`, `/voice`, `/qsos/{qso_id}` (editing one QSO), `/stations`, `/stations/{station_id}`, `/instruments`, `/instruments/{instrument_id}`, `/qsl`, `/import-export`, `/members` and, on mobile, `/more`. Switching the Logbook keeps the screen. Screens of the user or the instance do not: `/settings/account`, `/settings/tokens`, `/settings/voice` (the speech language of this device) and `/settings/reference`, with `/settings` listing them on mobile. Settings shows the members of the current Logbook as one of its sections, at that Logbook's `/members`. `/` opens the log of the Logbook last used on the device; sign-in is `/login` and registration `/register` (see Sign-in and Credentials). The document title is the name of the screen alone, as in `Live entry` or `QSL Management`; a Station, an Instrument and a settings section add the screen after their own name (`Home - Stations`, `IC-705 - Instruments`, `Account - Settings`). A screen without a name of its own is `JL1HIS Logger`.
 - The log keeps its query in the URL as `?q=`, in the text syntax of Search, so a query can be bookmarked and reopened later. The QSO open in the detail overlay is `?qso={qso_id}`. Typing a query, opening or closing the overlay replace the current history entry rather than adding one. Checked rows stay out of the URL.
 - The columns of the log table on wide screens are a per-device setting shared by every Logbook: the ordered list of shown columns, left to right, kept in local storage. The built-in columns are Date / UTC (one column), Call, QSL S / R, Band, Freq, Mode, RST S / R, Station and Park, shown by default, and LoTW S / R, eQSL S / R, TX Power, Contest (`CONTEST_ID`) and Number S / R (`STX_STRING` / `SRX_STRING`), hidden by default; any ADIF QSO field or `APP_` field can be added as a column of its own, named `adif.{FIELD}` as in Search. The check box column stays first. The narrow-screen list keeps its fixed layout.
 
@@ -239,8 +257,9 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Live and Voice Entry
 
 - Voice entry is one screen of the PWA and shares the offline queue with Live entry.
-- Voice entry shares Live entry's per-device settings (Station, frequency, band, mode and contest, the serial included), so switching between the two screens carries them over. The spoken QSL requests map as follows: "requested" sets `QSL_SENT = R`, "one way" sets `QSL_SENT = N` and `QSL_RCVD = R`, and JCC / JCG go to `CNTY`.
-- Live entry has a collapsed extra fields panel: `TX_PWR` (watts), `NOTES`, and any other ADIF 3.1.8 QSO field that is not import-only, or an `APP_` field, typed by name. A field the form already has, `STATION_CALLSIGN`, an unknown name or a name given twice blocks logging. A value given there overrides the Station's baked value, such as its `TX_PWR`. TX power stays for the next QSO while the screen is open; notes and the other fields are cleared with the QSO.
+- Voice entry shares Live entry's per-device settings (Station, Instrument, frequency, band, mode and contest, the serial included), so switching between the two screens carries them over. The spoken QSL requests map as follows: "requested" sets `QSL_SENT = R`, "one way" sets `QSL_SENT = N` and `QSL_RCVD = R`, and JCC / JCG go to `CNTY`.
+- Live entry has a collapsed extra fields panel: `TX_PWR` (watts), `NOTES`, and any other ADIF 3.1.8 QSO field that is not import-only, or an `APP_` field, typed by name. A field the form already has, `STATION_CALLSIGN`, an unknown name or a name given twice blocks logging. A value given there overrides the baked values of the Instrument and the Station, such as the Instrument's `TX_PWR`. TX power stays for the next QSO while the screen is open, and is cleared when the Instrument changes; while it is empty, the field shows the Instrument's `TX_PWR` as its placeholder. Notes and the other fields are cleared with the QSO.
+- Live entry and voice entry choose the Instrument with a select next to the Station's, and the QSO editing screen chooses it as well. None is a valid choice. The voice syntax does not change it. A remembered Instrument that is archived or gone is cleared. The queue holds the Instrument's ID, and the server bakes its values in when the QSO is sent, as it does for the Station.
 - Speech recognition is Vosk in the browser. The models are not in the repository: `client/scripts/setup-vosk.sh` (also `pnpm run models`) or `client/scripts/setup-vosk.ps1` downloads them into `client/static/models`, and puts each model's vocabulary into `client/.vosk` for the vocabulary tests, which read it when `VOSK_WORDS_EN` or `VOSK_WORDS_JA` is not set. The server serves them with the app, and the browser keeps a loaded model in IndexedDB so voice entry works offline. The service worker does not precache them. The Vosk worker is copied out of `vosk-browser` into `static/vosk-worker.js` at build time and started as a same-origin worker, so the page's CSP needs neither `blob:` workers nor `unsafe-eval`.
 
 ### Reference Data
