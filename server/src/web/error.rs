@@ -23,6 +23,10 @@ impl ApiError {
         }
     }
 
+    pub fn bad_request(message: impl Into<String>) -> ApiError {
+        ApiError::new(StatusCode::BAD_REQUEST, message)
+    }
+
     pub fn internal(message: impl Into<String>) -> ApiError {
         ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, message)
     }
@@ -33,17 +37,20 @@ impl ApiError {
     }
 }
 
+pub(super) fn status(e: &StoreError) -> StatusCode {
+    match e {
+        StoreError::NotFound(_) => StatusCode::NOT_FOUND,
+        StoreError::Unauthenticated => StatusCode::UNAUTHORIZED,
+        StoreError::Forbidden(_) => StatusCode::FORBIDDEN,
+        StoreError::Conflict(_) => StatusCode::CONFLICT,
+        StoreError::Invalid(_) | StoreError::Qso(_) => StatusCode::BAD_REQUEST,
+        StoreError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
 impl From<StoreError> for ApiError {
     fn from(e: StoreError) -> ApiError {
-        let status = match &e {
-            StoreError::NotFound(_) => StatusCode::NOT_FOUND,
-            StoreError::Unauthenticated => StatusCode::UNAUTHORIZED,
-            StoreError::Forbidden(_) => StatusCode::FORBIDDEN,
-            StoreError::Conflict(_) => StatusCode::CONFLICT,
-            StoreError::Invalid(_) | StoreError::Qso(_) => StatusCode::BAD_REQUEST,
-            StoreError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        ApiError::new(status, e.to_string())
+        ApiError::new(status(&e), e.to_string())
     }
 }
 

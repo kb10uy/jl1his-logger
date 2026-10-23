@@ -8,7 +8,9 @@ a missing right, `404` for anything not found or not visible, `409` for a
 conflict, `412` when `If-Match` names another revision, `415` / `422` for a body
 that is not the expected JSON, `428` when `If-Match` is missing, `429` when too
 many passkey requests are in flight. Some errors add fields next to `error`, such
-as `current` on a revision conflict.
+as `current` on a revision conflict. Under `/api/logbooks/{logbook_id}` the
+caller's Membership is checked before the request itself, so a caller outside
+the Logbook gets `404` whatever it sends.
 
 It covers sign-in, reference versions, API tokens, Logbooks, Members,
 Stations, QSOs with their event stream, bulk QSL changes, export batches and
@@ -203,7 +205,8 @@ is `fixtures/reference/modes.json`. An import-only mode such as `C4FM` or
 (`DIGITALVOICE`, `PSK`), so `MODE` `DSTAR` with no `SUBMODE` warns of nothing.
 
 `/duplicates` runs the same check for a QSO being entered and returns the
-matching QSOs by QSO time; `except` leaves out the QSO being edited.
+matching QSOs by QSO time; `except` leaves out the QSO being edited and must be
+a QSO ID.
 
 ### Changes
 

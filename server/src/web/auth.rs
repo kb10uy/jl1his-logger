@@ -6,7 +6,7 @@ use std::{
 
 use axum::{
     extract::{FromRequestParts, Path, State},
-    http::{StatusCode, header, request::Parts},
+    http::{HeaderMap, HeaderValue, StatusCode, header, request::Parts},
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ use crate::{
         random_token, registration,
         session::{self, SESSION_TTL},
         token::{self, TokenKind},
-        user::User,
+        user::{Role, User},
     },
     web::{AppState, error::ApiError, extract::Json},
 };
@@ -83,7 +83,7 @@ impl FromRequestParts<Arc<AppState>> for SignedIn {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<SignedIn, ApiError> {
-        let principal = session_principal(parts, state).await?;
+        let principal = session::authenticate(&state.db, &session_token(&parts.headers)?).await?;
         let mut conn = state.db.acquire().await?;
         Ok(SignedIn(access::user(&mut conn, &principal).await?))
     }
@@ -100,21 +100,14 @@ impl FromRequestParts<Arc<AppState>> for Caller {
 
     async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Caller, ApiError> {
         let Some(authorization) = parts.headers.get(header::AUTHORIZATION) else {
-            let jar = CookieJar::from_headers(&parts.headers);
-            let token = jar.get(SESSION_COOKIE).ok_or(StoreError::Unauthenticated)?.value();
+            let token = session_token(&parts.headers)?;
             return Ok(Caller {
-                principal: session::authenticate(&state.db, token).await?,
+                principal: session::authenticate(&state.db, &token).await?,
                 scopes: None,
-                session_hash: Some(hash_token(token)),
+                session_hash: Some(hash_token(&token)),
             });
         };
-        let plaintext = authorization
-            .to_str()
-            .ok()
-            .and_then(|v| v.split_once(' '))
-            .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
-            .map(|(_, token)| token)
-            .ok_or(StoreError::Unauthenticated)?;
+        let plaintext = bearer(authorization).ok_or(StoreError::Unauthenticated)?;
         let (principal, token) = token::authenticate(&state.db, plaintext, TokenKind::Native).await?;
         Ok(Caller {
             principal,
@@ -124,17 +117,27 @@ impl FromRequestParts<Arc<AppState>> for Caller {
     }
 }
 
-async fn session_principal(parts: &Parts, state: &AppState) -> Result<Principal, StoreError> {
-    let jar = CookieJar::from_headers(&parts.headers);
-    let token = jar.get(SESSION_COOKIE).ok_or(StoreError::Unauthenticated)?.value();
-    session::authenticate(&state.db, token).await
+fn session_token(headers: &HeaderMap) -> Result<String, StoreError> {
+    CookieJar::from_headers(headers)
+        .get(SESSION_COOKIE)
+        .map(|cookie| cookie.value().to_owned())
+        .ok_or(StoreError::Unauthenticated)
+}
+
+pub(super) fn bearer(authorization: &HeaderValue) -> Option<&str> {
+    authorization
+        .to_str()
+        .ok()
+        .and_then(|v| v.split_once(' '))
+        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
+        .map(|(_, token)| token)
 }
 
 #[derive(Debug, Serialize)]
 pub struct Me {
     id: String,
     callsign: String,
-    role: &'static str,
+    role: Role,
 }
 
 impl From<&UserAccess> for Me {
@@ -142,7 +145,7 @@ impl From<&UserAccess> for Me {
         Me {
             id: user.user_id().to_owned(),
             callsign: user.callsign().to_owned(),
-            role: user.role().as_str(),
+            role: user.role(),
         }
     }
 }
@@ -152,7 +155,7 @@ impl From<&User> for Me {
         Me {
             id: user.id.clone(),
             callsign: user.callsign.clone(),
-            role: user.role.as_str(),
+            role: user.role,
         }
     }
 }
@@ -177,9 +180,15 @@ impl From<Passkey> for PasskeyInfo {
 }
 
 #[derive(Deserialize)]
-pub struct Finish<C> {
+pub struct SignIn {
     ceremony: String,
-    credential: C,
+    credential: PublicKeyCredential,
+}
+
+#[derive(Deserialize)]
+pub struct Register {
+    ceremony: String,
+    credential: RegisterPublicKeyCredential,
     #[serde(default)]
     name: String,
 }
@@ -222,7 +231,7 @@ pub async fn login_start(State(state): State<Arc<AppState>>) -> Result<Json<Valu
 pub async fn login_finish(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
-    Json(req): Json<Finish<PublicKeyCredential>>,
+    Json(req): Json<SignIn>,
 ) -> Result<(CookieJar, Json<Me>), ApiError> {
     let Ceremony::Authentication(auth) = state.ceremonies.finish(&req.ceremony)? else {
         return Err(expired());
@@ -263,24 +272,21 @@ pub async fn link_start(
     let mut conn = state.db.acquire().await?;
     let found = registration::check(&mut conn, &req.token).await.map_err(link_failed)?;
     drop(conn);
-    let (challenge, registration) =
-        start_registration(&state, &found.user.id, &found.user.callsign, found.credential_ids)?;
-    let ceremony = state.ceremonies.start(Ceremony::Registration {
-        user_id: found.user.id,
-        link: Some(req.token),
-        state: registration,
-    })?;
-    Ok(Json(json!({
-        "ceremony": ceremony,
-        "options": require_resident_key(challenge)?,
-        "callsign": found.user.callsign,
-    })))
+    let mut started = start_registration(
+        &state,
+        &found.user.id,
+        &found.user.callsign,
+        found.credential_ids,
+        Some(req.token),
+    )?;
+    started["callsign"] = found.user.callsign.into();
+    Ok(Json(started))
 }
 
 pub async fn link_finish(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
-    Json(req): Json<Finish<RegisterPublicKeyCredential>>,
+    Json(req): Json<Register>,
 ) -> Result<(CookieJar, Json<Me>), ApiError> {
     let Ceremony::Registration {
         user_id,
@@ -321,21 +327,19 @@ pub async fn add_start(State(state): State<Arc<AppState>>, SignedIn(user): Signe
         .map(|p| p.credential_id)
         .collect();
     drop(conn);
-    let (challenge, registration) = start_registration(&state, user.user_id(), user.callsign(), exclude)?;
-    let ceremony = state.ceremonies.start(Ceremony::Registration {
-        user_id: user.user_id().to_owned(),
-        link: None,
-        state: registration,
-    })?;
-    Ok(Json(
-        json!({ "ceremony": ceremony, "options": require_resident_key(challenge)? }),
-    ))
+    Ok(Json(start_registration(
+        &state,
+        user.user_id(),
+        user.callsign(),
+        exclude,
+        None,
+    )?))
 }
 
 pub async fn add_finish(
     State(state): State<Arc<AppState>>,
     SignedIn(user): SignedIn,
-    Json(req): Json<Finish<RegisterPublicKeyCredential>>,
+    Json(req): Json<Register>,
 ) -> Result<(StatusCode, Json<PasskeyInfo>), ApiError> {
     let Ceremony::Registration {
         user_id,
@@ -372,17 +376,24 @@ fn start_registration(
     user_id: &str,
     callsign: &str,
     exclude: Vec<Vec<u8>>,
-) -> Result<(CreationChallengeResponse, PasskeyRegistration), ApiError> {
+    link: Option<String>,
+) -> Result<Value, ApiError> {
     let handle = Uuid::parse_str(user_id).map_err(|e| ApiError::internal(format!("user ID {user_id:?}: {e}")))?;
-    state
+    let (challenge, registration) = state
         .webauthn
         .start_passkey_registration(handle, callsign, callsign, Some(exclude))
-        .map_err(webauthn_failed)
+        .map_err(webauthn_failed)?;
+    let ceremony = state.ceremonies.start(Ceremony::Registration {
+        user_id: user_id.to_owned(),
+        link,
+        state: registration,
+    })?;
+    Ok(json!({ "ceremony": ceremony, "options": require_resident_key(challenge)? }))
 }
 
 fn finish_registration(
     state: &AppState,
-    req: &Finish<RegisterPublicKeyCredential>,
+    req: &Register,
     registration: &PasskeyRegistration,
 ) -> Result<NewPasskey, ApiError> {
     let credential = state
@@ -458,28 +469,22 @@ fn webauthn_failed(e: WebauthnError) -> ApiError {
 mod tests {
     use std::{collections::BTreeMap, future::poll_fn, pin::pin, task::Poll};
 
-    use axum::{Router, body::Body, http::header, response::IntoResponse};
+    use axum::{http::header, response::IntoResponse};
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-    use http_body_util::BodyExt;
     use p256::ecdsa::{Signature, SigningKey, signature::Signer};
     use serde_cbor_2::Value as Cbor;
     use sha2::{Digest, Sha256};
-    use tower::ServiceExt;
     use url::Url;
     use webauthn_rs::WebauthnBuilder;
 
     use super::*;
     use crate::{
-        config::Config,
         store::{
             registration::{self, DEFAULT_TTL},
-            testing::World,
             user,
         },
-        web::router,
+        web::testing::{Auth, Harness, ORIGIN},
     };
-
-    const ORIGIN: &str = "https://log.example.com";
 
     struct Authenticator {
         key: SigningKey,
@@ -571,98 +576,82 @@ mod tests {
         .to_string()
     }
 
-    struct Harness {
-        world: World,
-        app: Router,
-    }
-
     struct Reply {
         status: StatusCode,
         cookie: Option<String>,
         body: Value,
     }
 
-    impl Harness {
-        async fn new() -> Harness {
-            let world = World::new().await;
-            let state = AppState::new(world.db.clone(), Config::default(), Url::parse(ORIGIN).unwrap()).unwrap();
-            Harness {
-                app: router(Arc::new(state), None),
-                world,
-            }
-        }
+    async fn send(h: &Harness, method: &str, uri: &str, cookie: Option<&str>, body: Option<Value>) -> Reply {
+        let mut headers = vec![("origin", ORIGIN)];
+        headers.extend(cookie.map(|cookie| ("cookie", cookie)));
+        let (status, headers, body) = h.send_with(method, uri, Auth::Anonymous, &headers, body).await;
+        let cookie = headers.get(header::SET_COOKIE).map(|v| v.to_str().unwrap().to_owned());
+        Reply { status, cookie, body }
+    }
 
-        async fn link(&self, user_id: &str) -> String {
-            let admin = self.world.admin_access().await;
-            let mut tx = WriteTx::begin(&self.world.db).await.unwrap();
-            let link = registration::issue(&mut tx, &admin, user_id, DEFAULT_TTL)
-                .await
-                .unwrap();
-            tx.commit().await.unwrap();
-            link
-        }
-
-        async fn send(&self, method: &str, uri: &str, cookie: Option<&str>, body: Option<Value>) -> Reply {
-            let mut req = axum::http::Request::builder()
-                .method(method)
-                .uri(uri)
-                .header(header::ORIGIN, ORIGIN);
-            if let Some(cookie) = cookie {
-                req = req.header(header::COOKIE, cookie);
-            }
-            let body = match body {
-                Some(body) => {
-                    req = req.header(header::CONTENT_TYPE, "application/json");
-                    Body::from(body.to_string())
-                }
-                None => Body::empty(),
-            };
-            let response = self.app.clone().oneshot(req.body(body).unwrap()).await.unwrap();
-            let status = response.status();
-            let cookie = response
-                .headers()
-                .get(header::SET_COOKIE)
-                .map(|v| v.to_str().unwrap().to_owned());
-            let bytes = response.into_body().collect().await.unwrap().to_bytes();
-            let body = match bytes.is_empty() {
-                true => Value::Null,
-                false => serde_json::from_slice(&bytes).unwrap(),
-            };
-            Reply { status, cookie, body }
-        }
-
-        async fn register(&self, link: &str, authenticator: &Authenticator) -> Reply {
-            let start = self
-                .send("POST", "/api/auth/register/start", None, Some(json!({ "token": link })))
-                .await;
-            assert_eq!(start.status, StatusCode::OK, "{}", start.body);
-            assert_eq!(
-                start.body["callsign"],
-                start.body["options"]["publicKey"]["user"]["name"]
-            );
-            let credential = authenticator.create(&start.body["options"]);
-            self.send(
-                "POST",
-                "/api/auth/register/finish",
-                None,
-                Some(json!({ "ceremony": start.body["ceremony"], "credential": credential, "name": " Phone " })),
-            )
+    async fn link(h: &Harness, user_id: &str) -> String {
+        let admin = h.world.admin_access().await;
+        let mut tx = WriteTx::begin(&h.world.db).await.unwrap();
+        let link = registration::issue(&mut tx, &admin, user_id, DEFAULT_TTL)
             .await
-        }
+            .unwrap();
+        tx.commit().await.unwrap();
+        link
+    }
 
-        async fn sign_in(&self, authenticator: &mut Authenticator, user_handle: &str) -> Reply {
-            let start = self.send("POST", "/api/auth/login/start", None, None).await;
-            assert_eq!(start.status, StatusCode::OK, "{}", start.body);
-            assert!(start.body["options"].get("mediation").is_none());
-            let credential = authenticator.get(&start.body["options"], user_handle);
-            self.send(
-                "POST",
-                "/api/auth/login/finish",
-                None,
-                Some(json!({ "ceremony": start.body["ceremony"], "credential": credential })),
-            )
-            .await
-        }
+    async fn register(h: &Harness, link: &str, authenticator: &Authenticator) -> Reply {
+        let start = send(
+            h,
+            "POST",
+            "/api/auth/register/start",
+            None,
+            Some(json!({ "token": link })),
+        )
+        .await;
+        assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+        assert_eq!(
+            start.body["callsign"],
+            start.body["options"]["publicKey"]["user"]["name"]
+        );
+        let credential = authenticator.create(&start.body["options"]);
+        send(
+            h,
+            "POST",
+            "/api/auth/register/finish",
+            None,
+            Some(json!({ "ceremony": start.body["ceremony"], "credential": credential, "name": " Phone " })),
+        )
+        .await
+    }
+
+    async fn sign_in(h: &Harness, authenticator: &mut Authenticator, user_handle: &str) -> Reply {
+        let start = send(h, "POST", "/api/auth/login/start", None, None).await;
+        assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+        assert!(start.body["options"].get("mediation").is_none());
+        let credential = authenticator.get(&start.body["options"], user_handle);
+        send(
+            h,
+            "POST",
+            "/api/auth/login/finish",
+            None,
+            Some(json!({ "ceremony": start.body["ceremony"], "credential": credential })),
+        )
+        .await
+    }
+
+    async fn signed_in_operator(h: &Harness) -> String {
+        let registered = register(h, &link(h, &h.world.operator.id).await, &Authenticator::new(1)).await;
+        assert_eq!(registered.status, StatusCode::OK, "{}", registered.body);
+        session(&registered)
+    }
+
+    async fn add_passkey(h: &Harness, cookie: &str, seed: u8) -> Reply {
+        let start = send(h, "POST", "/api/passkeys/register/start", Some(cookie), None).await;
+        assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+        let credential = Authenticator::new(seed).create(&start.body["options"]);
+        let finish = json!({ "ceremony": start.body["ceremony"], "credential": credential });
+        send(h, "POST", "/api/passkeys/register/finish", Some(cookie), Some(finish)).await
     }
 
     fn session(reply: &Reply) -> String {
@@ -681,10 +670,10 @@ mod tests {
     async fn registers_through_a_link_and_signs_in_again() {
         let h = Harness::new().await;
         let operator = &h.world.operator;
-        let link = h.link(&operator.id).await;
+        let link = link(&h, &operator.id).await;
         let mut authenticator = Authenticator::new(1);
 
-        let registered = h.register(&link, &authenticator).await;
+        let registered = register(&h, &link, &authenticator).await;
         assert_eq!(registered.status, StatusCode::OK, "{}", registered.body);
         assert_eq!(
             registered.body,
@@ -692,25 +681,30 @@ mod tests {
         );
         let cookie = session(&registered);
         assert!(cookie.starts_with("__Host-session="));
-        let me = h.send("GET", "/api/me", Some(&cookie), None).await;
+        let me = send(&h, "GET", "/api/me", Some(&cookie), None).await;
         assert_eq!((me.status, &me.body["callsign"]), (StatusCode::OK, &json!("JA1OPR")));
         session(&me);
 
-        let again = h
-            .send("POST", "/api/auth/register/start", None, Some(json!({ "token": link })))
-            .await;
+        let again = send(
+            &h,
+            "POST",
+            "/api/auth/register/start",
+            None,
+            Some(json!({ "token": link })),
+        )
+        .await;
         assert_eq!(again.status, StatusCode::UNAUTHORIZED, "{}", again.body);
 
-        let out = h.send("POST", "/api/auth/logout", Some(&cookie), None).await;
+        let out = send(&h, "POST", "/api/auth/logout", Some(&cookie), None).await;
         assert_eq!(out.status, StatusCode::NO_CONTENT);
         assert!(out.cookie.unwrap().contains("Max-Age=0"));
-        let me = h.send("GET", "/api/me", Some(&cookie), None).await;
+        let me = send(&h, "GET", "/api/me", Some(&cookie), None).await;
         assert_eq!(me.status, StatusCode::UNAUTHORIZED);
 
-        let signed_in = h.sign_in(&mut authenticator, &handle(&operator.id)).await;
+        let signed_in = sign_in(&h, &mut authenticator, &handle(&operator.id)).await;
         assert_eq!(signed_in.status, StatusCode::OK, "{}", signed_in.body);
         assert_eq!(signed_in.body["callsign"], "JA1OPR");
-        let me = h.send("GET", "/api/me", Some(&session(&signed_in)), None).await;
+        let me = send(&h, "GET", "/api/me", Some(&session(&signed_in)), None).await;
         assert_eq!(me.status, StatusCode::OK);
 
         let mut conn = h.world.db.acquire().await.unwrap();
@@ -724,18 +718,23 @@ mod tests {
     #[tokio::test]
     async fn a_link_registers_once_even_when_started_twice() {
         let h = Harness::new().await;
-        let link = h.link(&h.world.operator.id).await;
+        let link = link(&h, &h.world.operator.id).await;
         let mut finishes = Vec::new();
         for seed in [1, 2] {
-            let start = h
-                .send("POST", "/api/auth/register/start", None, Some(json!({ "token": link })))
-                .await;
+            let start = send(
+                &h,
+                "POST",
+                "/api/auth/register/start",
+                None,
+                Some(json!({ "token": link })),
+            )
+            .await;
             let credential = Authenticator::new(seed).create(&start.body["options"]);
             finishes.push(json!({ "ceremony": start.body["ceremony"], "credential": credential }));
         }
         let mut statuses = Vec::new();
         for finish in finishes {
-            let reply = h.send("POST", "/api/auth/register/finish", None, Some(finish)).await;
+            let reply = send(&h, "POST", "/api/auth/register/finish", None, Some(finish)).await;
             statuses.push(reply.status);
         }
         assert_eq!(statuses, [StatusCode::OK, StatusCode::UNAUTHORIZED]);
@@ -744,13 +743,13 @@ mod tests {
     #[tokio::test]
     async fn refuses_a_repeated_counter_during_concurrent_sign_ins() {
         let h = Harness::new().await;
-        let link = h.link(&h.world.operator.id).await;
-        let registered = h.register(&link, &Authenticator::new(1)).await;
+        let link = link(&h, &h.world.operator.id).await;
+        let registered = register(&h, &link, &Authenticator::new(1)).await;
         assert_eq!(registered.status, StatusCode::OK, "{}", registered.body);
 
         let mut requests = Vec::new();
         for _ in 0..2 {
-            let start = h.send("POST", "/api/auth/login/start", None, None).await;
+            let start = send(&h, "POST", "/api/auth/login/start", None, None).await;
             assert_eq!(start.status, StatusCode::OK, "{}", start.body);
             let credential = Authenticator::new(1).get(&start.body["options"], &handle(&h.world.operator.id));
             requests.push(json!({ "ceremony": start.body["ceremony"], "credential": credential }));
@@ -763,8 +762,8 @@ mod tests {
         }
         let mut finishes = pin!(async {
             tokio::join!(
-                h.send("POST", "/api/auth/login/finish", None, Some(first)),
-                h.send("POST", "/api/auth/login/finish", None, Some(second)),
+                send(&h, "POST", "/api/auth/login/finish", None, Some(first)),
+                send(&h, "POST", "/api/auth/login/finish", None, Some(second)),
             )
         });
         poll_fn(|cx| {
@@ -791,35 +790,30 @@ mod tests {
         let h = Harness::new().await;
         let operator = &h.world.operator;
         let mut authenticator = Authenticator::new(1);
-        let registered = h.register(&h.link(&operator.id).await, &authenticator).await;
+        let registered = register(&h, &link(&h, &operator.id).await, &authenticator).await;
         assert_eq!(registered.status, StatusCode::OK, "{}", registered.body);
 
-        let unknown = h.sign_in(&mut Authenticator::new(9), &handle(&operator.id)).await;
+        let unknown = sign_in(&h, &mut Authenticator::new(9), &handle(&operator.id)).await;
         assert_eq!(unknown.status, StatusCode::UNAUTHORIZED, "{}", unknown.body);
-        let mismatched = h.sign_in(&mut authenticator, &handle(&h.world.owner.id)).await;
+        let mismatched = sign_in(&h, &mut authenticator, &handle(&h.world.owner.id)).await;
         assert_eq!(mismatched.status, StatusCode::UNAUTHORIZED, "{}", mismatched.body);
 
         let admin = h.world.admin_access().await;
         let mut tx = WriteTx::begin(&h.world.db).await.unwrap();
         user::set_disabled(&mut tx, &admin, &operator.id, true).await.unwrap();
         tx.commit().await.unwrap();
-        let disabled = h.sign_in(&mut authenticator, &handle(&operator.id)).await;
+        let disabled = sign_in(&h, &mut authenticator, &handle(&operator.id)).await;
         assert_eq!(disabled.status, StatusCode::UNAUTHORIZED, "{}", disabled.body);
-        let me = h.send("GET", "/api/me", Some(&session(&registered)), None).await;
+        let me = send(&h, "GET", "/api/me", Some(&session(&registered)), None).await;
         assert_eq!(me.status, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
-    async fn manages_passkeys_of_the_signed_in_user() {
+    async fn adds_a_resident_passkey_through_its_own_route() {
         let h = Harness::new().await;
-        let registered = h
-            .register(&h.link(&h.world.operator.id).await, &Authenticator::new(1))
-            .await;
-        let cookie = session(&registered);
+        let cookie = signed_in_operator(&h).await;
 
-        let start = h
-            .send("POST", "/api/passkeys/register/start", Some(&cookie), None)
-            .await;
+        let start = send(&h, "POST", "/api/passkeys/register/start", Some(&cookie), None).await;
         assert_eq!(start.status, StatusCode::OK, "{}", start.body);
         let options = &start.body["options"]["publicKey"];
         assert_eq!(options["excludeCredentials"][0]["id"], b64(&[1; 16]));
@@ -828,21 +822,21 @@ mod tests {
         assert_eq!(selection["requireResidentKey"], true);
         let credential = Authenticator::new(2).create(&start.body["options"]);
         let finish = json!({ "ceremony": start.body["ceremony"], "credential": credential });
-        let wrong_route = h.send("POST", "/api/auth/register/finish", None, Some(finish)).await;
+        let wrong_route = send(&h, "POST", "/api/auth/register/finish", None, Some(finish)).await;
         assert_eq!(wrong_route.status, StatusCode::BAD_REQUEST, "{}", wrong_route.body);
 
-        let start = h
-            .send("POST", "/api/passkeys/register/start", Some(&cookie), None)
-            .await;
-        let credential = Authenticator::new(2).create(&start.body["options"]);
-        let finish = json!({ "ceremony": start.body["ceremony"], "credential": credential });
-        let added = h
-            .send("POST", "/api/passkeys/register/finish", Some(&cookie), Some(finish))
-            .await;
+        let added = add_passkey(&h, &cookie, 2).await;
         assert_eq!(added.status, StatusCode::CREATED, "{}", added.body);
         assert_eq!(added.body["name"], DEFAULT_PASSKEY_NAME);
+    }
 
-        let listed = h.send("GET", "/api/passkeys", Some(&cookie), None).await;
+    #[tokio::test]
+    async fn lists_and_deletes_passkeys_but_keeps_the_last() {
+        let h = Harness::new().await;
+        let cookie = signed_in_operator(&h).await;
+        let added = add_passkey(&h, &cookie, 2).await;
+
+        let listed = send(&h, "GET", "/api/passkeys", Some(&cookie), None).await;
         let names: Vec<_> = listed.body.as_array().unwrap().iter().map(|p| &p["name"]).collect();
         assert_eq!(names, [&json!("Phone"), &json!("Passkey")]);
         assert!(listed.body[0].get("passkey").is_none());
@@ -850,15 +844,15 @@ mod tests {
         let second = format!("/api/passkeys/{}", added.body["id"].as_str().unwrap());
         let first = format!("/api/passkeys/{}", listed.body[0]["id"].as_str().unwrap());
         assert_eq!(
-            h.send("DELETE", &first, None, None).await.status,
+            send(&h, "DELETE", &first, None, None).await.status,
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(
-            h.send("DELETE", &second, Some(&cookie), None).await.status,
+            send(&h, "DELETE", &second, Some(&cookie), None).await.status,
             StatusCode::NO_CONTENT
         );
         assert_eq!(
-            h.send("DELETE", &first, Some(&cookie), None).await.status,
+            send(&h, "DELETE", &first, Some(&cookie), None).await.status,
             StatusCode::CONFLICT
         );
     }
@@ -866,28 +860,26 @@ mod tests {
     #[tokio::test]
     async fn refuses_bad_links_and_mismatched_ceremonies() {
         let h = Harness::new().await;
-        let bad = h
-            .send(
-                "POST",
-                "/api/auth/register/start",
-                None,
-                Some(json!({ "token": "nothing" })),
-            )
-            .await;
+        let bad = send(
+            &h,
+            "POST",
+            "/api/auth/register/start",
+            None,
+            Some(json!({ "token": "nothing" })),
+        )
+        .await;
         assert_eq!(bad.status, StatusCode::UNAUTHORIZED);
         assert!(bad.body["error"].as_str().unwrap().contains("registration link"));
 
-        let start = h.send("POST", "/api/auth/login/start", None, None).await;
+        let start = send(&h, "POST", "/api/auth/login/start", None, None).await;
         let credential = Authenticator::new(1).create(&json!({ "publicKey": { "challenge": "" } }));
         let wrong_kind = json!({ "ceremony": start.body["ceremony"], "credential": credential });
         for _ in 0..2 {
-            let reply = h
-                .send("POST", "/api/auth/register/finish", None, Some(wrong_kind.clone()))
-                .await;
+            let reply = send(&h, "POST", "/api/auth/register/finish", None, Some(wrong_kind.clone())).await;
             assert_eq!(reply.status, StatusCode::BAD_REQUEST, "{}", reply.body);
         }
         assert_eq!(
-            h.send("GET", "/api/me", None, None).await.status,
+            send(&h, "GET", "/api/me", None, None).await.status,
             StatusCode::UNAUTHORIZED
         );
     }

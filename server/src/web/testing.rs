@@ -1,4 +1,4 @@
-use std::{fs, path::Path, sync::Arc};
+use std::{collections::BTreeMap, fs, path::Path, sync::Arc};
 
 use axum::{
     Router,
@@ -6,7 +6,7 @@ use axum::{
     http::{HeaderMap, Request, StatusCode, header, request::Builder},
 };
 use http_body_util::BodyExt;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -14,11 +14,12 @@ use url::Url;
 
 use crate::{
     config::{Config, ReferenceConfig},
+    domain::qso::QsoId,
     store::{
         WriteTx,
         reference::{self, ReferenceKind},
         session,
-        station::Station,
+        station::{self, Station, StationInput},
         testing::World,
         token::{self, TokenInput, TokenKind},
         user::User,
@@ -121,6 +122,57 @@ impl Harness {
         .unwrap();
         tx.commit().await.unwrap();
         issued.plaintext
+    }
+
+    pub fn path(&self, suffix: &str) -> String {
+        format!("/api/logbooks/{}{suffix}", self.world.logbook.id)
+    }
+
+    pub async fn create_station(&self, input: &StationInput) -> Station {
+        let owner = self.world.access(&self.world.owner).await;
+        let mut tx = WriteTx::begin(&self.world.db).await.unwrap();
+        let station = station::create(&mut tx, &owner.owner().unwrap(), input).await.unwrap();
+        tx.commit().await.unwrap();
+        station
+    }
+
+    pub async fn create_qso(
+        &self,
+        session: &str,
+        station_id: &str,
+        call: &str,
+        time_on: &str,
+        extra: &[(&str, &str)],
+    ) -> Value {
+        let mut fields = BTreeMap::from([
+            ("CALL", call),
+            ("QSO_DATE", "20261022"),
+            ("TIME_ON", time_on),
+            ("BAND", "40m"),
+            ("MODE", "CW"),
+        ]);
+        fields.extend(extra.iter().copied());
+        let body = json!({ "id": QsoId::generate().to_string(), "station_id": station_id, "fields": fields });
+        let (status, body) = self
+            .send("POST", &self.path("/qsos"), Auth::Session(session), Some(body))
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+        body
+    }
+
+    pub async fn delete_qso(&self, session: &str, id: &str, revision: i64) -> Value {
+        let if_match = format!("\"{revision}\"");
+        let (status, _, body) = self
+            .send_with(
+                "DELETE",
+                &self.path(&format!("/qsos/{id}")),
+                Auth::Session(session),
+                &[("if-match", &if_match)],
+                None,
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        body
     }
 
     pub async fn send(&self, method: &str, uri: &str, auth: Auth<'_>, body: Option<Value>) -> (StatusCode, Value) {

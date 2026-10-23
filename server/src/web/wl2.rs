@@ -14,16 +14,17 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use sqlx::SqliteConnection;
 
 use crate::{
     domain::qso::QsoError,
     store::{
         StoreError,
         access::{self, LogbookAccess},
-        station::Station,
+        station::{self as stations, Station},
         token::{self, TokenKind},
     },
-    web::{AppState, references::LoadError},
+    web::{AppState, auth::bearer, error, references::LoadError},
 };
 
 const API: &str = "/wl2/index.php/api/v2";
@@ -69,17 +70,26 @@ impl Wl2Error {
     fn invalid_token(message: impl Into<String>) -> Wl2Error {
         Wl2Error::new(StatusCode::UNAUTHORIZED, "invalid_token", message)
     }
+
+    fn forbidden(message: impl Into<String>) -> Wl2Error {
+        Wl2Error::new(StatusCode::FORBIDDEN, "forbidden", message)
+    }
+
+    fn not_found(message: impl Into<String>) -> Wl2Error {
+        Wl2Error::new(StatusCode::NOT_FOUND, "not_found", message)
+    }
 }
 
 impl From<StoreError> for Wl2Error {
     fn from(e: StoreError) -> Wl2Error {
-        let (status, code) = match &e {
-            StoreError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
-            StoreError::Unauthenticated => (StatusCode::UNAUTHORIZED, "invalid_token"),
-            StoreError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
-            StoreError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
-            StoreError::Invalid(_) | StoreError::Qso(_) => (StatusCode::BAD_REQUEST, "validation_error"),
-            StoreError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+        let status = error::status(&e);
+        let code = match status {
+            StatusCode::NOT_FOUND => "not_found",
+            StatusCode::UNAUTHORIZED => "invalid_token",
+            StatusCode::FORBIDDEN => "forbidden",
+            StatusCode::CONFLICT => "conflict",
+            StatusCode::BAD_REQUEST => "validation_error",
+            _ => "internal_error",
         };
         Wl2Error::new(status, code, e.to_string())
     }
@@ -132,10 +142,7 @@ impl FromRequestParts<Arc<AppState>> for Wl2Access {
         let plaintext = parts
             .headers
             .get(header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.split_once(' '))
-            .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("Bearer"))
-            .map(|(_, token)| token)
+            .and_then(bearer)
             .ok_or_else(|| Wl2Error::invalid_token("a Bearer API token is required"))?;
         let (principal, token) = token::authenticate(&state.db, plaintext, TokenKind::Wl2)
             .await
@@ -183,18 +190,31 @@ impl<S: Send + Sync, T: DeserializeOwned> FromRequest<S> for Wl2Json<T> {
     }
 }
 
+fn present(value: &Option<String>) -> Option<&str> {
+    value.as_deref().map(str::trim).filter(|v| !v.is_empty())
+}
+
 fn mapped<'a>(stations: &'a [Station], wavelog_id: &str) -> Result<&'a Station, Wl2Error> {
     let wavelog_id = wavelog_id.trim();
     stations
         .iter()
         .find(|s| s.wavelog_id.is_some_and(|id| id.to_string() == wavelog_id))
-        .ok_or_else(|| {
-            Wl2Error::new(
-                StatusCode::FORBIDDEN,
-                "forbidden",
-                format!("Station {wavelog_id:?} is not a Station of this Logbook"),
-            )
-        })
+        .ok_or_else(|| Wl2Error::forbidden(format!("Station {wavelog_id:?} is not a Station of this Logbook")))
+}
+
+async fn station_ids(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    wavelog_ids: Option<&str>,
+) -> Result<Option<Vec<String>>, Wl2Error> {
+    let Some(list) = wavelog_ids else {
+        return Ok(None);
+    };
+    let stations = stations::list(conn, access).await?;
+    list.split(',')
+        .map(|wavelog_id| Ok(mapped(&stations, wavelog_id)?.id.clone()))
+        .collect::<Result<_, _>>()
+        .map(Some)
 }
 
 fn data(data: Value, meta: Value) -> Json<Value> {
@@ -202,18 +222,45 @@ fn data(data: Value, meta: Value) -> Json<Value> {
 }
 
 async fn not_found() -> Wl2Error {
-    Wl2Error::new(StatusCode::NOT_FOUND, "not_found", "not found")
+    Wl2Error::not_found("not found")
 }
 
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
-    use serde_json::json;
+    use serde_json::{Value, json};
+    use tempfile::TempDir;
 
     use crate::{
-        store::{WriteTx, membership, token::TokenKind},
+        store::{WriteTx, membership, reference::ReferenceKind, token::TokenKind},
         web::testing::{Auth, Harness},
     };
+
+    pub(super) struct Fixture {
+        pub(super) h: Harness,
+        token: String,
+        _dir: TempDir,
+    }
+
+    impl Fixture {
+        pub(super) async fn new() -> Fixture {
+            let (h, _dir) = Harness::with_references().await;
+            let token = h.token(&h.world.operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
+            Fixture { h, token, _dir }
+        }
+
+        pub(super) async fn install(&self, kind: ReferenceKind, text: &str, version: &str) {
+            self.h.install_reference(kind, text, version).await;
+        }
+
+        pub(super) async fn get(&self, uri: &str) -> (StatusCode, Value) {
+            self.h.send("GET", uri, Auth::Bearer(&self.token), None).await
+        }
+
+        pub(super) async fn post(&self, uri: &str, body: Value) -> (StatusCode, Value) {
+            self.h.send("POST", uri, Auth::Bearer(&self.token), Some(body)).await
+        }
+    }
 
     #[tokio::test]
     async fn accepts_only_wl2_tokens_of_a_member() {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{Json, extract::State};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -8,7 +8,7 @@ use crate::{
     store::qso,
     web::{
         AppState,
-        wl2::{Wl2Access, Wl2Error, Wl2Query, data},
+        wl2::{Wl2Access, Wl2Error, Wl2Query, data, present},
     },
 };
 
@@ -25,7 +25,7 @@ pub async fn get(
     Wl2Access(access): Wl2Access,
     Wl2Query(query): Wl2Query<CatalogQuery>,
 ) -> Result<Json<Value>, Wl2Error> {
-    match query.topic.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+    match present(&query.topic) {
         None => Ok(data(json!({ "topics": TOPICS }), json!({}))),
         Some("contest") => {
             let mut conn = state.db.acquire().await?;
@@ -46,7 +46,7 @@ pub async fn get(
                 .references
                 .subdivisions(&state.db, &state.config.reference)
                 .await?
-                .ok_or_else(|| Wl2Error::new(StatusCode::NOT_FOUND, "not_found", "no subdivisions are installed"))?;
+                .ok_or_else(|| Wl2Error::not_found("no subdivisions are installed"))?;
             let names = subdivisions
                 .get(&dxcc)
                 .into_iter()
@@ -74,7 +74,7 @@ mod tests {
         store::{reference::ReferenceKind, token::TokenKind},
         web::{
             testing::{Auth, Harness},
-            wl2::{lookup::tests::Fixture, qso::tests::create_qso},
+            wl2::tests::Fixture,
         },
     };
 
@@ -89,26 +89,12 @@ mod tests {
             ("030000", &[("CONTEST_ID", "ACAG")]),
             ("040000", &[]),
         ] {
-            create_qso(&h, &session, &station_id, "JA1XYZ", time_on, extra).await;
+            h.create_qso(&session, &station_id, "JA1XYZ", time_on, extra).await;
         }
-        let deleted = create_qso(
-            &h,
-            &session,
-            &station_id,
-            "JA1XYZ",
-            "050000",
-            &[("CONTEST_ID", "JIDX-CW")],
-        )
-        .await;
-        let uri = format!(
-            "/api/logbooks/{}/qsos/{}",
-            h.world.logbook.id,
-            deleted["qso"]["id"].as_str().unwrap()
-        );
-        let (status, _, _) = h
-            .send_with("DELETE", &uri, Auth::Session(&session), &[("if-match", "\"1\"")], None)
+        let deleted = h
+            .create_qso(&session, &station_id, "JA1XYZ", "050000", &[("CONTEST_ID", "JIDX-CW")])
             .await;
-        assert_eq!(status, StatusCode::OK);
+        h.delete_qso(&session, deleted["qso"]["id"].as_str().unwrap(), 1).await;
         let token = h.token(&h.world.operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
 
         let (status, body) = h

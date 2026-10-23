@@ -2,7 +2,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::store::{
     StoreError, WriteTx,
-    access::{self, AdminAccess, LogbookAccess, LogbookRole, UserAccess},
+    access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal, UserAccess},
     membership, new_id, now, user,
 };
 
@@ -111,6 +111,23 @@ pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<
     .iter()
     .map(|row| Ok((Logbook::from_row(row)?, LogbookRole::parse(row.try_get("role")?)?)))
     .collect()
+}
+
+pub async fn list_for_scopes(
+    conn: &mut SqliteConnection,
+    principal: &Principal,
+    logbook_ids: &[String],
+) -> Result<Vec<(Logbook, LogbookRole)>, StoreError> {
+    let mut logbooks = vec![];
+    for logbook_id in logbook_ids {
+        match access::logbook(conn, principal, logbook_id).await {
+            Ok(access) => logbooks.push((get(conn, &access).await?, access.role())),
+            Err(StoreError::NotFound(_)) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    logbooks.sort_by(|(a, _), (b, _)| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
+    Ok(logbooks)
 }
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Logbook, StoreError> {
@@ -247,6 +264,24 @@ mod tests {
             .await
             .unwrap();
         assert!(list(&mut tx, &outsider).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn lists_the_scoped_logbooks_the_user_still_belongs_to() {
+        let world = World::new().await;
+        let (other, _) = world.other_logbook().await;
+        let scopes = [other.id.clone(), world.logbook.id.clone(), "no-such-logbook".to_owned()];
+        let mut conn = world.db.acquire().await.unwrap();
+        let owner = Principal::user(&world.owner.id);
+        assert_eq!(
+            list_for_scopes(&mut conn, &owner, &scopes).await.unwrap(),
+            [(world.logbook.clone(), LogbookRole::Owner), (other, LogbookRole::Owner)]
+        );
+        let operator = Principal::user(&world.operator.id);
+        assert_eq!(
+            list_for_scopes(&mut conn, &operator, &scopes).await.unwrap(),
+            [(world.logbook.clone(), LogbookRole::Operator)]
+        );
     }
 
     #[tokio::test]

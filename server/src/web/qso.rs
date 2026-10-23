@@ -4,21 +4,21 @@ use axum::{
     extract::{FromRequestParts, Path, State},
     http::{HeaderName, StatusCode, header, request::Parts},
 };
-use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     domain::qso::{Qso, QsoId, Warning},
     store::{
         StoreError, WriteTx,
-        access::{self, LogbookAccess},
-        qso::{self, CallMatch, Created, Cursor, Filter, QsoInput, StoredQso, TimeRange},
+        access::LogbookAccess,
+        qso::{self, CallMatch, Created, Cursor, Filter, QsoInput, StoredQso},
     },
     web::{
         AppState,
-        auth::Caller,
         error::ApiError,
         extract::{Json, Query},
+        member::{Item, Member},
+        query::range,
     },
 };
 
@@ -102,12 +102,7 @@ impl<S: Send + Sync> FromRequestParts<S> for IfMatch {
             .ok()
             .and_then(|v| v.trim().strip_prefix('"')?.strip_suffix('"')?.parse().ok())
             .map(IfMatch)
-            .ok_or_else(|| {
-                ApiError::new(
-                    StatusCode::BAD_REQUEST,
-                    "If-Match takes one strong entity tag, the revision in quotes",
-                )
-            })
+            .ok_or_else(|| ApiError::bad_request("If-Match takes one strong entity tag, the revision in quotes"))
     }
 }
 
@@ -169,11 +164,10 @@ pub struct DuplicatesBody {
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Json(req): Json<NewQso>,
 ) -> Result<(StatusCode, Tagged<Saved>), ApiError> {
-    let id: QsoId = req.id.parse().map_err(|e| StoreError::Invalid(format!("{e}")))?;
+    let id: QsoId = req.id.parse().map_err(|e| ApiError::bad_request(format!("{e}")))?;
     let mut qso = Qso::from_fields(req.fields)?;
     if let Some(entity) = state
         .references
@@ -187,8 +181,7 @@ pub async fn create(
         qso,
     };
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let created = qso::create(&mut tx, &access, &id, input).await?;
+    let created = qso::create(&mut tx, &member.access, &id, input).await?;
     tx.commit().await?;
     let (status, stored, warnings) = match created {
         Created::New { stored, warnings } => (StatusCode::CREATED, stored, warnings),
@@ -208,31 +201,29 @@ pub async fn create(
 
 pub async fn get(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
 ) -> Result<Tagged<QsoBody>, ApiError> {
-    let id = path_id(&id)?;
+    let id = path_id(&item.id)?;
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let stored = qso::get(&mut conn, &access, &id).await?;
+    let stored = qso::get(&mut conn, &member.access, &id).await?;
     Ok(tagged(stored.revision, stored.into()))
 }
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
     IfMatch(revision): IfMatch,
     Json(req): Json<ChangedQso>,
 ) -> Result<Tagged<Saved>, ApiError> {
-    let id = path_id(&id)?;
+    let id = path_id(&item.id)?;
     let input = QsoInput {
         station_id: req.station_id,
         qso: Qso::from_fields(req.fields)?,
     };
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    match qso::update(&mut tx, &access, &id, revision, input).await {
+    match qso::update(&mut tx, &member.access, &id, revision, input).await {
         Ok((stored, warnings)) => {
             tx.commit().await?;
             Ok(tagged(
@@ -245,42 +236,39 @@ pub async fn update(
         }
         Err(e) => {
             drop(tx);
-            Err(with_current(&state, &access, &id, e).await)
+            Err(with_current(&state, &member.access, &id, e).await)
         }
     }
 }
 
 pub async fn delete(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
     IfMatch(revision): IfMatch,
 ) -> Result<Tagged<QsoBody>, ApiError> {
-    let id = path_id(&id)?;
+    let id = path_id(&item.id)?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    match qso::delete(&mut tx, &access, &id, revision).await {
+    match qso::delete(&mut tx, &member.access, &id, revision).await {
         Ok(stored) => {
             tx.commit().await?;
             Ok(tagged(stored.revision, stored.into()))
         }
         Err(e) => {
             drop(tx);
-            Err(with_current(&state, &access, &id, e).await)
+            Err(with_current(&state, &member.access, &id, e).await)
         }
     }
 }
 
 pub async fn changes(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Query(query): Query<ChangesQuery>,
 ) -> Result<Json<ChangesBody>, ApiError> {
     let limit = limit(query.limit, MAX_LIMIT)?;
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let changes = qso::changes(&mut conn, &access, query.after.unwrap_or(0), limit).await?;
+    let changes = qso::changes(&mut conn, &member.access, query.after.unwrap_or(0), limit).await?;
     Ok(Json(ChangesBody {
         cursor_generation: changes.cursor_generation,
         last_updated_seq: changes.last_updated_seq,
@@ -291,22 +279,18 @@ pub async fn changes(
 
 pub async fn search(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<PageBody>, ApiError> {
     let limit = limit(query.limit, DEFAULT_SEARCH_LIMIT)?;
     let call = match (query.call, query.call_base) {
-        (Some(_), Some(_)) => return Err(StoreError::Invalid("give call or call_base, not both".into()).into()),
+        (Some(_), Some(_)) => return Err(ApiError::bad_request("give call or call_base, not both")),
         (Some(call), None) => Some(CallMatch::Exact(call)),
         (None, Some(call)) => Some(CallMatch::Base(call)),
         (None, None) => None,
     };
     let filter = Filter {
-        time: TimeRange {
-            from: query.from.as_deref().map(|t| time("from", t)).transpose()?,
-            until: query.until.as_deref().map(|t| time("until", t)).transpose()?,
-        },
+        time: range(query.from.as_deref(), query.until.as_deref())?,
         station_ids: query.station_id.map(|id| vec![id]),
         band: query.band,
         mode: query.mode,
@@ -316,8 +300,7 @@ pub async fn search(
     };
     let after = query.cursor.as_deref().map(parse_cursor).transpose()?;
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let page = qso::search(&mut conn, &access, &filter, after.as_ref(), limit).await?;
+    let page = qso::search(&mut conn, &member.access, &filter, after.as_ref(), limit).await?;
     Ok(Json(PageBody {
         qsos: page.rows.into_iter().map(QsoBody::from).collect(),
         next: page.next.map(|c| format!("{}_{}", c.qso_time, c.id)),
@@ -326,8 +309,7 @@ pub async fn search(
 
 pub async fn duplicates(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Query(query): Query<DuplicatesQuery>,
 ) -> Result<Json<DuplicatesBody>, ApiError> {
     let candidate = Qso::from_fields(
@@ -344,11 +326,10 @@ pub async fn duplicates(
     let except = query
         .except
         .as_deref()
-        .map(|id| id.parse::<QsoId>().map_err(|e| StoreError::Invalid(e.to_string())))
+        .map(|id| id.parse::<QsoId>().map_err(|e| ApiError::bad_request(e.to_string())))
         .transpose()?;
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let rows = qso::possible_duplicates(&mut conn, &access, &candidate, except.as_ref()).await?;
+    let rows = qso::possible_duplicates(&mut conn, &member.access, &candidate, except.as_ref()).await?;
     Ok(Json(DuplicatesBody {
         qsos: rows.into_iter().map(QsoBody::from).collect(),
     }))
@@ -377,24 +358,19 @@ async fn with_current(state: &AppState, access: &LogbookAccess, id: &QsoId, e: S
     }
 }
 
-fn path_id(id: &str) -> Result<QsoId, StoreError> {
-    id.parse().map_err(|_| StoreError::NotFound("QSO"))
+fn path_id(id: &str) -> Result<QsoId, ApiError> {
+    id.parse()
+        .map_err(|_| ApiError::new(StatusCode::NOT_FOUND, "QSO not found"))
 }
 
-fn limit(limit: Option<u32>, default: u32) -> Result<u32, StoreError> {
+fn limit(limit: Option<u32>, default: u32) -> Result<u32, ApiError> {
     match limit.unwrap_or(default) {
-        0 => Err(StoreError::Invalid("limit must be at least 1".into())),
+        0 => Err(ApiError::bad_request("limit must be at least 1")),
         limit => Ok(limit.min(MAX_LIMIT)),
     }
 }
 
-pub(super) fn time(name: &str, value: &str) -> Result<i64, StoreError> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|t| t.timestamp())
-        .map_err(|_| StoreError::Invalid(format!("{name} {value:?} is not an RFC 3339 time")))
-}
-
-fn parse_cursor(cursor: &str) -> Result<Cursor, StoreError> {
+fn parse_cursor(cursor: &str) -> Result<Cursor, ApiError> {
     cursor
         .split_once('_')
         .and_then(|(time, id)| {
@@ -403,11 +379,12 @@ fn parse_cursor(cursor: &str) -> Result<Cursor, StoreError> {
                 id: id.to_owned(),
             })
         })
-        .ok_or_else(|| StoreError::Invalid(format!("{cursor:?} is not a cursor")))
+        .ok_or_else(|| ApiError::bad_request(format!("{cursor:?} is not a cursor")))
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use serde_json::{Value, json};
 
     use super::*;
@@ -416,10 +393,6 @@ mod tests {
         store::{reference::ReferenceKind, token::TokenKind},
         web::testing::{Auth, Harness},
     };
-
-    fn qsos(h: &Harness) -> String {
-        format!("/api/logbooks/{}/qsos", h.world.logbook.id)
-    }
 
     fn entry(h: &Harness, id: &QsoId, call: &str, band: &str, time_on: &str) -> Value {
         json!({
@@ -438,17 +411,14 @@ mod tests {
     }
 
     async fn create(h: &Harness, cookie: &str, call: &str, band: &str, time_on: &str) -> Value {
-        let id = QsoId::generate();
-        let (status, body) = h
-            .send(
-                "POST",
-                &qsos(h),
-                Auth::Session(cookie),
-                Some(entry(h, &id, call, band, time_on)),
-            )
-            .await;
-        assert_eq!(status, StatusCode::CREATED, "{body}");
-        body
+        h.create_qso(
+            cookie,
+            &h.station.id,
+            call,
+            time_on,
+            &[("BAND", band), ("freq", "7.041"), ("NAME", "太郎")],
+        )
+        .await
     }
 
     #[tokio::test]
@@ -460,7 +430,7 @@ mod tests {
         let (status, created) = h
             .send(
                 "POST",
-                &qsos(&h),
+                &h.path("/qsos"),
                 Auth::Session(&cookie),
                 Some(entry(&h, &id, "JA1XYZ", "40m", "040506")),
             )
@@ -482,7 +452,7 @@ mod tests {
         let (status, again) = h
             .send(
                 "POST",
-                &qsos(&h),
+                &h.path("/qsos"),
                 Auth::Session(&cookie),
                 Some(entry(&h, &id, "JA1ZZZ", "40m", "050000")),
             )
@@ -491,7 +461,13 @@ mod tests {
         assert_eq!(again["qso"], created["qso"]);
 
         let (status, headers, fetched) = h
-            .send_with("GET", &format!("{}/{id}", qsos(&h)), Auth::Session(&cookie), &[], None)
+            .send_with(
+                "GET",
+                &h.path(&format!("/qsos/{id}")),
+                Auth::Session(&cookie),
+                &[],
+                None,
+            )
             .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::ETAG], "\"1\"");
@@ -512,16 +488,20 @@ mod tests {
         assert_eq!(entity(&uncoded), [Value::Null, json!("25"), json!("45"), json!("AS")]);
 
         h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
-        let mut given = entry(&h, &QsoId::generate(), "JA1CCC", "40m", "030000");
-        given["fields"]["CQZ"] = json!("26");
-        given["fields"]["cont"] = json!("OC");
-        let (status, created) = h.send("POST", &qsos(&h), Auth::Session(&cookie), Some(given)).await;
-        assert_eq!(status, StatusCode::CREATED, "{created}");
+        let created = h
+            .create_qso(
+                &cookie,
+                &h.station.id,
+                "JA1CCC",
+                "030000",
+                &[("CQZ", "26"), ("cont", "OC")],
+            )
+            .await;
         assert_eq!(entity(&created), [json!("339"), json!("26"), json!("45"), json!("OC")]);
 
         let mut fields = created["qso"]["fields"].clone();
         fields.as_object_mut().unwrap().remove("DXCC");
-        let uri = format!("{}/{}", qsos(&h), created["qso"]["id"].as_str().unwrap());
+        let uri = h.path(&format!("/qsos/{}", created["qso"]["id"].as_str().unwrap()));
         let (status, _, updated) = h
             .send_with(
                 "PUT",
@@ -554,13 +534,27 @@ mod tests {
         let cookie = h.session(&h.world.operator).await;
         let mut body = entry(&h, &QsoId::generate(), "JA1XYZ", "40m", "040506");
         body["id"] = json!("6f1c2a3e-4b5d-4e6f-8a7b-0123456789ab");
-        let (status, _) = h.send("POST", &qsos(&h), Auth::Session(&cookie), Some(body)).await;
+        let (status, _) = h
+            .send("POST", &h.path("/qsos"), Auth::Session(&cookie), Some(body))
+            .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
 
-        let (status, _) = h
-            .send("GET", &format!("{}/not-a-uuid", qsos(&h)), Auth::Session(&cookie), None)
+        let (status, body) = h
+            .send("GET", &h.path("/qsos/not-a-uuid"), Auth::Session(&cookie), None)
             .await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(
+            (status, &body["error"]),
+            (StatusCode::NOT_FOUND, &json!("QSO not found"))
+        );
+        let (status, _) = h
+            .send(
+                "GET",
+                &h.path("/duplicates?call=JA1XYZ&band=40m&mode=CW&qso_date=20261022&time_on=0100&except=x"),
+                Auth::Session(&cookie),
+                None,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -569,52 +563,53 @@ mod tests {
         let cookie = h.session(&h.world.operator).await;
         let mut body = entry(&h, &QsoId::generate(), "JA1XYZ", "40m", "040506");
         body["fields"]["BAND"] = json!("41m");
-        let (status, reply) = h.send("POST", &qsos(&h), Auth::Session(&cookie), Some(body)).await;
+        let (status, reply) = h
+            .send("POST", &h.path("/qsos"), Auth::Session(&cookie), Some(body))
+            .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(reply["status"], "error");
         assert!(reply["error"].as_str().unwrap().contains("BAND"), "{reply}");
 
         let (status, reply) = h
-            .send("POST", &qsos(&h), Auth::Session(&cookie), Some(json!({ "id": 1 })))
+            .send(
+                "POST",
+                &h.path("/qsos"),
+                Auth::Session(&cookie),
+                Some(json!({ "id": 1 })),
+            )
             .await;
         assert!(status.is_client_error(), "{status}");
         assert_eq!(reply["status"], "error");
-
-        let (status, reply) = h
-            .send("GET", &format!("{}?limit=many", qsos(&h)), Auth::Session(&cookie), None)
-            .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(reply["status"], "error");
     }
 
+    #[rstest]
+    #[case::submode_of_its_mode("MFSK", "FT4", json!([]))]
+    #[case::mode_from_import_only("DSTAR", "", json!([]))]
+    #[case::unknown_mode("FT9", "", json!([{ "kind": "unknown_mode", "mode": "FT9" }]))]
+    #[case::unknown_submode("SSB", "XSB", json!([{ "kind": "unknown_submode", "submode": "XSB" }]))]
+    #[case::submode_of_another_mode(
+        "FT8",
+        "ft4",
+        json!([{ "kind": "submode_of_another_mode", "mode": "FT8", "submode": "ft4", "expected": "MFSK" }])
+    )]
     #[tokio::test]
-    async fn warns_about_modes_outside_the_adif_table() {
+    async fn warns_about_modes_outside_the_adif_table(
+        #[case] mode: &str,
+        #[case] submode: &str,
+        #[case] expected: Value,
+    ) {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
-        for (mode, submode, expected) in [
-            ("MFSK", "FT4", json!([])),
-            ("DSTAR", "", json!([])),
-            ("FT9", "", json!([{ "kind": "unknown_mode", "mode": "FT9" }])),
-            ("SSB", "XSB", json!([{ "kind": "unknown_submode", "submode": "XSB" }])),
-            (
-                "FT8",
-                "ft4",
-                json!([{ "kind": "submode_of_another_mode", "mode": "FT8", "submode": "ft4", "expected": "MFSK" }]),
-            ),
-        ] {
-            let mut body = entry(&h, &QsoId::generate(), "JA1XYZ", "40m", "040506");
-            body["fields"]["MODE"] = json!(mode);
-            body["fields"]["SUBMODE"] = json!(submode);
-            let (status, reply) = h.send("POST", &qsos(&h), Auth::Session(&cookie), Some(body)).await;
-            assert_eq!(status, StatusCode::CREATED, "{mode} {submode}: {reply}");
-            let warnings: Vec<&Value> = reply["warnings"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter(|w| w["kind"] != "possible_duplicate")
-                .collect();
-            assert_eq!(json!(warnings), expected, "{mode} {submode}");
-        }
+        let reply = h
+            .create_qso(
+                &cookie,
+                &h.station.id,
+                "JA1XYZ",
+                "040506",
+                &[("MODE", mode), ("SUBMODE", submode)],
+            )
+            .await;
+        assert_eq!(reply["warnings"], expected);
     }
 
     #[tokio::test]
@@ -629,10 +624,7 @@ mod tests {
             json!([{ "kind": "possible_duplicate", "ids": [first_id] }])
         );
 
-        let uri = format!(
-            "/api/logbooks/{}/duplicates?call=JA1XYZ&band=40m&mode=cw&qso_date=20261022&time_on=0415",
-            h.world.logbook.id
-        );
+        let uri = h.path("/duplicates?call=JA1XYZ&band=40m&mode=cw&qso_date=20261022&time_on=0415");
         let (status, body) = h.send("GET", &uri, Auth::Session(&cookie), None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body, json!({ "qsos": [first["qso"], second["qso"]] }));
@@ -641,9 +633,33 @@ mod tests {
         let (_, body) = h.send("GET", &except, Auth::Session(&cookie), None).await;
         assert_eq!(body, json!({ "qsos": [second["qso"]] }));
 
-        let incomplete = format!("/api/logbooks/{}/duplicates?call=JA1XYZ", h.world.logbook.id);
-        let (status, _) = h.send("GET", &incomplete, Auth::Session(&cookie), None).await;
+        let (status, _) = h
+            .send("GET", &h.path("/duplicates?call=JA1XYZ"), Auth::Session(&cookie), None)
+            .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[rstest]
+    #[case::missing(&[], StatusCode::PRECONDITION_REQUIRED)]
+    #[case::unquoted(&[("if-match", "1")], StatusCode::BAD_REQUEST)]
+    #[case::weak(&[("if-match", "W/\"1\"")], StatusCode::BAD_REQUEST)]
+    #[case::any(&[("if-match", "*")], StatusCode::BAD_REQUEST)]
+    #[tokio::test]
+    async fn requires_a_strong_if_match(
+        #[case] headers: &'static [(&'static str, &'static str)],
+        #[case] expected: StatusCode,
+    ) {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let created = create(&h, &cookie, "JA1XYZ", "40m", "040506").await;
+        let uri = h.path(&format!("/qsos/{}", created["qso"]["id"].as_str().unwrap()));
+        let change = json!({ "station_id": h.station.id, "fields": created["qso"]["fields"] });
+        let (status, _, _) = h
+            .send_with("PUT", &uri, Auth::Session(&cookie), headers, Some(change))
+            .await;
+        assert_eq!(status, expected);
+        let (status, _, _) = h.send_with("DELETE", &uri, Auth::Session(&cookie), headers, None).await;
+        assert_eq!(status, expected);
     }
 
     #[tokio::test]
@@ -651,7 +667,7 @@ mod tests {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
         let created = create(&h, &cookie, "JA1XYZ", "40m", "040506").await;
-        let uri = format!("{}/{}", qsos(&h), created["qso"]["id"].as_str().unwrap());
+        let uri = h.path(&format!("/qsos/{}", created["qso"]["id"].as_str().unwrap()));
         let mut fields = created["qso"]["fields"].clone();
         fields["NAME"] = json!("Hanako");
         fields["COMMENT"] = json!("tnx");
@@ -659,13 +675,6 @@ mod tests {
         let put = |if_match: &'static [(&'static str, &'static str)]| {
             h.send_with("PUT", &uri, Auth::Session(&cookie), if_match, Some(change.clone()))
         };
-
-        let (status, _, _) = put(&[]).await;
-        assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
-        for malformed in [&[("if-match", "1")], &[("if-match", "W/\"1\"")], &[("if-match", "*")]] {
-            let (status, _, _) = put(malformed).await;
-            assert_eq!(status, StatusCode::BAD_REQUEST, "{malformed:?}");
-        }
 
         let (status, headers, updated) = put(&[("if-match", "\"1\"")]).await;
         assert_eq!(status, StatusCode::OK, "{updated}");
@@ -680,10 +689,7 @@ mod tests {
         assert_eq!(stale["status"], "error");
         assert_eq!(stale["current"], updated["qso"]);
 
-        let (status, _, deleted) = h
-            .send_with("DELETE", &uri, Auth::Session(&cookie), &[("if-match", "\"2\"")], None)
-            .await;
-        assert_eq!(status, StatusCode::OK);
+        let deleted = h.delete_qso(&cookie, updated["qso"]["id"].as_str().unwrap(), 2).await;
         let (status, _, gone) = put(&[("if-match", "\"3\"")]).await;
         assert_eq!(status, StatusCode::CONFLICT);
         assert_eq!(gone["current"], deleted);
@@ -695,7 +701,7 @@ mod tests {
         let cookie = h.session(&h.world.operator).await;
         let gone = create(&h, &cookie, "JA1XYZ", "40m", "0100").await;
         let kept = create(&h, &cookie, "JA1ABC", "40m", "0200").await;
-        let uri = format!("{}/{}", qsos(&h), gone["qso"]["id"].as_str().unwrap());
+        let uri = h.path(&format!("/qsos/{}", gone["qso"]["id"].as_str().unwrap()));
 
         let (status, _, stale) = h
             .send_with("DELETE", &uri, Auth::Session(&cookie), &[("if-match", "\"2\"")], None)
@@ -714,7 +720,7 @@ mod tests {
             (Some(2), Some(3))
         );
 
-        let changes = format!("/api/logbooks/{}/changes", h.world.logbook.id);
+        let changes = h.path("/changes");
         let (status, body) = h.send("GET", &changes, Auth::Session(&cookie), None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["cursor_generation"], h.world.logbook.cursor_generation);
@@ -739,57 +745,74 @@ mod tests {
             .await;
         assert_eq!(rest["qsos"], json!([deleted]));
 
-        let (_, page) = h.send("GET", &qsos(&h), Auth::Session(&cookie), None).await;
+        let (_, page) = h.send("GET", &h.path("/qsos"), Auth::Session(&cookie), None).await;
         assert_eq!(page["qsos"], json!([kept["qso"]]));
+    }
+
+    async fn three(h: &Harness) -> (String, [Value; 3]) {
+        let cookie = h.session(&h.world.operator).await;
+        let early = create(h, &cookie, "JA1XYZ", "40m", "0100").await;
+        let middle = create(h, &cookie, "JA1XYZ/P", "20m", "0200").await;
+        let late = create(h, &cookie, "JA1ABC", "40m", "0300").await;
+        (cookie, [early, middle, late].map(|created| created["qso"].clone()))
     }
 
     #[tokio::test]
     async fn searches_newest_first_with_a_cursor() {
         let h = Harness::new().await;
-        let cookie = h.session(&h.world.operator).await;
-        let early = create(&h, &cookie, "JA1XYZ", "40m", "0100").await;
-        let middle = create(&h, &cookie, "JA1XYZ/P", "20m", "0200").await;
-        let late = create(&h, &cookie, "JA1ABC", "40m", "0300").await;
+        let (cookie, [early, middle, late]) = three(&h).await;
 
         let (status, first) = h
-            .send("GET", &format!("{}?limit=2", qsos(&h)), Auth::Session(&cookie), None)
+            .send("GET", &h.path("/qsos?limit=2"), Auth::Session(&cookie), None)
             .await;
         assert_eq!(status, StatusCode::OK, "{first}");
-        assert_eq!(first["qsos"], json!([late["qso"], middle["qso"]]));
+        assert_eq!(first["qsos"], json!([late, middle]));
         let cursor = first["next"].as_str().unwrap();
         let (_, second) = h
             .send(
                 "GET",
-                &format!("{}?limit=2&cursor={cursor}", qsos(&h)),
+                &h.path(&format!("/qsos?limit=2&cursor={cursor}")),
                 Auth::Session(&cookie),
                 None,
             )
             .await;
-        assert_eq!(second["qsos"], json!([early["qso"]]));
+        assert_eq!(second["qsos"], json!([early]));
         assert_eq!(second["next"], Value::Null);
+    }
 
-        for (query, expected) in [
-            ("band=20M", vec![&middle]),
-            ("call=ja1xyz", vec![&early]),
-            ("call_base=JA1XYZ", vec![&middle, &early]),
-            ("from=2026-10-22T01:30:00Z&until=2026-10-22T03:00:00Z", vec![&middle]),
-            ("qsl_sent=", vec![&late, &middle, &early]),
-            ("qsl_sent=Y", vec![]),
-        ] {
-            let (status, page) = h
-                .send("GET", &format!("{}?{query}", qsos(&h)), Auth::Session(&cookie), None)
-                .await;
-            assert_eq!(status, StatusCode::OK, "{query}: {page}");
-            let expected: Vec<&Value> = expected.iter().map(|q| &q["qso"]).collect();
-            assert_eq!(page["qsos"], json!(expected), "{query}");
-        }
+    #[rstest]
+    #[case::band("band=20M", &[1])]
+    #[case::call("call=ja1xyz", &[0])]
+    #[case::call_base("call_base=JA1XYZ", &[1, 0])]
+    #[case::time("from=2026-10-22T01:30:00Z&until=2026-10-22T03:00:00Z", &[1])]
+    #[case::qsl_sent_empty("qsl_sent=", &[2, 1, 0])]
+    #[case::qsl_sent("qsl_sent=Y", &[])]
+    #[tokio::test]
+    async fn filters_searches(#[case] query: &str, #[case] expected: &[usize]) {
+        let h = Harness::new().await;
+        let (cookie, qsos) = three(&h).await;
+        let (status, page) = h
+            .send("GET", &h.path(&format!("/qsos?{query}")), Auth::Session(&cookie), None)
+            .await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        let expected: Vec<&Value> = expected.iter().map(|i| &qsos[*i]).collect();
+        assert_eq!(page["qsos"], json!(expected));
+    }
 
-        for query in ["call=A&call_base=A", "from=20261022", "cursor=nope", "limit=0"] {
-            let (status, _) = h
-                .send("GET", &format!("{}?{query}", qsos(&h)), Auth::Session(&cookie), None)
-                .await;
-            assert_eq!(status, StatusCode::BAD_REQUEST, "{query}");
-        }
+    #[rstest]
+    #[case("call=A&call_base=A")]
+    #[case("from=20261022")]
+    #[case("cursor=nope")]
+    #[case("limit=0")]
+    #[case("limit=many")]
+    #[tokio::test]
+    async fn refuses_searches_it_cannot_read(#[case] query: &str) {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let (status, body) = h
+            .send("GET", &h.path(&format!("/qsos?{query}")), Auth::Session(&cookie), None)
+            .await;
+        assert_eq!((status, &body["status"]), (StatusCode::BAD_REQUEST, &json!("error")));
     }
 
     #[tokio::test]
@@ -800,7 +823,7 @@ mod tests {
         let wl2 = h.token(&h.world.operator, TokenKind::Wl2, &[logbook_id]).await;
         let outsider = h.session(&h.world.outsider).await;
         let admin = h.session(&h.world.admin).await;
-        let uri = qsos(&h);
+        let uri = h.path("/qsos");
 
         let (status, created) = h
             .send(

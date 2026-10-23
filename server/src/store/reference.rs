@@ -1,3 +1,4 @@
+use serde::Serialize;
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::store::{
@@ -8,7 +9,8 @@ use crate::store::{
 
 const SELECT: &str = "SELECT kind, version, checksum, updated_at FROM reference_versions";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ReferenceKind {
     Cty,
     Dxcc,

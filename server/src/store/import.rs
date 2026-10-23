@@ -227,8 +227,9 @@ pub async fn merge(
             groups.entry(changes).or_default().push(target.clone());
         }
         let mut tx = WriteTx::begin(db).await?;
+        let access = access.revalidate(&mut tx).await?;
         for (changes, targets) in groups {
-            let outcome = qsl::apply(&mut tx, access, &targets, changes).await?;
+            let outcome = qsl::apply(&mut tx, &access, &targets, changes).await?;
             report.merged += outcome.updated.len();
             report.skipped.extend(outcome.skipped);
         }

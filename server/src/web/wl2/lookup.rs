@@ -5,10 +5,11 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    store::{qso, station},
+    store::qso,
     web::{
         AppState,
-        wl2::{Wl2Access, Wl2Error, Wl2Query, data, mapped},
+        lookup::call,
+        wl2::{Wl2Access, Wl2Error, Wl2Query, data, present, station_ids},
     },
 };
 
@@ -24,32 +25,13 @@ pub async fn get(
     Wl2Access(access): Wl2Access,
     Wl2Query(query): Wl2Query<LookupQuery>,
 ) -> Result<Json<Value>, Wl2Error> {
-    let callsign = query
-        .callsign
-        .as_deref()
-        .map(|c| c.trim().to_ascii_uppercase())
-        .filter(|c| !c.is_empty())
-        .ok_or_else(|| Wl2Error::validation("callsign is required"))?;
-    if query
-        .detail
-        .as_deref()
-        .is_some_and(|d| !d.trim().is_empty() && d.trim() != "basic")
-    {
+    let callsign = call(query.callsign.as_deref()).ok_or_else(|| Wl2Error::validation("callsign is required"))?;
+    if present(&query.detail).is_some_and(|d| d != "basic") {
         return Err(Wl2Error::validation("only detail=basic is supported"));
     }
 
     let mut conn = state.db.acquire().await?;
-    let station_ids = match query.station_ids.as_deref().filter(|s| !s.trim().is_empty()) {
-        None => None,
-        Some(list) => {
-            let stations = station::list(&mut conn, &access).await?;
-            let mut ids = vec![];
-            for wavelog_id in list.split(',') {
-                ids.push(mapped(&stations, wavelog_id)?.id.clone());
-            }
-            Some(ids)
-        }
-    };
+    let station_ids = station_ids(&mut conn, &access, present(&query.station_ids)).await?;
     let previous = qso::previous(&mut conn, &access, &callsign, station_ids).await?;
     drop(conn);
     let entity = state
@@ -83,79 +65,45 @@ pub async fn get(
 }
 
 #[cfg(test)]
-pub(in crate::web::wl2) mod tests {
+mod tests {
     use std::{collections::BTreeMap, fs};
 
     use axum::http::StatusCode;
     use serde_json::{Value, json};
-    use tempfile::TempDir;
 
     use crate::{
-        domain::{qso::Qso, reference::tests::CTY},
+        domain::{
+            qso::{Qso, QsoId},
+            reference::tests::CTY,
+        },
         store::{
             WriteTx,
             qso::{self, QsoInput},
             reference::ReferenceKind,
             station::{self, StationInput},
-            token::TokenKind,
         },
-        web::{
-            testing::{Auth, Harness},
-            wl2::qso::tests::create_qso,
-        },
+        web::wl2::tests::Fixture,
     };
 
-    pub(in crate::web::wl2) struct Fixture {
-        pub(in crate::web::wl2) h: Harness,
-        token: String,
-        _dir: TempDir,
-    }
-
-    impl Fixture {
-        pub(in crate::web::wl2) async fn new() -> Fixture {
-            let (h, _dir) = Harness::with_references().await;
-            let token = h.token(&h.world.operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
-            Fixture { h, token, _dir }
-        }
-
-        pub(in crate::web::wl2) async fn install(&self, kind: ReferenceKind, text: &str, version: &str) {
-            self.h.install_reference(kind, text, version).await;
-        }
-
-        pub(in crate::web::wl2) async fn get(&self, uri: &str) -> (StatusCode, Value) {
-            self.h.send("GET", uri, Auth::Bearer(&self.token), None).await
-        }
-    }
-
     async fn worked(f: &Fixture) {
-        let owner = f.h.world.access(&f.h.world.owner).await;
-        let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
-        let mapped = station::create(
-            &mut tx,
-            &owner.owner().unwrap(),
-            &StationInput {
+        let mapped =
+            f.h.create_station(&StationInput {
                 name: "Portable".into(),
                 callsign: "JL1HIS/1".into(),
                 wavelog_id: Some(3),
                 fields: BTreeMap::new(),
-            },
-        )
-        .await
-        .unwrap();
-        tx.commit().await.unwrap();
+            })
+            .await;
         let session = f.h.session(&f.h.world.operator).await;
-        let home = f.h.station.id.clone();
-        create_qso(
-            &f.h,
+        f.h.create_qso(
             &session,
-            &home,
+            &f.h.station.id,
             "JA1XYZ/P",
             "030000",
             &[("NAME", "Hanako"), ("QTH", "Chiba"), ("QSL_VIA", "JA1BURO")],
         )
         .await;
-        create_qso(
-            &f.h,
+        f.h.create_qso(
             &session,
             &mapped.id,
             "ja1xyz",
@@ -249,7 +197,7 @@ pub(in crate::web::wl2) mod tests {
                 ("NAME", " ".to_owned()),
             ])
             .unwrap();
-            let id = uuid::Uuid::now_v7().to_string().parse().unwrap();
+            let id = QsoId::generate();
             qso::create(
                 &mut tx,
                 &access,

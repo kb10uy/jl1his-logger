@@ -1,9 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use axum::{
-    body::Bytes,
-    extract::{Path, State},
-};
+use axum::{body::Bytes, extract::State};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
@@ -14,16 +11,15 @@ use crate::{
         qso::{Qso, Warning},
     },
     store::{
-        StoreError, access,
         import::{MergeReport, NewReport, import_new, merge},
         station,
     },
     web::{
         AppState,
-        auth::Caller,
         error::ApiError,
         export::{SkippedBody, adif_document},
         extract::{Json, Query},
+        member::Member,
     },
 };
 
@@ -163,11 +159,7 @@ impl ImportBody {
             unmatched: report.unmatched,
             ambiguous: record_ids(report.ambiguous),
             invalid: invalid(report.invalid),
-            skipped: report
-                .skipped
-                .into_iter()
-                .map(|s| SkippedBody::new(s.id.to_string(), s.reason))
-                .collect(),
+            skipped: report.skipped.into_iter().map(SkippedBody::from).collect(),
             differences: report.differences,
             rejects: rejects(&report.rejects, unit),
         }
@@ -176,30 +168,30 @@ impl ImportBody {
 
 pub async fn import(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Query(query): Query<ImportQuery>,
     body: Bytes,
 ) -> Result<Json<ImportBody>, ApiError> {
+    let access = member.access;
     let unit = query.length.unwrap_or(state.config.adif.length);
-    let text = std::str::from_utf8(&body).map_err(|_| StoreError::Invalid("the file is not UTF-8".into()))?;
+    let text = std::str::from_utf8(&body).map_err(|_| ApiError::bad_request("the file is not UTF-8"))?;
     let records = match query.format {
         FormatRequest::Adi => adif::read_adi(text, unit),
         FormatRequest::Adx => adif::read_adx(text),
     }
-    .map_err(|e| StoreError::Invalid(format!("the file is not ADIF: {e}")))?;
+    .map_err(|e| ApiError::bad_request(format!("the file is not ADIF: {e}")))?;
 
-    let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
     let station = match &query.station_id {
-        Some(id) => Some(station::get(&mut conn, &access, id).await?),
+        Some(id) => {
+            let mut conn = state.db.acquire().await?;
+            Some(station::get(&mut conn, &access, id).await?)
+        }
         None => None,
     };
-    drop(conn);
 
     let source = match query.source {
         SourceRequest::New => {
-            let station = station.ok_or_else(|| StoreError::Invalid("new QSOs need a station_id".into()))?;
+            let station = station.ok_or_else(|| ApiError::bad_request("new QSOs need a station_id"))?;
             let report = import_new(&state.db, &access, &station, records, query.apply).await?;
             return Ok(Json(ImportBody::new(report, query.apply, unit)));
         }
@@ -239,12 +231,11 @@ mod tests {
         <CALL:6>JA1ZZZ <QSO_DATE:8>20261022 <TIME_ON:4>0101 <BAND:3>40m <MODE:2>CW <QSL_RCVD:1>Y <EOR>\n";
 
     fn imports(h: &Harness, query: &str) -> String {
-        format!("/api/logbooks/{}/imports?{query}", h.world.logbook.id)
+        h.path(&format!("/imports?{query}"))
     }
 
     async fn count(h: &Harness, cookie: &str) -> usize {
-        let changes = format!("/api/logbooks/{}/changes", h.world.logbook.id);
-        let (_, body) = h.send("GET", &changes, Auth::Session(cookie), None).await;
+        let (_, body) = h.send("GET", &h.path("/changes"), Auth::Session(cookie), None).await;
         body["qsos"].as_array().unwrap().len()
     }
 
@@ -360,8 +351,9 @@ mod tests {
             .send_text(&imports(&h, "source=lotw&apply=true"), Auth::Session(&cookie), LOTW)
             .await;
         assert_eq!((&applied["merged"], &applied["skipped"]), (&json!(1), &json!([])));
-        let search = format!("/api/logbooks/{}/qsos?call=JA1AAA", h.world.logbook.id);
-        let (_, page) = h.send("GET", &search, Auth::Session(&cookie), None).await;
+        let (_, page) = h
+            .send("GET", &h.path("/qsos?call=JA1AAA"), Auth::Session(&cookie), None)
+            .await;
         let fields = &page["qsos"][0]["fields"];
         assert_eq!(
             (&fields["LOTW_QSL_RCVD"], &fields["LOTW_QSLRDATE"]),

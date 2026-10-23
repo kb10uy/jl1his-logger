@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
-    extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    extract::State,
+    http::HeaderMap,
     response::sse::{Event, KeepAlive, Sse},
 };
 use futures_util::{Stream, stream};
@@ -10,12 +10,8 @@ use serde::{Deserialize, Serialize};
 use tokio::{sync::watch, time::Instant};
 
 use crate::{
-    store::{
-        StoreError,
-        access::{self, LogbookAccess},
-        logbook, qso, session,
-    },
-    web::{AppState, auth::Caller, error::ApiError, extract::Query, qso::QsoBody},
+    store::{StoreError, access::LogbookAccess, logbook, qso, session},
+    web::{AppState, error::ApiError, extract::Query, member::Member, qso::QsoBody},
 };
 
 const POLL: Duration = Duration::from_secs(10);
@@ -133,8 +129,7 @@ impl Feed {
 
 pub async fn stream(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Query(query): Query<EventsQuery>,
     headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
@@ -144,12 +139,12 @@ pub async fn stream(
                 .to_str()
                 .ok()
                 .and_then(|v| v.trim().parse::<i64>().ok())
-                .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Last-Event-ID is not an updated_seq"))?,
+                .ok_or_else(|| ApiError::bad_request("Last-Event-ID is not an updated_seq"))?,
         ),
         None => None,
     };
+    let Member { caller, access } = member;
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
     let current = logbook::get(&mut conn, &access).await?;
     drop(conn);
 
@@ -181,7 +176,7 @@ pub async fn stream(
 mod tests {
     use axum::{
         body::Body,
-        http::{Request, header},
+        http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt;
     use rstest::rstest;
@@ -190,7 +185,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        domain::qso::QsoId,
+        store::token::TokenKind,
         web::testing::{Auth, Harness, authorize},
     };
 
@@ -208,8 +203,7 @@ mod tests {
 
     impl Events {
         async fn open(h: &Harness, auth: Auth<'_>, query: &str, last_event_id: Option<&str>) -> (StatusCode, Events) {
-            let uri = format!("/api/logbooks/{}/events{query}", h.world.logbook.id);
-            let mut req = authorize(Request::get(uri), auth);
+            let mut req = authorize(Request::get(h.path(&format!("/events{query}"))), auth);
             if let Some(id) = last_event_id {
                 req = req.header("last-event-id", id);
             }
@@ -259,15 +253,20 @@ mod tests {
     }
 
     async fn create(h: &Harness, cookie: &str, call: &str) -> Value {
-        let body = json!({
-            "id": QsoId::generate().to_string(),
-            "station_id": h.station.id,
-            "fields": { "CALL": call, "QSO_DATE": "20261022", "TIME_ON": "0101", "BAND": "40m", "MODE": "CW" },
-        });
-        let uri = format!("/api/logbooks/{}/qsos", h.world.logbook.id);
-        let (status, created) = h.send("POST", &uri, Auth::Session(cookie), Some(body)).await;
-        assert_eq!(status, StatusCode::CREATED);
-        created["qso"].clone()
+        h.create_qso(cookie, &h.station.id, call, "0101", &[]).await["qso"].clone()
+    }
+
+    async fn open_with_backlog(h: &Harness, operator: &str, backlog: bool) -> Events {
+        if backlog {
+            create(h, operator, "JA1AAA").await;
+            create(h, operator, "JA1BBB").await;
+        }
+        let (_, mut events) = Events::open(h, Auth::Session(operator), "?after=0", None).await;
+        assert_eq!(events.next().await, Some(hello(h, if backlog { 2 } else { 0 }, 0)));
+        if backlog {
+            assert!(events.next().await.is_some());
+        }
+        events
     }
 
     fn hello(h: &Harness, last_updated_seq: i64, after: i64) -> Received {
@@ -304,15 +303,7 @@ mod tests {
         let second = create(&h, &cookie, "JA1BBB").await;
         assert_eq!(events.next().await, Some(change(&h, &second)));
 
-        let uri = format!(
-            "/api/logbooks/{}/qsos/{}",
-            h.world.logbook.id,
-            first["id"].as_str().unwrap()
-        );
-        let (status, _, deleted) = h
-            .send_with("DELETE", &uri, Auth::Session(&cookie), &[("if-match", "\"1\"")], None)
-            .await;
-        assert_eq!(status, StatusCode::OK);
+        let deleted = h.delete_qso(&cookie, first["id"].as_str().unwrap(), 1).await;
         assert_eq!(events.next().await, Some(change(&h, &deleted)));
 
         h.state.close_streams();
@@ -331,11 +322,7 @@ mod tests {
         assert_eq!(resumed.next().await, Some(change(&h, &second)));
 
         let token = h
-            .token(
-                &h.world.operator,
-                crate::store::token::TokenKind::Native,
-                &[&h.world.logbook.id],
-            )
+            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
             .await;
         let (status, mut live) = Events::open(&h, Auth::Bearer(&token), "", None).await;
         assert_eq!(status, StatusCode::OK);
@@ -352,18 +339,11 @@ mod tests {
         let h = Harness::new().await;
         let operator = h.session(&h.world.operator).await;
         let owner = h.session(&h.world.owner).await;
-        if backlog {
-            create(&h, &owner, "JA1AAA").await;
-            create(&h, &owner, "JA1BBB").await;
-        }
-        let (_, mut events) = Events::open(&h, Auth::Session(&operator), "?after=0", None).await;
-        assert_eq!(events.next().await, Some(hello(&h, if backlog { 2 } else { 0 }, 0)));
-        if backlog {
-            assert!(events.next().await.is_some());
-        }
+        let mut events = open_with_backlog(&h, &operator, backlog).await;
 
-        let uri = format!("/api/logbooks/{}/members/JA1OPR", h.world.logbook.id);
-        let (status, _) = h.send("DELETE", &uri, Auth::Session(&owner), None).await;
+        let (status, _) = h
+            .send("DELETE", &h.path("/members/JA1OPR"), Auth::Session(&owner), None)
+            .await;
         assert_eq!(status, StatusCode::NO_CONTENT);
         assert_eq!(events.next().await, None);
     }
@@ -376,15 +356,7 @@ mod tests {
         let h = Harness::new().await;
         let operator = h.session(&h.world.operator).await;
         let owner = h.session(&h.world.owner).await;
-        if backlog {
-            create(&h, &owner, "JA1AAA").await;
-            create(&h, &owner, "JA1BBB").await;
-        }
-        let (_, mut events) = Events::open(&h, Auth::Session(&operator), "?after=0", None).await;
-        assert_eq!(events.next().await, Some(hello(&h, if backlog { 2 } else { 0 }, 0)));
-        if backlog {
-            assert!(events.next().await.is_some());
-        }
+        let mut events = open_with_backlog(&h, &operator, backlog).await;
 
         let (status, _) = h.send("POST", "/api/auth/logout", Auth::Session(&operator), None).await;
         assert_eq!(status, StatusCode::NO_CONTENT);
@@ -401,15 +373,7 @@ mod tests {
     async fn polls_session_expiry_without_writes(#[case] backlog: bool) {
         let h = Harness::new().await;
         let operator = h.session(&h.world.operator).await;
-        if backlog {
-            create(&h, &operator, "JA1AAA").await;
-            create(&h, &operator, "JA1BBB").await;
-        }
-        let (_, mut events) = Events::open(&h, Auth::Session(&operator), "?after=0", None).await;
-        assert_eq!(events.next().await, Some(hello(&h, if backlog { 2 } else { 0 }, 0)));
-        if backlog {
-            assert!(events.next().await.is_some());
-        }
+        let mut events = open_with_backlog(&h, &operator, backlog).await;
         sqlx::query("UPDATE sessions SET expires_at = '2000-01-01T00:00:00Z' WHERE user_id = ?")
             .bind(&h.world.operator.id)
             .execute(&h.world.db)
@@ -422,8 +386,6 @@ mod tests {
 
     #[tokio::test]
     async fn drops_queued_events_when_the_token_is_revoked() {
-        use crate::store::token::TokenKind;
-
         let h = Harness::new().await;
         let operator = h.session(&h.world.operator).await;
         create(&h, &operator, "JA1AAA").await;

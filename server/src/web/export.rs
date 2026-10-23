@@ -13,41 +13,20 @@ use crate::{
         qso::{Qso, QsoId},
     },
     store::{
-        StoreError, WriteTx, access,
+        WriteTx,
         export::{self, ExportBatch, ExportKind},
-        qsl::{self, Outcome, SkipReason},
-        qso::{Filter, Target, TimeRange},
+        qsl::{self, Outcome, SkipReason, Skipped},
+        qso::{Filter, Target},
     },
     web::{
         AppState,
-        auth::Caller,
         error::ApiError,
         extract::Json,
-        qso::{QsoBody, time},
+        member::{Item, Member},
+        qso::QsoBody,
+        query::range,
     },
 };
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum KindRequest {
-    Adif,
-    Pota,
-    Eqsl,
-    Lotw,
-    QslCard,
-}
-
-impl From<KindRequest> for ExportKind {
-    fn from(kind: KindRequest) -> ExportKind {
-        match kind {
-            KindRequest::Adif => ExportKind::Adif,
-            KindRequest::Pota => ExportKind::Pota,
-            KindRequest::Eqsl => ExportKind::Eqsl,
-            KindRequest::Lotw => ExportKind::Lotw,
-            KindRequest::QslCard => ExportKind::QslCard,
-        }
-    }
-}
 
 #[derive(Debug, Deserialize)]
 pub struct TargetRequest {
@@ -84,15 +63,15 @@ pub struct SkippedBody {
     current_revision: Option<i64>,
 }
 
-impl SkippedBody {
-    pub(super) fn new(id: String, reason: SkipReason) -> SkippedBody {
-        let (reason, current_revision) = match reason {
+impl From<Skipped> for SkippedBody {
+    fn from(skipped: Skipped) -> SkippedBody {
+        let (reason, current_revision) = match skipped.reason {
             SkipReason::Missing => ("missing", None),
             SkipReason::Deleted => ("deleted", None),
             SkipReason::Revision { current } => ("revision", Some(current)),
         };
         SkippedBody {
-            id,
+            id: skipped.id.to_string(),
             reason,
             current_revision,
         }
@@ -109,11 +88,7 @@ impl From<Outcome> for OutcomeBody {
     fn from(outcome: Outcome) -> OutcomeBody {
         OutcomeBody {
             updated: outcome.updated.into_iter().map(QsoBody::from).collect(),
-            skipped: outcome
-                .skipped
-                .into_iter()
-                .map(|s| SkippedBody::new(s.id.to_string(), s.reason))
-                .collect(),
+            skipped: outcome.skipped.into_iter().map(SkippedBody::from).collect(),
         }
     }
 }
@@ -125,7 +100,7 @@ pub(super) fn adif_document(records: &[Qso], unit: LengthUnit) -> String {
 #[derive(Debug, Serialize)]
 pub struct BatchBody {
     id: String,
-    kind: &'static str,
+    kind: ExportKind,
     created_by: String,
     created_at: String,
     applied_at: Option<String>,
@@ -138,7 +113,7 @@ impl From<ExportBatch> for BatchBody {
     fn from(batch: ExportBatch) -> BatchBody {
         BatchBody {
             id: batch.id,
-            kind: batch.kind.as_str(),
+            kind: batch.kind,
             created_by: batch.created_by,
             created_at: batch.created_at,
             applied_at: batch.applied_at,
@@ -150,7 +125,7 @@ impl From<ExportBatch> for BatchBody {
 
 #[derive(Debug, Deserialize)]
 pub struct ExportRequest {
-    kind: KindRequest,
+    kind: ExportKind,
     from: Option<String>,
     until: Option<String>,
     station_id: Option<String>,
@@ -169,12 +144,15 @@ pub struct ExportBody {
     adif: Option<String>,
 }
 
-fn targets(requests: Vec<TargetRequest>) -> Result<Vec<Target>, StoreError> {
+fn targets(requests: Vec<TargetRequest>) -> Result<Vec<Target>, ApiError> {
     requests
         .into_iter()
         .map(|t| {
             Ok(Target {
-                id: t.id.parse::<QsoId>().map_err(|e| StoreError::Invalid(e.to_string()))?,
+                id: t
+                    .id
+                    .parse::<QsoId>()
+                    .map_err(|e| ApiError::bad_request(e.to_string()))?,
                 revision: t.revision,
             })
         })
@@ -183,37 +161,29 @@ fn targets(requests: Vec<TargetRequest>) -> Result<Vec<Target>, StoreError> {
 
 pub async fn update_qsl(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Json(req): Json<QslRequest>,
 ) -> Result<Json<OutcomeBody>, ApiError> {
     let targets = targets(req.qsos)?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let outcome = qsl::update(&mut tx, &access, &targets, &req.fields).await?;
+    let outcome = qsl::update(&mut tx, &member.access, &targets, &req.fields).await?;
     tx.commit().await?;
     Ok(Json(outcome.into()))
 }
 
-pub async fn list(
-    State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
-) -> Result<Json<Vec<BatchBody>>, ApiError> {
+pub async fn list(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<Vec<BatchBody>>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let batches = export::list(&mut conn, &access).await?;
+    let batches = export::list(&mut conn, &member.access).await?;
     Ok(Json(batches.into_iter().map(BatchBody::from).collect()))
 }
 
 pub async fn get(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
 ) -> Result<Json<BatchBody>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let (batch, targets) = export::get(&mut conn, &access, &id).await?;
+    let (batch, targets) = export::get(&mut conn, &member.access, &item.id).await?;
     Ok(Json(BatchBody {
         qsos: Some(targets.into_iter().map(TargetBody::from).collect()),
         ..batch.into()
@@ -222,16 +192,11 @@ pub async fn get(
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Json(req): Json<ExportRequest>,
 ) -> Result<(StatusCode, Json<ExportBody>), ApiError> {
-    let kind = ExportKind::from(req.kind);
     let filter = Filter {
-        time: TimeRange {
-            from: req.from.as_deref().map(|t| time("from", t)).transpose()?,
-            until: req.until.as_deref().map(|t| time("until", t)).transpose()?,
-        },
+        time: range(req.from.as_deref(), req.until.as_deref())?,
         station_ids: req.station_id.map(|id| vec![id]),
         band: req.band,
         mode: req.mode,
@@ -241,8 +206,7 @@ pub async fn create(
     };
     let unit = req.length.unwrap_or(state.config.adif.length);
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let selection = export::select(&mut conn, &access, kind, &filter, req.park.as_deref()).await?;
+    let selection = export::select(&mut conn, &member.access, req.kind, &filter, req.park.as_deref()).await?;
     drop(conn);
     if selection.targets.is_empty() {
         return Ok((
@@ -255,7 +219,7 @@ pub async fn create(
         ));
     }
     let mut tx = WriteTx::begin(&state.db).await?;
-    let batch = export::create(&mut tx, &access, kind, &selection.targets).await?;
+    let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets).await?;
     tx.commit().await?;
     Ok((
         StatusCode::CREATED,
@@ -269,42 +233,33 @@ pub async fn create(
 
 pub async fn apply(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
 ) -> Result<Json<OutcomeBody>, ApiError> {
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let outcome = export::apply(&mut tx, &access, &id).await?;
+    let outcome = export::apply(&mut tx, &member.access, &item.id).await?;
     tx.commit().await?;
     Ok(Json(outcome.into()))
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use serde_json::{Value, json};
 
     use super::*;
     use crate::web::testing::{Auth, Harness};
 
     async fn create_qso(h: &Harness, cookie: &str, call: &str, time_on: &str) -> Value {
-        let body = json!({
-            "id": QsoId::generate().to_string(),
-            "station_id": h.station.id,
-            "fields": {
-                "CALL": call, "QSO_DATE": "20261022", "TIME_ON": time_on, "BAND": "40m", "MODE": "CW",
-                "NAME": "太郎", "QSL_SENT": "R",
-            },
-        });
-        let (status, created) = h
-            .send(
-                "POST",
-                &format!("/api/logbooks/{}/qsos", h.world.logbook.id),
-                Auth::Session(cookie),
-                Some(body),
-            )
-            .await;
-        assert_eq!(status, StatusCode::CREATED, "{created}");
-        created["qso"].clone()
+        h.create_qso(
+            cookie,
+            &h.station.id,
+            call,
+            time_on,
+            &[("NAME", "太郎"), ("QSL_SENT", "R")],
+        )
+        .await["qso"]
+            .clone()
     }
 
     #[tokio::test]
@@ -314,7 +269,6 @@ mod tests {
         let first = create_qso(&h, &cookie, "JA1XYZ", "0100").await;
         let second = create_qso(&h, &cookie, "JA1ABC", "0200").await;
         let missing = QsoId::generate().to_string();
-        let uri = format!("/api/logbooks/{}/qsl", h.world.logbook.id);
 
         let request = json!({
             "qsos": [
@@ -324,7 +278,9 @@ mod tests {
             ],
             "fields": { "qsl_sent": "y", "QSLSDATE": "20261023" },
         });
-        let (status, outcome) = h.send("POST", &uri, Auth::Session(&cookie), Some(request)).await;
+        let (status, outcome) = h
+            .send("POST", &h.path("/qsl"), Auth::Session(&cookie), Some(request))
+            .await;
         assert_eq!(status, StatusCode::OK, "{outcome}");
         assert_eq!(outcome["updated"][0]["fields"]["QSL_SENT"], "y");
         assert_eq!(outcome["updated"][0]["fields"]["QSLSDATE"], "20261023");
@@ -336,12 +292,27 @@ mod tests {
                 { "id": missing, "reason": "missing" },
             ])
         );
+    }
 
-        for fields in [json!({ "CALL": "JA1ZZZ" }), json!({ "QSL_SENT": "Z" }), json!({})] {
-            let request = json!({ "qsos": [{ "id": second["id"], "revision": 1 }], "fields": fields });
-            let (status, _) = h.send("POST", &uri, Auth::Session(&cookie), Some(request)).await;
-            assert_eq!(status, StatusCode::BAD_REQUEST, "{fields}");
-        }
+    #[rstest]
+    #[case::not_a_qsl_field(json!({ "CALL": "JA1ZZZ" }), json!(null))]
+    #[case::invalid_value(json!({ "QSL_SENT": "Z" }), json!(null))]
+    #[case::no_field(json!({}), json!(null))]
+    #[case::invalid_id(json!({ "QSL_SENT": "Y" }), json!("not-a-uuid"))]
+    #[tokio::test]
+    async fn refuses_qsl_changes_it_cannot_apply(#[case] fields: Value, #[case] id: Value) {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let created = create_qso(&h, &cookie, "JA1XYZ", "0100").await;
+        let id = match id {
+            Value::Null => created["id"].clone(),
+            id => id,
+        };
+        let request = json!({ "qsos": [{ "id": id, "revision": 1 }], "fields": fields });
+        let (status, body) = h
+            .send("POST", &h.path("/qsl"), Auth::Session(&cookie), Some(request))
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     }
 
     #[tokio::test]
@@ -350,7 +321,7 @@ mod tests {
         let cookie = h.session(&h.world.operator).await;
         let first = create_qso(&h, &cookie, "JA1XYZ", "0100").await;
         let second = create_qso(&h, &cookie, "JA1ABC", "0200").await;
-        let exports = format!("/api/logbooks/{}/exports", h.world.logbook.id);
+        let exports = h.path("/exports");
 
         let request = json!({ "kind": "qsl_card", "qsl_sent": ["r", "Q"] });
         let (status, exported) = h
@@ -401,7 +372,7 @@ mod tests {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
         create_qso(&h, &cookie, "JA1XYZ", "0100").await;
-        let exports = format!("/api/logbooks/{}/exports", h.world.logbook.id);
+        let exports = h.path("/exports");
 
         let (status, exported) = h
             .send(
@@ -432,5 +403,14 @@ mod tests {
             )
             .await;
         assert_eq!((status, &none["records"]), (StatusCode::OK, &json!(0)));
+        let (status, _) = h
+            .send(
+                "POST",
+                &exports,
+                Auth::Session(&cookie),
+                Some(json!({ "kind": "cabrillo" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     }
 }

@@ -8,16 +8,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     store::{
-        WriteTx, access,
-        qso::TimeRange,
+        WriteTx,
         station::{self, Station, StationInput},
     },
     web::{
         AppState,
-        auth::Caller,
         error::ApiError,
         extract::{Json, Query},
-        qso::time,
+        member::{Item, Member},
+        query::range,
     },
 };
 
@@ -86,113 +85,98 @@ pub struct Count {
     count: usize,
 }
 
-fn range(from: Option<&str>, until: Option<&str>) -> Result<TimeRange, ApiError> {
-    Ok(TimeRange {
-        from: from.map(|t| time("from", t)).transpose()?,
-        until: until.map(|t| time("until", t)).transpose()?,
-    })
-}
-
-pub async fn list(
-    State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
-) -> Result<Json<Vec<StationBody>>, ApiError> {
+pub async fn list(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<Vec<StationBody>>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let stations = station::list(&mut conn, &access).await?;
+    let stations = station::list(&mut conn, &member.access).await?;
     Ok(Json(stations.into_iter().map(StationBody::from).collect()))
 }
 
 pub async fn get(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
 ) -> Result<Json<StationBody>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    Ok(Json(station::get(&mut conn, &access, &id).await?.into()))
+    Ok(Json(station::get(&mut conn, &member.access, &item.id).await?.into()))
 }
 
 pub async fn create(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Json(req): Json<StationRequest>,
 ) -> Result<(StatusCode, Json<StationBody>), ApiError> {
+    let owner = member.access.owner()?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let created = station::create(&mut tx, &access.owner()?, &req.into()).await?;
+    let created = station::create(&mut tx, &owner, &req.into()).await?;
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(created.into())))
 }
 
 pub async fn update(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
     Json(req): Json<StationRequest>,
 ) -> Result<Json<StationBody>, ApiError> {
+    let owner = member.access.owner()?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let updated = station::update(&mut tx, &access.owner()?, &id, &req.into()).await?;
+    let updated = station::update(&mut tx, &owner, &item.id, &req.into()).await?;
     tx.commit().await?;
     Ok(Json(updated.into()))
 }
 
 pub async fn archive(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
 ) -> Result<Json<StationBody>, ApiError> {
-    set_archived(&state, &caller, &logbook_id, &id, true).await
+    set_archived(&state, &member, &item.id, true).await
 }
 
 pub async fn unarchive(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
 ) -> Result<Json<StationBody>, ApiError> {
-    set_archived(&state, &caller, &logbook_id, &id, false).await
+    set_archived(&state, &member, &item.id, false).await
 }
 
 async fn set_archived(
     state: &AppState,
-    caller: &Caller,
-    logbook_id: &str,
+    member: &Member,
     id: &str,
     archived: bool,
 ) -> Result<Json<StationBody>, ApiError> {
+    let owner = member.access.owner()?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, logbook_id).await?;
-    let station = station::set_archived(&mut tx, &access.owner()?, id, archived).await?;
+    let station = station::set_archived(&mut tx, &owner, id, archived).await?;
     tx.commit().await?;
     Ok(Json(station.into()))
 }
 
 pub async fn preview_rewrite(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
     Query(query): Query<RangeQuery>,
 ) -> Result<Json<Count>, ApiError> {
     let range = range(query.from.as_deref(), query.until.as_deref())?;
+    let owner = member.access.owner()?;
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let count = station::preview_rewrite(&mut conn, &access.owner()?, &id, range).await?;
+    let count = station::preview_rewrite(&mut conn, &owner, &item.id, range).await?;
     Ok(Json(Count { count }))
 }
 
 pub async fn rewrite(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, id)): Path<(String, String)>,
+    member: Member,
+    Path(item): Path<Item>,
     Json(req): Json<RewriteRequest>,
 ) -> Result<Json<Count>, ApiError> {
     let range = range(req.from.as_deref(), req.until.as_deref())?;
+    let owner = member.access.owner()?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let count = station::rewrite_qsos(&mut tx, &access.owner()?, &id, range, req.count).await?;
+    let count = station::rewrite_qsos(&mut tx, &owner, &item.id, range, req.count).await?;
     tx.commit().await?;
     Ok(Json(Count { count }))
 }
@@ -202,14 +186,7 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::*;
-    use crate::{
-        domain::qso::QsoId,
-        web::testing::{Auth, Harness},
-    };
-
-    fn stations(h: &Harness) -> String {
-        format!("/api/logbooks/{}/stations", h.world.logbook.id)
-    }
+    use crate::web::testing::{Auth, Harness};
 
     fn portable() -> Value {
         json!({
@@ -223,22 +200,21 @@ mod tests {
     #[tokio::test]
     async fn owners_manage_stations_and_members_read_them() {
         let h = Harness::new().await;
+        let stations = h.path("/stations");
         let owner = h.session(&h.world.owner).await;
         let operator = h.session(&h.world.operator).await;
 
         let (status, _) = h
-            .send("POST", &stations(&h), Auth::Session(&operator), Some(portable()))
+            .send("POST", &stations, Auth::Session(&operator), Some(portable()))
             .await;
         assert_eq!(status, StatusCode::FORBIDDEN);
 
-        let (status, created) = h
-            .send("POST", &stations(&h), Auth::Session(&owner), Some(portable()))
-            .await;
+        let (status, created) = h.send("POST", &stations, Auth::Session(&owner), Some(portable())).await;
         assert_eq!(status, StatusCode::CREATED, "{created}");
         assert_eq!(created["callsign"], "JL1HIS/P");
         assert_eq!(created["wavelog_id"], 7);
         assert_eq!(created["fields"], json!({ "MY_GRIDSQUARE": "PM95" }));
-        let uri = format!("{}/{}", stations(&h), created["id"].as_str().unwrap());
+        let uri = format!("{stations}/{}", created["id"].as_str().unwrap());
 
         let mut renamed = portable();
         renamed["name"] = json!("Mobile");
@@ -253,7 +229,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert!(archived["archived_at"].is_string());
 
-        let (status, list) = h.send("GET", &stations(&h), Auth::Session(&operator), None).await;
+        let (status, list) = h.send("GET", &stations, Auth::Session(&operator), None).await;
         assert_eq!(status, StatusCode::OK);
         let names: Vec<&str> = list
             .as_array()
@@ -275,21 +251,8 @@ mod tests {
     async fn rewrites_past_qsos_by_the_previewed_count() {
         let h = Harness::new().await;
         let owner = h.session(&h.world.owner).await;
-        let uri = format!("{}/{}", stations(&h), h.station.id);
-        let qso = json!({
-            "id": QsoId::generate().to_string(),
-            "station_id": h.station.id,
-            "fields": { "CALL": "JA1XYZ", "QSO_DATE": "20261022", "TIME_ON": "0100", "BAND": "40m", "MODE": "CW" },
-        });
-        let (status, created) = h
-            .send(
-                "POST",
-                &format!("/api/logbooks/{}/qsos", h.world.logbook.id),
-                Auth::Session(&owner),
-                Some(qso),
-            )
-            .await;
-        assert_eq!(status, StatusCode::CREATED);
+        let uri = h.path(&format!("/stations/{}", h.station.id));
+        let created = h.create_qso(&owner, &h.station.id, "JA1XYZ", "0100", &[]).await;
         assert_eq!(created["qso"]["fields"]["MY_CITY"], "Minato");
 
         let moved = json!({
@@ -312,6 +275,10 @@ mod tests {
             )
             .await;
         assert_eq!(outside, json!({ "count": 0 }));
+        let (status, _) = h
+            .send("GET", &format!("{rewrite}?from=yesterday"), Auth::Session(&owner), None)
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
 
         let (status, _) = h
             .send("POST", &rewrite, Auth::Session(&owner), Some(json!({ "count": 2 })))
@@ -322,11 +289,7 @@ mod tests {
             .await;
         assert_eq!((status, done), (StatusCode::OK, json!({ "count": 1 })));
 
-        let qso_uri = format!(
-            "/api/logbooks/{}/qsos/{}",
-            h.world.logbook.id,
-            created["qso"]["id"].as_str().unwrap()
-        );
+        let qso_uri = h.path(&format!("/qsos/{}", created["qso"]["id"].as_str().unwrap()));
         let (_, rewritten) = h.send("GET", &qso_uri, Auth::Session(&owner), None).await;
         assert_eq!(rewritten["fields"]["MY_CITY"], "Shiba");
         assert_eq!(rewritten["revision"], 2);

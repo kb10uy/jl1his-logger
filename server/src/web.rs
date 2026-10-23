@@ -6,7 +6,9 @@ mod extract;
 mod import;
 mod logbook;
 mod lookup;
+mod member;
 mod qso;
+mod query;
 mod references;
 mod station;
 #[cfg(test)]
@@ -24,7 +26,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
 };
-use serde_json::{Value, json};
+use serde_json::json;
 use tokio::sync::watch;
 use tower_http::{
     services::{ServeDir, ServeFile},
@@ -34,17 +36,12 @@ use tower_http::{
 use url::Url;
 use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::WebauthnError};
 
-use self::{
-    auth::{Ceremonies, SignedIn},
-    error::ApiError,
-    references::References,
-};
-use crate::{config::Config, db::Db, store::reference};
+use self::{auth::Ceremonies, error::ApiError, references::References};
+use crate::{config::Config, db::Db};
 
 pub struct AppState {
     pub db: Db,
     pub config: Config,
-    pub public_origin: Url,
     origin: String,
     webauthn: Webauthn,
     ceremonies: Ceremonies,
@@ -63,7 +60,6 @@ impl AppState {
             db,
             config,
             origin: public_origin.origin().ascii_serialization(),
-            public_origin,
             webauthn,
             ceremonies: Ceremonies::default(),
             references: References::default(),
@@ -90,7 +86,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/passkeys/register/start", post(auth::add_start))
         .route("/api/passkeys/register/finish", post(auth::add_finish))
         .route("/api/passkeys/{id}", delete(auth::delete_passkey))
-        .route("/api/reference", get(reference_versions))
+        .route("/api/reference", get(references::list))
         .route("/api/tokens", get(token::list).post(token::issue))
         .route("/api/tokens/{id}", delete(token::revoke))
         .route("/api/logbooks", get(logbook::list))
@@ -197,20 +193,6 @@ async fn health(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
-async fn reference_versions(
-    State(state): State<Arc<AppState>>,
-    SignedIn(user): SignedIn,
-) -> Result<Json<Value>, ApiError> {
-    let mut conn = state.db.acquire().await?;
-    let versions = reference::list(&mut conn, &user).await?;
-    Ok(Json(Value::Array(
-        versions
-            .into_iter()
-            .map(|v| json!({ "kind": v.kind.as_str(), "version": v.version, "updated_at": v.updated_at }))
-            .collect(),
-    )))
-}
-
 async fn api_not_found() -> Response {
     ApiError::new(StatusCode::NOT_FOUND, "not found").into_response()
 }
@@ -224,7 +206,15 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
-    use crate::db;
+    use crate::{
+        db,
+        store::{
+            WriteTx,
+            reference::{self, ReferenceKind},
+            token::TokenKind,
+        },
+        web::testing::{Auth, Harness},
+    };
 
     async fn app(web: bool) -> (TempDir, Router) {
         let dir = tempfile::tempdir().unwrap();
@@ -261,16 +251,15 @@ mod tests {
     }
 
     #[rstest]
-    #[case::without_web_dir(false)]
-    #[case::with_web_dir(true)]
     #[tokio::test]
-    async fn unknown_api_paths_are_json_404s(#[case] web: bool) {
-        for uri in ["/api", "/api/nothing", "/api/nested/nothing"] {
-            let (_dir, router) = app(web).await;
-            let (status, _, body) = get(router, uri).await;
-            assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
-            assert!(body.contains("not found"), "{uri}: {body}");
-        }
+    async fn unknown_api_paths_are_json_404s(
+        #[values(false, true)] web: bool,
+        #[values("/api", "/api/nothing", "/api/nested/nothing")] uri: &str,
+    ) {
+        let (_dir, router) = app(web).await;
+        let (status, _, body) = get(router, uri).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(body.contains("not found"), "{body}");
     }
 
     #[rstest]
@@ -293,11 +282,6 @@ mod tests {
 
     #[tokio::test]
     async fn shows_reference_versions_to_signed_in_users() {
-        use crate::{
-            store::{WriteTx, reference::ReferenceKind, token::TokenKind},
-            web::testing::{Auth, Harness},
-        };
-
         let h = Harness::new().await;
         let admin = h.world.admin_access().await;
         let mut tx = WriteTx::begin(&h.world.db).await.unwrap();

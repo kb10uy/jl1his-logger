@@ -3,6 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use axum::extract::State;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -14,9 +16,36 @@ use crate::{
     },
     store::{
         StoreError,
-        reference::{ReferenceKind, current},
+        reference::{self as versions, ReferenceKind, ReferenceVersion, current},
     },
+    web::{AppState, auth::SignedIn, error::ApiError, extract::Json},
 };
+
+#[derive(Debug, Serialize)]
+pub struct VersionBody {
+    kind: ReferenceKind,
+    version: String,
+    updated_at: String,
+}
+
+impl From<ReferenceVersion> for VersionBody {
+    fn from(version: ReferenceVersion) -> VersionBody {
+        VersionBody {
+            kind: version.kind,
+            version: version.version,
+            updated_at: version.updated_at,
+        }
+    }
+}
+
+pub async fn list(
+    State(state): State<Arc<AppState>>,
+    SignedIn(user): SignedIn,
+) -> Result<Json<Vec<VersionBody>>, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let installed = versions::list(&mut conn, &user).await?;
+    Ok(Json(installed.into_iter().map(VersionBody::from).collect()))
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -42,11 +71,11 @@ pub struct References {
 }
 
 impl References {
-    pub async fn cty(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<Cty>>, LoadError> {
+    async fn cty(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<Cty>>, LoadError> {
         load(db, &self.cty, ReferenceKind::Cty, &paths.cty, reference::parse_cty).await
     }
 
-    pub async fn dxcc(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<DxccCodes>>, LoadError> {
+    async fn dxcc(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<DxccCodes>>, LoadError> {
         load(db, &self.dxcc, ReferenceKind::Dxcc, &paths.dxcc, reference::parse_dxcc).await
     }
 

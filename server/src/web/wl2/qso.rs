@@ -20,7 +20,7 @@ use crate::{
     web::{
         AppState,
         export::adif_document,
-        wl2::{Wl2Access, Wl2Error, Wl2Json, Wl2Query, data, mapped},
+        wl2::{Wl2Access, Wl2Error, Wl2Json, Wl2Query, data, mapped, present, station_ids},
     },
 };
 
@@ -43,21 +43,20 @@ pub struct ListQuery {
     qso_until: Option<String>,
 }
 
-pub async fn list(
-    State(state): State<Arc<AppState>>,
-    Wl2Access(access): Wl2Access,
-    Wl2Query(query): Wl2Query<ListQuery>,
-) -> Result<Json<Value>, Wl2Error> {
-    if !query
-        .format
-        .as_deref()
-        .is_some_and(|f| f.trim().eq_ignore_ascii_case("adif"))
-    {
+#[derive(Debug, PartialEq, Eq)]
+struct Listing {
+    insertion: InsertionQuery,
+    page: u64,
+    per_page: u32,
+}
+
+fn listing(query: &ListQuery) -> Result<Listing, Wl2Error> {
+    if !present(&query.format).is_some_and(|f| f.eq_ignore_ascii_case("adif")) {
         return Err(Wl2Error::validation("only format=adif is supported"));
     }
-    let since_id = integer("since_id", query.since_id.as_deref())?.unwrap_or(0);
-    let page = integer("page", query.page.as_deref())?.unwrap_or(1);
-    let per_page = integer("per_page", query.per_page.as_deref())?.map_or(DEFAULT_PER_PAGE, |n| {
+    let since_id = integer("since_id", present(&query.since_id))?.unwrap_or(0);
+    let page = integer("page", present(&query.page))?.unwrap_or(1);
+    let per_page = integer("per_page", present(&query.per_page))?.map_or(DEFAULT_PER_PAGE, |n| {
         u32::try_from(n).unwrap_or(MAX_PER_PAGE).min(MAX_PER_PAGE)
     });
     if page == 0 || per_page == 0 {
@@ -71,23 +70,6 @@ pub async fn list(
             return Err(Wl2Error::validation(format!(
                 "callsign_match {other:?} is not supported"
             )));
-        }
-    };
-    let time = TimeRange::days(
-        date("qso_since", present(&query.qso_since))?,
-        date("qso_until", present(&query.qso_until))?,
-    );
-
-    let mut conn = state.db.acquire().await?;
-    let station_ids = match present(&query.station_id) {
-        None => None,
-        Some(list) => {
-            let stations = station::list(&mut conn, &access).await?;
-            let mut ids = vec![];
-            for wavelog_id in list.split(',') {
-                ids.push(mapped(&stations, wavelog_id)?.id.clone());
-            }
-            Some(ids)
         }
     };
     let confirmed_by = match present(&query.qsl_filter) {
@@ -104,18 +86,38 @@ pub async fn list(
             })
             .collect::<Result<_, _>>()?,
     };
-    let insertion = InsertionQuery {
-        filter: Filter {
-            time,
-            station_ids,
-            band: present(&query.band).map(str::to_owned),
-            call,
-            ..Filter::default()
+    Ok(Listing {
+        insertion: InsertionQuery {
+            filter: Filter {
+                time: TimeRange::days(
+                    date("qso_since", present(&query.qso_since))?,
+                    date("qso_until", present(&query.qso_until))?,
+                ),
+                band: present(&query.band).map(str::to_owned),
+                call,
+                ..Filter::default()
+            },
+            mode_or_submode: present(&query.mode).map(str::to_owned),
+            confirmed_by,
+            after_seq: i64::try_from(since_id).map_err(|_| Wl2Error::validation("since_id is out of range"))?,
         },
-        mode_or_submode: present(&query.mode).map(str::to_owned),
-        confirmed_by,
-        after_seq: i64::try_from(since_id).map_err(|_| Wl2Error::validation("since_id is out of range"))?,
-    };
+        page,
+        per_page,
+    })
+}
+
+pub async fn list(
+    State(state): State<Arc<AppState>>,
+    Wl2Access(access): Wl2Access,
+    Wl2Query(query): Wl2Query<ListQuery>,
+) -> Result<Json<Value>, Wl2Error> {
+    let Listing {
+        mut insertion,
+        page,
+        per_page,
+    } = listing(&query)?;
+    let mut conn = state.db.acquire().await?;
+    insertion.filter.station_ids = station_ids(&mut conn, &access, present(&query.station_id)).await?;
     let offset = (page - 1).saturating_mul(u64::from(per_page));
     let found = qso::by_insertion(&mut conn, &access, &insertion, offset, per_page).await?;
 
@@ -144,7 +146,11 @@ pub async fn create(
     Wl2Access(access): Wl2Access,
     Wl2Json(body): Wl2Json<Map<String, Value>>,
 ) -> Result<(StatusCode, Json<Value>), Wl2Error> {
-    let wavelog_id = match body.get(STATION_PROFILE_ID) {
+    let wavelog_id = match body
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(STATION_PROFILE_ID))
+        .map(|(_, value)| value)
+    {
         Some(Value::Number(n)) => n.to_string(),
         Some(Value::String(s)) => s.clone(),
         _ => return Err(Wl2Error::validation("station_profile_id is required")),
@@ -185,18 +191,13 @@ pub async fn create(
     }
 }
 
-fn present(value: &Option<String>) -> Option<&str> {
-    value.as_deref().map(str::trim).filter(|v| !v.is_empty())
-}
-
 fn integer(name: &str, value: Option<&str>) -> Result<Option<u64>, Wl2Error> {
-    match value.map(str::trim).filter(|v| !v.is_empty()) {
-        None => Ok(None),
-        Some(v) => v
-            .parse()
-            .map(Some)
-            .map_err(|_| Wl2Error::validation(format!("{name} {v:?} is not a non-negative integer"))),
-    }
+    value
+        .map(|v| {
+            v.parse()
+                .map_err(|_| Wl2Error::validation(format!("{name} {v:?} is not a non-negative integer")))
+        })
+        .transpose()
 }
 
 fn date(name: &str, value: Option<&str>) -> Result<Option<NaiveDate>, Wl2Error> {
@@ -209,79 +210,109 @@ fn date(name: &str, value: Option<&str>) -> Result<Option<NaiveDate>, Wl2Error> 
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+mod tests {
     use std::collections::BTreeMap;
 
     use axum::http::StatusCode;
     use rstest::rstest;
     use serde_json::{Value, json};
-    use tempfile::TempDir;
 
+    use super::*;
     use crate::{
         domain::{
             adif::{LengthUnit, read_adi},
             reference::tests::CTY,
         },
-        store::{
-            WriteTx,
-            reference::ReferenceKind,
-            station::{self, StationInput},
-            token::TokenKind,
-        },
-        web::testing::{Auth, Harness},
+        store::{reference::ReferenceKind, station::StationInput},
+        web::{testing::Auth, wl2::tests::Fixture},
     };
 
-    pub(in crate::web::wl2) async fn create_qso(
-        h: &Harness,
-        session: &str,
-        station_id: &str,
-        call: &str,
-        time_on: &str,
-        extra: &[(&str, &str)],
-    ) -> Value {
-        let mut fields: BTreeMap<&str, &str> = BTreeMap::from([
-            ("CALL", call),
-            ("QSO_DATE", "20261022"),
-            ("TIME_ON", time_on),
-            ("BAND", "40m"),
-            ("MODE", "CW"),
-        ]);
-        fields.extend(extra.iter().copied());
-        let body = json!({ "id": uuid::Uuid::now_v7().to_string(), "station_id": station_id, "fields": fields });
-        let uri = format!("/api/logbooks/{}/qsos", h.world.logbook.id);
-        let (status, body) = h.send("POST", &uri, Auth::Session(session), Some(body)).await;
-        assert_eq!(status, StatusCode::CREATED, "{body}");
-        body
+    const QSO: &str = "/wl2/index.php/api/v2/qso";
+
+    fn query(pairs: &[(&str, &str)]) -> ListQuery {
+        let map: BTreeMap<&str, &str> = pairs.iter().copied().collect();
+        serde_json::from_value(json!(map)).unwrap()
     }
 
-    struct Fixture {
-        h: Harness,
-        token: String,
-        _dir: TempDir,
+    fn day(y: i32, m: u32, d: u32) -> Option<NaiveDate> {
+        NaiveDate::from_ymd_opt(y, m, d)
+    }
+
+    #[rstest]
+    #[case::defaults(&[("format", "ADIF ")], InsertionQuery::default(), 1, DEFAULT_PER_PAGE)]
+    #[case::paging(
+        &[("format", "adif"), ("since_id", "2"), ("page", "3"), ("per_page", "9000")],
+        InsertionQuery { after_seq: 2, ..InsertionQuery::default() },
+        3,
+        MAX_PER_PAGE
+    )]
+    #[case::plain_call(
+        &[("format", "adif"), ("callsign", "JA1AAA"), ("callsign_match", "plain")],
+        InsertionQuery {
+            filter: Filter { call: Some(CallMatch::Base("JA1AAA".into())), ..Filter::default() },
+            ..InsertionQuery::default()
+        },
+        1,
+        DEFAULT_PER_PAGE
+    )]
+    #[case::confirmations_and_days(
+        &[("format", "adif"), ("qsl_filter", "lotw, QSL"), ("qso_since", "2026-10-22"), ("qso_until", "2026-10-22")],
+        InsertionQuery {
+            filter: Filter { time: TimeRange::days(day(2026, 10, 22), day(2026, 10, 22)), ..Filter::default() },
+            confirmed_by: vec![Confirmation::Lotw, Confirmation::Card],
+            ..InsertionQuery::default()
+        },
+        1,
+        DEFAULT_PER_PAGE
+    )]
+    fn reads_the_list_query(
+        #[case] pairs: &[(&str, &str)],
+        #[case] insertion: InsertionQuery,
+        #[case] page: u64,
+        #[case] per_page: u32,
+    ) {
+        assert_eq!(
+            listing(&query(pairs)).unwrap(),
+            Listing {
+                insertion,
+                page,
+                per_page
+            }
+        );
+    }
+
+    #[rstest]
+    #[case::no_format(&[])]
+    #[case::other_format(&[("format", "json")])]
+    #[case::negative_since_id(&[("format", "adif"), ("since_id", "-1")])]
+    #[case::page_zero(&[("format", "adif"), ("page", "0")])]
+    #[case::per_page_zero(&[("format", "adif"), ("per_page", "0")])]
+    #[case::unknown_confirmation(&[("format", "adif"), ("qsl_filter", "qrz")])]
+    #[case::unknown_match(&[("format", "adif"), ("callsign", "JA1AAA"), ("callsign_match", "fuzzy")])]
+    #[case::compact_date(&[("format", "adif"), ("qso_since", "20261022")])]
+    fn refuses_list_queries_it_does_not_support(#[case] pairs: &[(&str, &str)]) {
+        let refused = listing(&query(pairs)).unwrap_err();
+        assert_eq!(
+            (refused.status, refused.code),
+            (StatusCode::BAD_REQUEST, "validation_error")
+        );
     }
 
     async fn fixture() -> Fixture {
-        let (h, _dir) = Harness::with_references().await;
-        let owner = h.world.access(&h.world.owner).await;
-        let mut tx = WriteTx::begin(&h.world.db).await.unwrap();
-        let mapped = station::create(
-            &mut tx,
-            &owner.owner().unwrap(),
-            &StationInput {
+        let f = Fixture::new().await;
+        let mapped =
+            f.h.create_station(&StationInput {
                 name: "Portable".into(),
                 callsign: "JL1HIS/1".into(),
                 wavelog_id: Some(3),
                 fields: BTreeMap::new(),
-            },
-        )
-        .await
-        .unwrap();
-        tx.commit().await.unwrap();
-        let session = h.session(&h.world.operator).await;
+            })
+            .await;
+        let session = f.h.session(&f.h.world.operator).await;
         for (station_id, call, time_on, extra) in [
             (&mapped.id, "JA1AAA", "010000", vec![("QSL_RCVD", "Y")]),
             (&mapped.id, "JA1AAA/P", "020000", vec![("BAND", "20m"), ("MODE", "FT8")]),
-            (&h.station.id, "JA1BBB", "030000", vec![("LOTW_QSL_RCVD", "Y")]),
+            (&f.h.station.id, "JA1BBB", "030000", vec![("LOTW_QSL_RCVD", "Y")]),
             (
                 &mapped.id,
                 "JA1CCC",
@@ -295,32 +326,35 @@ pub(super) mod tests {
                 vec![("MODE", "SSB"), ("SUBMODE", "USB")],
             ),
         ] {
-            create_qso(&h, &session, station_id, call, time_on, &extra).await;
+            f.h.create_qso(&session, station_id, call, time_on, &extra).await;
         }
-        let deleted = create_qso(&h, &session, &mapped.id, "JA1EEE", "050000", &[]).await;
-        let uri = format!(
-            "/api/logbooks/{}/qsos/{}",
-            h.world.logbook.id,
-            deleted["qso"]["id"].as_str().unwrap()
-        );
-        let (status, _, _) = h
-            .send_with("DELETE", &uri, Auth::Session(&session), &[("if-match", "\"1\"")], None)
+        let deleted = f.h.create_qso(&session, &mapped.id, "JA1EEE", "050000", &[]).await;
+        f.h.delete_qso(&session, deleted["qso"]["id"].as_str().unwrap(), 1)
             .await;
-        assert_eq!(status, StatusCode::OK);
-        let token = h.token(&h.world.operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
-        Fixture { h, token, _dir }
+        f
     }
 
     impl Fixture {
-        async fn get(&self, query: &str) -> (StatusCode, Value) {
-            let uri = format!("/wl2/index.php/api/v2/qso?{query}");
-            self.h.send("GET", &uri, Auth::Bearer(&self.token), None).await
+        async fn list(&self, query: &str) -> (StatusCode, Value) {
+            self.get(&format!("{QSO}?{query}")).await
         }
 
         async fn calls(&self, query: &str) -> Vec<String> {
-            let (status, body) = self.get(&format!("format=adif&{query}")).await;
+            let (status, body) = self.list(&format!("format=adif&{query}")).await;
             assert_eq!(status, StatusCode::OK, "{query}: {body}");
             calls(&body)
+        }
+
+        async fn create(&self, body: Value) -> (StatusCode, Value) {
+            self.post(QSO, body).await
+        }
+
+        async fn stored(&self, uuid: &Value) -> Value {
+            let session = self.h.session(&self.h.world.operator).await;
+            let uri = self.h.path(&format!("/qsos/{}", uuid.as_str().unwrap()));
+            let (status, stored) = self.h.send("GET", &uri, Auth::Session(&session), None).await;
+            assert_eq!(status, StatusCode::OK, "{stored}");
+            stored
         }
     }
 
@@ -339,7 +373,7 @@ pub(super) mod tests {
     async fn pages_through_the_insertion_order_after_an_id() {
         let f = fixture().await;
 
-        let (status, first) = f.get("format=adif&station_id=3&since_id=0&per_page=2").await;
+        let (status, first) = f.list("format=adif&station_id=3&since_id=0&per_page=2").await;
         assert_eq!(status, StatusCode::OK, "{first}");
         assert_eq!(calls(&first), ["JA1AAA", "JA1AAA/P"]);
         assert_eq!(
@@ -351,17 +385,17 @@ pub(super) mod tests {
             json!({ "page": 1, "per_page": 2, "count": 2, "total": 4, "total_pages": 2, "has_more": true })
         );
 
-        let (_, next) = f.get("format=adif&station_id=3&since_id=2&per_page=2").await;
+        let (_, next) = f.list("format=adif&station_id=3&since_id=2&per_page=2").await;
         assert_eq!(calls(&next), ["JA1CCC", "JA1DDD"]);
         assert!(next["data"]["adif"].as_str().unwrap().contains("<NAME:2>太郎"));
         assert_eq!(next["data"]["lastfetchedid"], 5);
         assert_eq!(next["meta"]["has_more"], false);
 
-        let (_, last_page) = f.get("format=adif&station_id=3&page=2&per_page=2").await;
+        let (_, last_page) = f.list("format=adif&station_id=3&page=2&per_page=2").await;
         assert_eq!(calls(&last_page), ["JA1CCC", "JA1DDD"]);
         assert_eq!(last_page["meta"]["total_pages"], 2);
 
-        let (_, empty) = f.get("format=adif&station_id=3&since_id=5").await;
+        let (_, empty) = f.list("format=adif&station_id=3&since_id=5").await;
         assert_eq!(
             empty["data"],
             json!({ "exported": 0, "lastfetchedid": 5, "adif": null })
@@ -386,30 +420,20 @@ pub(super) mod tests {
         })
     }
 
-    impl Fixture {
-        async fn post(&self, body: Value) -> (StatusCode, Value) {
-            let uri = "/wl2/index.php/api/v2/qso";
-            self.h.send("POST", uri, Auth::Bearer(&self.token), Some(body)).await
-        }
-    }
-
     #[tokio::test]
     async fn creates_a_qso_and_answers_a_resend_as_a_duplicate() {
         let f = fixture().await;
 
-        let (status, created) = f.post(hislog_body()).await;
+        let (status, created) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::CREATED, "{created}");
         assert_eq!(created["data"]["id"], 7);
-        let uuid = created["data"]["uuid"].as_str().unwrap().to_owned();
-        let session = f.h.session(&f.h.world.operator).await;
-        let uri = format!("/api/logbooks/{}/qsos/{uuid}", f.h.world.logbook.id);
-        let (_, stored) = f.h.send("GET", &uri, Auth::Session(&session), None).await;
+        let stored = f.stored(&created["data"]["uuid"]).await;
         assert_eq!(stored["fields"]["FREQ"], "7.0415");
         assert_eq!(stored["fields"]["QSO_DATE"], "20261020");
         assert_eq!(stored["fields"]["STATION_CALLSIGN"], "JL1HIS/1");
         assert_eq!(stored["fields"]["OPERATOR"], "JA1OPR");
 
-        let (status, again) = f.post(hislog_body()).await;
+        let (status, again) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{again}");
         assert_eq!(again["error"]["code"], "validation_error");
         assert_eq!(
@@ -417,29 +441,41 @@ pub(super) mod tests {
             json!(["JA1XYZ 20261020 094127 40m CW"])
         );
 
-        let (status, _, _) =
-            f.h.send_with("DELETE", &uri, Auth::Session(&session), &[("if-match", "\"1\"")], None)
-                .await;
-        assert_eq!(status, StatusCode::OK);
-        let (status, _) = f.post(hislog_body()).await;
+        let session = f.h.session(&f.h.world.operator).await;
+        f.h.delete_qso(&session, created["data"]["uuid"].as_str().unwrap(), 1)
+            .await;
+        let (status, _) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
 
         let mut nearby = hislog_body();
         nearby["time_on"] = json!("094130");
-        let (status, body) = f.post(nearby).await;
+        let (status, body) = f.create(nearby).await;
         assert_eq!(status, StatusCode::CREATED, "{body}");
         assert_eq!(f.calls("since_id=6").await, ["JA1XYZ"]);
     }
 
     #[tokio::test]
+    async fn reads_the_station_profile_id_in_any_case() {
+        let f = fixture().await;
+        let mut body = hislog_body();
+        let id = body.as_object_mut().unwrap().remove("station_profile_id").unwrap();
+        body["Station_Profile_Id"] = id;
+        let (status, created) = f.create(body).await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+        let stored = f.stored(&created["data"]["uuid"]).await;
+        assert_eq!(stored["fields"]["STATION_CALLSIGN"], "JL1HIS/1");
+        assert!(stored["fields"].get("STATION_PROFILE_ID").is_none());
+    }
+
+    #[tokio::test]
     async fn fills_entity_fields_without_changing_the_id_of_a_resend() {
         let f = fixture().await;
-        let (status, created) = f.post(hislog_body()).await;
+        let (status, created) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::CREATED, "{created}");
 
-        f.h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
-        f.h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
-        let (status, again) = f.post(hislog_body()).await;
+        f.install(ReferenceKind::Cty, CTY, "20260915").await;
+        f.install(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
+        let (status, again) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{again}");
         assert_eq!(
             again["error"]["details"]["duplicate"],
@@ -449,15 +485,9 @@ pub(super) mod tests {
         let mut later = hislog_body();
         later["time_on"] = json!("101500");
         later["ituz"] = json!("44");
-        let (status, created) = f.post(later).await;
+        let (status, created) = f.create(later).await;
         assert_eq!(status, StatusCode::CREATED, "{created}");
-        let session = f.h.session(&f.h.world.operator).await;
-        let uri = format!(
-            "/api/logbooks/{}/qsos/{}",
-            f.h.world.logbook.id,
-            created["data"]["uuid"].as_str().unwrap()
-        );
-        let (_, stored) = f.h.send("GET", &uri, Auth::Session(&session), None).await;
+        let stored = f.stored(&created["data"]["uuid"]).await;
         assert_eq!(
             ["DXCC", "CQZ", "ITUZ", "CONT"].map(|name| stored["fields"][name].clone()),
             [json!("339"), json!("25"), json!("44"), json!("AS")]
@@ -467,22 +497,18 @@ pub(super) mod tests {
     #[tokio::test]
     async fn keeps_identical_contacts_at_different_stations_and_deduplicates_resends() {
         let f = fixture().await;
-        let owner = f.h.world.access(&f.h.world.owner).await;
-        let owner = owner.owner().unwrap();
-        let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
         let mut input = StationInput {
             name: "Other".into(),
             callsign: "JL1HIS/1".into(),
             wavelog_id: Some(4),
             fields: BTreeMap::new(),
         };
-        let other = station::create(&mut tx, &owner, &input).await.unwrap();
-        tx.commit().await.unwrap();
+        let other = f.h.create_station(&input).await;
 
         let mut second_body = hislog_body();
         second_body["station_profile_id"] = json!(4);
-        let (first_status, first) = f.post(hislog_body()).await;
-        let (second_status, second) = f.post(second_body.clone()).await;
+        let (first_status, first) = f.create(hislog_body()).await;
+        let (second_status, second) = f.create(second_body.clone()).await;
         assert_eq!(first_status, StatusCode::CREATED, "{first}");
         assert_eq!(second_status, StatusCode::CREATED, "{second}");
         assert_ne!(first["data"]["uuid"], second["data"]["uuid"]);
@@ -492,11 +518,14 @@ pub(super) mod tests {
         input.name = "Renamed".into();
         input.callsign = "JL1HIS/2".into();
         input.fields.insert("MY_GRIDSQUARE".into(), "PM96".into());
+        let owner = f.h.world.access(&f.h.world.owner).await;
         let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
-        station::update(&mut tx, &owner, &other.id, &input).await.unwrap();
+        station::update(&mut tx, &owner.owner().unwrap(), &other.id, &input)
+            .await
+            .unwrap();
         tx.commit().await.unwrap();
         for body in [hislog_body(), second_body.clone()] {
-            let (status, duplicate) = f.post(body).await;
+            let (status, duplicate) = f.create(body).await;
             assert_eq!(status, StatusCode::BAD_REQUEST, "{duplicate}");
             assert!(
                 !duplicate["error"]["details"]["duplicate"]
@@ -507,16 +536,9 @@ pub(super) mod tests {
         }
 
         let session = f.h.session(&f.h.world.operator).await;
-        let uri = format!(
-            "/api/logbooks/{}/qsos/{}",
-            f.h.world.logbook.id,
-            second["data"]["uuid"].as_str().unwrap()
-        );
-        let (status, _, _) =
-            f.h.send_with("DELETE", &uri, Auth::Session(&session), &[("if-match", "\"1\"")], None)
-                .await;
-        assert_eq!(status, StatusCode::OK);
-        let (status, duplicate) = f.post(second_body).await;
+        f.h.delete_qso(&session, second["data"]["uuid"].as_str().unwrap(), 1)
+            .await;
+        let (status, duplicate) = f.create(second_body).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{duplicate}");
         assert!(
             !duplicate["error"]["details"]["duplicate"]
@@ -535,7 +557,7 @@ pub(super) mod tests {
     #[tokio::test]
     async fn refuses_a_qso_it_cannot_record(#[case] body: Value, #[case] status: StatusCode, #[case] code: &str) {
         let f = fixture().await;
-        let (actual, answer) = f.post(body).await;
+        let (actual, answer) = f.create(body).await;
         assert_eq!(
             (actual, answer["error"]["code"].as_str()),
             (status, Some(code)),
@@ -564,21 +586,12 @@ pub(super) mod tests {
 
     #[rstest]
     #[case("", StatusCode::BAD_REQUEST, "validation_error")]
-    #[case("format=json", StatusCode::BAD_REQUEST, "validation_error")]
     #[case("format=adif&station_id=7", StatusCode::FORBIDDEN, "forbidden")]
-    #[case("format=adif&since_id=-1", StatusCode::BAD_REQUEST, "validation_error")]
-    #[case("format=adif&page=0", StatusCode::BAD_REQUEST, "validation_error")]
-    #[case("format=adif&qsl_filter=qrz", StatusCode::BAD_REQUEST, "validation_error")]
-    #[case(
-        "format=adif&callsign=JA1AAA&callsign_match=fuzzy",
-        StatusCode::BAD_REQUEST,
-        "validation_error"
-    )]
-    #[case("format=adif&qso_since=20261022", StatusCode::BAD_REQUEST, "validation_error")]
+    #[case("format=adif&page=x", StatusCode::BAD_REQUEST, "validation_error")]
     #[tokio::test]
     async fn refuses_what_it_does_not_support(#[case] query: &str, #[case] status: StatusCode, #[case] code: &str) {
-        let f = fixture().await;
-        let (actual, body) = f.get(query).await;
+        let f = Fixture::new().await;
+        let (actual, body) = f.list(query).await;
         assert_eq!((actual, body["error"]["code"].as_str()), (status, Some(code)), "{body}");
     }
 }

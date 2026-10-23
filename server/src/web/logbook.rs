@@ -11,17 +11,17 @@ use crate::{
         StoreError, WriteTx,
         access::{self, LogbookRole},
         logbook::{self, Logbook},
-        membership::{self, Member},
+        membership::{self, Member as Membership},
         user,
     },
-    web::{AppState, auth::Caller, error::ApiError, extract::Json},
+    web::{AppState, auth::Caller, error::ApiError, extract::Json, member::Member},
 };
 
 #[derive(Debug, Serialize)]
 pub struct LogbookBody {
     id: String,
     name: String,
-    role: &'static str,
+    role: LogbookRole,
     cursor_generation: String,
     last_seq: i64,
     last_updated_seq: i64,
@@ -32,7 +32,7 @@ impl LogbookBody {
         LogbookBody {
             id: logbook.id,
             name: logbook.name,
-            role: role.as_str(),
+            role,
             cursor_generation: logbook.cursor_generation,
             last_seq: logbook.last_seq,
             last_updated_seq: logbook.last_updated_seq,
@@ -44,53 +44,40 @@ impl LogbookBody {
 pub struct MemberBody {
     user_id: String,
     callsign: String,
-    role: &'static str,
+    role: LogbookRole,
     disabled: bool,
 }
 
-impl From<Member> for MemberBody {
-    fn from(member: Member) -> MemberBody {
+impl From<Membership> for MemberBody {
+    fn from(member: Membership) -> MemberBody {
         MemberBody {
             user_id: member.user_id,
             callsign: member.callsign,
-            role: member.role.as_str(),
+            role: member.role,
             disabled: member.disabled,
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RoleRequest {
-    Owner,
-    Operator,
+pub struct MemberPath {
+    callsign: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MembershipRequest {
-    role: RoleRequest,
+    role: LogbookRole,
 }
 
 pub async fn list(State(state): State<Arc<AppState>>, caller: Caller) -> Result<Json<Vec<LogbookBody>>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let mut logbooks = match &caller.scopes {
+    let logbooks = match &caller.scopes {
         None => {
             let user = access::user(&mut conn, &caller.principal).await?;
             logbook::list(&mut conn, &user).await?
         }
-        Some(scopes) => {
-            let mut logbooks = vec![];
-            for logbook_id in scopes {
-                match access::logbook(&mut conn, &caller.principal, logbook_id).await {
-                    Ok(access) => logbooks.push((logbook::get(&mut conn, &access).await?, access.role())),
-                    Err(StoreError::NotFound(_)) => {}
-                    Err(e) => return Err(e.into()),
-                }
-            }
-            logbooks
-        }
+        Some(scopes) => logbook::list_for_scopes(&mut conn, &caller.principal, scopes).await?,
     };
-    logbooks.sort_by(|(a, _), (b, _)| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
     Ok(Json(
         logbooks
             .into_iter()
@@ -99,64 +86,51 @@ pub async fn list(State(state): State<Arc<AppState>>, caller: Caller) -> Result<
     ))
 }
 
-pub async fn get(
-    State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
-) -> Result<Json<LogbookBody>, ApiError> {
+pub async fn get(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<LogbookBody>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let logbook = logbook::get(&mut conn, &access).await?;
-    Ok(Json(LogbookBody::new(logbook, access.role())))
+    let logbook = logbook::get(&mut conn, &member.access).await?;
+    Ok(Json(LogbookBody::new(logbook, member.access.role())))
 }
 
-pub async fn members(
-    State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
-) -> Result<Json<Vec<MemberBody>>, ApiError> {
+pub async fn members(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<Vec<MemberBody>>, ApiError> {
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let members = membership::list(&mut conn, &access).await?;
+    let members = membership::list(&mut conn, &member.access).await?;
     Ok(Json(members.into_iter().map(MemberBody::from).collect()))
 }
 
 pub async fn set_member(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, callsign)): Path<(String, String)>,
+    member: Member,
+    Path(path): Path<MemberPath>,
     Json(req): Json<MembershipRequest>,
 ) -> Result<Json<Vec<MemberBody>>, ApiError> {
-    let role = match req.role {
-        RoleRequest::Owner => LogbookRole::Owner,
-        RoleRequest::Operator => LogbookRole::Operator,
-    };
+    let owner = member.access.owner()?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let owner = access.owner()?;
-    let user = user::find_by_callsign(&mut tx, &callsign)
-        .await?
-        .ok_or(StoreError::NotFound("user"))?;
-    membership::set(&mut tx, &owner, &user.id, role).await?;
-    let members = membership::list(&mut tx, &access).await?;
+    let user_id = user_id(&mut tx, &path.callsign).await?;
+    membership::set(&mut tx, &owner, &user_id, req.role).await?;
+    let members = membership::list(&mut tx, &member.access).await?;
     tx.commit().await?;
     Ok(Json(members.into_iter().map(MemberBody::from).collect()))
 }
 
 pub async fn remove_member(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path((logbook_id, callsign)): Path<(String, String)>,
+    member: Member,
+    Path(path): Path<MemberPath>,
 ) -> Result<StatusCode, ApiError> {
+    let owner = member.access.owner()?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
-    let owner = access.owner()?;
-    let user = user::find_by_callsign(&mut tx, &callsign)
-        .await?
-        .ok_or(StoreError::NotFound("Membership"))?;
-    membership::remove(&mut tx, &owner, &user.id).await?;
+    let user_id = user_id(&mut tx, &path.callsign).await?;
+    membership::remove(&mut tx, &owner, &user_id).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn user_id(tx: &mut WriteTx, callsign: &str) -> Result<String, StoreError> {
+    Ok(user::find_by_callsign(tx, callsign)
+        .await?
+        .ok_or(StoreError::NotFound("user"))?
+        .id)
 }
 
 #[cfg(test)]
@@ -190,34 +164,20 @@ mod tests {
         let (status, body) = h.send("GET", "/api/logbooks", Auth::Bearer(&token), None).await;
         assert_eq!((status, &body), (StatusCode::OK, &expected));
 
-        let (status, body) = h
-            .send(
-                "GET",
-                &format!("/api/logbooks/{}", logbook.id),
-                Auth::Bearer(&token),
-                None,
-            )
-            .await;
+        let (status, body) = h.send("GET", &h.path(""), Auth::Bearer(&token), None).await;
         assert_eq!((status, &body), (StatusCode::OK, &expected[0]));
 
         let outsider = h.session(&h.world.outsider).await;
         let (status, body) = h.send("GET", "/api/logbooks", Auth::Session(&outsider), None).await;
         assert_eq!((status, body), (StatusCode::OK, json!([])));
-        let (status, _) = h
-            .send(
-                "GET",
-                &format!("/api/logbooks/{}", logbook.id),
-                Auth::Session(&outsider),
-                None,
-            )
-            .await;
+        let (status, _) = h.send("GET", &h.path(""), Auth::Session(&outsider), None).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
     async fn owners_manage_members_by_callsign() {
         let h = Harness::new().await;
-        let members = format!("/api/logbooks/{}/members", h.world.logbook.id);
+        let members = h.path("/members");
         let owner = h.session(&h.world.owner).await;
         let operator = h.session(&h.world.operator).await;
         let outsider = h.session(&h.world.outsider).await;
@@ -278,6 +238,10 @@ mod tests {
             .send("DELETE", &format!("{members}/JA1OWN"), Auth::Session(&owner), None)
             .await;
         assert_eq!(status, StatusCode::CONFLICT);
+        let (status, _) = h
+            .send("DELETE", &format!("{members}/JA1NONE"), Auth::Session(&owner), None)
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
         let (status, _) = h
             .send("DELETE", &format!("{members}/JA1OUT"), Auth::Session(&owner), None)
             .await;

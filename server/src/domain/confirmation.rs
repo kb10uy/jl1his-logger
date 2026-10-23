@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::domain::{
     qsl,
     qso::{Qso, QsoError},
@@ -7,8 +5,7 @@ use crate::domain::{
 
 const REPORTED: [&str; 7] = ["DXCC", "CQZ", "ITUZ", "STATE", "CNTY", "GRIDSQUARE", "IOTA"];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
     Lotw,
     Eqsl,

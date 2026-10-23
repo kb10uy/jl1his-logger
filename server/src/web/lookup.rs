@@ -1,17 +1,17 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use axum::extract::{Path, State};
+use axum::extract::State;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     domain::reference::Entity,
-    store::{StoreError, access, qso, timestamp},
+    store::{qso, timestamp},
     web::{
         AppState,
-        auth::Caller,
         error::ApiError,
         extract::{Json, Query},
+        member::Member,
     },
 };
 
@@ -35,18 +35,16 @@ pub struct PreviousBody {
     fields: BTreeMap<&'static str, String>,
 }
 
+pub(super) fn call(value: Option<&str>) -> Option<String> {
+    value.map(|c| c.trim().to_ascii_uppercase()).filter(|c| !c.is_empty())
+}
+
 pub async fn get(
     State(state): State<Arc<AppState>>,
-    caller: Caller,
-    Path(logbook_id): Path<String>,
+    member: Member,
     Query(query): Query<LookupQuery>,
 ) -> Result<Json<LookupBody>, ApiError> {
-    let call = query
-        .call
-        .as_deref()
-        .map(|c| c.trim().to_ascii_uppercase())
-        .filter(|c| !c.is_empty())
-        .ok_or_else(|| StoreError::Invalid("call is required".into()))?;
+    let call = call(query.call.as_deref()).ok_or_else(|| ApiError::bad_request("call is required"))?;
     let station_ids = query
         .station_ids
         .as_deref()
@@ -54,8 +52,7 @@ pub async fn get(
         .map(|list| list.split(',').map(|id| id.trim().to_owned()).collect());
 
     let mut conn = state.db.acquire().await?;
-    let access = access::logbook(&mut conn, &caller.principal, &logbook_id).await?;
-    let previous = qso::previous(&mut conn, &access, &call, station_ids).await?;
+    let previous = qso::previous(&mut conn, &member.access, &call, station_ids).await?;
     drop(conn);
     let entity = state
         .references
@@ -81,55 +78,26 @@ mod tests {
     use std::collections::BTreeMap;
 
     use axum::http::StatusCode;
+    use rstest::rstest;
     use serde_json::{Value, json};
 
+    use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::{
-            WriteTx,
-            reference::ReferenceKind,
-            station::{self, StationInput},
-            token::TokenKind,
-        },
+        store::{reference::ReferenceKind, station::StationInput, token::TokenKind},
         web::testing::{Auth, Harness},
     };
 
-    async fn log(h: &Harness, session: &str, station_id: &str, call: &str, time_on: &str, extra: &[(&str, &str)]) {
-        let mut fields: BTreeMap<&str, &str> = BTreeMap::from([
-            ("CALL", call),
-            ("QSO_DATE", "20261022"),
-            ("TIME_ON", time_on),
-            ("BAND", "40m"),
-            ("MODE", "CW"),
-        ]);
-        fields.extend(extra.iter().copied());
-        let body = json!({ "id": uuid::Uuid::now_v7().to_string(), "station_id": station_id, "fields": fields });
-        let uri = format!("/api/logbooks/{}/qsos", h.world.logbook.id);
-        let (status, body) = h.send("POST", &uri, Auth::Session(session), Some(body)).await;
-        assert_eq!(status, StatusCode::CREATED, "{body}");
-    }
-
-    async fn portable(h: &Harness) -> String {
-        let owner = h.world.access(&h.world.owner).await;
-        let mut tx = WriteTx::begin(&h.world.db).await.unwrap();
-        let station = station::create(
-            &mut tx,
-            &owner.owner().unwrap(),
-            &StationInput {
-                name: "Portable".into(),
-                callsign: "JL1HIS/1".into(),
-                wavelog_id: None,
-                fields: BTreeMap::new(),
-            },
-        )
-        .await
-        .unwrap();
-        tx.commit().await.unwrap();
-        station.id
-    }
-
     fn uri(h: &Harness, query: &str) -> String {
-        format!("/api/logbooks/{}/lookup?{query}", h.world.logbook.id)
+        h.path(&format!("/lookup?{query}"))
+    }
+
+    #[rstest]
+    #[case(Some(" ja1xyz/p "), Some("JA1XYZ/P"))]
+    #[case(Some(" "), None)]
+    #[case(None, None)]
+    fn reads_the_call_to_look_up(#[case] value: Option<&str>, #[case] expected: Option<&str>) {
+        assert_eq!(call(value).as_deref(), expected);
     }
 
     #[tokio::test]
@@ -138,9 +106,15 @@ mod tests {
         h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
         h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
         let session = h.session(&h.world.operator).await;
-        let portable = portable(&h).await;
-        log(
-            &h,
+        let portable = h
+            .create_station(&StationInput {
+                name: "Portable".into(),
+                callsign: "JL1HIS/1".into(),
+                wavelog_id: None,
+                fields: BTreeMap::new(),
+            })
+            .await;
+        h.create_qso(
             &session,
             &h.station.id,
             "JA1XYZ/P",
@@ -148,10 +122,9 @@ mod tests {
             &[("NAME", "Hanako"), ("QTH", "Chiba")],
         )
         .await;
-        log(
-            &h,
+        h.create_qso(
             &session,
-            &portable,
+            &portable.id,
             "ja1xyz",
             "010000",
             &[("NAME", "Taro"), ("GRIDSQUARE", "PM95")],
@@ -178,7 +151,7 @@ mod tests {
             })
         );
 
-        let narrowed = uri(&h, &format!("call=JA1XYZ&station_ids={portable}"));
+        let narrowed = uri(&h, &format!("call=JA1XYZ&station_ids={}", portable.id));
         let (_, body) = h.send("GET", &narrowed, Auth::Session(&session), None).await;
         assert_eq!(
             body["previous"],
@@ -217,20 +190,25 @@ mod tests {
         );
     }
 
+    #[rstest]
+    #[case::missing_call("operator", "", StatusCode::BAD_REQUEST)]
+    #[case::blank_call("operator", "call=%20", StatusCode::BAD_REQUEST)]
+    #[case::outsider("outsider", "call=JA1XYZ", StatusCode::NOT_FOUND)]
+    #[case::anonymous("anonymous", "call=JA1XYZ", StatusCode::UNAUTHORIZED)]
     #[tokio::test]
-    async fn refuses_a_missing_call_and_outsiders() {
+    async fn refuses_a_missing_call_and_outsiders(
+        #[case] who: &str,
+        #[case] query: &str,
+        #[case] expected: StatusCode,
+    ) {
         let h = Harness::new().await;
-        let session = h.session(&h.world.operator).await;
-        for query in ["", "call=%20"] {
-            let (status, body) = h.send("GET", &uri(&h, query), Auth::Session(&session), None).await;
-            assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {body}");
-        }
-        let outsider = h.session(&h.world.outsider).await;
-        let (status, _) = h
-            .send("GET", &uri(&h, "call=JA1XYZ"), Auth::Session(&outsider), None)
-            .await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
-        let (status, _) = h.send("GET", &uri(&h, "call=JA1XYZ"), Auth::Anonymous, None).await;
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        let session = match who {
+            "operator" => Some(h.session(&h.world.operator).await),
+            "outsider" => Some(h.session(&h.world.outsider).await),
+            _ => None,
+        };
+        let auth = session.as_deref().map_or(Auth::Anonymous, Auth::Session);
+        let (status, body) = h.send("GET", &uri(&h, query), auth, None).await;
+        assert_eq!(status, expected, "{body}");
     }
 }
