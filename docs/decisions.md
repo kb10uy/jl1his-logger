@@ -220,6 +220,12 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Writes through the server wake every stream at once; the streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook or whose session expired or was deleted. Session checks do not renew the session. A stream queues at most one page of 500 QSOs and rechecks authorization on writes and polling deadlines even while sending that queue. Streams discard queued events when the server shuts down, so graceful shutdown does not wait on them.
 - After restoring a backup, change the cursor generation of every Logbook to demand a full resync. A client whose stored generation differs discards its cursor and syncs from the start.
 
+### Web Client Routes
+
+- Every screen has a path of its own, so moving between screens adds browser history and a screen can be bookmarked or reloaded. The client routes as a single-page app; the server already answers any other path outside `/api` and `/wl2` with `index.html`.
+- Screens of a Logbook carry its ID: `/logbooks/{logbook_id}/log`, `/entry`, `/voice`, `/qsos/{qso_id}` (editing one QSO), `/stations`, `/stations/{station_id}`, `/qsl`, `/import-export`, `/members` and, on mobile, `/more`. Switching the Logbook keeps the screen. Screens of the user or the instance do not: `/settings/account`, `/settings/tokens` and `/settings/reference`. `/` opens the log of the Logbook last used on the device; sign-in is `/login` and registration `/register` (see Sign-in and Credentials).
+- The log keeps its query in the URL as `?q=`, in the text syntax of Search, so a query can be bookmarked and reopened later. The QSO open in the detail overlay is `?qso={qso_id}`. Typing a query, opening or closing the overlay replace the current history entry rather than adding one. Checked rows stay out of the URL.
+
 ### Position of the Clients
 
 - speech-to-qso: absorbed into the web UI. The voice entry screen becomes one screen of the PWA, and the offline queue is shared with Live entry.

@@ -100,6 +100,10 @@ not create a workspace or a shared crate.
   entry and live entry share one offline queue. Whether this stays, with the
   queue sent explicitly, or entry needs a connection is an Open Question in
   `docs/decisions.md`.
+- **Every screen has a path**, under `/logbooks/{logbook_id}/...` for a
+  Logbook's screens, so it enters the browser history. The log keeps its
+  query in `?q=` and the open QSO in `?qso=`, replacing the history entry
+  rather than adding one.
 - **Secrets stay on the server.** No CSRF tokens: the session is a `__Host-`
   `SameSite=Lax` cookie and state-changing requests must come from
   `PUBLIC_ORIGIN`.
