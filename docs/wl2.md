@@ -73,9 +73,10 @@ supported.
 ```
 
 `lastfetchedid` is the `seq` of the last QSO on the page, or `since_id` when
-the page is empty, in which case `adif` is `null`; a client continues with it as the next `since_id`. `total`
-and `total_pages` count every QSO the parameters match, `since_id` included,
-and `has_more` says whether a later page follows. Edits and deletions are not
+the page is empty, in which case `adif` is `null`; a client continues with it
+as the next `since_id`. `total` and `total_pages` count every QSO the
+parameters match, `since_id` included, and `has_more` says whether a later
+page follows. Edits and deletions are not
 reported: `since_id` only ever adds QSOs. The native API's changes and event
 stream cover them.
 
@@ -139,3 +140,40 @@ without subdivisions is an empty list, `dxcc` is required, and the topic is
 `GET catalog` without a topic answers `{"topics": ["contest", "subdivisions"]}`
 in `data`. Another topic is `400 validation_error` with those names in
 `details.allowed`.
+
+## Correspondence with Wavelog API v2
+
+How each part of Wavelog's API v2, as its documentation
+(<https://docs.wavelog.org/developer/api-v2/>) described it on 2026-10-23,
+maps onto this layer. "Yes" is served as described above, "Partly" is served
+with the differences noted, and "No" is not served: an unknown path is `404
+not_found`, a method a known path does not serve is `405` without a body, and
+an unsupported parameter value is `400 validation_error`. Query parameters this layer does not know are ignored.
+Wavelog scopes are not modelled; a `wl2` token may use everything here.
+
+| Wavelog API v2 | Here | Notes |
+| --- | --- | --- |
+| `GET /api/v2`, `/api/v2/status` | No | No client uses the status check |
+| `GET token` | No | Token metadata belongs to the native API (`GET /api/tokens`) |
+| `GET station` | Partly | Only Stations with a Wavelog ID that are not archived. `active` is always `false` |
+| `GET station/{id}`, `POST`, `PATCH`, `DELETE station` | No | Stations are managed by owners through the native API and the CLI |
+| `GET qso?format=adif` | Partly | Insertion order by `seq`. `per_page` defaults to 1000. `qsl_filter` refuses `qrz` and `clublog`. `limit` is ignored |
+| `GET qso?callsign_match=plain` | Yes | Not in Wavelog's documentation; an extension of the kb10uy/wavelog fork that speech-to-qso uses |
+| `GET qso` as JSON (`format=json`, Wavelog's default) | No | `400`; ADIF is the only format the clients read |
+| `GET qso/{id}`, `PATCH qso/{id}`, `DELETE qso/{id}` | No | Edits go through the native API, which checks the revision |
+| `POST qso` with one JSON QSO | Partly | `freq` and `freq_rx` must be whole hertz, without a unit suffix such as `7.0475M`. `time_on` must be ADIF (`HHMM`, `HHMMSS`), not `HH:MM`. The answer is `{id, uuid}` rather than the whole QSO, with no `Location` header. A resend is a duplicate, answered as described above |
+| `POST qso` in bulk (`qsos`) or as ADIF (`import_type: "adif"`, `dryrun`) | No | `400`; bulk loads go through `jl1his-logger import` or `POST /api/logbooks/{id}/imports` |
+| `GET lookup?callsign=` with `detail=basic` | Partly | No `dxcc_flag`, `bearing`, `lotw_member`, `suffix_slash`, or `meta.date`. `band`, `mode`, `callbook` and `date` are ignored. A `station_ids` entry outside the Logbook is `403`, where Wavelog ignores it |
+| `GET lookup?callsign=` with `detail=full` | No | `400`; the worked and confirmed flags per band and mode are not computed |
+| `GET lookup?grid=` | No | `400` (`callsign` is required) |
+| `GET catalog` (no topic) | Yes | Lists only the topics served here |
+| `GET catalog?topic=contest` | Partly | `CONTEST_ID`s found in the Logbook's QSOs, with no `id` and a `null` `name`; there is no contest table |
+| `GET catalog?topic=subdivisions` | Yes | From the installed `subdivisions` reference data; each item also carries `dxcc`. `404` until installed |
+| `GET catalog?topic=dxcc` | No | `400`; could be built from `cty.dat` and the `dxcc` table if a client needs it |
+| `logbook` | No | Logbooks are the native API's; a `wl2` token is fixed to one |
+| `radio` | No | CAT is not part of this application |
+| `statistic` | No | Dashboards are not part of this application |
+| `confirmation` | No | QSL state is read from the QSO's ADIF fields |
+| `contest` | No | There is no contest table |
+| `club`, `clubstation` | No | Club stations are Logbooks with Memberships |
+| API v1 (`/api/qso` with the key in the body, `/api/station_info/{key}` and the rest) | No | Not served; WSJT-X is to be bridged to the native API instead |
