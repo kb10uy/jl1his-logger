@@ -16,8 +16,8 @@ repository is going to hold.
 
 ## What it does
 
-- Stores QSOs per Logbook (a personal or club station) with their Station Location,
-  keeping every ADIF field, including unknown and `APP_*` ones, as the string it
+- Stores QSOs per Logbook (a personal or club station) with their Station Location
+  and, optionally, the Instrument (rig, antenna, TX power) used, keeping every ADIF field, including unknown and `APP_*` ones, as the string it
   arrived as.
 - Writes, reads, filters and exports QSOs through its own API; streams changes over
   SSE so every open client follows the log.
@@ -99,16 +99,18 @@ jl1his-logger setup --callsign JL1HIS
 ```
 
 The other commands act as the user named with `--as`, and go through the same
-permission checks as the web app. `--logbook` and `--station` take an ID or a name,
-and may be left out when there is only one.
+permission checks as the web app. `--logbook`, `--station` and `--instrument` take
+an ID or a name; `--logbook` and `--station` may be left out when there is only one.
 
 ```sh
 jl1his-logger --as JL1HIS logbook add JL1HIS --owner JL1HIS
 jl1his-logger --as JL1HIS member set JA1OPR operator --logbook JL1HIS
 jl1his-logger --as JL1HIS member list --logbook JL1HIS
 jl1his-logger --as JL1HIS station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95 --wavelog-id 1
+jl1his-logger --as JL1HIS instrument add "IC-705 QRP" --rig IC-705 --antenna EFHW --power 5
 jl1his-logger --as JL1HIS import wavelog.adi --source new --station Home      # preview
 jl1his-logger --as JL1HIS import wavelog.adi --source new --station Home --apply
+jl1his-logger --as JL1HIS import portable.adi --source new --station Home --instrument "IC-705 QRP" --apply
 jl1his-logger --as JL1HIS import lotwreport.adi --source lotw --apply --rejects rejects.adi
 jl1his-logger --as JL1HIS export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
 jl1his-logger --as JL1HIS export write qsl-card --qsl-sent R,Q -o cards.adi

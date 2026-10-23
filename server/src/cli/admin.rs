@@ -372,7 +372,7 @@ pub async fn member(context: &Context<'_>, command: MemberCommand) -> CliResult<
     Ok(())
 }
 
-fn parse_field(s: &str) -> Result<(String, String), String> {
+pub(super) fn parse_field(s: &str) -> Result<(String, String), String> {
     s.split_once('=')
         .map(|(name, value)| (name.trim().to_owned(), value.to_owned()))
         .filter(|(name, _)| !name.is_empty())

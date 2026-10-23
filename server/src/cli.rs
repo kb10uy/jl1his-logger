@@ -2,6 +2,7 @@ mod admin;
 mod backup;
 mod export;
 mod import;
+mod instrument;
 mod reference;
 
 use std::{error::Error, path::Path};
@@ -17,7 +18,7 @@ use crate::{
     domain::{adif::LengthUnit, qso::parse_date},
     store::{
         access::{self, LogbookAccess, Principal},
-        instrument::{self, Instrument},
+        instrument::Instrument,
         logbook::{self, Logbook},
         qso::TimeRange,
         station::{self, Station},
@@ -48,6 +49,8 @@ pub enum Command {
     Member(admin::MemberCommand),
     #[command(subcommand, about = "Manages the Stations of a Logbook (owner)")]
     Station(admin::StationCommand),
+    #[command(subcommand, about = "Manages the Instruments of a Logbook")]
+    Instrument(instrument::InstrumentCommand),
     #[command(subcommand, about = "Manages your API tokens")]
     Token(admin::TokenCommand),
     #[command(about = "Imports new QSOs or merges QSL confirmations from an ADIF file")]
@@ -96,6 +99,7 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
             Command::Logbook(command) => admin::logbook(&context, command).await,
             Command::Member(command) => admin::member(&context, command).await,
             Command::Station(command) => admin::station(&context, command).await,
+            Command::Instrument(command) => instrument::run(&context, command).await,
             Command::Token(command) => admin::token(&context, command).await,
             Command::Import(args) => import::run(&context, &args).await,
             Command::Export(command) => export::run(&context, command).await,
@@ -181,7 +185,7 @@ impl Context<'_> {
 
     async fn instrument(&self, access: &LogbookAccess, key: &str) -> CliResult<Instrument> {
         let mut conn = self.db.acquire().await?;
-        let instruments = instrument::list(&mut conn, access).await?;
+        let instruments = crate::store::instrument::list(&mut conn, access).await?;
         Ok(pick(&instruments, Some(key), "Instrument", |i| &i.id, |i| &i.name)?.clone())
     }
 
