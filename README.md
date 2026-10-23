@@ -67,6 +67,7 @@ Logbooks.
 cd client
 pnpm install --frozen-lockfile
 pnpm run models               # the Vosk speech models for voice entry, about 90 MB
+                              # (bash; on Windows: pwsh scripts/setup-vosk.ps1)
 pnpm run build                # → client/build
 
 cd ../server

@@ -16,6 +16,7 @@ node_modules
 /client/build
 /client/src/lib/query/wasm
 /client/static/models
+/client/.vosk
 /client/static/vosk-worker.js
 /client/test-results
 /client/playwright-report

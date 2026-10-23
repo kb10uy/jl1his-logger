@@ -1,11 +1,19 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { MODEL_PATHS } from '#lib/voice/settings.ts';
 import { grammarSequences } from './grammar.ts';
 import { JAPANESE_READINGS, type SpeechLanguage } from './lexicon.ts';
 
+function localWords(language: SpeechLanguage): string | undefined {
+    const model = MODEL_PATHS[language].replace(/^.*\/|\.tar\.gz$/g, '');
+    const path = fileURLToPath(new URL(`../../../../.vosk/${model}.words`, import.meta.url));
+    return existsSync(path) ? path : undefined;
+}
+
 const VOCABULARIES: [SpeechLanguage, string | undefined][] = [
-    ['en', process.env.VOSK_WORDS_EN],
-    ['ja', process.env.VOSK_WORDS_JA]
+    ['en', process.env.VOSK_WORDS_EN ?? localWords('en')],
+    ['ja', process.env.VOSK_WORDS_JA ?? localWords('ja')]
 ];
 
 const FST_MAGIC = 2125659606;
