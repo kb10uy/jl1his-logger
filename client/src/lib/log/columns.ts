@@ -17,6 +17,8 @@ export const BUILT_IN_COLUMNS: readonly Column[] = [
     { id: 'mode', label: 'Mode' },
     { id: 'rst', label: 'RST S / R' },
     { id: 'txpwr', label: 'TX Power W', right: true },
+    { id: 'contest', label: 'Contest' },
+    { id: 'number', label: 'Number S / R' },
     { id: 'station', label: 'Station' },
     { id: 'park', label: 'Park' }
 ];

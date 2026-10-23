@@ -367,6 +367,14 @@
         <td class="px-3 font-mono text-muted">{rst(f)}</td>
     {:else if id === 'txpwr'}
         <td class="px-3 text-right font-mono">{f.TX_PWR ?? ''}</td>
+    {:else if id === 'contest'}
+        <td class="px-3 font-mono">{f.CONTEST_ID ?? ''}</td>
+    {:else if id === 'number'}
+        <td class="px-3 font-mono text-muted"
+            >{f.STX_STRING || f.SRX_STRING
+                ? `${f.STX_STRING || '—'} / ${f.SRX_STRING || '—'}`
+                : ''}</td
+        >
     {:else if id === 'station'}
         <td class="px-3 text-muted">{stationOf(qso)}</td>
     {:else if id === 'park'}
