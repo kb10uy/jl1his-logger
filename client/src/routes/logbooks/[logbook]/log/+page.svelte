@@ -381,7 +381,7 @@
         <td class="px-3 font-mono text-info">{parks(f).join(', ')}</td>
     {:else}
         {@const value = f[adifFieldOf(id) ?? ''] ?? ''}
-        <td class="max-w-[24rem] truncate px-3" title={value}>{value}</td>
+        <td class="px-3"><div class="max-w-[24rem] truncate" title={value}>{value}</div></td>
     {/if}
 {/snippet}
 
@@ -460,6 +460,7 @@
                                     ]}>{c.label}</th
                                 >
                             {/each}
+                            <th aria-hidden="true" class="w-full border-b border-border"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -504,6 +505,7 @@
                                 {#each shown as c (c.id)}
                                     {@render cell(c.id, row.qso)}
                                 {/each}
+                                <td aria-hidden="true"></td>
                             </tr>
                         {/each}
                     </tbody>
