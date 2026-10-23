@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+@font-face {
+    font-family: 'Monaspace Argon VF';
+    font-style: oblique 0deg 11deg;
+    font-weight: 200 800;
+    font-stretch: 100% 125%;
+    font-display: swap;
+    src: url('./lib/fonts/MonaspaceArgonVar.woff2') format('woff2-variations');
+}
+
 :root {
     color-scheme: dark;
     --bg: #0d1117;
@@ -90,7 +99,8 @@
     --color-ptt-active: var(--ptt-active);
     --color-shadow: var(--shadow);
     --font-sans: 'Inter Variable', system-ui, 'Noto Sans JP', sans-serif;
-    --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+    --font-mono: 'Monaspace Argon VF', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+    --font-mono--font-feature-settings: 'cv01' 2;
 }
 
 @layer base {

@@ -362,7 +362,7 @@
     {:else if id === 'freq'}
         <td class={['px-3 text-right font-mono', !f.FREQ && 'text-muted']}>{f.FREQ || '—'}</td>
     {:else if id === 'mode'}
-        <td class="px-3">
+        <td class="px-3 font-mono">
             {f.MODE}
             {#if f.SUBMODE}<span class="text-muted">{f.SUBMODE}</span>{/if}
         </td>
