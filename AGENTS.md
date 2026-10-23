@@ -24,9 +24,8 @@ The repository contains:
 - `fixtures/`: expected files shared by the `server/` and `client/` tests,
   such as ADIF exports.
 
-The crate split inside `server/` is still open (see "Open Questions" in
-`docs/decisions.md`). Do not create a workspace or a shared crate until it is
-decided; keep the server a single package until then.
+The server is a single package (see "Structure" in `docs/decisions.md`). Do
+not create a workspace or a shared crate.
 
 ## Architecture
 
@@ -56,8 +55,8 @@ decided; keep the server a single package until then.
   `QSL_RCVD in {Y, V}`.
 - **ADIF lengths are codepoints by default**, with bytes as an export option.
   Reading goes through `adif-reader` (github.com/kb10uy/adif-reader); the
-  writer belongs there too, placement pending; until it moves it is
-  `server/src/domain/adif.rs`.
+  writer moves there as a `write` module once the migration rehearsal has
+  settled the export output; until then it is `server/src/domain/adif.rs`.
 - **Exports are batches**: record the UUIDs and `revision`s, and apply the
   external result to those rows only.
 - **SSE, not WebSocket.** Event `id` is `updated_seq`; reconnection uses
@@ -124,9 +123,9 @@ decided; keep the server a single package until then.
   resolution) must not touch the DOM, audio, storage or network, and has unit
   tests next to it (`*.test.ts`). Prettier (single quotes, width 100,
   indentation from `.editorconfig`) is the formatter.
-- Keep the ADIF renderers, band tables and API payload types of `server/` and
-  `client/` in sync; their tests share expected strings, kept as files under
-  `fixtures/`.
+- Keep the ADIF renderers, band and mode tables and API payload types of
+  `server/` and `client/` in sync; their tests share expected strings, kept as
+  files under `fixtures/`.
 - Code, comments, UI text and commit messages are in English.
 
 ## Documentation

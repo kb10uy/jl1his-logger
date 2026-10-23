@@ -19,6 +19,7 @@ The outcome of the design review as of 2026-10-22: the direction for jl1his-logg
 - A new, separate repository (this one) holding one server, one SQLite database and a same-origin SPA / PWA.
 - The server is Rust + axum; the client is SvelteKit. The authentication (passkeys), delivery and offline entry of speech-to-qso serve as the reference.
 - One SQLite database. Set WAL and `busy_timeout`, and keep write transactions short.
+- The server is one package: no workspace and no shared crate. `domain` stays free of the database, network and file system by convention and review. It is split into a crate of its own only when another binary or repository needs it, or when build times call for it.
 
 ## Required Features
 
@@ -57,6 +58,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - `station_location_id` is held separately for classification and search.
 - Past rows are corrected with an explicit bulk update that states the number of affected rows.
 - Stations are archived rather than deleted.
+- When a QSO is created through the native API or `/wl2`, the server fills the `DXCC`, `CQZ`, `ITUZ` and `CONT` the record lacks from `cty.dat`, `DXCC` needing the `dxcc` table as well. Values given are never overwritten, nothing is filled for a kind that is not installed, and editing a QSO later does not fill them again. An ADIF import keeps its records as they arrived.
 
 ### Storage Shape
 
@@ -91,7 +93,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Disabling a user deletes their sessions, API tokens and unused registration tokens. Enabling them again restores none of these. Changing a user's callsign is not in the first version.
 - Deleting a Logbook is an admin operation that cascades to everything it owns, its rescue records included; the CLI confirms and snapshots the database first.
 - An admin sets an owner of a Logbook as a rescue with a reason. The existing owners stay owners.
-- Instance settings are written by an admin; the server reads them without an access.
+- Instance settings are written by an admin; the server reads them without an access. The CLI has generic `settings get`, `set` and `list` over free keys; each key is defined by the feature that reads it.
 - Reference data versions are written by an admin (the CLI) and read by any signed-in user.
 
 ### Sign-in and Credentials
@@ -150,7 +152,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - Lengths are codepoints by default; bytes can be chosen as an export option. qso-tools is given `--lenient codepoints`.
 - Reading uses adif-reader (github.com/kb10uy/adif-reader).
-- The writer is to be added on the adif-reader side. Its placement (the same crate or a neighboring one) is open; until it is settled the writer lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share.
+- The writer moves into adif-reader as a `write` module of the same crate once the migration rehearsal has settled the export output, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
 - No shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
@@ -207,9 +209,11 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 - Updates are done with CLI subcommands (fetch, verify, switch versions). The web UI only shows the version.
 - `reference install <kind> <file>` installs a file the admin has downloaded or written: it parses and checks the file, puts it where the configuration points (through a staging file and a rename), and records the version with the file's SHA-256 in `reference_versions`. Validation and database update errors preserve the previously installed file and version; if committing fails after replacement, the CLI restores the previous file (or removes the new file on a first installation). The server fetches nothing over the network. The version of `cty.dat` comes from its `=VER` entry unless one is given; the others default to the UTC date of the installation.
-- The kinds are `cty` (AD1C `cty.dat`), `dxcc`, `subdivisions` and `parks`. `cty.dat` carries no ADIF DXCC entity codes, so `dxcc` is a TOML table from the primary prefixes `cty.dat` declares (`JA`, `JD/o`) to the codes, written once by hand or from Wavelog's entity table. `subdivisions` (`[339]` tables of codes and names) and `parks` (`JP-0001 = { name_en, name_ja }`) use the formats qso-tools reads.
+- The kinds are `cty` (AD1C `cty.dat`), `dxcc`, `subdivisions` and `parks`. `cty.dat` carries no ADIF DXCC entity codes, so `dxcc` is a TOML table from the primary prefixes `cty.dat` declares (`JA`, `JD/o`) to the codes. It is generated once from Wavelog's `dxcc_entities` matched against `cty.dat`, corrected by hand where they disagree, and committed as `assets/dxcc.toml` for `reference install dxcc`; the generator is not kept. `subdivisions` (`[339]` tables of codes and names) and `parks` (`JP-0001 = { name_en, name_ja }`) use the formats qso-tools reads.
 - The server reads a data set when it is first needed and keeps it until the version or checksum recorded for its kind changes, so an installation by the CLI takes effect without a restart. A file that no longer matches its recorded checksum is an error rather than being served. A kind that was never installed is simply absent: lookup answers without the entity, and the subdivision catalog is `404`.
 - DXCC and zones already recorded on existing QSOs are not changed automatically by a reference data update.
+- The client receives only the versions for now. Serving the data sets themselves (parks and subdivisions for display, `cty.dat` for offline lookup) is decided with the client design.
+- Modes and submodes are the ADIF Mode and Submode enumerations in full, embedded in the server like the band table, with the import-only modes marked. A QSO whose `MODE` is unknown, whose `SUBMODE` is unknown, or whose `SUBMODE` belongs to another mode is not refused; creation reports it in `warnings` and an import preview reports it per record. The client keeps the same table, checked against the server's through a file under `fixtures/`. The names spoken in voice entry (`USB`, `FT4` and so on) belong to the client.
 - JCX is handled as a string, keeping leading zeros.
 
 ### Migrations and Deployment
@@ -220,10 +224,15 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - One process owns the database file, so there is no separate migration job or init container. A deployment is one container holding the binary and `client/build`, with the data directory (database, reference data, snapshots) on a volume and TLS terminated outside.
 - Query macros that need the schema at compile time keep their `cargo sqlx prepare` output in the repository, refreshed whenever a migration is added.
 
+### Lookup
+
+- The native lookup, `GET /api/logbooks/{id}/lookup?call=`, returns the `cty.dat` entity (name, ADIF DXCC code when `dxcc` is installed, continent, CQ and ITU zones, position) and the previous contacts in that Logbook matched by `call_base`: the latest non-empty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA` and `QSL_VIA` under their ADIF names, the number of QSOs and the time of the last one. It can be narrowed to Stations.
+- The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response. hislog uses the native one once it moves.
+- The client asks the server while online and falls back to its local copy of the Logbook for previous contacts while offline.
+
 ## Open Questions
 
-- Where the ADIF writer lives
-- The crate structure
+None at present.
 
 ## Implementation Order (Draft)
 
