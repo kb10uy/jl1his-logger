@@ -6,7 +6,6 @@ use url::Url;
 
 use crate::{
     cli::{CliResult, Context, DayRange, LogbookArg, find_user, pick_logbook, registration_url},
-    config::parse_public_origin,
     db,
     store::{
         StoreError, WriteTx,
@@ -31,13 +30,6 @@ pub struct SetupArgs {
 pub struct LinkArgs {
     #[arg(
         long,
-        env = "PUBLIC_ORIGIN",
-        value_parser = parse_public_origin,
-        help = "URL the app is reached at; the registration link points there"
-    )]
-    public_origin: Url,
-    #[arg(
-        long,
         default_value_t = 24,
         value_parser = clap::value_parser!(u32).range(1..),
         help = "Hours the registration link stays valid"
@@ -46,12 +38,12 @@ pub struct LinkArgs {
 }
 
 impl LinkArgs {
-    fn print(&self, user: &User, token: &str) {
+    fn print(&self, origin: &Url, user: &User, token: &str) {
         println!(
             "Open this link within {} hours to register a passkey for {}:",
             self.ttl_hours, user.callsign
         );
-        println!("{}", registration_url(&self.public_origin, token));
+        println!("{}", registration_url(origin, token));
     }
 
     fn ttl(&self) -> TimeDelta {
@@ -60,6 +52,7 @@ impl LinkArgs {
 }
 
 pub async fn setup(context: &Context<'_>, args: &SetupArgs) -> CliResult<()> {
+    let origin = context.public_origin()?;
     let mut tx = WriteTx::begin(context.db).await?;
     let user = match user::find_by_callsign(&mut tx, &args.callsign).await? {
         Some(user) => user,
@@ -67,7 +60,7 @@ pub async fn setup(context: &Context<'_>, args: &SetupArgs) -> CliResult<()> {
     };
     let token = registration::issue_for_setup(&mut tx, &user.id, args.link.ttl()).await?;
     tx.commit().await?;
-    args.link.print(&user, &token);
+    args.link.print(origin, &user, &token);
     Ok(())
 }
 
@@ -147,11 +140,12 @@ pub async fn user(context: &Context<'_>, command: UserCommand) -> CliResult<()> 
             print_user(&added);
         }
         UserCommand::Invite { callsign, link } => {
+            let origin = context.public_origin()?;
             let (mut tx, admin) = admin_tx(context, &principal).await?;
             let invited = find_user(&mut tx, &callsign).await?;
             let token = registration::issue(&mut tx, &admin, &invited.id, link.ttl()).await?;
             tx.commit().await?;
-            link.print(&invited, &token);
+            link.print(origin, &invited, &token);
         }
         UserCommand::Disable { callsign } => set_disabled(context, &principal, &callsign, true).await?,
         UserCommand::Enable { callsign } => set_disabled(context, &principal, &callsign, false).await?,

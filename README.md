@@ -71,18 +71,26 @@ pnpm run models               # the Vosk speech models for voice entry, about 90
 pnpm run build                # → client/build
 
 cd ../server
-cp .env.example .env          # edit; read from the working directory or a parent
-cargo run --release -- serve
+mkdir -p data
+cp ../assets/config.example.toml data/config.toml   # edit public_origin and web_dir
+cargo run --release -- -c data/config.toml serve
 ```
 
-| Environment variable | Description |
+Everything is set in one TOML file, `config.toml` in the working directory or the
+file given with `-c`/`--config`; nothing is read from the environment but
+`RUST_LOG`. Paths in it are relative to its own directory, so a data directory
+holding `config.toml` keeps the database, reference data, snapshots and backups
+next to it. `assets/config.example.toml` lists every setting with its default.
+
+| Setting | Description |
 | --- | --- |
-| `LISTEN` | Listen address (default `127.0.0.1:8080`) |
-| `PUBLIC_ORIGIN` | URL the app is reached at, with a DNS hostname (IP addresses are refused; use `http://localhost` locally). Passkeys are bound to its host; do not change it later |
-| `WEB_DIR` | The built app (`client/build`). Without it only the API runs |
-| `DATABASE_PATH` | The SQLite database (default `data/jl1his-logger.db`) |
-| `CONFIG_PATH` | TOML configuration, also `-c`/`--config` (see `assets/config.example.toml`). Defaults apply without it |
-| `AUTO_MIGRATE` | Apply pending migrations when `serve` starts (default `true`). With `false`, pending migrations stop the server until `migrate` runs |
+| `server.listen` | Listen address (default `127.0.0.1:8080`); `serve --listen` overrides it |
+| `server.public_origin` | URL the app is reached at, with a DNS hostname (IP addresses are refused; use `http://localhost` locally). Passkeys are bound to its host; do not change it later. Needed by `serve`, `setup` and `user invite` |
+| `server.web_dir` | The built app (`client/build`); `serve --web-dir` overrides it. Without it only the API runs |
+| `server.auto_migrate` | Apply pending migrations when `serve` starts (default `true`). With `false`, pending migrations stop the server until `migrate` runs |
+| `database.path` | The SQLite database (default `jl1his-logger.db`) |
+| `reference.*` | Where reference data is installed (default under `reference/`) |
+| `adif.length` | Length counting for exported ADI, `codepoints` (default) or `bytes` |
 
 Before applying pending migrations to an existing database, the server writes a
 `VACUUM INTO` snapshot to the `snapshots` directory next to the database, named
@@ -102,33 +110,31 @@ one-time registration URL:
 jl1his-logger setup --callsign JL1HIS
 ```
 
-The other commands act as a named user, given with `--as` or `CLI_CALLSIGN`, and go
-through the same permission checks as the web app. `--logbook` and `--station` take
-an ID or a name, and may be left out when there is only one.
+The other commands act as the user named with `--as`, and go through the same
+permission checks as the web app. `--logbook` and `--station` take an ID or a name,
+and may be left out when there is only one.
 
 ```sh
-export CLI_CALLSIGN=JL1HIS
-jl1his-logger logbook add JL1HIS --owner JL1HIS
-jl1his-logger member set JA1OPR operator --logbook JL1HIS
-jl1his-logger member list --logbook JL1HIS
-jl1his-logger station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95 --wavelog-id 1
-jl1his-logger import wavelog.adi --source new --station Home      # preview
-jl1his-logger import wavelog.adi --source new --station Home --apply
-jl1his-logger import lotwreport.adi --source lotw --apply --rejects rejects.adi
-jl1his-logger export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
-jl1his-logger export write qsl-card --qsl-sent R,Q -o cards.adi
-jl1his-logger export apply <batch>                                # mark them sent
-jl1his-logger token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
-jl1his-logger reference install cty cty.dat                       # version from its =VER entry
-jl1his-logger reference install dxcc assets/dxcc.toml --version 2026-10
-jl1his-logger reference list
-jl1his-logger settings list                                       # instance settings (admin)
+jl1his-logger --as JL1HIS logbook add JL1HIS --owner JL1HIS
+jl1his-logger --as JL1HIS member set JA1OPR operator --logbook JL1HIS
+jl1his-logger --as JL1HIS member list --logbook JL1HIS
+jl1his-logger --as JL1HIS station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95 --wavelog-id 1
+jl1his-logger --as JL1HIS import wavelog.adi --source new --station Home      # preview
+jl1his-logger --as JL1HIS import wavelog.adi --source new --station Home --apply
+jl1his-logger --as JL1HIS import lotwreport.adi --source lotw --apply --rejects rejects.adi
+jl1his-logger --as JL1HIS export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
+jl1his-logger --as JL1HIS export write qsl-card --qsl-sent R,Q -o cards.adi
+jl1his-logger --as JL1HIS export apply <batch>                                # mark them sent
+jl1his-logger --as JL1HIS token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
+jl1his-logger --as JL1HIS reference install cty cty.dat                       # version from its =VER entry
+jl1his-logger --as JL1HIS reference install dxcc assets/dxcc.toml --version 2026-10
+jl1his-logger --as JL1HIS reference list
+jl1his-logger --as JL1HIS settings list                                       # instance settings (admin)
 ```
 
 Reference data (`cty`, `dxcc`, `subdivisions`, `parks`) is installed from local
-files by an admin and goes where `[reference]` in the configuration points; paths
-there are relative to the working directory. The running server picks up a new
-version without a restart.
+files by an admin and goes where `[reference]` in the configuration points. The
+running server picks up a new version without a restart.
 
 An import previews unless given `--apply`. New QSOs get IDs derived from their
 records, so rerunning an interrupted import adds only what is missing. A QSL merge

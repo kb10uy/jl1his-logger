@@ -113,7 +113,7 @@ or another shared crate.
   rather than adding one.
 - **Secrets stay on the server.** No CSRF tokens: the session is a `__Host-`
   `SameSite=Lax` cookie and state-changing requests must come from
-  `PUBLIC_ORIGIN`.
+  `public_origin`.
 
 ## Code Style
 

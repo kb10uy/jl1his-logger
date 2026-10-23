@@ -1596,7 +1596,6 @@ dependencies = [
  "chrono",
  "clap",
  "cookie",
- "dotenvy",
  "futures-util",
  "http-body-util",
  "hyper",

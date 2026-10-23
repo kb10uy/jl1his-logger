@@ -2,7 +2,7 @@
 
 The existing clients (hislog, speech-to-qso, grayline, wavelog-tools) keep
 talking Wavelog API v2 to jl1his-logger until they move to the native API.
-Their base URL becomes `PUBLIC_ORIGIN/wl2`, so their requests arrive at
+Their base URL becomes `public_origin/wl2`, so their requests arrive at
 `/wl2/index.php/api/v2/<resource>`; lookup is also at `/wl2/api/v2/lookup`,
 where grayline tries first. Only what these clients use is matched; see
 "Wavelog API v2 Compatibility Layer" in [decisions.md](decisions.md).

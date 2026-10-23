@@ -100,14 +100,14 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### Sign-in and Credentials
 
-- `PUBLIC_ORIGIN` requires a DNS hostname for WebAuthn. IP addresses are refused during configuration validation; local development uses `http://localhost`.
+- `public_origin` requires a DNS hostname for WebAuthn. IP addresses are refused during configuration validation; local development uses `http://localhost`.
 - Sessions, API tokens and registration tokens are random 256-bit values; only their SHA-256 is stored. A `wl2` token for grayline carries the `wl2_` prefix as part of its plaintext.
 - A session lasts 30 days and is extended on use: at most once a day, its use is recorded and its expiry pushed to 30 days from now, but never past 90 days from its creation; after that the user signs in again. Signing out deletes it. A session records the `User-Agent` it was created with (at most 256 characters), so a user can tell their sessions apart, list them and revoke any of them; an admin can do the same for another user.
 - A token's kind decides which API it opens: a `native` token works only on the native API, a `wl2` token only under `/wl2`.
 - Issuing a token requires a Membership in every Logbook of its scopes. A token is revoked by its user or by an admin; an owner cannot revoke the tokens of the Logbook's members.
 - A token's `last_used_at` is written at most once a day, so that reads do not become writes.
 - A registration token is valid for 24 hours unless the CLI gives another period. Issuing one for a user invalidates that user's unused ones.
-- A registration link is `PUBLIC_ORIGIN/register#<token>`. The token is in the fragment, so it never reaches the server's request logs; the client sends it in the registration request.
+- A registration link is `public_origin/register#<token>`. The token is in the fragment, so it never reaches the server's request logs; the client sends it in the registration request.
 - Re-registration only adds a passkey. A lost passkey is removed with a separate deletion. A user cannot delete their own last passkey; an admin can delete another user's last one.
 - WebAuthn ceremony state is kept in memory, as in speech-to-qso. The store keeps the `Passkey` as JSON and does not depend on webauthn-rs.
 - A ceremony is used once and expires after 5 minutes. At most 10 000 are in flight; one started past that evicts the oldest, so a flood of unauthenticated sign-in starts slows only itself down instead of refusing everyone with `429`. Request rate limits are the reverse proxy's. A restart drops the ceremonies and the browser starts again.
@@ -115,7 +115,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Reading and verifying a passkey, updating its signature counter and creating a session run in one write transaction, so concurrent sign-ins cannot accept a stale counter.
 - Completing a registration link consumes it and stores the passkey in one transaction, then signs the user in. A signed-in user adds further passkeys without a link.
 - The session cookie is `__Host-session` with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/` and a 30-day `Max-Age`, which `GET /api/me` renews.
-- A state-changing request (any method but `GET`, `HEAD` and `OPTIONS`) is refused when it carries an `Origin` other than `PUBLIC_ORIGIN`, or a `Sec-Fetch-Site` other than `same-origin` or `none`. A request with neither header is not from a browser and carries no ambient cookie, so API token clients need not send them.
+- A state-changing request (any method but `GET`, `HEAD` and `OPTIONS`) is refused when it carries an `Origin` other than `public_origin`, or a `Sec-Fetch-Site` other than `same-origin` or `none`. A request with neither header is not from a browser and carries no ambient cookie, so API token clients need not send them.
 - Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, a `Permissions-Policy` denying camera, geolocation and payment, and the `Content-Security-Policy` `frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`. Responses under `/api` and `/wl2` are `Cache-Control: no-store` unless the handler sets its own. The script, style and connect directives belong to the client, which emits them with hashes through SvelteKit's `kit.csp`; the two policies combine. HSTS is the TLS-terminating proxy's.
 
 ### Bulk Changes
@@ -163,7 +163,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Operations reserved for owners (Stations, Memberships) require an owner access, which can only be obtained from a Logbook access whose role is `owner`. Instance operations (users, Logbooks) require an admin access, which only a signed-in admin obtains; API tokens never do.
 - An admin outside a Logbook obtains a Logbook access only through a rescue, which records the actor, the action and the reason in `rescue_operations` in the same transaction as the operation.
 - A rescue access is valid only while its issuing write transaction is active and its uncommitted audit row is visible on the operation's connection. Commit or rollback invalidates it, and it cannot be used from another connection. Each rescue operation also revalidates the admin's current authority.
-- The authorization lives in the store, not in the web layer. The CLI acts as a named user and goes through the same checks, which also gives `created_by` and `updated_by` a user. The user is named by callsign with `--as` (or `CLI_CALLSIGN`); the CLI is not authenticated, since whoever runs it can already read the database file.
+- The authorization lives in the store, not in the web layer. The CLI acts as a named user and goes through the same checks, which also gives `created_by` and `updated_by` a user. The user is named by callsign with `--as`; the CLI is not authenticated, since whoever runs it can already read the database file.
 - A Logbook or a row the principal cannot access is reported as not found, the same as one that does not exist.
 
 ### Wavelog API v2 Compatibility Layer
@@ -212,7 +212,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Backup and Restore
 
 - `backup` writes a `VACUUM INTO` copy of the database while the server runs, to a timestamped file in the `backups` directory next to the database or to a given path. `--keep N` then removes all but the newest N backups in that directory. Scheduling and off-site copies are left to the host (cron, a systemd timer).
-- A backup is the database only. Reference data is fetched again with the CLI; the configuration and the environment belong to the deployment.
+- A backup is the database only. Reference data is fetched again with the CLI; the configuration belongs to the deployment.
 - `serve` holds an exclusive lock on a `.lock` file next to the database. `restore` takes the same lock, so it refuses while the server runs and the server cannot start during a restore.
 - `restore` copies the backup next to the database and checks the copy: `PRAGMA integrity_check`, and every migration applied in it known to this binary with the same checksum. It applies pending migrations to the copy and, in one transaction, replaces the cursor generation of every Logbook and deletes every session and every unused registration link. Only after the copy is ready does it snapshot the current database to `snapshots` and replace it with the copy. A preparation or replacement failure leaves the current database in place. The backup file itself is never modified.
 - Sessions and registration links are deleted because the backup may hold some that were revoked after it was taken; everyone signs in again. API tokens revoked after the backup come back too, so the restore lists the tokens it restored for an admin to review.
@@ -266,10 +266,11 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### Migrations and Deployment
 
-- Migrations are embedded in the binary with `sqlx::migrate!()` and applied forward-only. `serve` applies the pending ones at startup; a `migrate` subcommand applies them explicitly, and an environment variable turns the automatic run off for a deployment that wants the explicit step.
+- Migrations are embedded in the binary with `sqlx::migrate!()` and applied forward-only. `serve` applies the pending ones at startup; a `migrate` subcommand applies them explicitly, and a configuration setting turns the automatic run off for a deployment that wants the explicit step.
 - sqlx records each applied migration with its checksum in `_sqlx_migrations`, so an edited applied file stops the server at startup instead of running.
 - Before applying pending migrations, the server snapshots the database with `VACUUM INTO` under the data directory. There is no downgrade; rolling back means restoring that snapshot.
-- One process owns the database file, so there is no separate migration job or init container. A deployment is one container holding the binary and `client/build`, with the data directory (database, reference data, snapshots) on a volume and TLS terminated outside.
+- One process owns the database file, so there is no separate migration job or init container. A deployment is one container holding the binary and `client/build`, with the data directory (configuration, database, reference data, snapshots) on a volume and TLS terminated outside.
+- Every setting is in one TOML configuration, `config.toml` in the working directory unless `-c` names another; nothing is read from the environment but `RUST_LOG`, and there is no `.env`. Relative paths in it are relative to its own directory, so the data directory holds the configuration with what it points to. `serve --listen` and `--web-dir` override the file, so that a container image carries its own listen address and web app; the CLI names its user with `--as` only.
 - The server accepts connections itself with hyper's automatic HTTP/1 and HTTP/2 handling: request headers must arrive within 30 seconds, a request body may pause for at most 30 seconds between chunks, and HTTP/2 connections are pinged every 30 seconds and dropped after 10 seconds without an answer. Shutdown stops accepting, ends the event streams and gives open connections 10 seconds. The reverse proxy adds its own limits, HSTS and request rate limits.
 - Query macros that need the schema at compile time keep their `cargo sqlx prepare` output in the repository, refreshed whenever a migration is added.
 

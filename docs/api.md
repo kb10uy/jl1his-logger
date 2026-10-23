@@ -1,6 +1,6 @@
 # Native API (Draft)
 
-The API the web client uses, under `/api` on `PUBLIC_ORIGIN`. Bodies are JSON.
+The API the web client uses, under `/api` on `public_origin`. Bodies are JSON.
 An error is `{"status": "error", "error": "<message>"}` with the HTTP status:
 `400` for an invalid request or an expired passkey request, `401` when not signed
 in or a passkey or registration link is refused, `403` for a cross-origin write or

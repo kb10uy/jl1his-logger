@@ -138,8 +138,17 @@ impl Context<'_> {
         Ok(migrated)
     }
 
+    fn public_origin(&self) -> CliResult<&Url> {
+        Ok(self
+            .config
+            .server
+            .public_origin
+            .as_ref()
+            .ok_or("set server.public_origin in the configuration; the registration link points there")?)
+    }
+
     async fn principal(&self) -> CliResult<Principal> {
-        let callsign = self.actor.ok_or("name the user to act as with --as or CLI_CALLSIGN")?;
+        let callsign = self.actor.ok_or("name the user to act as with --as")?;
         let mut conn = self.db.acquire().await?;
         Ok(Principal::user(&find_user(&mut conn, callsign).await?.id))
     }
@@ -294,7 +303,7 @@ mod tests {
     #[case::member(Some("JA1OPR"), Ok(()))]
     #[case::outsider(Some("JA1OUT"), Err("there is no Logbook".to_owned()))]
     #[case::unknown_user(Some("JA1NOB"), Err("no user has the callsign JA1NOB".to_owned()))]
-    #[case::no_actor(None, Err("name the user to act as with --as or CLI_CALLSIGN".to_owned()))]
+    #[case::no_actor(None, Err("name the user to act as with --as".to_owned()))]
     #[tokio::test]
     async fn acts_as_the_named_user(#[case] actor: Option<&str>, #[case] expected: Result<(), String>) {
         let world = World::new().await;
