@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use axum::{Json, extract::State};
 use serde::Deserialize;
@@ -16,7 +16,8 @@ use crate::{
     },
 };
 
-const MAX_PREVIOUS: u32 = 1000;
+const PREVIOUS_PAGE_SIZE: u32 = 1000;
+const PREVIOUS_FIELDS: [&str; 7] = ["NAME", "GRIDSQUARE", "QTH", "STATE", "CNTY", "IOTA", "QSL_VIA"];
 
 #[derive(Debug, Deserialize)]
 pub struct LookupQuery {
@@ -50,32 +51,43 @@ pub async fn get(
     let found = cty.as_deref().and_then(|cty| cty.database.lookup(&callsign));
 
     let mut conn = state.db.acquire().await?;
-    let stations: Option<BTreeSet<String>> = match query.station_ids.as_deref().filter(|s| !s.trim().is_empty()) {
+    let station_ids = match query.station_ids.as_deref().filter(|s| !s.trim().is_empty()) {
         None => None,
         Some(list) => {
             let stations = station::list(&mut conn, &access).await?;
-            let mut ids = BTreeSet::new();
+            let mut ids = vec![];
             for wavelog_id in list.split(',') {
-                ids.insert(mapped(&stations, wavelog_id)?.id.clone());
+                ids.push(mapped(&stations, wavelog_id)?.id.clone());
             }
             Some(ids)
         }
     };
     let filter = Filter {
         call: Some(CallMatch::Base(callsign.clone())),
+        station_ids,
         ..Filter::default()
     };
-    let previous: Vec<_> = qso::search(&mut conn, &access, &filter, None, MAX_PREVIOUS)
-        .await?
-        .rows
-        .into_iter()
-        .filter(|row| stations.as_ref().is_none_or(|ids| ids.contains(&row.station_id)))
-        .collect();
-    let latest = |name: &str| {
-        previous
-            .iter()
-            .find_map(|row| row.qso.get(name).map(str::trim).filter(|v| !v.is_empty()))
-    };
+    let mut previous = BTreeMap::new();
+    let mut worked_before = false;
+    let mut after = None;
+    loop {
+        let page = qso::search(&mut conn, &access, &filter, after.as_ref(), PREVIOUS_PAGE_SIZE).await?;
+        worked_before |= !page.rows.is_empty();
+        for row in page.rows {
+            for name in PREVIOUS_FIELDS {
+                if !previous.contains_key(name)
+                    && let Some(value) = row.qso.get(name).map(str::trim).filter(|v| !v.is_empty())
+                {
+                    previous.insert(name, value.to_owned());
+                }
+            }
+        }
+        after = page.next;
+        if after.is_none() || previous.len() == PREVIOUS_FIELDS.len() {
+            break;
+        }
+    }
+    let latest = |name: &str| previous.get(name);
 
     Ok(data(
         json!({
@@ -94,7 +106,7 @@ pub async fn get(
             "us_county": latest("CNTY"),
             "iota_ref": latest("IOTA"),
             "qsl_manager": latest("QSL_VIA"),
-            "workedBefore": !previous.is_empty(),
+            "workedBefore": worked_before,
         }),
         json!({ "resource": "lookup", "detail": "basic" }),
     ))
@@ -111,9 +123,10 @@ pub(in crate::web::wl2) mod tests {
 
     use crate::{
         config::{Config, ReferenceConfig},
-        domain::reference::tests::CTY,
+        domain::{qso::Qso, reference::tests::CTY},
         store::{
             WriteTx,
+            qso::{self, QsoInput},
             reference::{self, ReferenceKind},
             station::{self, StationInput},
             token::TokenKind,
@@ -249,6 +262,79 @@ pub(in crate::web::wl2) mod tests {
         }
         let (status, _) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ&station_ids=7").await;
         assert_eq!(status, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn finds_older_fields_and_scopes_history_before_paging() {
+        let f = Fixture::new().await;
+        worked(&f).await;
+        let owner = f.h.world.access(&f.h.world.owner).await;
+        let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
+        station::update(
+            &mut tx,
+            &owner.owner().unwrap(),
+            &f.h.station.id,
+            &StationInput {
+                name: f.h.station.name.clone(),
+                callsign: f.h.station.callsign.clone(),
+                wavelog_id: Some(4),
+                fields: f.h.station.fields.clone(),
+            },
+        )
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+
+        let access = f.h.world.access(&f.h.world.operator).await;
+        let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
+        let start = chrono::NaiveDate::from_ymd_opt(2026, 10, 23)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        for i in 0..1001 {
+            let time = start + chrono::TimeDelta::minutes(i * 16);
+            let qso = Qso::from_fields([
+                ("CALL", "JA1XYZ".to_owned()),
+                ("QSO_DATE", time.format("%Y%m%d").to_string()),
+                ("TIME_ON", time.format("%H%M%S").to_string()),
+                ("BAND", "40m".to_owned()),
+                ("MODE", "CW".to_owned()),
+                ("NAME", " ".to_owned()),
+            ])
+            .unwrap();
+            let id = uuid::Uuid::now_v7().to_string().parse().unwrap();
+            qso::create(
+                &mut tx,
+                &access,
+                &id,
+                QsoInput {
+                    station_id: f.h.station.id.clone(),
+                    qso,
+                },
+            )
+            .await
+            .unwrap();
+        }
+        tx.commit().await.unwrap();
+
+        for stations in ["", "&station_ids=3,4"] {
+            let (status, body) = f.get(&format!("/wl2/api/v2/lookup?callsign=JA1XYZ{stations}")).await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            assert_eq!(body["data"]["workedBefore"], true);
+            assert_eq!(body["data"]["name"], "Hanako");
+            assert_eq!(body["data"]["gridsquare"], "PM95");
+            assert_eq!(body["data"]["location"], "Chiba");
+        }
+        let (status, body) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ&station_ids=3").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["data"]["workedBefore"], true);
+        assert_eq!(body["data"]["name"], "Taro");
+        assert_eq!(body["data"]["location"], Value::Null);
+        let (_, home) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ&station_ids=4").await;
+        assert_eq!(home["data"]["name"], "Hanako");
+        assert_eq!(home["data"]["gridsquare"], Value::Null);
+        let (_, unknown) = f.get("/wl2/api/v2/lookup?callsign=XX0XX&station_ids=3,4").await;
+        assert_eq!(unknown["data"]["workedBefore"], false);
     }
 
     #[tokio::test]

@@ -300,6 +300,7 @@ pub async fn search(
             until: query.until.as_deref().map(|t| time("until", t)).transpose()?,
         },
         station_id: query.station_id,
+        station_ids: None,
         band: query.band,
         mode: query.mode,
         call,

@@ -126,6 +126,7 @@ async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
     let filter = Filter {
         time: days(args.from, args.until),
         station_id,
+        station_ids: None,
         band: args.band.clone(),
         mode: args.mode.clone(),
         call: None,

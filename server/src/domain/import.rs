@@ -9,6 +9,7 @@ const MAX_UNIX_MILLIS: u64 = (1 << 48) - 1;
 #[derive(Debug, Clone)]
 pub struct RecordIds {
     logbook_id: String,
+    station_id: Option<String>,
     seen: HashMap<[u8; 32], u64>,
 }
 
@@ -16,7 +17,15 @@ impl RecordIds {
     pub fn new(logbook_id: &str) -> RecordIds {
         RecordIds {
             logbook_id: logbook_id.to_owned(),
+            station_id: None,
             seen: HashMap::new(),
+        }
+    }
+
+    pub fn for_station(logbook_id: &str, station_id: &str) -> RecordIds {
+        RecordIds {
+            station_id: Some(station_id.to_owned()),
+            ..Self::new(logbook_id)
         }
     }
 
@@ -35,6 +44,9 @@ impl RecordIds {
         let occurrence = self.seen.entry(content).or_default();
         let mut input = vec![];
         put(&mut input, self.logbook_id.as_bytes());
+        if let Some(station_id) = &self.station_id {
+            put(&mut input, station_id.as_bytes());
+        }
         input.extend(content);
         input.extend(occurrence.to_le_bytes());
         *occurrence += 1;
@@ -117,6 +129,16 @@ mod tests {
         let mut ids = RecordIds::new("log");
         ids.next(&edited).unwrap();
         assert_eq!(ids.next(&sample()).unwrap(), id);
+    }
+
+    #[test]
+    fn scopes_station_records_without_changing_import_ids() {
+        let record = sample();
+        let id = RecordIds::for_station("log", "home").next(&record).unwrap();
+        assert_eq!(RecordIds::for_station("log", "home").next(&record).unwrap(), id);
+        assert_ne!(RecordIds::for_station("log", "portable").next(&record).unwrap(), id);
+        assert_ne!(RecordIds::for_station("other", "home").next(&record).unwrap(), id);
+        assert_ne!(RecordIds::new("log").next(&record).unwrap(), id);
     }
 
     #[test]

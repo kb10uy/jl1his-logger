@@ -152,6 +152,7 @@ pub enum CallMatch {
 pub struct Filter {
     pub time: TimeRange,
     pub station_id: Option<String>,
+    pub station_ids: Option<Vec<String>>,
     pub band: Option<String>,
     pub mode: Option<String>,
     pub call: Option<CallMatch>,
@@ -169,7 +170,6 @@ pub enum Confirmation {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InsertionQuery {
     pub filter: Filter,
-    pub station_ids: Option<Vec<String>>,
     pub mode_or_submode: Option<String>,
     pub confirmed_by: Vec<Confirmation>,
     pub after_seq: i64,
@@ -470,9 +470,6 @@ pub async fn by_insertion(
     }
     let mut conditions = Conditions::of(access, &query.filter);
     conditions.push("seq > ?", [Bind::Int(query.after_seq)]);
-    if let Some(station_ids) = &query.station_ids {
-        conditions.any_of("station_id", station_ids.iter().cloned());
-    }
     if let Some(mode) = &query.mode_or_submode {
         let mode = mode.trim().to_owned();
         conditions.push(
@@ -550,6 +547,9 @@ impl Conditions {
         let text = |value: &str| [Bind::Text(value.trim().to_owned())];
         if let Some(station_id) = &filter.station_id {
             conditions.push("station_id = ?", [Bind::Text(station_id.clone())]);
+        }
+        if let Some(station_ids) = &filter.station_ids {
+            conditions.any_of("station_id", station_ids.iter().cloned());
         }
         if let Some(band) = &filter.band {
             conditions.push("trim(band) = ? COLLATE NOCASE", text(band));

@@ -107,11 +107,11 @@ pub async fn list(
     let insertion = InsertionQuery {
         filter: Filter {
             time,
+            station_ids,
             band: present(&query.band).map(str::to_owned),
             call,
             ..Filter::default()
         },
-        station_ids,
         mode_or_submode: present(&query.mode).map(str::to_owned),
         confirmed_by,
         after_seq: i64::try_from(since_id).map_err(|_| Wl2Error::validation("since_id is out of range"))?,
@@ -150,10 +150,10 @@ pub async fn create(
         _ => return Err(Wl2Error::validation("station_profile_id is required")),
     };
     let qso = qso_from_body(&body)?;
-    let id = RecordIds::new(access.logbook_id()).next(&qso)?;
 
     let mut tx = WriteTx::begin(&state.db).await?;
     let station_id = mapped(&station::list(&mut tx, &access).await?, &wavelog_id)?.id.clone();
+    let id = RecordIds::for_station(access.logbook_id(), &station_id).next(&qso)?;
     match qso::create(&mut tx, &access, &id, QsoInput { station_id, qso }).await? {
         Created::New { stored, .. } => {
             tx.commit().await?;
@@ -419,6 +419,68 @@ pub(super) mod tests {
         let (status, body) = f.post(nearby).await;
         assert_eq!(status, StatusCode::CREATED, "{body}");
         assert_eq!(f.calls("since_id=6").await, ["JA1XYZ"]);
+    }
+
+    #[tokio::test]
+    async fn keeps_identical_contacts_at_different_stations_and_deduplicates_resends() {
+        let f = fixture().await;
+        let owner = f.h.world.access(&f.h.world.owner).await;
+        let owner = owner.owner().unwrap();
+        let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
+        let mut input = StationInput {
+            name: "Other".into(),
+            callsign: "JL1HIS/1".into(),
+            wavelog_id: Some(4),
+            fields: BTreeMap::new(),
+        };
+        let other = station::create(&mut tx, &owner, &input).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let mut second_body = hislog_body();
+        second_body["station_profile_id"] = json!(4);
+        let (first_status, first) = f.post(hislog_body()).await;
+        let (second_status, second) = f.post(second_body.clone()).await;
+        assert_eq!(first_status, StatusCode::CREATED, "{first}");
+        assert_eq!(second_status, StatusCode::CREATED, "{second}");
+        assert_ne!(first["data"]["uuid"], second["data"]["uuid"]);
+        assert_eq!(f.calls("station_id=3&since_id=6").await, ["JA1XYZ"]);
+        assert_eq!(f.calls("station_id=4&since_id=6").await, ["JA1XYZ"]);
+
+        input.name = "Renamed".into();
+        input.callsign = "JL1HIS/2".into();
+        input.fields.insert("MY_GRIDSQUARE".into(), "PM96".into());
+        let mut tx = WriteTx::begin(&f.h.world.db).await.unwrap();
+        station::update(&mut tx, &owner, &other.id, &input).await.unwrap();
+        tx.commit().await.unwrap();
+        for body in [hislog_body(), second_body.clone()] {
+            let (status, duplicate) = f.post(body).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{duplicate}");
+            assert!(
+                !duplicate["error"]["details"]["duplicate"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+
+        let session = f.h.session(&f.h.world.operator).await;
+        let uri = format!(
+            "/api/logbooks/{}/qsos/{}",
+            f.h.world.logbook.id,
+            second["data"]["uuid"].as_str().unwrap()
+        );
+        let (status, _, _) =
+            f.h.send_with("DELETE", &uri, Auth::Session(&session), &[("if-match", "\"1\"")], None)
+                .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, duplicate) = f.post(second_body).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{duplicate}");
+        assert!(
+            !duplicate["error"]["details"]["duplicate"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[rstest]

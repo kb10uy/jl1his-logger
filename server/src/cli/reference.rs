@@ -108,16 +108,26 @@ async fn install(context: &Context<'_>, args: &InstallArgs) -> CliResult<(Refere
         .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
 
     let principal = context.principal().await?;
-    {
-        let mut conn = context.db.acquire().await?;
-        access::admin(&mut conn, &principal).await?;
-    }
-    replace(path, &bytes)?;
     let mut tx = WriteTx::begin(context.db).await?;
     let admin = access::admin(&mut tx, &principal).await?;
     let checksum = Sha256::digest(&bytes);
     let installed = reference::set(&mut tx, &admin, args.kind.into(), &version, Some(checksum.as_slice())).await?;
-    tx.commit().await?;
+    let previous = match fs::read(path) {
+        Ok(bytes) => Some(bytes),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(format!("{}: {e}", path.display()).into()),
+    };
+    replace(path, &bytes)?;
+    if let Err(error) = tx.commit().await {
+        let restored = match previous {
+            Some(bytes) => replace(path, &bytes),
+            None => fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()).into()),
+        };
+        if let Err(restore_error) = restored {
+            return Err(format!("{error}; restoring {} failed: {restore_error}", path.display()).into());
+        }
+        return Err(error.into());
+    }
     Ok((installed, path.clone()))
 }
 
@@ -135,6 +145,8 @@ fn replace(path: &Path, bytes: &[u8]) -> CliResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::{
         config::{Config, ReferenceConfig},
@@ -183,5 +195,91 @@ mod tests {
         fs::write(&source, "Japan\n").unwrap();
         assert!(install(&context("JL1HIS"), &args).await.is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), CTY);
+
+        let updated = CTY.replace("Japan:", "Nippon:");
+        fs::write(&source, &updated).unwrap();
+        let args = InstallArgs {
+            version: Some(" 2 ".into()),
+            ..args
+        };
+        let (installed, _) = install(&context("JL1HIS"), &args).await.unwrap();
+        assert_eq!(installed.version, "2");
+        assert_eq!(fs::read_to_string(&path).unwrap(), updated);
+        assert_eq!(installed.checksum.as_deref(), Some(Sha256::digest(&updated).as_slice()));
+    }
+
+    #[rstest]
+    #[case::invalid_version("version")]
+    #[case::file_write("file")]
+    #[case::database_commit("commit")]
+    #[tokio::test]
+    async fn preserves_reference_data_on_failed_install(#[case] failure: &str, #[values(false, true)] existing: bool) {
+        let world = World::new().await;
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            reference: ReferenceConfig {
+                cty: dir.path().join("cty.dat"),
+                ..ReferenceConfig::default()
+            },
+            ..Config::default()
+        };
+        let database = dir.path().join("unused.db");
+        let source = dir.path().join("source.dat");
+        fs::write(&source, CTY).unwrap();
+        let context = Context {
+            db: &world.db,
+            database: &database,
+            config: &config,
+            actor: Some("JL1HIS"),
+        };
+        let mut args = InstallArgs {
+            kind: KindArg::Cty,
+            file: source.clone(),
+            version: None,
+        };
+        if existing {
+            install(&context, &args).await.unwrap();
+        }
+        let mut conn = world.db.acquire().await.unwrap();
+        let previous = reference::current(&mut conn, ReferenceKind::Cty).await.unwrap();
+        drop(conn);
+        fs::write(&source, CTY.replace("Japan:", "Nippon:")).unwrap();
+        args.version = Some("new".into());
+        match failure {
+            "version" => args.version = Some(" ".into()),
+            "file" => fs::create_dir(dir.path().join("cty.dat.installing")).unwrap(),
+            "commit" => {
+                sqlx::raw_sql(
+                    "CREATE TABLE install_failure (
+                        user_id TEXT REFERENCES users(id) DEFERRABLE INITIALLY DEFERRED
+                     );
+                     CREATE TRIGGER fail_reference_insert AFTER INSERT ON reference_versions
+                     BEGIN INSERT INTO install_failure VALUES ('missing'); END;
+                     CREATE TRIGGER fail_reference_update AFTER UPDATE ON reference_versions
+                     BEGIN INSERT INTO install_failure VALUES ('missing'); END;",
+                )
+                .execute(&world.db)
+                .await
+                .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let error = install(&context, &args).await.unwrap_err().to_string();
+        match failure {
+            "version" => assert!(error.contains("version cannot be empty"), "{error}"),
+            "file" => assert!(error.contains("cty.dat.installing"), "{error}"),
+            "commit" => assert!(error.contains("FOREIGN KEY constraint failed"), "{error}"),
+            _ => unreachable!(),
+        }
+        if existing {
+            assert_eq!(fs::read(&config.reference.cty).unwrap(), CTY.as_bytes());
+        } else {
+            assert!(!config.reference.cty.exists());
+        }
+        let mut conn = world.db.acquire().await.unwrap();
+        assert_eq!(
+            reference::current(&mut conn, ReferenceKind::Cty).await.unwrap(),
+            previous
+        );
     }
 }

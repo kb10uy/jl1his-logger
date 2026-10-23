@@ -233,6 +233,7 @@ pub async fn create(
             until: req.until.as_deref().map(|t| time("until", t)).transpose()?,
         },
         station_id: req.station_id,
+        station_ids: None,
         band: req.band,
         mode: req.mode,
         call: None,

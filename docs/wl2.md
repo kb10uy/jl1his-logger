@@ -90,7 +90,10 @@ callsign and defaults are baked in as on the native API, and `OPERATOR`
 defaults to the token user's callsign.
 
 The body carries no UUID, so the QSO's ID is derived from the converted record
-the way an ADIF import derives it. A new QSO is `201`:
+the way an ADIF import derives it, also including the Station UUID in the hash.
+Identical contacts at different Stations have different IDs. Station names,
+callsigns and defaults are not part of that Station identity, so changing them
+does not change how a resend is recognized. A new QSO is `201`:
 
 ```json
 { "data": { "id": 1291, "uuid": "019a0b2c-..." }, "meta": { "resource": "qso", "method": "POST" } }
@@ -112,7 +115,9 @@ minutes) is still created.
 
 `GET lookup?callsign=<call>&detail=basic` answers what the reference data and
 the Logbook know about a callsign. `detail` may be left out; other details are
-`400`. `station_ids` narrows the earlier QSOs to those Stations.
+`400`. `station_ids` narrows the earlier QSOs to those Stations before paging.
+The lookup searches across all matching live QSOs for each field's newest
+nonempty value; it does not stop after the first page of history.
 
 | Key | Source |
 | --- | --- |
