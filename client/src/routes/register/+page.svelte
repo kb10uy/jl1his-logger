@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';
     import * as api from '#lib/api/api.ts';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Field from '#lib/components/ui/Field.svelte';
     import { session } from '#lib/state/session.svelte.ts';
@@ -39,6 +40,8 @@
         }
     }
 </script>
+
+<PageTitle title="Register a passkey" />
 
 <main class="flex min-h-dvh items-center justify-center p-4">
     <form

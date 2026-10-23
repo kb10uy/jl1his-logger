@@ -6,6 +6,7 @@
     import * as api from '#lib/api/api.ts';
     import { ApiError } from '#lib/api/client.ts';
     import type { Fields, Qso, Target } from '#lib/api/types.ts';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import BulkEdit from '#lib/components/log/BulkEdit.svelte';
     import ColumnsPanel from '#lib/components/log/ColumnsPanel.svelte';
     import QsoDetail from '#lib/components/log/QsoDetail.svelte';
@@ -323,6 +324,8 @@
         total === undefined ? '' : `${total.toLocaleString('en-US')} matching`
     );
 </script>
+
+<PageTitle title="Log" />
 
 {#snippet counts()}
     {#if outside > 0}

@@ -2,6 +2,7 @@
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
     import type { Batch, ExportKind, MergeReport } from '#lib/api/types.ts';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import BatchTable from '#lib/components/transfer/BatchTable.svelte';
     import RecordList from '#lib/components/transfer/RecordList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -151,6 +152,8 @@
         });
     });
 </script>
+
+<PageTitle title="QSL Management" />
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <header class="flex flex-wrap items-center gap-3">

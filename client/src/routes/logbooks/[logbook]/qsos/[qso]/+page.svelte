@@ -6,6 +6,7 @@
     import type { Entity, Qso, Warning } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
@@ -138,6 +139,8 @@
         draft.freq = representativeFreq(band) ?? draft.freq;
     }
 </script>
+
+<PageTitle title="Edit QSO" />
 
 <header
     class="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-surface px-2 py-2 md:px-6 md:py-3"

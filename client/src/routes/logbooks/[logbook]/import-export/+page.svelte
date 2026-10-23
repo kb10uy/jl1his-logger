@@ -2,6 +2,7 @@
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
     import type { Batch, LengthUnit, NewReport } from '#lib/api/types.ts';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import BatchTable from '#lib/components/transfer/BatchTable.svelte';
     import RecordList from '#lib/components/transfer/RecordList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -133,6 +134,8 @@
         { value: 'bytes', label: 'Bytes' }
     ];
 </script>
+
+<PageTitle title="Import / Export" />
 
 {#snippet lengthChoice(name: string, value: LengthUnit, set: (v: LengthUnit) => void)}
     <div role="radiogroup" aria-label="Lengths" class="flex gap-4 text-[13px]">

@@ -1,5 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
@@ -26,6 +27,8 @@
         goto('/login');
     }
 </script>
+
+<PageTitle title="More" />
 
 <header class="flex flex-col gap-2.5 border-b border-border bg-surface px-4 pt-4 pb-3">
     <h1 class="text-xl font-semibold">More</h1>

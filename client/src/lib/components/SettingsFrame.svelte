@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
     import { page } from '$app/state';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { session } from '#lib/state/session.svelte.ts';
 
@@ -23,6 +24,8 @@
     );
     const current = $derived(sections.find((s) => page.url.pathname === s.href));
 </script>
+
+<PageTitle title={current === undefined ? 'Settings' : `${current.label} - Settings`} />
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <header class="flex items-center gap-2">

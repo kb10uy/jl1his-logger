@@ -1,5 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import { lastLogbook, session } from '#lib/state/session.svelte.ts';
 
     const target = $derived.by(() => {
@@ -11,6 +12,8 @@
         if (target) goto(`/logbooks/${target.id}/log`, { replace: true });
     });
 </script>
+
+<PageTitle />
 
 {#if !target}
     <main class="flex min-h-dvh flex-col items-center justify-center gap-2 p-6 text-center">

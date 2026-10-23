@@ -5,6 +5,7 @@
     import BandSelect from '#lib/components/BandSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
@@ -250,6 +251,8 @@
 
     const time = (at: Date) => at.toISOString().slice(11, 19);
 </script>
+
+<PageTitle title="Voice entry" />
 
 <svelte:window onkeydown={keydown} onkeyup={keyup} onblur={() => void voice.pttCancel()} />
 

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import type { Station } from '#lib/api/types.ts';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { parks } from '#lib/qso/format.ts';
@@ -23,6 +24,8 @@
         if (selected !== station.id) goto(`${root}/${station.id}`);
     }
 </script>
+
+<PageTitle title={current === undefined ? 'Stations' : `${current.name} - Stations`} />
 
 {#snippet card(station: Station)}
     <a

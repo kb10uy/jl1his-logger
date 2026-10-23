@@ -4,6 +4,7 @@
     import type { Fields, Lookup, Qso } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
@@ -262,6 +263,8 @@
 
     const isToday = (q: Qso) => q.fields.QSO_DATE === utcFields(now).QSO_DATE;
 </script>
+
+<PageTitle title="Live entry" />
 
 <svelte:window
     onkeydown={(e) => {

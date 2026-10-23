@@ -2,6 +2,7 @@
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
     import * as api from '#lib/api/api.ts';
+    import PageTitle from '#lib/components/PageTitle.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import { isWebAuthnSupported } from '#lib/api/webauthn.ts';
     import { session } from '#lib/state/session.svelte.ts';
@@ -31,6 +32,8 @@
         if (session.me) goto(next(), { replace: true });
     });
 </script>
+
+<PageTitle title="Sign in" />
 
 <main class="flex min-h-dvh items-center justify-center p-4">
     <div class="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-surface p-6">
