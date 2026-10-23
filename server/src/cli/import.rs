@@ -52,6 +52,8 @@ pub struct ImportArgs {
     logbook: LogbookArg,
     #[arg(long, help = "Station of the new QSOs; for a merge, matches only its QSOs")]
     station: Option<String>,
+    #[arg(long, help = "Instrument of the new QSOs, baked in where a record has no value")]
+    instrument: Option<String>,
     #[arg(
         long,
         value_enum,
@@ -75,10 +77,15 @@ pub async fn run(context: &Context<'_>, args: &ImportArgs) -> CliResult<()> {
     let rejects = match args.source.confirmation() {
         None => {
             let station = context.station(&access, args.station.as_deref()).await?;
-            let report = import_new(context.db, &access, &station, records, args.apply).await?;
+            let instrument = match &args.instrument {
+                Some(key) => Some(context.instrument(&access, key).await?),
+                None => None,
+            };
+            let report = import_new(context.db, &access, &station, instrument.as_ref(), records, args.apply).await?;
             print_new(&report, args.apply);
             report.rejects
         }
+        Some(_) if args.instrument.is_some() => return Err("--instrument is only for new QSOs".into()),
         Some(source) => {
             let station = match &args.station {
                 Some(key) => Some(context.station(&access, Some(key)).await?),

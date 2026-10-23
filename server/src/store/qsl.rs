@@ -108,6 +108,7 @@ pub(crate) mod tests {
             qso.set("QSL_SENT", Some("R".into())).unwrap();
             let input = QsoInput {
                 station_id: station.id.clone(),
+                instrument_id: None,
                 qso,
             };
             match qso::create(&mut tx, &access, &QsoId::generate(), input).await.unwrap() {

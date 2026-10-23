@@ -166,7 +166,18 @@ pub async fn create(
     if let Some(entity) = entity {
         entity.fill(&mut qso)?;
     }
-    match qso::create(&mut tx, &access, &id, QsoInput { station_id, qso }).await? {
+    match qso::create(
+        &mut tx,
+        &access,
+        &id,
+        QsoInput {
+            station_id,
+            instrument_id: None,
+            qso,
+        },
+    )
+    .await?
+    {
         Created::New { stored, .. } => {
             tx.commit().await?;
             Ok((

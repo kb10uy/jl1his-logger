@@ -184,8 +184,9 @@ no other writer runs between the reads and the writes (`server/src/store/qso.rs`
 1. A create looks the ID up first. A row of the same Logbook is returned as it
    is, tombstone included, so a resend is idempotent and hands out no numbers;
    a row of another Logbook is a conflict.
-2. The Station is read from the same Logbook, its values are baked in where
-   the QSO has none, `OPERATOR` defaults to the user's callsign, and the record
+2. The Station and the Instrument, if any, are read from the same Logbook.
+   The Instrument's values are baked in where the QSO has none, then the
+   Station's, `OPERATOR` defaults to the user's callsign, and the record
    is checked. Extra-field keys must be valid uppercase ADIF names and must
    not name a core column, even if that column is empty. Creates and updates
    reject invalid field placement before numbering or saving, so a caller

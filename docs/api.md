@@ -181,6 +181,7 @@ A QSO is:
 {
   "id": "019a0a4e-6f2b-7c3d-8e4f-0123456789ab",
   "station_id": "...",
+  "instrument_id": null,
   "seq": 1,
   "updated_seq": 1,
   "revision": 1,
@@ -209,18 +210,21 @@ Paths below are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `POST /qsos` | `{id, station_id, fields}` | `201 {qso, warnings}`; `200 {qso, warnings: []}` with the existing row when the ID is known |
+| `POST /qsos` | `{id, station_id, instrument_id?, fields}` | `201 {qso, warnings}`; `200 {qso, warnings: []}` with the existing row when the ID is known |
 | `GET /qsos/{id}` | | The QSO, deleted or not |
-| `PUT /qsos/{id}` with `If-Match` | `{station_id, fields}` | `{qso, warnings}` |
+| `PUT /qsos/{id}` with `If-Match` | `{station_id, instrument_id?, fields}` | `{qso, warnings}` |
 | `DELETE /qsos/{id}` with `If-Match` | | The deleted QSO; deleting a deleted QSO returns it unchanged |
 | `GET /qsos?...` | | `{qsos, next, total}`, see Search |
 | `GET /targets?...` | | `{qsos: [{id, revision}]}` of every match, see Search |
 | `GET /changes?after=N&limit=L` | | `{cursor_generation, last_updated_seq, qsos, has_more}` |
 | `GET /duplicates?call=&band=&mode=&qso_date=&time_on=&except=` | | `{qsos}` |
 
-`id` is a UUID v7 the client generates; anything else is `400`. Creating
-fills `STATION_CALLSIGN` and the Station's `MY_*` defaults, then `OPERATOR` from
-the caller's callsign, for fields the request leaves out. It also fills a
+`id` is a UUID v7 the client generates; anything else is `400`.
+`instrument_id` is optional and `null` means none; an Instrument or Station
+outside the Logbook is `404`. Creating fills the Instrument's `MY_RIG`,
+`MY_ANTENNA`, `TX_PWR` and other defaults, then `STATION_CALLSIGN` and the
+Station's `MY_*` defaults, then `OPERATOR` from the caller's callsign, for
+fields the request leaves out. It also fills a
 missing `CQZ`, `ITUZ` and `CONT` from the entity `cty.dat` resolves `CALL` to,
 and `DXCC` when the `dxcc` table has a code for it; without `cty.dat`, or when
 it cannot be read (which is logged), nothing is filled and the QSO is still
@@ -234,8 +238,9 @@ tags are `400`. Another revision is `412`, and a `PUT` on a deleted QSO is
 `409`; both carry the current QSO as `current`, so the client merges and retries
 with its revision.
 
-`PUT` replaces the whole QSO: `fields` is the complete new set, Station
-defaults are not baked in again, and a field left out is removed.
+`PUT` replaces the whole QSO: `fields` is the complete new set, Station and
+Instrument defaults are not baked in again, and a field left out is removed.
+It sets the Instrument to `instrument_id`, so leaving it out clears it.
 
 `warnings` never refuse a write:
 
@@ -380,7 +385,7 @@ rows still at their recorded revisions. A batch is applied once; again is
 
 ## ADIF Import
 
-`POST /api/logbooks/{logbook_id}/imports?source=&station_id=&format=&length=&apply=`
+`POST /api/logbooks/{logbook_id}/imports?source=&station_id=&instrument_id=&format=&length=&apply=`
 takes the file itself as the body, up to 64 MiB of UTF-8. It works as the CLI
 `import` does (see `decisions.md`, "ADIF Import"):
 
@@ -388,6 +393,7 @@ takes the file itself as the body, up to 64 MiB of UTF-8. It works as the CLI
 | --- | --- |
 | `source` | `new` adds QSOs; `lotw`, `eqsl` or `card` merges confirmations into existing ones |
 | `station_id` | The Station of new QSOs, required for `new`; for a merge, matches only its QSOs |
+| `instrument_id` | The Instrument of new QSOs, baked in where a record has no value; `400` for a merge |
 | `format` | `adi` (default) or `adx` |
 | `length` | How an `.adi` file counts lengths, `codepoints` or `bytes`; by default the server's `[adif] length` |
 | `apply` | `true` writes; without it the import only previews and writes nothing |

@@ -17,6 +17,7 @@ use crate::{
     domain::{adif::LengthUnit, qso::parse_date},
     store::{
         access::{self, LogbookAccess, Principal},
+        instrument::{self, Instrument},
         logbook::{self, Logbook},
         qso::TimeRange,
         station::{self, Station},
@@ -176,6 +177,12 @@ impl Context<'_> {
         let mut conn = self.db.acquire().await?;
         let stations = station::list(&mut conn, access).await?;
         Ok(pick(&stations, key, "Station", |s| &s.id, |s| &s.name)?.clone())
+    }
+
+    async fn instrument(&self, access: &LogbookAccess, key: &str) -> CliResult<Instrument> {
+        let mut conn = self.db.acquire().await?;
+        let instruments = instrument::list(&mut conn, access).await?;
+        Ok(pick(&instruments, Some(key), "Instrument", |i| &i.id, |i| &i.name)?.clone())
     }
 
     fn length(&self, length: Option<LengthArg>) -> LengthUnit {

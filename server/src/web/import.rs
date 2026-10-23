@@ -12,7 +12,7 @@ use crate::{
     store::{
         export,
         import::{MergeReport, NewReport, import_new, merge},
-        station, today,
+        instrument, station, today,
     },
     web::{
         AppState,
@@ -46,6 +46,7 @@ pub enum FormatRequest {
 pub struct ImportQuery {
     source: SourceRequest,
     station_id: Option<String>,
+    instrument_id: Option<String>,
     #[serde(default)]
     format: FormatRequest,
     length: Option<LengthUnit>,
@@ -192,8 +193,18 @@ pub async fn import(
     let source = match query.source {
         SourceRequest::New => {
             let station = station.ok_or_else(|| ApiError::bad_request("new QSOs need a station_id"))?;
-            let report = import_new(&state.db, &access, &station, records, query.apply).await?;
+            let instrument = match &query.instrument_id {
+                Some(id) => {
+                    let mut conn = state.db.acquire().await?;
+                    Some(instrument::get(&mut conn, &access, id).await?)
+                }
+                None => None,
+            };
+            let report = import_new(&state.db, &access, &station, instrument.as_ref(), records, query.apply).await?;
             return Ok(Json(ImportBody::new(report, query.apply, unit)));
+        }
+        _ if query.instrument_id.is_some() => {
+            return Err(ApiError::bad_request("an instrument_id is only for new QSOs"));
         }
         SourceRequest::Lotw => Source::Lotw,
         SourceRequest::Eqsl => Source::Eqsl,
@@ -287,6 +298,33 @@ mod tests {
             .send_text(&imports(&h, "source=paper"), Auth::Session(&cookie), NEW)
             .await;
         assert_eq!((status, &body["status"]), (StatusCode::BAD_REQUEST, &json!("error")));
+    }
+
+    #[tokio::test]
+    async fn imports_new_qsos_with_an_instrument() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let rig = h.world.instrument("IC-705").await;
+        let query = format!(
+            "source=new&apply=true&station_id={}&instrument_id={}",
+            h.station.id, rig.id
+        );
+        let (status, report) = h.send_text(&imports(&h, &query), Auth::Session(&cookie), NEW).await;
+        assert_eq!((status, &report["created"]), (StatusCode::OK, &json!(2)), "{report}");
+        let (_, changes) = h.send("GET", &h.path("/changes"), Auth::Session(&cookie), None).await;
+        for qso in changes["qsos"].as_array().unwrap() {
+            assert_eq!(
+                (&qso["instrument_id"], &qso["fields"]["MY_RIG"]),
+                (&json!(rig.id), &json!("IC-705"))
+            );
+        }
+
+        let merge = format!("source=lotw&instrument_id={}", rig.id);
+        let (status, _) = h.send_text(&imports(&h, &merge), Auth::Session(&cookie), LOTW).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let unknown = format!("source=new&station_id={}&instrument_id=nothing", h.station.id);
+        let (status, _) = h.send_text(&imports(&h, &unknown), Auth::Session(&cookie), NEW).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

@@ -13,6 +13,7 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
+        instrument::Instrument,
         qsl::{self, Skipped},
         qso::{self, CallMatch, Created, Filter, QsoInput, Target, TimeRange},
         station::Station,
@@ -64,6 +65,7 @@ pub async fn import_new(
     db: &Db,
     access: &LogbookAccess,
     station: &Station,
+    instrument: Option<&Instrument>,
     records: Vec<Result<Qso, QsoError>>,
     apply: bool,
 ) -> Result<NewReport, StoreError> {
@@ -84,6 +86,7 @@ pub async fn import_new(
     }
     let input = |qso: &Qso| QsoInput {
         station_id: station.id.clone(),
+        instrument_id: instrument.map(|i| i.id.clone()),
         qso: qso.clone(),
     };
     if !apply {
@@ -296,7 +299,7 @@ mod tests {
             ]
         };
 
-        let preview = import_new(&world.db, &access, &station, records(), false)
+        let preview = import_new(&world.db, &access, &station, None, records(), false)
             .await
             .unwrap();
         assert_eq!((preview.read, preview.created, preview.existing), (5, 3, 0));
@@ -304,7 +307,9 @@ mod tests {
         assert_eq!(preview.duplicates.len(), 1);
         assert!(all(&world, &access).await.is_empty());
 
-        let first = import_new(&world.db, &access, &station, records(), true).await.unwrap();
+        let first = import_new(&world.db, &access, &station, None, records(), true)
+            .await
+            .unwrap();
         assert_eq!((first.created, first.existing), (3, 0));
         assert_eq!(first.rejects.len(), 1);
         let stored = all(&world, &access).await;
@@ -318,9 +323,51 @@ mod tests {
 
         let mut more = records();
         more.push(Ok(contact("JA1DDD", "0404")));
-        let again = import_new(&world.db, &access, &station, more, true).await.unwrap();
+        let again = import_new(&world.db, &access, &station, None, more, true)
+            .await
+            .unwrap();
         assert_eq!((again.created, again.existing), (1, 3));
         assert_eq!(all(&world, &access).await.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn bakes_the_instrument_where_records_have_no_values() {
+        let (world, access, station) = setup().await;
+        let rig = world.instrument("IC-705").await;
+        let other = world.instrument("FT-817").await;
+        let records = || {
+            let mut powered = contact("JA1BBB", "0202");
+            powered.set("TX_PWR", Some("50".into())).unwrap();
+            vec![Ok(contact("JA1AAA", "0101")), Ok(powered)]
+        };
+
+        let first = import_new(&world.db, &access, &station, Some(&rig), records(), true)
+            .await
+            .unwrap();
+        assert_eq!(first.created, 2);
+        let rerun = import_new(&world.db, &access, &station, Some(&other), records(), true)
+            .await
+            .unwrap();
+        assert_eq!((rerun.created, rerun.existing), (0, 2));
+
+        let stored = all(&world, &access).await;
+        let baked: Vec<_> = stored
+            .iter()
+            .map(|row| {
+                (
+                    row.instrument_id.as_deref(),
+                    row.qso.get("MY_RIG"),
+                    row.qso.get("TX_PWR"),
+                )
+            })
+            .collect();
+        assert_eq!(
+            baked,
+            [
+                (Some(rig.id.as_str()), Some("IC-705"), Some("0.5")),
+                (Some(rig.id.as_str()), Some("IC-705"), Some("50")),
+            ]
+        );
     }
 
     #[rstest]
@@ -330,26 +377,35 @@ mod tests {
     async fn previews_duplicates_across_batches(#[case] existing: bool) {
         let (world, access, station) = setup().await;
         if existing {
-            import_new(&world.db, &access, &station, vec![Ok(contact("JA1AAA", "0059"))], true)
-                .await
-                .unwrap();
+            import_new(
+                &world.db,
+                &access,
+                &station,
+                None,
+                vec![Ok(contact("JA1AAA", "0059"))],
+                true,
+            )
+            .await
+            .unwrap();
         }
         let mut records = vec![Ok(contact("JA1AAA", "0101"))];
         records.extend((1..BATCH).map(|i| Ok(contact(&format!("JA1X{i}"), "0101"))));
         records.extend([Ok(contact("JA1AAA", "0101")), Ok(contact("JA1AAA", "0101"))]);
 
-        let preview = import_new(&world.db, &access, &station, records.clone(), false)
+        let preview = import_new(&world.db, &access, &station, None, records.clone(), false)
             .await
             .unwrap();
         assert_eq!(preview.created, BATCH + 2);
         assert_eq!(preview.duplicates.len(), if existing { 3 } else { 2 });
         assert_eq!(all(&world, &access).await.len(), usize::from(existing));
-        let applied = import_new(&world.db, &access, &station, records.clone(), true)
+        let applied = import_new(&world.db, &access, &station, None, records.clone(), true)
             .await
             .unwrap();
         assert_eq!(preview.duplicates, applied.duplicates);
 
-        let rerun = import_new(&world.db, &access, &station, records, false).await.unwrap();
+        let rerun = import_new(&world.db, &access, &station, None, records, false)
+            .await
+            .unwrap();
         assert_eq!((rerun.created, rerun.existing), (0, BATCH + 2));
         assert!(rerun.duplicates.is_empty());
     }
@@ -361,7 +417,7 @@ mod tests {
         let records = vec![Ok(contact("JA1AAA", "0101")), Ok(contact("JA1AAA", "0101"))];
         let preview = tokio::time::timeout(
             std::time::Duration::from_secs(2),
-            import_new(&world.db, &access, &station, records, false),
+            import_new(&world.db, &access, &station, None, records, false),
         )
         .await
         .expect("a preview takes no write lock")
@@ -398,7 +454,9 @@ mod tests {
             Ok(qso)
         }));
         records.push(Ok(newest));
-        import_new(&world.db, &access, &station, records, true).await.unwrap();
+        import_new(&world.db, &access, &station, None, records, true)
+            .await
+            .unwrap();
 
         let mut confirmation = contact("JA1AAA", "0101");
         confirmation.set("QSL_RCVD", Some("Y".into())).unwrap();
@@ -434,13 +492,17 @@ mod tests {
     async fn keeps_a_deleted_import_deleted() {
         let (world, access, station) = setup().await;
         let records = || vec![Ok(contact("JA1AAA", "0101"))];
-        import_new(&world.db, &access, &station, records(), true).await.unwrap();
+        import_new(&world.db, &access, &station, None, records(), true)
+            .await
+            .unwrap();
         let row = all(&world, &access).await.remove(0);
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         qso::delete(&mut tx, &access, &row.id, row.revision).await.unwrap();
         tx.commit().await.unwrap();
 
-        let again = import_new(&world.db, &access, &station, records(), true).await.unwrap();
+        let again = import_new(&world.db, &access, &station, None, records(), true)
+            .await
+            .unwrap();
         assert_eq!((again.created, again.existing), (0, 1));
         assert!(all(&world, &access).await[0].deleted_at.is_some());
     }
@@ -456,7 +518,9 @@ mod tests {
             Ok(contact("JA1BBB", "0210")),
             Ok(received),
         ];
-        import_new(&world.db, &access, &station, stored, true).await.unwrap();
+        import_new(&world.db, &access, &station, None, stored, true)
+            .await
+            .unwrap();
 
         let confirmed = |call: &str, time_on: &str, extra: &[(&str, &str)]| {
             let mut qso = contact(call, time_on);
@@ -549,7 +613,7 @@ mod tests {
         let (world, access, station) = setup().await;
         let mut sent = contact("JA1AAA", "0101");
         sent.set("QSL_SENT", Some("Y".into())).unwrap();
-        import_new(&world.db, &access, &station, vec![Ok(sent)], true)
+        import_new(&world.db, &access, &station, None, vec![Ok(sent)], true)
             .await
             .unwrap();
 

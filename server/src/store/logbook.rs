@@ -181,6 +181,7 @@ mod tests {
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let input = QsoInput {
             station_id: station.id,
+            instrument_id: None,
             qso: contact("JA1XYZ", "0405"),
         };
         qso::create(&mut tx, &access, &QsoId::generate(), input).await.unwrap();

@@ -275,6 +275,7 @@ mod tests {
         StoredQso {
             id: QsoId::generate(),
             station_id: "station".into(),
+            instrument_id: None,
             seq: 1,
             updated_seq: 1,
             revision: 2,

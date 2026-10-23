@@ -363,6 +363,7 @@ mod tests {
             qso.set("MY_RIG", Some(my_rig.into())).unwrap();
             let input = qso::QsoInput {
                 station_id: station.id.clone(),
+                instrument_id: None,
                 qso,
             };
             let id = QsoId::generate();

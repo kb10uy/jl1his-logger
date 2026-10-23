@@ -17,6 +17,7 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
+        instrument,
         logbook::{self, next_insert, next_update},
         now, station,
     },
@@ -28,6 +29,7 @@ const MAX_LIST: usize = 100;
 const BOOKKEEPING: &[&str] = &[
     "id",
     "station_id",
+    "instrument_id",
     "seq",
     "updated_seq",
     "revision",
@@ -60,6 +62,7 @@ static INSERT: LazyLock<String> = LazyLock::new(|| {
         "id",
         "logbook_id",
         "station_id",
+        "instrument_id",
         "seq",
         "updated_seq",
         "created_by",
@@ -76,7 +79,7 @@ static INSERT: LazyLock<String> = LazyLock::new(|| {
 });
 
 static UPDATE: LazyLock<String> = LazyLock::new(|| {
-    let assignments: Vec<String> = ["station_id", "updated_seq", "updated_by", "updated_at"]
+    let assignments: Vec<String> = ["station_id", "instrument_id", "updated_seq", "updated_by", "updated_at"]
         .into_iter()
         .chain(ADIF_COLUMNS.iter().map(String::as_str))
         .chain(["fields", "call_base", "qso_time", "freq_hz"])
@@ -93,6 +96,7 @@ static UPDATE: LazyLock<String> = LazyLock::new(|| {
 pub struct StoredQso {
     pub id: QsoId,
     pub station_id: String,
+    pub instrument_id: Option<String>,
     pub seq: i64,
     pub updated_seq: i64,
     pub revision: i64,
@@ -123,6 +127,7 @@ impl StoredQso {
                 .parse()
                 .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}")))?,
             station_id: row.try_get("station_id")?,
+            instrument_id: row.try_get("instrument_id")?,
             seq: row.try_get("seq")?,
             updated_seq: row.try_get("updated_seq")?,
             revision: row.try_get("revision")?,
@@ -236,6 +241,7 @@ pub struct Previous {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QsoInput {
     pub station_id: String,
+    pub instrument_id: Option<String>,
     pub qso: Qso,
 }
 
@@ -257,6 +263,7 @@ enum Prepared {
     Existing(StoredQso),
     New {
         station_id: String,
+        instrument_id: Option<String>,
         qso: Qso,
         checked: Checked,
     },
@@ -282,11 +289,20 @@ async fn prepare(
 
     let station = station::fetch(conn, access, &input.station_id).await?;
     let mut qso = input.qso;
+    let instrument_id = match &input.instrument_id {
+        Some(id) => {
+            let instrument = instrument::fetch(conn, access, id).await?;
+            qso.bake(&instrument.defaults())?;
+            Some(instrument.id)
+        }
+        None => None,
+    };
     qso.bake_station(&station.callsign, &station.fields)?;
     qso.fill("OPERATOR", access.callsign())?;
     let checked = check(conn, access, &qso, None).await?;
     Ok(Prepared::New {
         station_id: station.id,
+        instrument_id,
         qso,
         checked,
     })
@@ -312,13 +328,14 @@ pub async fn create(
     input: QsoInput,
 ) -> Result<Created, StoreError> {
     let access = &access.revalidate(tx).await?;
-    let (station_id, qso, checked) = match prepare(tx, access, id, input).await? {
+    let (station_id, instrument_id, qso, checked) = match prepare(tx, access, id, input).await? {
         Prepared::Existing(stored) => return Ok(Created::Existing(stored)),
         Prepared::New {
             station_id,
+            instrument_id,
             qso,
             checked,
-        } => (station_id, qso, checked),
+        } => (station_id, instrument_id, qso, checked),
     };
 
     let sequence = next_insert(tx, access.logbook_id()).await?;
@@ -327,6 +344,7 @@ pub async fn create(
         .bind(id.to_string())
         .bind(access.logbook_id())
         .bind(&station_id)
+        .bind(&instrument_id)
         .bind(sequence.seq)
         .bind(sequence.updated_seq)
         .bind(access.user_id())
@@ -361,8 +379,20 @@ pub async fn update(
     let current = fetch(tx, access, id).await?;
     current.require_revision(base_revision)?;
     let station = station::fetch(tx, access, &input.station_id).await?;
+    let instrument_id = match &input.instrument_id {
+        Some(id) => Some(instrument::fetch(tx, access, id).await?.id),
+        None => None,
+    };
     let checked = check(tx, access, &input.qso, Some(id)).await?;
-    let stored = write_update(tx, access, &current, &station.id, &input.qso, &checked).await?;
+    let stored = write_update(
+        tx,
+        access,
+        &current,
+        (&station.id, instrument_id.as_deref()),
+        &input.qso,
+        &checked,
+    )
+    .await?;
     Ok((stored, checked.warnings))
 }
 
@@ -373,20 +403,22 @@ pub(crate) async fn rewrite(
     qso: &Qso,
 ) -> Result<StoredQso, StoreError> {
     let checked = qso.check()?;
-    write_update(tx, access, current, &current.station_id, qso, &checked).await
+    let place = (current.station_id.as_str(), current.instrument_id.as_deref());
+    write_update(tx, access, current, place, qso, &checked).await
 }
 
 async fn write_update(
     tx: &mut WriteTx,
     access: &LogbookAccess,
     current: &StoredQso,
-    station_id: &str,
+    (station_id, instrument_id): (&str, Option<&str>),
     qso: &Qso,
     checked: &Checked,
 ) -> Result<StoredQso, StoreError> {
     let updated_seq = next_update(tx, access.logbook_id()).await?;
     let mut query = sqlx::query(AssertSqlSafe(UPDATE.as_str()))
         .bind(station_id)
+        .bind(instrument_id)
         .bind(updated_seq)
         .bind(access.user_id())
         .bind(now());
@@ -1015,9 +1047,10 @@ mod tests {
     use crate::{
         domain::qso::QsoError,
         store::{
+            instrument::InstrumentInput,
             membership,
             station::Station,
-            testing::{World, contact, station_input},
+            testing::{World, contact, instrument_input, station_input},
         },
     };
 
@@ -1028,6 +1061,7 @@ mod tests {
         }
         QsoInput {
             station_id: station.id.clone(),
+            instrument_id: None,
             qso,
         }
     }
@@ -1078,6 +1112,72 @@ mod tests {
             (call_base.as_str(), qso_time, freq_hz),
             ("JA1XYZ", 1_792_641_906, Some(7_041_000))
         );
+    }
+
+    #[tokio::test]
+    async fn bakes_the_instrument_before_the_station_and_not_again_on_update() {
+        let world = World::new().await;
+        let owner = world.access(&world.owner).await;
+        let access = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let mut home = station_input("Home");
+        home.fields.insert("MY_SIG".into(), "JCC".into());
+        let station = station::create(&mut tx, &owner.owner().unwrap(), &home).await.unwrap();
+        let rig = InstrumentInput {
+            name: "IC-705".into(),
+            my_rig: Some("IC-705".into()),
+            my_antenna: Some("EFHW".into()),
+            tx_pwr: Some("0.5".into()),
+            fields: BTreeMap::from([("MY_SIG".to_owned(), "POTA".to_owned())]),
+        };
+        let rig = instrument::create(&mut tx, &access, &rig).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let mut input = entry(&station, "JA1XYZ", "040506");
+        input.instrument_id = Some(rig.id.clone());
+        input.qso.set("TX_PWR", Some("5".into())).unwrap();
+        let (id, created) = create_one(&world, &access, input).await;
+        let (stored, _) = new(created);
+        assert_eq!(stored.instrument_id.as_deref(), Some(rig.id.as_str()));
+        let baked: Vec<_> = ["MY_RIG", "MY_ANTENNA", "TX_PWR", "MY_SIG", "MY_CITY"]
+            .iter()
+            .map(|name| stored.qso.get(name))
+            .collect();
+        assert_eq!(
+            baked,
+            [Some("IC-705"), Some("EFHW"), Some("5"), Some("POTA"), Some("Minato")]
+        );
+
+        let other = world.instrument("FT-817").await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let moved = QsoInput {
+            station_id: station.id.clone(),
+            instrument_id: Some(other.id.clone()),
+            qso: stored.qso.clone(),
+        };
+        let (updated, _) = update(&mut tx, &access, &id, 1, moved).await.unwrap();
+        assert_eq!(updated.instrument_id.as_deref(), Some(other.id.as_str()));
+        assert_eq!(updated.qso.get("MY_RIG"), Some("IC-705"));
+        let cleared = QsoInput {
+            station_id: station.id.clone(),
+            instrument_id: None,
+            qso: updated.qso.clone(),
+        };
+        let (cleared, _) = update(&mut tx, &access, &id, 2, cleared).await.unwrap();
+        assert_eq!(cleared.instrument_id, None);
+        tx.commit().await.unwrap();
+
+        let (_, elsewhere) = world.other_logbook().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let away = instrument::create(&mut tx, &elsewhere, &instrument_input("Away"))
+            .await
+            .unwrap();
+        let mut foreign = entry(&station, "JA1ZZZ", "050000");
+        foreign.instrument_id = Some(away.id);
+        assert!(matches!(
+            create(&mut tx, &access, &QsoId::generate(), foreign).await,
+            Err(StoreError::NotFound("Instrument"))
+        ));
     }
 
     #[tokio::test]
@@ -1195,6 +1295,7 @@ mod tests {
         edited.set("MY_RIG", Some("IC-705".into())).unwrap();
         let input = QsoInput {
             station_id: station.id.clone(),
+            instrument_id: None,
             qso: edited,
         };
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
@@ -1572,6 +1673,7 @@ mod tests {
         let (original, _) = new(created);
         let mut invalid = QsoInput {
             station_id: station.id.clone(),
+            instrument_id: None,
             qso: original.qso.clone(),
         };
         invalid.qso.fields.insert(name.into(), "x".into());
@@ -1612,6 +1714,7 @@ mod tests {
         let (stored, _) = new(created);
         let input = QsoInput {
             station_id: station.id,
+            instrument_id: None,
             qso: stored.qso.clone(),
         };
 

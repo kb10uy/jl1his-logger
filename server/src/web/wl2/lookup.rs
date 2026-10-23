@@ -204,6 +204,7 @@ mod tests {
                 &id,
                 QsoInput {
                     station_id: f.h.station.id.clone(),
+                    instrument_id: None,
                     qso,
                 },
             )

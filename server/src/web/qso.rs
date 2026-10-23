@@ -30,6 +30,7 @@ const DEFAULT_SEARCH_LIMIT: u32 = 100;
 pub struct QsoBody {
     id: String,
     station_id: String,
+    instrument_id: Option<String>,
     seq: i64,
     updated_seq: i64,
     revision: i64,
@@ -53,6 +54,7 @@ impl From<StoredQso> for QsoBody {
                 .collect(),
             id: stored.id.to_string(),
             station_id: stored.station_id,
+            instrument_id: stored.instrument_id,
             seq: stored.seq,
             updated_seq: stored.updated_seq,
             revision: stored.revision,
@@ -77,12 +79,14 @@ pub struct Saved {
 pub struct NewQso {
     id: String,
     station_id: String,
+    instrument_id: Option<String>,
     fields: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ChangedQso {
     station_id: String,
+    instrument_id: Option<String>,
     fields: BTreeMap<String, String>,
 }
 
@@ -187,6 +191,7 @@ pub async fn create(
     }
     let input = QsoInput {
         station_id: req.station_id,
+        instrument_id: req.instrument_id,
         qso,
     };
     let mut tx = WriteTx::begin(&state.db).await?;
@@ -229,6 +234,7 @@ pub async fn update(
     let id = path_id(&item.id)?;
     let input = QsoInput {
         station_id: req.station_id,
+        instrument_id: req.instrument_id,
         qso: Qso::from_fields(req.fields)?,
     };
     let mut tx = WriteTx::begin(&state.db).await?;
@@ -455,6 +461,46 @@ mod tests {
             &[("BAND", band), ("freq", "7.041"), ("NAME", "太郎")],
         )
         .await
+    }
+
+    #[tokio::test]
+    async fn bakes_the_named_instrument_and_keeps_its_id() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let rig = h.world.instrument("IC-705").await;
+        let id = QsoId::generate();
+        let mut body = entry(&h, &id, "JA1XYZ", "40m", "040506");
+        body["instrument_id"] = json!(rig.id);
+        let (status, created) = h
+            .send("POST", &h.path("/qsos"), Auth::Session(&cookie), Some(body))
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+        assert_eq!(created["qso"]["instrument_id"], json!(rig.id));
+        assert_eq!(
+            (&created["qso"]["fields"]["MY_RIG"], &created["qso"]["fields"]["TX_PWR"]),
+            (&json!("IC-705"), &json!("0.5"))
+        );
+
+        let change = json!({ "station_id": h.station.id, "fields": created["qso"]["fields"] });
+        let (status, _, updated) = h
+            .send_with(
+                "PUT",
+                &h.path(&format!("/qsos/{id}")),
+                Auth::Session(&cookie),
+                &[("if-match", "\"1\"")],
+                Some(change),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{updated}");
+        assert_eq!(updated["qso"]["instrument_id"], Value::Null);
+        assert_eq!(updated["qso"]["fields"]["MY_RIG"], "IC-705");
+
+        let mut unknown = entry(&h, &QsoId::generate(), "JA1ZZZ", "40m", "050000");
+        unknown["instrument_id"] = json!("nothing");
+        let (status, _) = h
+            .send("POST", &h.path("/qsos"), Auth::Session(&cookie), Some(unknown))
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
