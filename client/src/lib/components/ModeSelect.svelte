@@ -36,9 +36,7 @@
         >
     {/if}
     {#each MODE_ENTRIES as entry, i (i)}
-        {#if entry === 'separator'}
-            <hr />
-        {:else if 'group' in entry}
+        {#if 'group' in entry}
             <optgroup label={entry.group}>
                 {#each entry.choices as choice (choice.submode)}
                     <option value={modeKey(choice.mode, choice.submode)}>{choice.label}</option>

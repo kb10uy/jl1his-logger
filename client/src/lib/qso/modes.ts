@@ -4,7 +4,7 @@ export interface ModeChoice {
     label: string;
 }
 
-export type ModeEntry = ModeChoice | { group: string; choices: ModeChoice[] } | 'separator';
+export type ModeEntry = ModeChoice | { group: string; choices: ModeChoice[] };
 
 const only = (mode: string): ModeChoice => ({ mode, submode: '', label: mode });
 
@@ -18,9 +18,7 @@ export const MODE_ENTRIES: ModeEntry[] = [
     only('FM'),
     group('SSB', ['LSB', 'USB']),
     group('DIGITALVOICE', ['C4FM', 'DMR', 'DSTAR', 'FREEDV', 'M17']),
-    'separator',
     group('CW', ['PCW']),
-    'separator',
     only('FT8'),
     group('MFSK', ['FT4', 'FST4', 'FST4W', 'JS8', 'Q65', 'MFSK16', 'MFSK32']),
     group('RTTY', ['ASCI']),
@@ -28,12 +26,11 @@ export const MODE_ENTRIES: ModeEntry[] = [
     only('JT65'),
     only('JT9'),
     only('OLIVIA'),
-    'separator',
     only('SSTV')
 ];
 
 export const MODE_CHOICES: ModeChoice[] = MODE_ENTRIES.flatMap((entry) =>
-    entry === 'separator' ? [] : 'group' in entry ? entry.choices : [entry]
+    'group' in entry ? entry.choices : [entry]
 );
 
 export const modeKey = (mode: string, submode: string) =>
