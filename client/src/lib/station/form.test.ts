@@ -10,8 +10,7 @@ const station: Station = {
     fields: {
         MY_GRIDSQUARE: 'PM95sp',
         MY_POTA_REF: 'JP-0012,JP-0008',
-        MY_RIG: 'IC-705',
-        MY_ANTENNA: 'Dipole'
+        MY_SIG: 'POTA'
     },
     archived_at: null,
     created_at: '2026-10-01T00:00:00Z',
@@ -22,7 +21,7 @@ describe('station drafts', () => {
     it('round-trips a Station', () => {
         const draft = draftOf(station);
         expect(draft.parks).toEqual(['JP-0012', 'JP-0008']);
-        expect(draft.extra).toEqual([{ name: 'MY_ANTENNA', value: 'Dipole' }]);
+        expect(draft.extra).toEqual([{ name: 'MY_SIG', value: 'POTA' }]);
         expect(draft.main.MY_CITY).toBe('');
         const input = stationInput(draft);
         expect(input).toEqual({
@@ -31,9 +30,9 @@ describe('station drafts', () => {
             wavelog_id: 3,
             fields: station.fields
         });
-        expect(
-            sameInput(input, { ...input, fields: { MY_ANTENNA: 'Dipole', ...input.fields } })
-        ).toBe(true);
+        expect(sameInput(input, { ...input, fields: { MY_SIG: 'POTA', ...input.fields } })).toBe(
+            true
+        );
         expect(sameInput(input, { ...input, wavelog_id: null })).toBe(false);
     });
 
@@ -43,14 +42,14 @@ describe('station drafts', () => {
         draft.callsign = 'jl1his';
         draft.main.MY_CITY = '  ';
         draft.extra = [
-            { name: 'tx_pwr', value: '10' },
+            { name: 'my_sig_info', value: 'JP-0012' },
             { name: 'MY_SIG', value: '' }
         ];
         expect(stationInput(draft)).toEqual({
             name: 'Home',
             callsign: 'JL1HIS',
             wavelog_id: null,
-            fields: { TX_PWR: '10' }
+            fields: { MY_SIG_INFO: 'JP-0012' }
         });
     });
 
@@ -67,7 +66,17 @@ describe('station drafts', () => {
             'STATION_CALLSIGN cannot be a Station default.'
         ],
         [{ extra: [{ name: 'MY RIG', value: 'X' }] }, 'MY RIG is not an ADIF field name.'],
-        [{ extra: [{ name: 'my_rig', value: 'X' }] }, 'MY_RIG is listed twice.']
+        [{ extra: [{ name: 'my_rig', value: 'X' }] }, 'MY_RIG belongs to an Instrument.'],
+        [{ extra: [{ name: 'tx_pwr', value: '5' }] }, 'TX_PWR belongs to an Instrument.'],
+        [
+            {
+                extra: [
+                    { name: 'MY_SIG', value: 'X' },
+                    { name: 'my_sig', value: 'Y' }
+                ]
+            },
+            'MY_SIG is listed twice.'
+        ]
     ])('refuses %o', (change, problem) => {
         expect(stationProblem({ ...draftOf(station), ...change })).toBe(problem);
     });

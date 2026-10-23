@@ -244,8 +244,9 @@ mod tests {
              VALUES ('user', 'JL1HIS', 'admin', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
              INSERT INTO logbooks (id, name, cursor_generation, created_at, updated_at)
              VALUES ('log', 'Club', 'generation', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
-             INSERT INTO stations (id, logbook_id, name, callsign, created_at, updated_at)
-             VALUES ('station', 'log', 'Home', 'JL1HIS', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
+             INSERT INTO stations (id, logbook_id, name, callsign, fields, created_at, updated_at)
+             VALUES ('station', 'log', 'Home', 'JL1HIS', json_object('MY_CITY', 'Minato', 'MY_RIG', 'IC-705', 'TX_PWR', '5'),
+                     '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z');
              INSERT INTO qsos (
                  id, logbook_id, station_id, seq, updated_seq, revision, created_by, created_at,
                  updated_by, updated_at, call, qso_date, time_on, band, mode, station_callsign, call_base, qso_time
@@ -267,7 +268,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6]);
         assert!(migrated.snapshot.unwrap().is_file());
         let session: (String, Vec<u8>, String, Option<String>) =
             sqlx::query_as("SELECT id, token_hash, last_used_at, user_agent FROM sessions")
@@ -295,6 +296,11 @@ mod tests {
                 Some("2026-10-22T01:00:00Z".into())
             )
         );
+        let fields: String = sqlx::query_scalar("SELECT fields FROM stations")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(fields, r#"{"MY_CITY":"Minato"}"#);
         let qso: (String, i64, Option<String>) = sqlx::query_as("SELECT id, revision, instrument_id FROM qsos")
             .fetch_one(&db)
             .await

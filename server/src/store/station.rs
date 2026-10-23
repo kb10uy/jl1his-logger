@@ -15,6 +15,8 @@ use crate::{
 
 const NOT_DEFAULTS: &[&str] = &["CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE", "STATION_CALLSIGN"];
 
+const EQUIPMENT: &[&str] = &["MY_RIG", "MY_ANTENNA", "TX_PWR"];
+
 const SELECT: &str = "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at FROM stations";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -62,6 +64,16 @@ struct Normalized {
 
 fn normalize(input: &StationInput) -> Result<Normalized, StoreError> {
     let name = store_name("a Station", &input.name)?;
+    if let Some(name) = input
+        .fields
+        .keys()
+        .map(|name| name.to_ascii_uppercase())
+        .find(|name| EQUIPMENT.contains(&name.as_str()))
+    {
+        return Err(StoreError::Invalid(format!(
+            "{name} belongs to an Instrument, not a Station"
+        )));
+    }
     let fields = defaults(&input.fields, NOT_DEFAULTS, "a Station default")?;
     Ok(Normalized {
         name: name.to_owned(),
@@ -293,6 +305,9 @@ mod tests {
     #[case::call("call", "x")]
     #[case::bad_name("My:City", "x")]
     #[case::repeated("MY_CITY", "Shiba")]
+    #[case::rig("my_rig", "IC-705")]
+    #[case::antenna("MY_ANTENNA", "")]
+    #[case::power("TX_PWR", "5")]
     #[tokio::test]
     async fn refuses_identity_fields_as_defaults(#[case] name: &str, #[case] value: &str) {
         let world = World::new().await;

@@ -5,23 +5,21 @@ export const MAIN_FIELDS = [
     { name: 'MY_CITY', label: 'City' },
     { name: 'MY_STATE', label: 'Prefecture / state' },
     { name: 'MY_CNTY', label: 'JCC / JCG' },
-    { name: 'MY_DXCC', label: 'DXCC entity' },
-    { name: 'MY_RIG', label: 'Rig' }
+    { name: 'MY_DXCC', label: 'DXCC entity' }
 ] as const;
 
 export const EXTRA_FIELDS = [
-    { name: 'MY_ANTENNA', label: 'Antenna' },
     { name: 'MY_SIG', label: 'Special activity' },
     { name: 'MY_SIG_INFO', label: 'Special activity info' },
     { name: 'MY_IOTA', label: 'IOTA' },
     { name: 'MY_WWFF_REF', label: 'WWFF' },
     { name: 'MY_CQ_ZONE', label: 'CQ zone' },
     { name: 'MY_ITU_ZONE', label: 'ITU zone' },
-    { name: 'TX_PWR', label: 'Power' },
     { name: 'OPERATOR', label: 'Operator' }
 ] as const;
 
 const RESERVED = new Set(['CALL', 'QSO_DATE', 'TIME_ON', 'BAND', 'MODE', 'STATION_CALLSIGN']);
+const EQUIPMENT = new Set(['MY_RIG', 'MY_ANTENNA', 'TX_PWR']);
 const MAIN = new Set<string>([...MAIN_FIELDS.map((f) => f.name), 'MY_POTA_REF']);
 
 export interface StationDraft {
@@ -90,6 +88,7 @@ export function stationProblem(draft: StationDraft): string | undefined {
         if (key === '') continue;
         if (!/^[A-Z][A-Z0-9_]*$/.test(key)) return `${name} is not an ADIF field name.`;
         if (RESERVED.has(key)) return `${key} cannot be a Station default.`;
+        if (EQUIPMENT.has(key)) return `${key} belongs to an Instrument.`;
         if (MAIN.has(key) || names.has(key)) return `${key} is listed twice.`;
         names.add(key);
     }

@@ -25,12 +25,7 @@ const TEXT_FIELDS: &[(&str, &str)] = &[
     ("sig_info", "MY_SIG_INFO"),
 ];
 
-const NUMBER_FIELDS: &[(&str, &str)] = &[
-    ("dxcc", "MY_DXCC"),
-    ("cq", "MY_CQ_ZONE"),
-    ("itu", "MY_ITU_ZONE"),
-    ("power", "TX_PWR"),
-];
+const NUMBER_FIELDS: &[(&str, &str)] = &[("dxcc", "MY_DXCC"), ("cq", "MY_CQ_ZONE"), ("itu", "MY_ITU_ZONE")];
 
 pub async fn list(State(state): State<Arc<AppState>>, Wl2Access(access): Wl2Access) -> Result<Json<Value>, Wl2Error> {
     let mut conn = state.db.acquire().await?;
@@ -64,6 +59,7 @@ fn body(wavelog_id: i64, station: Station) -> Value {
     for (key, name) in NUMBER_FIELDS {
         body.insert((*key).into(), field(name).map_or(Value::Null, number));
     }
+    body.insert("power".into(), Value::Null);
     body.insert("active".into(), false.into());
     Value::Object(body)
 }
@@ -113,14 +109,9 @@ mod tests {
                     ("MY_CQ_ZONE", "25"),
                     ("MY_STATE", "13"),
                     ("MY_CNTY", "100110"),
-                    ("TX_PWR", "0.5"),
                 ],
             ),
-            (
-                "Portable",
-                Some(9),
-                vec![("MY_POTA_REF", "JP-0001,JP-0002"), ("TX_PWR", "50")],
-            ),
+            ("Portable", Some(9), vec![("MY_POTA_REF", "JP-0001,JP-0002")]),
             ("Archived", Some(4), vec![]),
             ("New", None, vec![]),
         ] {
@@ -153,13 +144,13 @@ mod tests {
                     "id": 3, "uuid": created[0].id, "name": "Home", "callsign": "JL1HIS",
                     "gridsquare": "PM95", "city": "杉並区", "country": null, "state": "13", "cnty": "100110",
                     "iota": null, "sota": null, "wwff": null, "pota": null, "sig": null, "sig_info": null,
-                    "dxcc": 339, "cq": 25, "itu": null, "power": 0.5, "active": false
+                    "dxcc": 339, "cq": 25, "itu": null, "power": null, "active": false
                 },
                 {
                     "id": 9, "uuid": created[1].id, "name": "Portable", "callsign": "JL1HIS",
                     "gridsquare": null, "city": null, "country": null, "state": null, "cnty": null,
                     "iota": null, "sota": null, "wwff": null, "pota": "JP-0001,JP-0002", "sig": null,
-                    "sig_info": null, "dxcc": null, "cq": null, "itu": null, "power": 50, "active": false
+                    "sig_info": null, "dxcc": null, "cq": null, "itu": null, "power": null, "active": false
                 },
             ])
         );

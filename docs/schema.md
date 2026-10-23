@@ -102,7 +102,8 @@ A Station Location of a Logbook.
   QSO, keyed by their ADIF name (`MY_GRIDSQUARE`, `MY_CITY`, `MY_STATE`,
   `MY_CNTY`, `MY_POTA_REF`, `MY_SIG`, `MY_SIG_INFO`, `MY_DXCC`, ...). The
   web UI edits them as form fields; the server does not need columns for
-  them because nothing searches Stations by them.
+  them because nothing searches Stations by them. `MY_RIG`, `MY_ANTENNA`
+  and `TX_PWR` are never among them; they belong to `instruments`.
 - `wavelog_id` is the integer ID the Station had in Wavelog, unique within
   the Logbook, so that `/wl2` clients keep their `station_id` setting.
   `NULL` for Stations created here.

@@ -264,7 +264,7 @@ pub(crate) mod testing {
             fields: BTreeMap::from([
                 ("my_city".to_owned(), "Minato".to_owned()),
                 ("MY_CNTY".to_owned(), "100103".to_owned()),
-                ("MY_RIG".to_owned(), String::new()),
+                ("MY_SIG".to_owned(), String::new()),
             ]),
         }
     }

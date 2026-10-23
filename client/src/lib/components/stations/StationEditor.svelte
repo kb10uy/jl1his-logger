@@ -287,8 +287,6 @@
             />
             <span class="text-xs text-muted">Prefecture / state choices follow this</span>
         </div>
-        {@render labelFor('st-MY_RIG', 'Rig', 'MY_RIG')}
-        <input id="st-MY_RIG" class="control h-10" bind:value={draft.main.MY_RIG} />
 
         {#each draft.extra as field, i (i)}
             {#if label(field.name)}

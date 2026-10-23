@@ -41,7 +41,8 @@ archived, ordered by that ID.
 | `name`, `callsign` | The Station's name and callsign |
 | `gridsquare`, `city`, `country`, `state`, `cnty` | `MY_GRIDSQUARE`, `MY_CITY`, `MY_COUNTRY`, `MY_STATE`, `MY_CNTY` |
 | `iota`, `sota`, `wwff`, `pota`, `sig`, `sig_info` | `MY_IOTA`, `MY_SOTA_REF`, `MY_WWFF_REF`, `MY_POTA_REF`, `MY_SIG`, `MY_SIG_INFO` |
-| `dxcc`, `cq`, `itu`, `power` | `MY_DXCC`, `MY_CQ_ZONE`, `MY_ITU_ZONE`, `TX_PWR` as numbers |
+| `dxcc`, `cq`, `itu` | `MY_DXCC`, `MY_CQ_ZONE`, `MY_ITU_ZONE` as numbers |
+| `power` | Always `null`; TX power belongs to Instruments, which `/wl2` does not know |
 | `active` | Always `false`; there is no active Station here |
 
 A field the Station does not have is `null`.
@@ -86,7 +87,8 @@ named in any case. Values are strings or numbers. `qso_date` may be
 `YYYY-MM-DD` or `YYYYMMDD`, and `freq` and `freq_rx` are in hertz, as Wavelog
 takes them; they are stored as ADIF (`20261020`, `7.0415`). The Station's
 callsign and defaults are baked in as on the native API, and `OPERATOR`
-defaults to the token user's callsign. Missing `DXCC`, `CQZ`, `ITUZ` and
+defaults to the token user's callsign. A QSO logged here has no Instrument, so
+only the `MY_RIG`, `MY_ANTENNA` and `TX_PWR` the client sends are kept. Missing `DXCC`, `CQZ`, `ITUZ` and
 `CONT` are filled from the reference data as on the native API, after the ID
 is derived, so a resend keeps its ID when the reference data changes.
 

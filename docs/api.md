@@ -140,7 +140,8 @@ are relative to `/api/logbooks/{logbook_id}`.
 
 The callsign is upper-cased and field names are read ignoring case; an empty
 value leaves the field out. `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`, `MODE` and
-`STATION_CALLSIGN` cannot be defaults. A `wavelog_id` another Station has is
+`STATION_CALLSIGN` cannot be defaults, and `MY_RIG`, `MY_ANTENNA` and `TX_PWR`
+belong to Instruments, so a Station with any of them is `400`. A `wavelog_id` another Station has is
 `409`.
 
 Editing a Station never changes past QSOs. A rewrite does: it covers the
