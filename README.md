@@ -115,7 +115,7 @@ jl1his-logger export write qsl-card --qsl-sent R,Q -o cards.adi
 jl1his-logger export apply <batch>                                # mark them sent
 jl1his-logger token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
 jl1his-logger reference install cty cty.dat                       # version from its =VER entry
-jl1his-logger reference install dxcc dxcc.toml --version 2026-10
+jl1his-logger reference install dxcc assets/dxcc.toml --version 2026-10
 jl1his-logger reference list
 jl1his-logger settings list                                       # instance settings (admin)
 ```
