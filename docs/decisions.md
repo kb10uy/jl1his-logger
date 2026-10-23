@@ -6,18 +6,12 @@ The outcome of the design review as of 2026-10-23: the direction for jl1his-logg
 
 - Today Wavelog is the single source of truth for contacts. QSOs are recorded through its API and web UI, then exported as ADIF and fed to eQSL, contest summary sheets, QSL card generation and POTA.
 - Wavelog does far more than this use needs, and its web UI is unsatisfying.
-- The related projects and what they depend on in Wavelog:
-  - wavelog-tools: `GET qso?format=adif` (with filters), `GET catalog` (subdivisions)
-  - hislog: `POST qso`, `GET qso?format=adif&since_id=&page=`, `GET station`, `GET lookup?detail=basic`, `GET catalog?topic=contest`. Keeps an unsent queue and treats a duplicate response (`400 validation_error` with `details.duplicate`) as sent. Sends no UUID
-  - speech-to-qso: `POST qso`, `GET station`, `GET qso` (ADIF, previous contacts, `callsign_match=plain`). Drops the client ID when forwarding
-  - grayline: `GET lookup`. Chooses v2 by the `wl2_` prefix of the token. Reads ADIF lengths in bytes
-  - qso-tools: takes ADIF as its only input. Requires FREQ. Reads parks from `MY_POTA_REF`. Lengths are bytes by default, with `--lenient codepoints` available
-- Only four Wavelog API resources are in use: `qso`, `station`, `lookup` and `catalog`.
+- Only four Wavelog API resources are needed: `qso`, `station`, `lookup` and `catalog`.
 
 ## Structure
 
 - A new, separate repository (this one) holding one server, one SQLite database and a same-origin SPA / PWA.
-- The server is Rust + axum; the client is SvelteKit. The authentication (passkeys), delivery and offline entry of speech-to-qso serve as the reference.
+- The server is Rust + axum; the client is SvelteKit.
 - One SQLite database. Set WAL and `busy_timeout`, and keep write transactions short.
 - The server is one package: no workspace. `domain` stays free of the database, network and file system by convention and review. It is split into a crate of its own only when another binary or repository needs it, or when build times call for it.
 - The query syntax of Search is the one shared crate, `query/` beside `server/`: a path dependency of the server, without a workspace, and compiled to WASM with `wasm-bindgen` (its `wasm` feature) for the client. It holds parsing a query and matching a row, with the `call_base` rule matching needs, and nothing else; the server turns the parsed terms into SQL. It has no dependencies outside the `wasm` feature, so no `regex`, and the module is about 70 KB. The client builds it with `wasm-pack` before it builds itself, and loads it asynchronously before the first query.
@@ -30,11 +24,11 @@ The outcome of the design review as of 2026-10-23: the direction for jl1his-logg
 - Confirmation state (paper QSL, eQSL and LoTW held separately).
 - Reference data: cty.dat, frequencies and bands, modes and submodes, subdivisions, POTA parks.
 - lookup: entity information from cty.dat and previous contacts in the own log (name / grid / QTH).
-- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry (absorbing speech-to-qso), Station Location editing, ADIF import and export, bulk QSL state changes.
+- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry, Station Location editing, ADIF import and export, bulk QSL state changes.
 
 ## Dropped
 
-Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld), contest modules (qso-tools has loggen), awards (when needed, tallied from ADIF with qso-tools), satellites, themes, organization hierarchies and fine-grained permissions.
+Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, awards, satellites, themes, organization hierarchies and fine-grained permissions.
 
 ## Decisions
 
@@ -72,7 +66,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### FREQ and Parks
 
-- A QSO without FREQ can be saved. qso-tools is to be changed to make FREQ optional. The server, imports and the `/wl2` layer never fill in a representative frequency.
+- A QSO without FREQ can be saved. The server, imports and the `/wl2` layer never fill in a representative frequency.
 - In the web client's editors (live entry, voice entry, QSO editing), choosing a band sets the frequency field to that band's representative frequency, overwriting what was there, and typing a frequency moves the band to the one containing it. The representative frequencies are a client table next to the band table, each inside its band (for example 7.000, 14.000, 18.100, 144.000 and 430.000 MHz). A frequency outside every band leaves the band alone.
 - Several parks are one row in the store, with several references in `MY_POTA_REF`; the POTA submission export projects one record per park with `MY_SIG_INFO` expanded. QSOs are not duplicated.
 
@@ -101,7 +95,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Sign-in and Credentials
 
 - `public_origin` requires a DNS hostname for WebAuthn. IP addresses are refused during configuration validation; local development uses `http://localhost`.
-- Sessions, API tokens and registration tokens are random 256-bit values; only their SHA-256 is stored. A `wl2` token for grayline carries the `wl2_` prefix as part of its plaintext.
+- Sessions, API tokens and registration tokens are random 256-bit values; only their SHA-256 is stored. A `wl2` token issued with the `wl2_` prefix carries it as part of its plaintext.
 - A session lasts 30 days and is extended on use: at most once a day, its use is recorded and its expiry pushed to 30 days from now, but never past 90 days from its creation; after that the user signs in again. Signing out deletes it. A session records the `User-Agent` it was created with (at most 256 characters), so a user can tell their sessions apart, list them and revoke any of them; an admin can do the same for another user.
 - A token's kind decides which API it opens: a `native` token works only on the native API, a `wl2` token only under `/wl2`.
 - Issuing a token requires a Membership in every Logbook of its scopes. A token is revoked by its user or by an admin; an owner cannot revoke the tokens of the Logbook's members.
@@ -109,7 +103,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - A registration token is valid for 24 hours unless the CLI gives another period. Issuing one for a user invalidates that user's unused ones.
 - A registration link is `public_origin/register#<token>`. The token is in the fragment, so it never reaches the server's request logs; the client sends it in the registration request.
 - Re-registration only adds a passkey. A lost passkey is removed with a separate deletion. A user cannot delete their own last passkey; an admin can delete another user's last one.
-- WebAuthn ceremony state is kept in memory, as in speech-to-qso. The store keeps the `Passkey` as JSON and does not depend on webauthn-rs.
+- WebAuthn ceremony state is kept in memory. The store keeps the `Passkey` as JSON and does not depend on webauthn-rs.
 - A ceremony is used once and expires after 5 minutes. At most 10 000 are in flight; one started past that evicts the oldest, so a flood of unauthenticated sign-in starts slows only itself down instead of refusing everyone with `429`. Request rate limits are the reverse proxy's. A restart drops the ceremonies and the browser starts again.
 - Passkeys are discoverable credentials: registration requires a resident key and user verification, and sign-in asks for no callsign. The WebAuthn user handle is the user ID; a passkey whose row belongs to another user than its handle, or to a disabled user, does not sign in.
 - Reading and verifying a passkey, updating its signature counter and creating a session run in one write transaction, so concurrent sign-ins cannot accept a stale counter.
@@ -168,22 +162,22 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 
 ### Wavelog API v2 Compatibility Layer
 
-- Mounted under the path prefix `/wl2`. Setting a client's base URL to `https://host/wl2` makes `/wl2/index.php/api/v2/...` reach it. `/wl2/api/v2/lookup` is also exposed as an alias for grayline.
+- Mounted under the path prefix `/wl2`. Setting a client's base URL to `https://host/wl2` makes `/wl2/index.php/api/v2/...` reach it. `/wl2/api/v2/lookup` is also exposed as an alias.
 - Branching on the Host subdomain is possible with axum but not adopted.
-- A compatibility token is fixed to one Logbook when issued. Tokens for grayline are issued with the `wl2_` prefix.
+- A compatibility token is fixed to one Logbook when issued. It can be issued with the `wl2_` prefix, by which some clients choose API v2.
 - Each Station keeps its old Wavelog integer ID as a mapping, so existing clients keep their `station_id` setting unchanged.
-- Only what the local clients depend on is matched: `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`, `format=adif`, `400 validation_error` with `details.duplicate` on duplicates, `lookup?detail=basic`, and the `contest` and `subdivisions` topics of `catalog`.
-- The compatibility `since_id` is fixed to the insertion `seq`. Differential sync of edits and deletions is enabled for clients that have moved to the native API.
-- A legacy `POST qso` carries no UUID, so its ID is derived from the record as an import does (see ADIF Import): a UUID v7 from the QSO time and the SHA-256 of the Logbook ID, the Station UUID and the record's fields after conversion, as the first occurrence. The Station UUID scopes the ID without depending on mutable Station defaults. A resend of the same body meets the row it created, deleted or not, and is answered `400 validation_error` with `details.duplicate`, which hislog counts as sent. A possible duplicate found by the heuristic is still created. The answer's `id` is the row's `seq`.
+- Only a subset is matched: `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`, `format=adif`, `400 validation_error` with `details.duplicate` on duplicates, `lookup?detail=basic`, and the `contest` and `subdivisions` topics of `catalog`.
+- The compatibility `since_id` is fixed to the insertion `seq`. Differential sync of edits and deletions belongs to the native API.
+- A legacy `POST qso` carries no UUID, so its ID is derived from the record as an import does (see ADIF Import): a UUID v7 from the QSO time and the SHA-256 of the Logbook ID, the Station UUID and the record's fields after conversion, as the first occurrence. The Station UUID scopes the ID without depending on mutable Station defaults. A resend of the same body meets the row it created, deleted or not, and is answered `400 validation_error` with `details.duplicate`, so a client resending after a lost answer can count it as sent. A possible duplicate found by the heuristic is still created. The answer's `id` is the row's `seq`.
 
 ### ADIF Input and Output
 
-- Lengths are codepoints by default; bytes can be chosen as an export option. qso-tools is given `--lenient codepoints`.
+- Lengths are codepoints by default; bytes can be chosen as an export option.
 - A field name is what the ADIF specification allows: ASCII letters, digits and underscores, starting with a letter, read ignoring case and stored upper-cased. `EOR` and `EOH` are not field names. A record with another name (a `USERDEF` name with spaces, say) is refused, on entry and in an import.
 - A field value is at most 2048 bytes and a QSO has at most 1024 fields outside the columns; the names of passkeys, tokens, Stations and Logbooks are at most 2048 bytes. The bounds are checked where a `Qso` is built and again when it is checked before a write, so nothing larger is stored. A filter lists at most 100 values.
 - Reading uses adif-reader (github.com/kb10uy/adif-reader).
 - The writer moves into adif-reader as a `write` module of the same crate once the migration rehearsal has settled the export output, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
-- Apart from the query crate (see Structure), no shared crate is split out; for now everything stays within this repository. Replacing hislog / qso-tools / grayline is a separate task after things stabilize.
+- Apart from the query crate (see Structure), no shared crate is split out; for now everything stays within this repository.
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
 - An export records the target UUIDs and `revision`s as a batch, and after the external processing only the matching rows of that batch are updated.
@@ -223,7 +217,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Use SSE. Do not use WebSocket.
 - The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a restart a client that keeps a copy of the Logbook passes its stored cursor as `?after=`.
 - Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
-- A client that keeps a copy (hislog after its move to the native API) syncs initially by taking the maximum `updated_seq` at start as H, fetching everything, then reading `after H`. Rows that arrive twice are upserts and therefore harmless.
+- A client that keeps a copy syncs initially by taking the maximum `updated_seq` at start as H, fetching everything, then reading `after H`. Rows that arrive twice are upserts and therefore harmless.
 - The web client keeps no copy (see Search) and no cursor across reloads. It opens the stream, which starts at the latest `updated_seq`, then runs its query. An event updates a loaded row in place by its ID. A row that stops matching stays where it is, marked, until the query runs again. A new row that matches is inserted in order without moving the scroll position. A new row outside the query is only counted, in a small "N new outside this query" next to the list. A changed cursor generation reruns the query.
 - Attach `keep_alive` to axum's `Sse`.
 - A stream opens with a `hello` event carrying the cursor generation and the latest `updated_seq`. Successful state-changing requests wake every stream at once, except those under `/api/auth`, which anyone can call and which would otherwise let an anonymous caller make every stream reread. At most 64 streams are open per server; a further one is refused with `503` and the client retries later. The streams also poll every 10 seconds, which picks up writes the CLI makes from another process and ends the stream of a caller who lost the Logbook or whose session expired or was deleted. Session checks do not renew the session. A stream queues at most one page of 500 QSOs and rechecks authorization on writes and polling deadlines even while sending that queue. Streams discard queued events when the server shuts down, so graceful shutdown does not wait on them.
@@ -242,21 +236,18 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - Entry keeps only its own QSOs. Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue with the reason, which the screen shows; the user sends the queue explicitly or discards an entry, and nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send.
 - The service worker caches the app shell, so the PWA starts offline; it never caches `/api` or `/wl2`.
 
-### Position of the Clients
+### Live and Voice Entry
 
-- speech-to-qso: absorbed into the web UI. The voice entry screen becomes one screen of the PWA, and the offline queue is shared with Live entry.
-- Voice entry shares Live entry's per-device settings (Station, frequency, band, mode and contest, the serial included), so switching between the two screens carries them over. The spoken QSL requests keep speech-to-qso's mapping: "requested" sets `QSL_SENT = R`, "one way" sets `QSL_SENT = N` and `QSL_RCVD = R`, and JCC / JCG go to `CNTY`.
+- Voice entry is one screen of the PWA and shares the offline queue with Live entry.
+- Voice entry shares Live entry's per-device settings (Station, frequency, band, mode and contest, the serial included), so switching between the two screens carries them over. The spoken QSL requests map as follows: "requested" sets `QSL_SENT = R`, "one way" sets `QSL_SENT = N` and `QSL_RCVD = R`, and JCC / JCG go to `CNTY`.
 - Live entry has a collapsed extra fields panel: `TX_PWR` (watts), `NOTES`, and any other ADIF 3.1.8 QSO field that is not import-only, or an `APP_` field, typed by name. A field the form already has, `STATION_CALLSIGN`, an unknown name or a name given twice blocks logging. A value given there overrides the Station's baked value, such as its `TX_PWR`. TX power stays for the next QSO while the screen is open; notes and the other fields are cleared with the QSO.
 - Speech recognition is Vosk in the browser. The models are not in the repository: `client/scripts/setup-vosk.sh` (also `pnpm run models`) or `client/scripts/setup-vosk.ps1` downloads them into `client/static/models`, and puts each model's vocabulary into `client/.vosk` for the vocabulary tests, which read it when `VOSK_WORDS_EN` or `VOSK_WORDS_JA` is not set. The server serves them with the app, and the browser keeps a loaded model in IndexedDB so voice entry works offline. The service worker does not precache them. The Vosk worker is copied out of `vosk-browser` into `static/vosk-worker.js` at build time and started as a same-origin worker, so the page's CSP needs neither `blob:` workers nor `unsafe-eval`.
-- hislog: moves to the native API after implementing a persistent unsent queue with UUIDs.
-- grayline: lookup compatibility for the time being. Moving to the native API is low priority.
-- wavelog-tools: export / subdivisions compatibility for the time being. Moves once the native CLI is complete.
 
 ### Reference Data
 
 - Updates are done with CLI subcommands (fetch, verify, switch versions). The web UI only shows the version.
 - `reference install <kind> <file>` installs a file the admin has downloaded or written: it parses and checks the file, puts it where the configuration points (through a staging file and a rename), and records the version with the file's SHA-256 in `reference_versions`. Validation and database update errors preserve the previously installed file and version; if committing fails after replacement, the CLI restores the previous file (or removes the new file on a first installation). The server fetches nothing over the network. The version of `cty.dat` comes from its `=VER` entry unless one is given; the others default to the UTC date of the installation.
-- The kinds are `cty` (AD1C `cty.dat`), `dxcc`, `subdivisions` and `parks`. `cty.dat` carries no ADIF DXCC entity codes, so `dxcc` is a TOML table from the primary prefixes `cty.dat` declares (`JA`, `JD/o`) to the codes. It was generated once and committed as `assets/dxcc.toml` for `reference install dxcc`; the generator is not kept. Wavelog's `dxcc_entities` is filled at run time and ships empty, so the source was the `dxcc_master` table of its `install.sql`: each `cty.dat` entity took the code whose current prefix or name matched, checked against the names of the ADIF 3.1.8 DXCC Entity Code enumeration, and the two it did not match (`PY0S`, `PY0T`) were set by hand. All 340 current entities have a code, each used once, none deleted. `subdivisions` (`[339]` tables of codes and names) and `parks` (`JP-0001 = { name_en, name_ja }`) use the formats qso-tools reads.
+- The kinds are `cty` (AD1C `cty.dat`), `dxcc`, `subdivisions` and `parks`. `cty.dat` carries no ADIF DXCC entity codes, so `dxcc` is a TOML table from the primary prefixes `cty.dat` declares (`JA`, `JD/o`) to the codes. It was generated once and committed as `assets/dxcc.toml` for `reference install dxcc`; the generator is not kept. Wavelog's `dxcc_entities` is filled at run time and ships empty, so the source was the `dxcc_master` table of its `install.sql`: each `cty.dat` entity took the code whose current prefix or name matched, checked against the names of the ADIF 3.1.8 DXCC Entity Code enumeration, and the two it did not match (`PY0S`, `PY0T`) were set by hand. All 340 current entities have a code, each used once, none deleted. `subdivisions` (`[339]` tables of codes and names) and `parks` (`JP-0001 = { name_en, name_ja }`) are TOML as well.
 - The server reads a data set when it is first needed and keeps it until the version or checksum recorded for its kind changes, so an installation by the CLI takes effect without a restart. A file that no longer matches its recorded checksum is an error rather than being served. A kind that was never installed is simply absent: lookup answers without the entity, and the subdivision catalog is `404`.
 - DXCC and zones already recorded on existing QSOs are not changed automatically by a reference data update.
 - The native API serves the subdivisions of one DXCC entity from the installed `subdivisions` data, so that the client offers `STATE` and `MY_STATE` as a choice (prefectures for 339): `GET /api/reference/subdivisions/{dxcc}` answers `[{code, name}]` ordered by code, to any signed-in user as the versions are. An entity without subdivisions is an empty list and the kind not installed is `404`; in both cases the client falls back to free text. The lookup is shared with the `subdivisions` topic of the `/wl2` catalog.
@@ -277,7 +268,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 ### Lookup
 
 - The native lookup, `GET /api/logbooks/{id}/lookup?call=`, returns the `cty.dat` entity (name, ADIF DXCC code when `dxcc` is installed, continent, CQ and ITU zones, position) and the previous contacts in that Logbook matched by `call_base`: the latest non-empty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA` and `QSL_VIA` under their ADIF names, the number of QSOs and the time of the last one. It can be narrowed to Stations.
-- The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response. hislog uses the native one once it moves.
+- The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response.
 - The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Offline Entry).
 
 ## Implementation Order (Draft)
@@ -285,5 +276,4 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 1. Contracts and fixtures: IDs and resends, settling the own station information, Japanese text and lengths in ADIF, QSL values, compatibility responses, the permission table.
 2. Core and CLI: Logbook / Membership / Station / QSO, setup, import preview and apply, export, backup.
 3. Read compatibility and the web UI: station / lookup / catalog / ADIF, log list and editing, Live entry and voice entry, SSE, bulk QSL changes.
-4. Reworking the writing clients: hislog's persistent UUID queue, absorbing speech-to-qso.
-5. Migration rehearsal and cutover: export Wavelog's ADIF per Station and import it, then compare the ADIF for qcgen / loggen / POTA.
+4. Migration rehearsal and cutover: export Wavelog's ADIF per Station and import it, then compare the exported ADIF for QSL cards, contest logs and POTA.

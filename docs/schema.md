@@ -53,7 +53,7 @@ without an access.
   keeps their rows and `created_by` / `updated_by` references but cannot sign
   in.
 - `passkeys` is one row per registered credential. `passkey` is the
-  webauthn-rs `Passkey` serialized as JSON, as in speech-to-qso;
+  webauthn-rs `Passkey` serialized as JSON;
   `credential_id` is kept separately so that an assertion can find its row.
 - `registration_tokens` back the one-time registration URLs: the first admin
   from `setup`, invitations of new users and passkey re-registration. The
@@ -143,7 +143,7 @@ columns, never written by clients, never exported.
 
 | Column | Definition |
 | --- | --- |
-| `call_base` | `call` uppercased with portable prefixes and suffixes removed (`JL1HIS/1`, `JL1HIS/P` and `JA1XYZ/QRP` give `JL1HIS` and `JA1XYZ`). The home callsign is the longest slash-separated segment, the first one on a tie (`KH6/W1AW` gives `W1AW`, `VP2E/W1AW` gives `VP2E`), the same rule qso-tools routes cards by. Previous-contact lookup, plain callsign search and duplicate candidates use it. |
+| `call_base` | `call` uppercased with portable prefixes and suffixes removed (`JL1HIS/1`, `JL1HIS/P` and `JA1XYZ/QRP` give `JL1HIS` and `JA1XYZ`). The home callsign is the longest slash-separated segment, the first one on a tie (`KH6/W1AW` gives `W1AW`, `VP2E/W1AW` gives `VP2E`). Previous-contact lookup, plain callsign search and duplicate candidates use it. |
 | `qso_time` | `qso_date` + `time_on` as Unix seconds in UTC. `time_on` with four digits counts as `:00`. Sorting, time range filters and duplicate detection use it. |
 | `freq_hz` | `freq` (MHz, decimal string) as integer Hz, or `NULL`. |
 
@@ -188,7 +188,7 @@ A token belongs to a user and is limited to the Logbooks listed in
 `api_token_scopes`. `kind` is `native` or `wl2`. A `wl2` token has exactly
 one scope row, which is the Logbook its compatibility requests are fixed to;
 the application enforces the count. Whether the plaintext started with `wl2_`
-(grayline) is a formatting choice at issue time and is not stored; the
+is a formatting choice at issue time and is not stored; the
 prefix is part of the plaintext that is hashed. `kind` decides the API a
 token opens: `native` the native API, `wl2` only `/wl2`. Every scope needs a
 Membership of the user when the token is issued, and access revalidates the
@@ -229,8 +229,8 @@ row changes, and the web UI reads this table to show the versions.
 ## Not in the schema
 
 - **Contest catalog** for `/wl2` `catalog?topic=contest`: served from the
-  distinct `contest_id` values of the Logbook, so no table. If hislog needs
-  names, this becomes a reference data set.
+  distinct `contest_id` values of the Logbook, so no table. If names are
+  needed, this becomes a reference data set.
 - **Bands and modes**: compiled into the server, shared with the client's
   tables.
 - **Import staging**: the CLI import previews and applies in one process.

@@ -5,9 +5,8 @@ web app, built to replace [Wavelog](https://www.wavelog.org/) as the single sour
 of truth that eQSL, contest submissions, QSL cards and POTA are fed from.
 
 Wavelog does far more than this station needs, and its web interface is not what
-the operator wants to type into. This project keeps the four API resources the
-station's own clients actually use (`qso`, `station`, `lookup`, `catalog`), speaks
-ADIF in and out, and drops the rest: no dashboards, maps, DX cluster, QRZ lookups,
+the operator wants to type into. This project keeps four of its API resources
+(`qso`, `station`, `lookup`, `catalog`), speaks ADIF in and out, and drops the rest: no dashboards, maps, DX cluster, QRZ lookups,
 CAT control, contest modules, awards or satellites.
 
 The design is recorded in [docs/decisions.md](docs/decisions.md). The server so far
@@ -27,25 +26,14 @@ repository is going to hold.
 - Looks up a callsign's DXCC entity from `cty.dat` and the station's own previous
   QSOs with it (name, grid, QTH).
 - Serves a SvelteKit PWA on the same origin: log list and search, single-QSO
-  editing, live QSO entry, push-to-talk voice entry (absorbing
-  [speech-to-qso](https://github.com/kb10uy/speech-to-qso)), Station Location
-  editing, ADIF import and export, and bulk QSL changes.
-- Offers a Wavelog API v2 compatible layer under `/wl2` so the existing clients
-  keep working until they move to the native API.
+  editing, live QSO entry, push-to-talk voice entry, Station Location editing,
+  ADIF import and export, and bulk QSL changes.
+- Offers a Wavelog API v2 compatible layer under `/wl2` so clients written for
+  Wavelog keep working.
 
 Users sign in with passkeys only. Instance roles are `admin` and `user`; Logbook
 roles are `owner` and `operator`. API tokens belong to a user and are scoped to
 Logbooks.
-
-## Clients
-
-| Client | Today | Plan |
-| --- | --- | --- |
-| [hislog](https://github.com/kb10uy/hislog) | Wavelog API: `POST qso`, `GET qso?format=adif&since_id=`, `GET station`, `GET lookup`, `GET catalog` | `/wl2` until it has a persistent UUID queue, then the native API |
-| speech-to-qso | Wavelog API: `POST qso`, `GET station`, `GET qso` | Absorbed into this web app |
-| [grayline](https://github.com/kb10uy/grayline) | Wavelog API: `GET lookup` with a `wl2_` token | `/wl2/api/v2/lookup` for the foreseeable future |
-| [wavelog-tools](https://github.com/kb10uy/wavelog-tools) | Wavelog API: `GET qso?format=adif`, `GET catalog` (subdivisions) | `/wl2` until the native CLI covers export and subdivisions |
-| [qso-tools](https://github.com/kb10uy/qso-tools) | ADIF only | Unchanged; fed by this server's ADIF export with `--lenient codepoints` |
 
 ## Layout
 
@@ -125,7 +113,7 @@ jl1his-logger --as JL1HIS import lotwreport.adi --source lotw --apply --rejects 
 jl1his-logger --as JL1HIS export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
 jl1his-logger --as JL1HIS export write qsl-card --qsl-sent R,Q -o cards.adi
 jl1his-logger --as JL1HIS export apply <batch>                                # mark them sent
-jl1his-logger --as JL1HIS token issue grayline --kind wl2 --wl2-prefix --logbook JL1HIS
+jl1his-logger --as JL1HIS token issue wavelog --kind wl2 --wl2-prefix --logbook JL1HIS
 jl1his-logger --as JL1HIS reference install cty cty.dat                       # version from its =VER entry
 jl1his-logger --as JL1HIS reference install dxcc assets/dxcc.toml --version 2026-10
 jl1his-logger --as JL1HIS reference list

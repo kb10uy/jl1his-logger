@@ -98,7 +98,7 @@
             <input
                 id="tok-name"
                 class="control h-10"
-                placeholder="hislog"
+                placeholder="Logger"
                 autocomplete="off"
                 bind:value={name}
             />
@@ -137,7 +137,7 @@
                 <span class="max-md:hidden"></span>
                 <label class="flex cursor-pointer items-center gap-2 text-[13px]">
                     <input type="checkbox" bind:checked={prefix} />
-                    Start with <code class="font-mono">wl2_</code> for grayline
+                    Start with <code class="font-mono">wl2_</code>
                 </label>
             {/if}
         </div>

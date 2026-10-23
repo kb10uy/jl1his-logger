@@ -17,7 +17,7 @@ The repository contains:
   reference data, backup). Serves `client/build` on one origin.
 - `client/`: SvelteKit + Svelte 5 (runes) + TypeScript, built with
   `adapter-static` as a client-only SPA/PWA. Log list and search, QSO editing,
-  live entry, voice entry (taken over from speech-to-qso), Station Location
+  live entry, voice entry, Station Location
   editing, ADIF import and export, bulk QSL changes.
 - `query/`: the query syntax of the log list as a Rust crate (parsing and
   matching a row), used by the server and compiled to WASM for the client.
@@ -85,12 +85,12 @@ or another shared crate.
   Logbook's Stations and Memberships but creates no users. `operator` edits
   and deletes anyone's QSOs. API tokens belong to a User and are scoped to
   Logbooks; the plaintext is shown once.
-- **The `/wl2` layer matches only what the station's clients use**:
+- **The `/wl2` layer matches a subset of Wavelog API v2**:
   `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`,
   `format=adif`, `400 validation_error` with `details.duplicate`,
   `lookup?detail=basic`, and the `contest` and `subdivisions` catalog topics.
-  `/wl2/api/v2/lookup` is an alias for grayline. Compatibility tokens are
-  fixed to one Logbook, prefixed `wl2_` for grayline. Compatibility `since_id`
+  `/wl2/api/v2/lookup` is an alias. Compatibility tokens are fixed to one
+  Logbook, optionally prefixed `wl2_`. Compatibility `since_id`
   is the insertion `seq`. Stations keep a mapping to their old Wavelog
   integer IDs. No Host-based routing.
 - **Reference data** (`cty.dat`, bands, modes, subdivisions, POTA parks) is

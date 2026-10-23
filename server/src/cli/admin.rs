@@ -589,7 +589,7 @@ pub enum TokenCommand {
         name: String,
         #[arg(long, value_enum, default_value_t = TokenKindArg::Native, help = "The API the token opens")]
         kind: TokenKindArg,
-        #[arg(long, help = "Prefix a wl2 token with wl2_, as grayline expects")]
+        #[arg(long, help = "Prefix a wl2 token with wl2_")]
         wl2_prefix: bool,
         #[arg(
             long = "logbook",

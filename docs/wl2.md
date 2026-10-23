@@ -1,10 +1,9 @@
 # Wavelog API v2 Compatibility Layer (Draft)
 
-The existing clients (hislog, speech-to-qso, grayline, wavelog-tools) keep
-talking Wavelog API v2 to jl1his-logger until they move to the native API.
-Their base URL becomes `public_origin/wl2`, so their requests arrive at
-`/wl2/index.php/api/v2/<resource>`; lookup is also at `/wl2/api/v2/lookup`,
-where grayline tries first. Only what these clients use is matched; see
+Clients written for Wavelog API v2 can talk to jl1his-logger through this
+layer. Their base URL becomes `public_origin/wl2`, so their requests arrive at
+`/wl2/index.php/api/v2/<resource>`; lookup is also at `/wl2/api/v2/lookup`.
+Only a subset of the API is matched; see
 "Wavelog API v2 Compatibility Layer" in [decisions.md](decisions.md).
 
 ## Requests and Errors
@@ -103,7 +102,7 @@ does not change how a resend is recognized. A new QSO is `201`:
 
 `id` is the QSO's `seq`, the number `since_id` counts. Sending the same body
 again, after a lost answer or after the QSO was deleted, creates nothing and is
-answered as Wavelog answers a duplicate, which hislog counts as sent:
+answered as Wavelog answers a duplicate:
 
 ```json
 { "error": { "code": "validation_error", "message": "Duplicate QSO",
@@ -166,7 +165,7 @@ Wavelog scopes are not modelled; a `wl2` token may use everything here.
 | `GET station` | Partly | Only Stations with a Wavelog ID that are not archived. `active` is always `false` |
 | `GET station/{id}`, `POST`, `PATCH`, `DELETE station` | No | Stations are managed by owners through the native API and the CLI |
 | `GET qso?format=adif` | Partly | Insertion order by `seq`. `per_page` defaults to 1000. `qsl_filter` refuses `qrz` and `clublog`. `limit` is ignored |
-| `GET qso?callsign_match=plain` | Yes | Not in Wavelog's documentation; an extension of the kb10uy/wavelog fork that speech-to-qso uses |
+| `GET qso?callsign_match=plain` | Yes | Not in Wavelog's documentation; an extension of the kb10uy/wavelog fork |
 | `GET qso` as JSON (`format=json`, Wavelog's default) | No | `400`; ADIF is the only format the clients read |
 | `GET qso/{id}`, `PATCH qso/{id}`, `DELETE qso/{id}` | No | Edits go through the native API, which checks the revision |
 | `POST qso` with one JSON QSO | Partly | `freq` and `freq_rx` must be whole hertz, without a unit suffix such as `7.0475M`. `time_on` must be ADIF (`HHMM`, `HHMMSS`), not `HH:MM`. The answer is `{id, uuid}` rather than the whole QSO, with no `Location` header. A resend is a duplicate, answered as described above |
@@ -184,4 +183,4 @@ Wavelog scopes are not modelled; a `wl2` token may use everything here.
 | `confirmation` | No | QSL state is read from the QSO's ADIF fields |
 | `contest` | No | There is no contest table |
 | `club`, `clubstation` | No | Club stations are Logbooks with Memberships |
-| API v1 (`/api/qso` with the key in the body, `/api/station_info/{key}` and the rest) | No | Not served; WSJT-X is to be bridged to the native API instead |
+| API v1 (`/api/qso` with the key in the body, `/api/station_info/{key}` and the rest) | No | Not served |

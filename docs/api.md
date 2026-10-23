@@ -81,8 +81,8 @@ manage tokens.
 
 The plaintext is shown only in the response that issues it. Every Logbook in
 `logbook_ids` needs a Membership of the user, or it is `404`. A `wl2` token has
-exactly one Logbook; `wl2_prefix` starts its plaintext with `wl2_`, as grayline
-expects. Another user's token is `404` for anyone but an admin.
+exactly one Logbook; `wl2_prefix` starts its plaintext with `wl2_`, by which
+some clients choose API v2. Another user's token is `404` for anyone but an admin.
 
 ## Callers
 
