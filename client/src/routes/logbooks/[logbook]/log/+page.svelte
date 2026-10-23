@@ -7,13 +7,16 @@
     import { ApiError } from '#lib/api/client.ts';
     import type { Fields, Qso, Target } from '#lib/api/types.ts';
     import BulkEdit from '#lib/components/log/BulkEdit.svelte';
+    import ColumnsPanel from '#lib/components/log/ColumnsPanel.svelte';
     import QsoDetail from '#lib/components/log/QsoDetail.svelte';
     import QueryBar from '#lib/components/log/QueryBar.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
+    import { adifFieldOf, column, type Column } from '#lib/log/columns.ts';
     import { applyEvent, replaceRows, undoOf, type Row } from '#lib/log/rows.ts';
+    import { loadColumns, saveColumns } from '#lib/log/settings.ts';
     import { adifDate, count, hhmm, isoDate, parks, rst, utcClock } from '#lib/qso/format.ts';
     import { loadQuery, matcher } from '#lib/query/index.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
@@ -41,6 +44,7 @@
     let fetched = $state<Qso | undefined>(undefined);
     let scroller = $state<HTMLElement>();
     let sentinel = $state<HTMLElement>();
+    let columns = $state(loadColumns());
     let run = 0;
 
     const q = $derived(page.url.searchParams.get('q') ?? '');
@@ -53,6 +57,7 @@
     const openQso = $derived(openRow?.qso ?? (fetched?.id === openId ? fetched : undefined));
     const today = $derived(utcClock(new Date()).date);
     const showBulk = $derived(bulkOpen && n > 0 && desktop.current);
+    const shown = $derived(columns.map(column).filter((c): c is Column => c !== undefined));
 
     onMount(() => {
         loadQuery().then(() => (ready = true));
@@ -287,6 +292,11 @@
         );
     }
 
+    function changeColumns(next: string[]) {
+        columns = next;
+        saveColumns(next);
+    }
+
     const stationOf = (qso: Qso) =>
         [qso.fields.STATION_CALLSIGN, logbook.stationName(qso.station_id)]
             .filter((s) => s)
@@ -320,6 +330,50 @@
     <span class="text-[13px] text-muted">{matchText}</span>
 {/snippet}
 
+{#snippet qsl(sent: string | undefined, rcvd: string | undefined)}
+    <td class="px-3">
+        <QslBadge value={sent} />
+        <span class="ml-1"><QslBadge value={rcvd} /></span>
+    </td>
+{/snippet}
+
+{#snippet cell(id: string, qso: Qso)}
+    {@const f = qso.fields}
+    {#if id === 'time'}
+        <td class="px-3 font-mono"
+            ><span class="text-muted">{isoDate(f.QSO_DATE)}</span> {hhmm(f.TIME_ON)}</td
+        >
+    {:else if id === 'call'}
+        <td class="px-3 font-mono text-sm font-semibold">{f.CALL}</td>
+    {:else if id === 'qsl'}
+        {@render qsl(f.QSL_SENT, f.QSL_RCVD)}
+    {:else if id === 'lotw'}
+        {@render qsl(f.LOTW_QSL_SENT, f.LOTW_QSL_RCVD)}
+    {:else if id === 'eqsl'}
+        {@render qsl(f.EQSL_QSL_SENT, f.EQSL_QSL_RCVD)}
+    {:else if id === 'band'}
+        <td class="px-3 font-mono">{f.BAND}</td>
+    {:else if id === 'freq'}
+        <td class={['px-3 text-right font-mono', !f.FREQ && 'text-muted']}>{f.FREQ || '—'}</td>
+    {:else if id === 'mode'}
+        <td class="px-3">
+            {f.MODE}
+            {#if f.SUBMODE}<span class="text-muted">{f.SUBMODE}</span>{/if}
+        </td>
+    {:else if id === 'rst'}
+        <td class="px-3 font-mono text-muted">{rst(f)}</td>
+    {:else if id === 'txpwr'}
+        <td class="px-3 text-right font-mono">{f.TX_PWR ?? ''}</td>
+    {:else if id === 'station'}
+        <td class="px-3 text-muted">{stationOf(qso)}</td>
+    {:else if id === 'park'}
+        <td class="px-3 font-mono text-info">{parks(f).join(', ')}</td>
+    {:else}
+        {@const value = f[adifFieldOf(id) ?? ''] ?? ''}
+        <td class="max-w-[24rem] truncate px-3" title={value}>{value}</td>
+    {/if}
+{/snippet}
+
 {#snippet status()}
     <div
         bind:this={sentinel}
@@ -350,6 +404,7 @@
                     >{logbook.logbook.name} · {count(logbook.logbook.last_seq, 'QSO')} entered</span
                 >
                 <div class="flex-[1_1_40px]"></div>
+                <ColumnsPanel {columns} onchange={changeColumns} />
                 <Button href={`/logbooks/${logbookId}/import-export`}>Export ADIF</Button>
                 <Button variant="primary" href={`/logbooks/${logbookId}/entry`}>New QSO</Button>
             </div>
@@ -364,9 +419,9 @@
 
         <div class="relative flex min-h-0 flex-1">
             <div bind:this={scroller} class="min-w-0 flex-1 overflow-auto">
-                <table class="w-full min-w-[940px] border-collapse text-[13px]">
+                <table class="w-full border-collapse text-[13px]">
                     <thead class="sticky top-0 z-[1] bg-bg">
-                        <tr class="text-left text-xs text-muted">
+                        <tr class="text-left text-xs text-muted [&>th:last-child]:pr-6">
                             <th scope="col" class="w-12 border-b border-border py-2 pr-2 pl-6">
                                 <input
                                     type="checkbox"
@@ -376,30 +431,15 @@
                                     class="size-4 accent-info"
                                 />
                             </th>
-                            {#each ['Date', 'UTC', 'Call', 'QSL S / R', 'Band'] as h (h)}
+                            {#each shown as c (c.id)}
                                 <th
                                     scope="col"
-                                    class="border-b border-border px-3 py-2 font-medium whitespace-nowrap"
-                                    >{h}</th
+                                    class={[
+                                        'border-b border-border px-3 py-2 font-medium whitespace-nowrap',
+                                        c.right && 'text-right'
+                                    ]}>{c.label}</th
                                 >
                             {/each}
-                            <th
-                                scope="col"
-                                class="border-b border-border px-3 py-2 text-right font-medium whitespace-nowrap"
-                                >Freq MHz</th
-                            >
-                            {#each ['Mode', 'RST S / R', 'Station'] as h (h)}
-                                <th
-                                    scope="col"
-                                    class="border-b border-border px-3 py-2 font-medium whitespace-nowrap"
-                                    >{h}</th
-                                >
-                            {/each}
-                            <th
-                                scope="col"
-                                class="border-b border-border py-2 pr-6 pl-3 font-medium whitespace-nowrap"
-                                >Park</th
-                            >
                         </tr>
                     </thead>
                     <tbody>
@@ -413,7 +453,7 @@
                                     ? 'Changed; no longer matches this query'
                                     : undefined}
                                 class={[
-                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap',
+                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap [&>td:last-child]:pr-6',
                                     isChecked
                                         ? 'bg-selected'
                                         : isOpen
@@ -433,24 +473,9 @@
                                         class="size-4 accent-info"
                                     />
                                 </td>
-                                <td class="px-3 font-mono text-muted">{isoDate(f.QSO_DATE)}</td>
-                                <td class="px-3 font-mono">{hhmm(f.TIME_ON)}</td>
-                                <td class="px-3 font-mono text-sm font-semibold">{f.CALL}</td>
-                                <td class="px-3">
-                                    <QslBadge value={f.QSL_SENT} />
-                                    <span class="ml-1"><QslBadge value={f.QSL_RCVD} /></span>
-                                </td>
-                                <td class="px-3 font-mono">{f.BAND}</td>
-                                <td class={['px-3 text-right font-mono', !f.FREQ && 'text-muted']}
-                                    >{f.FREQ || '—'}</td
-                                >
-                                <td class="px-3">
-                                    {f.MODE}
-                                    {#if f.SUBMODE}<span class="text-muted">{f.SUBMODE}</span>{/if}
-                                </td>
-                                <td class="px-3 font-mono text-muted">{rst(f)}</td>
-                                <td class="px-3 text-muted">{stationOf(row.qso)}</td>
-                                <td class="pr-6 pl-3 font-mono text-info">{parks(f).join(', ')}</td>
+                                {#each shown as c (c.id)}
+                                    {@render cell(c.id, row.qso)}
+                                {/each}
                             </tr>
                         {/each}
                     </tbody>

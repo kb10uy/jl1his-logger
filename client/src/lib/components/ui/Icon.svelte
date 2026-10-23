@@ -17,6 +17,8 @@
         warning: 'M12 3L2 21h20L12 3zM12 10v5M12 18v1',
         back: 'M15 5l-7 7 7 7',
         chevron: 'M6 9l6 6 6-6',
+        grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
+        columns: 'M4 4h16v16H4zM9.5 4v16M14.5 4v16',
         offline:
             'M2 2l20 20M5 12.5a10 10 0 0 1 3.4-2.3M12 8a10 10 0 0 1 7 4.5M8.5 16a5 5 0 0 1 7 0M12 20h.01',
         spinner: 'M12 3a9 9 0 1 0 9 9',
