@@ -62,12 +62,25 @@ struct Normalized {
 
 fn normalize(input: &StationInput) -> Result<Normalized, StoreError> {
     let name = store_name("a Station", &input.name)?;
+    let fields = defaults(&input.fields, NOT_DEFAULTS, "a Station default")?;
+    Ok(Normalized {
+        name: name.to_owned(),
+        callsign: normalize_callsign(&input.callsign)?,
+        fields: serde_json::to_string(&fields).expect("a string map serializes"),
+    })
+}
+
+pub(super) fn defaults(
+    given: &BTreeMap<String, String>,
+    refused: &[&str],
+    what: &str,
+) -> Result<BTreeMap<String, String>, StoreError> {
     let mut fields = BTreeMap::new();
-    for (name, value) in &input.fields {
+    for (name, value) in given {
         let name = field_name(name)?;
         field_value(&name, value)?;
-        if NOT_DEFAULTS.contains(&name.as_str()) {
-            return Err(StoreError::Invalid(format!("{name} cannot be a Station default")));
+        if refused.contains(&name.as_str()) {
+            return Err(StoreError::Invalid(format!("{name} cannot be {what}")));
         }
         if !value.is_empty() && fields.insert(name.clone(), value.clone()).is_some() {
             return Err(StoreError::Invalid(format!("{name} is given more than once")));
@@ -76,11 +89,7 @@ fn normalize(input: &StationInput) -> Result<Normalized, StoreError> {
     if fields.len() > MAX_FIELDS {
         return Err(QsoError::TooManyFields(fields.len()).into());
     }
-    Ok(Normalized {
-        name: name.to_owned(),
-        callsign: normalize_callsign(&input.callsign)?,
-        fields: serde_json::to_string(&fields).expect("a string map serializes"),
-    })
+    Ok(fields)
 }
 
 fn wavelog_id_taken(e: sqlx::Error, wavelog_id: Option<i64>) -> StoreError {

@@ -267,7 +267,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5]);
         assert!(migrated.snapshot.unwrap().is_file());
         let session: (String, Vec<u8>, String, Option<String>) =
             sqlx::query_as("SELECT id, token_hash, last_used_at, user_agent FROM sessions")
@@ -295,6 +295,11 @@ mod tests {
                 Some("2026-10-22T01:00:00Z".into())
             )
         );
+        let qso: (String, i64, Option<String>) = sqlx::query_as("SELECT id, revision, instrument_id FROM qsos")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(qso, ("qso".into(), 3, None));
         let target: (String, String, String, i64) =
             sqlx::query_as("SELECT logbook_id, batch_id, qso_id, revision FROM export_batch_qsos")
                 .fetch_one(&db)
@@ -326,6 +331,8 @@ mod tests {
             "UPDATE export_batches SET kind = 'unknown' WHERE id = 'batch'",
             "UPDATE reference_versions SET kind = 'unknown' WHERE kind = 'cty'",
             "UPDATE export_batch_qsos SET batch_id = 'missing' WHERE batch_id = 'batch'",
+            "UPDATE export_batch_qsos SET qso_id = 'missing' WHERE qso_id = 'qso'",
+            "UPDATE qsos SET instrument_id = 'missing' WHERE id = 'qso'",
         ] {
             assert!(sqlx::query(sql).execute(&db).await.is_err(), "{sql}");
         }

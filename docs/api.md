@@ -13,7 +13,7 @@ the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store
 and carry the security headers listed in [decisions.md](decisions.md).
 
 It covers sign-in, reference versions, API tokens, Logbooks, Members,
-Stations, QSOs with their event stream, bulk QSL changes, export batches and
+Stations, Instruments, QSOs with their event stream, bulk QSL changes, export batches and
 ADIF import. The Wavelog API v2 compatibility layer under `/wl2` is described
 in [wl2.md](wl2.md).
 
@@ -92,7 +92,7 @@ its scopes where its user still has a Membership; a `wl2` token is refused with
 `401`. When `Authorization` is present the cookie is ignored. Sign-in and
 passkey endpoints take the session cookie only.
 
-A Logbook, Station or QSO the caller cannot reach is `404`, the same as one
+A Logbook, Station, Instrument or QSO the caller cannot reach is `404`, the same as one
 that does not exist. A write reserved for owners is `403` for an operator.
 
 ## Logbooks
@@ -148,6 +148,30 @@ Station's live QSOs with a QSO time in `[from, until)` (RFC 3339 times, both
 optional) and sets `STATION_CALLSIGN` and every field of the Station, leaving
 other fields alone. Its `count` must equal what a preview returns now, or it is
 `409` and nothing changes.
+
+## Instruments
+
+An Instrument is `{id, name, my_rig, my_antenna, tx_pwr, fields, archived_at,
+created_at, updated_at}`: the equipment baked into new QSOs as `MY_RIG`,
+`MY_ANTENNA` and `TX_PWR`, each `null` when unset, with `fields` holding other
+defaults that win over the Station's. Any member manages them. Paths are
+relative to `/api/logbooks/{logbook_id}`.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /instruments` | | The Instruments, archived ones last, by name |
+| `GET /instruments/{id}` | | One Instrument |
+| `POST /instruments` | `{name, my_rig?, my_antenna?, tx_pwr?, fields}` | `201` with the Instrument |
+| `PUT /instruments/{id}` | `{name, my_rig?, my_antenna?, tx_pwr?, fields}` | The Instrument |
+| `POST /instruments/{id}/archive` | | The archived Instrument |
+| `DELETE /instruments/{id}/archive` | | The Instrument, no longer archived |
+
+`my_rig`, `my_antenna` and `tx_pwr` are trimmed, and an empty one is `null`.
+`tx_pwr` is a decimal number of watts above zero with at most six decimal
+places, such as `0.5` or `100`; anything else is `400`. Field names are read
+ignoring case and an empty value leaves the field out, as for Stations;
+`MY_RIG`, `MY_ANTENNA`, `TX_PWR`, `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`,
+`MODE` and `STATION_CALLSIGN` cannot be in `fields`.
 
 ## QSOs
 

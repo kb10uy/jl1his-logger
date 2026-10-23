@@ -1,6 +1,7 @@
 pub mod access;
 pub mod export;
 pub mod import;
+pub mod instrument;
 pub mod logbook;
 pub mod membership;
 pub mod passkey;
@@ -117,6 +118,7 @@ pub(crate) mod testing {
     use super::{
         WriteTx,
         access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal, UserAccess},
+        instrument::{self, Instrument, InstrumentInput},
         logbook::{self, Logbook},
         membership,
         station::{self, Station, StationInput},
@@ -222,6 +224,16 @@ pub(crate) mod testing {
             station
         }
 
+        pub async fn instrument(&self, name: &str) -> Instrument {
+            let access = self.access(&self.operator).await;
+            let mut tx = WriteTx::begin(&self.db).await.unwrap();
+            let instrument = instrument::create(&mut tx, &access, &instrument_input(name))
+                .await
+                .unwrap();
+            tx.commit().await.unwrap();
+            instrument
+        }
+
         pub async fn other_logbook(&self) -> (Logbook, LogbookAccess) {
             let admin = self.admin_access().await;
             let mut tx = WriteTx::begin(&self.db).await.unwrap();
@@ -231,6 +243,16 @@ pub(crate) mod testing {
                 .unwrap();
             tx.commit().await.unwrap();
             (other, access)
+        }
+    }
+
+    pub fn instrument_input(name: &str) -> InstrumentInput {
+        InstrumentInput {
+            name: name.into(),
+            my_rig: Some(name.into()),
+            my_antenna: None,
+            tx_pwr: Some("0.5".into()),
+            fields: BTreeMap::new(),
         }
     }
 

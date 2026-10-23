@@ -4,6 +4,7 @@ mod id;
 use std::{collections::BTreeMap, str::FromStr};
 
 use chrono::NaiveDate;
+use jl1his_query::millionths;
 use serde::Serialize;
 
 use crate::domain::{
@@ -124,6 +125,10 @@ impl Qso {
 
     pub fn bake_station(&mut self, callsign: &str, defaults: &BTreeMap<String, String>) -> Result<(), QsoError> {
         self.fill("STATION_CALLSIGN", callsign)?;
+        self.bake(defaults)
+    }
+
+    pub fn bake(&mut self, defaults: &BTreeMap<String, String>) -> Result<(), QsoError> {
         for (name, value) in defaults {
             self.fill(name, value)?;
         }
@@ -233,6 +238,14 @@ pub fn field_name(name: &str) -> Result<String, QsoError> {
     match valid {
         true => Ok(name.to_ascii_uppercase()),
         false => Err(QsoError::FieldName(name.to_owned())),
+    }
+}
+
+pub fn tx_power(value: &str) -> Result<(), QsoError> {
+    let places = value.split_once('.').map_or(0, |(_, fraction)| fraction.len());
+    match places <= 6 && millionths(value).is_some_and(|watts| watts > 0) {
+        true => Ok(()),
+        false => Err(QsoError::invalid("TX_PWR", value)),
     }
 }
 
@@ -547,6 +560,22 @@ pub(crate) mod tests {
         let mut given = sample();
         given.bake_station("JL1HIS/1", &BTreeMap::new()).unwrap();
         assert_eq!(given.get("STATION_CALLSIGN"), Some("JL1HIS"));
+    }
+
+    #[rstest]
+    #[case("100", true)]
+    #[case("0.5", true)]
+    #[case(".25", true)]
+    #[case("0.000001", true)]
+    #[case("0.0000001", false)]
+    #[case("0", false)]
+    #[case("0.000", false)]
+    #[case("QRP", false)]
+    #[case("-5", false)]
+    #[case("1.2.3", false)]
+    #[case("", false)]
+    fn reads_tx_power_as_watts_above_zero(#[case] value: &str, #[case] valid: bool) {
+        assert_eq!(tx_power(value).is_ok(), valid, "{value}");
     }
 
     #[test]

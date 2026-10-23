@@ -4,6 +4,7 @@ mod events;
 mod export;
 mod extract;
 mod import;
+mod instrument;
 mod logbook;
 mod lookup;
 mod member;
@@ -138,6 +139,18 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route(
             "/api/logbooks/{logbook_id}/stations/{id}/rewrite",
             get(station::preview_rewrite).post(station::rewrite),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/instruments",
+            get(instrument::list).post(instrument::create),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/instruments/{id}",
+            get(instrument::get).put(instrument::update),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/instruments/{id}/archive",
+            post(instrument::archive).delete(instrument::unarchive),
         )
         .route("/api/logbooks/{logbook_id}/qsl", post(export::update_qsl))
         .route(

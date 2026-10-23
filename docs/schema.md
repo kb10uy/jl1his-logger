@@ -30,10 +30,10 @@ decisions.md.
   and `PRAGMA busy_timeout` on open. Foreign keys are only enforced when the
   pragma is on, so it is part of the connection options, not the migration.
 - **Logbook ownership** is enforced with composite foreign keys: a QSO and
-  its Station belong to the same Logbook, as do an export batch and all its
-  QSOs. The referenced tables have `UNIQUE (logbook_id, id)` constraints.
+  its Station and Instrument belong to the same Logbook, as do an export
+  batch and all its QSOs. The referenced tables have `UNIQUE (logbook_id, id)` constraints.
 - Rows are not deleted where the design says archive or disable: `stations`
-  are archived (`archived_at`), `users` are disabled (`disabled_at`) and
+  and `instruments` are archived (`archived_at`), `users` are disabled (`disabled_at`) and
   `qsos` get a tombstone (`deleted_at`). Deleting a Logbook is the one
   destructive operation; it cascades to everything the Logbook owns.
 
@@ -109,6 +109,20 @@ A Station Location of a Logbook.
 - `archived_at` hides the Station from entry and from `/wl2` `GET station`
   (`active = false`). QSOs keep pointing at archived Stations.
 
+### `instruments`
+
+The equipment of a Logbook: a rig, an antenna and a default TX power,
+independent of the Station.
+
+- `my_rig`, `my_antenna` and `tx_pwr` become `MY_RIG`, `MY_ANTENNA` and
+  `TX_PWR` of a QSO entered with the Instrument, where the QSO has none;
+  `NULL` leaves the field unfilled. `tx_pwr` is a decimal number of watts
+  above zero.
+- `fields` is the JSON map of other defaults, keyed by their ADIF name like
+  a Station's. They are baked in before the Station's, so they win over it.
+- `archived_at` hides the Instrument from entry. QSOs keep pointing at
+  archived Instruments.
+
 ### `qsos`
 
 One row per QSO, including deleted ones.
@@ -119,6 +133,7 @@ One row per QSO, including deleted ones.
 | --- | --- |
 | `id` | Client-generated UUID v7. `POST` with an existing ID returns this row. |
 | `logbook_id`, `station_id` | The Logbook and the Station Location. `station_id` is for classification and search only; the ADIF values are in the row. |
+| `instrument_id` | The Instrument, or `NULL` for none. Like `station_id`, it classifies the row; the ADIF values are in the row. |
 | `seq` | Insertion order within the Logbook. The `/wl2` `since_id`. |
 | `updated_seq` | Update order within the Logbook; also set on insert and on delete. The SSE event `id` and the differential cursor. |
 | `revision` | Starts at 1 and increments on every update. An update must send the revision it is based on. |
@@ -160,6 +175,7 @@ key references.
 | `(logbook_id, call, qso_time)` | Searching an exact `call`. |
 | `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. `call` is stored as it arrived, so its index cannot answer that. |
 | `(logbook_id, station_id, qso_time)` | Per-Station listing and export. |
+| `(logbook_id, instrument_id, qso_time)` | Per-Instrument listing and rewrites. |
 | `(logbook_id, qsl_sent)` | The QSL work queue. |
 
 **Write flow.** In one short transaction opened with `BEGIN IMMEDIATE`, so

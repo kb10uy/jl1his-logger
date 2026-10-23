@@ -454,7 +454,7 @@ mod tests {
 
         let held = lock(&path).unwrap();
         let restored = restore(&held, &path, &source).await.unwrap();
-        assert_eq!(restored.migrated.applied, [2, 3, 4]);
+        assert_eq!(restored.migrated.applied, [2, 3, 4, 5]);
         assert!(restored.migrated.snapshot.unwrap().is_file());
         assert!(restored.snapshot.unwrap().is_file());
         assert_eq!(fs::read(&source).unwrap(), saved);
