@@ -40,7 +40,7 @@ pub enum Command {
     User(admin::UserCommand),
     #[command(subcommand, about = "Manages Logbooks")]
     Logbook(admin::LogbookCommand),
-    #[command(subcommand, about = "Manages the members of a Logbook (owner)")]
+    #[command(subcommand, about = "Lists the members of a Logbook, or manages them (owner)")]
     Member(admin::MemberCommand),
     #[command(subcommand, about = "Manages the Stations of a Logbook (owner)")]
     Station(admin::StationCommand),

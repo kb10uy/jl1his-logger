@@ -104,6 +104,8 @@ an ID or a name, and may be left out when there is only one.
 ```sh
 export CLI_CALLSIGN=JL1HIS
 jl1his-logger logbook add JL1HIS --owner JL1HIS
+jl1his-logger member set JA1OPR operator --logbook JL1HIS
+jl1his-logger member list --logbook JL1HIS
 jl1his-logger station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95 --wavelog-id 1
 jl1his-logger import wavelog.adi --source new --station Home      # preview
 jl1his-logger import wavelog.adi --source new --station Home --apply

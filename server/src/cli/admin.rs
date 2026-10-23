@@ -278,6 +278,11 @@ impl From<MemberRoleArg> for LogbookRole {
 
 #[derive(Subcommand)]
 pub enum MemberCommand {
+    #[command(about = "Lists the members of a Logbook")]
+    List {
+        #[arg(long, help = "Logbook ID or name; may be left out if you have only one")]
+        logbook: Option<String>,
+    },
     #[command(about = "Adds a member or changes their role")]
     Set {
         callsign: String,
@@ -295,8 +300,21 @@ pub enum MemberCommand {
 }
 
 pub async fn member(context: &Context<'_>, command: MemberCommand) -> CliResult<()> {
-    let (MemberCommand::Set { logbook, callsign, .. } | MemberCommand::Remove { logbook, callsign }) = &command;
+    let (logbook, callsign) = match &command {
+        MemberCommand::List { logbook } => (logbook, None),
+        MemberCommand::Set { logbook, callsign, .. } | MemberCommand::Remove { logbook, callsign } => {
+            (logbook, Some(callsign))
+        }
+    };
     let access = context.logbook_access(logbook.as_deref()).await?;
+    let Some(callsign) = callsign else {
+        let mut conn = context.db.acquire().await?;
+        for member in membership::list(&mut conn, &access).await? {
+            let state = if member.disabled { "disabled" } else { "active" };
+            println!("{}\t{}\t{state}", member.callsign, member.role.as_str());
+        }
+        return Ok(());
+    };
     let mut tx = WriteTx::begin(context.db).await?;
     let member = find_user(&mut tx, callsign).await?;
     let owner = access.owner()?;
@@ -315,6 +333,7 @@ pub async fn member(context: &Context<'_>, command: MemberCommand) -> CliResult<
             tx.commit().await?;
             println!("Removed {} from the Logbook", member.callsign);
         }
+        MemberCommand::List { .. } => unreachable!("listed above"),
     }
     Ok(())
 }
