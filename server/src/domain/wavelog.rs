@@ -19,12 +19,7 @@ pub fn qso_from_body(body: &Map<String, Value>) -> Result<Qso, QsoError> {
             Value::Null => continue,
             Value::String(s) => s.clone(),
             Value::Number(n) => n.to_string(),
-            _ => {
-                return Err(QsoError::Invalid {
-                    name: "field",
-                    value: format!("{key}: {value}"),
-                });
-            }
+            _ => return Err(QsoError::invalid(key, value.to_string())),
         };
         let value = match name.as_str() {
             "QSO_DATE" | "QSO_DATE_OFF" => date(&value),
@@ -49,14 +44,12 @@ fn frequency(name: &'static str, value: &str) -> Result<String, QsoError> {
         .trim()
         .parse::<u64>()
         .map(format_frequency_mhz)
-        .map_err(|_| QsoError::Invalid {
-            name,
-            value: value.to_owned(),
-        })
+        .map_err(|_| QsoError::invalid(name, value))
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use serde_json::json;
 
     use super::*;
@@ -104,15 +97,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn refuses_what_is_not_an_adif_value() {
-        for value in [
-            json!({ "freq": "7.041" }),
-            json!({ "call": ["JA1XYZ"] }),
-            json!({ "call": "JA1XYZ", "CALL": "JA1XYZ" }),
-            json!({ "my:city": "Minato" }),
-        ] {
-            assert!(qso_from_body(&body(value.clone())).is_err(), "{value}");
-        }
+    #[rstest]
+    #[case::frequency_in_mhz(json!({ "freq": "7.041" }), QsoError::invalid("FREQ", "7.041"))]
+    #[case::array(json!({ "call": ["JA1XYZ"] }), QsoError::invalid("call", "[\"JA1XYZ\"]"))]
+    #[case::repeated(json!({ "call": "JA1XYZ", "CALL": "JA1XYZ" }), QsoError::Repeated("CALL".into()))]
+    #[case::bad_name(json!({ "my:city": "Minato" }), QsoError::FieldName("MY:CITY".into()))]
+    fn refuses_what_is_not_an_adif_value(#[case] value: Value, #[case] error: QsoError) {
+        assert_eq!(qso_from_body(&body(value)), Err(error));
     }
 }

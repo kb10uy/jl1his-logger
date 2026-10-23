@@ -35,10 +35,7 @@ impl RecordIds {
             .ok()
             .and_then(|seconds| seconds.checked_mul(1000))
             .filter(|millis| *millis <= MAX_UNIX_MILLIS)
-            .ok_or_else(|| QsoError::Invalid {
-                name: "QSO_DATE",
-                value: record.get("QSO_DATE").unwrap_or_default().to_owned(),
-            })?;
+            .ok_or_else(|| QsoError::invalid("QSO_DATE", record.get("QSO_DATE").unwrap_or_default()))?;
 
         let content: [u8; 32] = Sha256::digest(canonical(record)).into();
         let occurrence = self.seen.entry(content).or_default();
@@ -76,7 +73,7 @@ fn put(out: &mut Vec<u8>, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::qso::tests::sample;
+    use crate::domain::qso::tests::{sample, with};
 
     fn time_of(id: QsoId) -> String {
         id.to_string()[..13].to_owned()
@@ -122,8 +119,7 @@ mod tests {
         let id = RecordIds::new("log").next(&sample()).unwrap();
         assert_ne!(RecordIds::new("other").next(&sample()).unwrap(), id);
 
-        let mut edited = sample();
-        edited.set("RST_SENT", Some("579".into())).unwrap();
+        let edited = with(&[("RST_SENT", "579")]);
         assert_ne!(RecordIds::new("log").next(&edited).unwrap(), id);
 
         let mut ids = RecordIds::new("log");
@@ -143,11 +139,10 @@ mod tests {
 
     #[test]
     fn refuses_a_qso_before_the_epoch() {
-        let mut old = sample();
-        old.set("QSO_DATE", Some("19691231".into())).unwrap();
-        assert!(matches!(
+        let old = with(&[("QSO_DATE", "19691231")]);
+        assert_eq!(
             RecordIds::new("log").next(&old),
-            Err(QsoError::Invalid { name: "QSO_DATE", .. })
-        ));
+            Err(QsoError::invalid("QSO_DATE", "19691231"))
+        );
     }
 }

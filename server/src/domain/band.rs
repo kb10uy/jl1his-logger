@@ -91,8 +91,33 @@ pub fn format_frequency_mhz(hz: u64) -> String {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use serde::Deserialize;
 
     use super::*;
+
+    #[derive(Deserialize)]
+    struct Fixture {
+        bands: Vec<FixtureBand>,
+    }
+
+    #[derive(Deserialize)]
+    struct FixtureBand {
+        band: String,
+        lower_hz: u64,
+        upper_hz: u64,
+    }
+
+    #[test]
+    fn matches_the_shared_band_table() {
+        let fixture: Fixture = serde_json::from_str(include_str!("../../../fixtures/reference/bands.json")).unwrap();
+        let bands: Vec<(&str, u64, u64)> = BANDS.iter().map(|b| (b.name, b.lower_hz, b.upper_hz)).collect();
+        let expected: Vec<(&str, u64, u64)> = fixture
+            .bands
+            .iter()
+            .map(|b| (b.band.as_str(), b.lower_hz, b.upper_hz))
+            .collect();
+        assert_eq!(bands, expected);
+    }
 
     #[rstest]
     #[case(7_041_500, "7.0415")]

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use callfind::cty::{CtyDatabase, CtyError, Resolution};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::domain::qso::{Qso, QsoError};
 
@@ -66,42 +66,43 @@ pub fn parse_cty(text: &str) -> Result<Cty, ReferenceError> {
 }
 
 pub fn parse_dxcc(text: &str) -> Result<DxccCodes, ReferenceError> {
-    let codes: DxccCodes = toml::from_str(text)?;
-    if codes.is_empty() {
-        return Err(ReferenceError::Invalid("the DXCC table is empty".into()));
-    }
-    Ok(codes)
+    table(text, "DXCC")
 }
 
 pub fn parse_subdivisions(text: &str) -> Result<Subdivisions, ReferenceError> {
-    let tables: BTreeMap<String, BTreeMap<String, String>> = toml::from_str(text)?;
-    let mut subdivisions = Subdivisions::new();
-    for (dxcc, names) in tables {
-        let code = dxcc
-            .trim()
-            .parse()
-            .map_err(|_| ReferenceError::Invalid(format!("{dxcc:?} is not a DXCC entity code")))?;
-        let names = names
-            .into_iter()
-            .map(|(state, name)| (state.trim().to_ascii_uppercase(), name))
-            .collect();
-        subdivisions.insert(code, names);
-    }
-    if subdivisions.is_empty() {
-        return Err(ReferenceError::Invalid("the subdivision table is empty".into()));
-    }
-    Ok(subdivisions)
+    let tables: BTreeMap<String, BTreeMap<String, String>> = table(text, "subdivision")?;
+    tables
+        .into_iter()
+        .map(|(dxcc, names)| {
+            let code = dxcc
+                .trim()
+                .parse()
+                .map_err(|_| ReferenceError::Invalid(format!("{dxcc:?} is not a DXCC entity code")))?;
+            let names = names
+                .into_iter()
+                .map(|(state, name)| (state.trim().to_ascii_uppercase(), name))
+                .collect();
+            Ok((code, names))
+        })
+        .collect()
 }
 
 pub fn parse_parks(text: &str) -> Result<Parks, ReferenceError> {
-    let parks: Parks = toml::from_str(text)?;
-    if parks.is_empty() {
-        return Err(ReferenceError::Invalid("the park table is empty".into()));
-    }
-    Ok(parks)
+    table(text, "park")
 }
 
-pub fn dxcc_code(codes: &DxccCodes, resolution: &Resolution<'_>) -> Option<u32> {
+fn table<K: Ord + DeserializeOwned, V: DeserializeOwned>(
+    text: &str,
+    what: &str,
+) -> Result<BTreeMap<K, V>, ReferenceError> {
+    let table: BTreeMap<K, V> = toml::from_str(text)?;
+    match table.is_empty() {
+        true => Err(ReferenceError::Invalid(format!("the {what} table is empty"))),
+        false => Ok(table),
+    }
+}
+
+fn dxcc_code(codes: &DxccCodes, resolution: &Resolution<'_>) -> Option<u32> {
     codes.get(&resolution.entity.primary_prefix).copied()
 }
 
@@ -209,13 +210,14 @@ Ogasawara:                27:  45:  AS:   27.05:  -142.20:    -9.0:  JD/o:
     }
 
     #[rstest]
-    #[case::not_cty(parse_cty("Japan\n").err())]
-    #[case::empty_cty(parse_cty("").err())]
-    #[case::empty_dxcc(parse_dxcc("").err())]
-    #[case::text_code(parse_dxcc("JA = \"339\"\n").err())]
-    #[case::text_entity(parse_subdivisions("[Japan]\n01 = \"Hokkaido\"\n").err())]
-    #[case::empty_parks(parse_parks("").err())]
-    fn refuses_malformed_tables(#[case] error: Option<ReferenceError>) {
-        assert!(error.is_some());
+    #[case::not_cty(parse_cty("Japan\n").is_err())]
+    #[case::empty_cty(parse_cty("").is_err())]
+    #[case::empty_dxcc(parse_dxcc("").is_err())]
+    #[case::text_code(parse_dxcc("JA = \"339\"\n").is_err())]
+    #[case::text_entity(parse_subdivisions("[Japan]\n01 = \"Hokkaido\"\n").is_err())]
+    #[case::empty_subdivisions(parse_subdivisions("").is_err())]
+    #[case::empty_parks(parse_parks("").is_err())]
+    fn refuses_malformed_tables(#[case] refused: bool) {
+        assert!(refused);
     }
 }

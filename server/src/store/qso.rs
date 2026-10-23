@@ -672,7 +672,8 @@ pub async fn possible_duplicates(
     access.revalidate(conn).await?;
     let key = DuplicateKey::of(qso)?;
     let sql = format!(
-        "{} WHERE logbook_id = ? AND call_base = ? AND qso_time BETWEEN ? AND ? AND deleted_at IS NULL          ORDER BY qso_time, id",
+        "{} WHERE logbook_id = ? AND call_base = ? AND qso_time BETWEEN ? AND ? AND deleted_at IS NULL \
+         ORDER BY qso_time, id",
         *SELECT
     );
     let rows = sqlx::query(AssertSqlSafe(sql))
@@ -910,7 +911,7 @@ mod tests {
         invalid.qso.set("BAND", Some("41m".into())).unwrap();
         assert!(matches!(
             create(&mut tx, &access, &QsoId::generate(), invalid).await,
-            Err(StoreError::Qso(QsoError::Invalid { name: "BAND", .. }))
+            Err(StoreError::Qso(QsoError::Invalid { name, .. })) if name == "BAND"
         ));
 
         let mut conn = world.db.acquire().await.unwrap();

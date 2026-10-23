@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashSet};
 use crate::{
     db::Db,
     domain::{
-        confirmation::{self, MatchKey, Source},
+        confirmation::{self, Source},
         duplicate::DuplicateKey,
         import::RecordIds,
         qso::{InvalidQsoId, Qso, QsoError, QsoId, Warning},
@@ -164,7 +164,7 @@ pub async fn merge(
                 continue;
             }
         };
-        let key = match MatchKey::of(&record) {
+        let key = match DuplicateKey::of(&record) {
             Ok(key) => key,
             Err(e) => {
                 reject(&mut report, e.to_string(), Some(record));
@@ -184,7 +184,9 @@ pub async fn merge(
         let mut after = None;
         loop {
             let page = qso::search(&mut conn, access, &filter, after.as_ref(), CANDIDATES).await?;
-            candidates.extend(page.rows.into_iter().filter(|row| key.matches(&row.qso)));
+            candidates.extend(page.rows.into_iter().filter(|row| {
+                DuplicateKey::of(&row.qso).is_ok_and(|other| key.matches(&other) && key.same_station(&other))
+            }));
             match page.next {
                 Some(next) => after = Some(next),
                 None => break,

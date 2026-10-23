@@ -38,10 +38,7 @@ pub fn check(field: &'static str, value: &str) -> Result<(), QsoError> {
     };
     match valid {
         true => Ok(()),
-        false => Err(QsoError::Invalid {
-            name: field,
-            value: value.to_owned(),
-        }),
+        false => Err(QsoError::invalid(field, value)),
     }
 }
 

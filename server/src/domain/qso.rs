@@ -19,13 +19,22 @@ pub enum QsoError {
     #[error("{0} is required")]
     Missing(&'static str),
     #[error("{name} {value:?} is not valid")]
-    Invalid { name: &'static str, value: String },
+    Invalid { name: String, value: String },
     #[error("{0:?} is not a valid ADIF field name")]
     FieldName(String),
     #[error("{0} is given more than once")]
     Repeated(String),
     #[error("{0} belongs in the QSO columns, not the extra fields")]
     ColumnField(String),
+}
+
+impl QsoError {
+    pub fn invalid(name: impl Into<String>, value: impl Into<String>) -> QsoError {
+        QsoError::Invalid {
+            name: name.into(),
+            value: value.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -96,16 +105,7 @@ impl Qso {
     }
 
     pub fn set(&mut self, name: &str, value: Option<String>) -> Result<(), QsoError> {
-        let name = field_name(name)?;
-        match value {
-            Some(value) => self.put(name, value),
-            None => match self.columns.slot(&name) {
-                Some(slot) => *slot = None,
-                None => {
-                    self.fields.remove(&name);
-                }
-            },
-        }
+        self.put(field_name(name)?, value.unwrap_or_default());
         Ok(())
     }
 
@@ -149,29 +149,25 @@ impl Qso {
         let mode_name = required("MODE")?;
         required("STATION_CALLSIGN")?;
 
-        let invalid = |name: &'static str, value: &str| QsoError::Invalid {
-            name,
-            value: value.to_owned(),
-        };
         let call_base = callsign::base(call);
         if call_base.is_empty() {
-            return Err(invalid("CALL", call));
+            return Err(QsoError::invalid("CALL", call));
         }
         let qso_time = self.qso_time()?;
-        let band = Band::named(band_name).ok_or_else(|| invalid("BAND", band_name))?;
+        let band = Band::named(band_name).ok_or_else(|| QsoError::invalid("BAND", band_name))?;
 
         let mut warnings: Vec<Warning> = mode::warning(mode_name, self.get("SUBMODE")).into_iter().collect();
         let freq_hz = match self.get("FREQ") {
             None => None,
             Some(freq) => {
-                let hz = parse_frequency_hz(freq).ok_or_else(|| invalid("FREQ", freq))?;
+                let hz = parse_frequency_hz(freq).ok_or_else(|| QsoError::invalid("FREQ", freq))?;
                 if !band.contains(hz) {
                     warnings.push(Warning::FrequencyOutsideBand {
                         freq: freq.to_owned(),
                         band: band_name.to_owned(),
                     });
                 }
-                Some(i64::try_from(hz).map_err(|_| invalid("FREQ", freq))?)
+                Some(i64::try_from(hz).map_err(|_| QsoError::invalid("FREQ", freq))?)
             }
         };
 
@@ -188,24 +184,10 @@ impl Qso {
     pub fn qso_time(&self) -> Result<i64, QsoError> {
         let date = self.get("QSO_DATE").ok_or(QsoError::Missing("QSO_DATE"))?;
         let time = self.get("TIME_ON").ok_or(QsoError::Missing("TIME_ON"))?;
-        let invalid = |name: &'static str, value: &str| QsoError::Invalid {
-            name,
-            value: value.to_owned(),
-        };
         unix_time(date, time).ok_or_else(|| match parse_date(date) {
-            None => invalid("QSO_DATE", date),
-            Some(_) => invalid("TIME_ON", time),
+            None => QsoError::invalid("QSO_DATE", date),
+            Some(_) => QsoError::invalid("TIME_ON", time),
         })
-    }
-
-    pub fn qsl_required(&self) -> bool {
-        self.get("QSL_SENT")
-            .is_some_and(|v| v.eq_ignore_ascii_case("R") || v.eq_ignore_ascii_case("Q"))
-    }
-
-    pub fn qsl_received(&self) -> bool {
-        self.get("QSL_RCVD")
-            .is_some_and(|v| v.eq_ignore_ascii_case("Y") || v.eq_ignore_ascii_case("V"))
     }
 
     fn put(&mut self, name: String, value: String) {
@@ -275,6 +257,14 @@ pub(crate) mod tests {
             ("STATION_CALLSIGN", "JL1HIS"),
         ])
         .unwrap()
+    }
+
+    pub(crate) fn with(fields: &[(&str, &str)]) -> Qso {
+        let mut qso = sample();
+        for (name, value) in fields {
+            qso.set(name, Some((*value).to_owned())).unwrap();
+        }
+        qso
     }
 
     #[test]
@@ -443,16 +433,8 @@ pub(crate) mod tests {
     #[case("TIME_ON", "+40506")]
     #[case("BAND", "41m")]
     #[case("FREQ", "7.041.5")]
-    fn refuses_values_the_derived_columns_cannot_use(#[case] name: &'static str, #[case] value: &str) {
-        let mut qso = sample();
-        qso.set(name, Some(value.into())).unwrap();
-        assert_eq!(
-            qso.check(),
-            Err(QsoError::Invalid {
-                name,
-                value: value.into()
-            })
-        );
+    fn refuses_values_the_derived_columns_cannot_use(#[case] name: &str, #[case] value: &str) {
+        assert_eq!(with(&[(name, value)]).check(), Err(QsoError::invalid(name, value)));
     }
 
     #[test]
@@ -497,34 +479,6 @@ pub(crate) mod tests {
         let mut given = sample();
         given.bake_station("JL1HIS/1", &BTreeMap::new()).unwrap();
         assert_eq!(given.get("STATION_CALLSIGN"), Some("JL1HIS"));
-    }
-
-    #[rstest]
-    #[case(None, false)]
-    #[case(Some("R"), true)]
-    #[case(Some("Q"), true)]
-    #[case(Some("q"), true)]
-    #[case(Some("Y"), false)]
-    #[case(Some("N"), false)]
-    #[case(Some("I"), false)]
-    fn requires_a_card_when_requested_or_queued(#[case] qsl_sent: Option<&str>, #[case] required: bool) {
-        let mut qso = sample();
-        qso.set("QSL_SENT", qsl_sent.map(str::to_owned)).unwrap();
-        assert_eq!(qso.qsl_required(), required);
-    }
-
-    #[rstest]
-    #[case(None, false)]
-    #[case(Some("Y"), true)]
-    #[case(Some("V"), true)]
-    #[case(Some("y"), true)]
-    #[case(Some("R"), false)]
-    #[case(Some("N"), false)]
-    #[case(Some("I"), false)]
-    fn counts_a_card_received_when_confirmed_or_verified(#[case] qsl_rcvd: Option<&str>, #[case] received: bool) {
-        let mut qso = sample();
-        qso.set("QSL_RCVD", qsl_rcvd.map(str::to_owned)).unwrap();
-        assert_eq!(qso.qsl_received(), received);
     }
 
     #[test]

@@ -35,15 +35,7 @@ mod tests {
     use rstest::rstest;
 
     use super::*;
-    use crate::domain::qso::tests::sample;
-
-    fn with(fields: &[(&str, &str)]) -> Qso {
-        let mut qso = sample();
-        for (name, value) in fields {
-            qso.set(name, Some((*value).to_owned())).unwrap();
-        }
-        qso
-    }
+    use crate::domain::qso::tests::{sample, with};
 
     #[rstest]
     #[case::two_parks(&[("MY_POTA_REF", "JP-0001, JP-0002")], &["JP-0001", "JP-0002"])]
