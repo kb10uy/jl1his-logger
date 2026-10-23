@@ -113,37 +113,8 @@
         aria-label="Main"
         class="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface px-3 py-4 md:flex"
     >
-        <div class="flex flex-col gap-0.5 px-3 pt-1 pb-3.5">
+        <div class="px-3 pt-1 pb-3.5">
             <span class="text-[15px] font-bold">JL1HIS Logger</span>
-            <DropdownMenu.Root>
-                <DropdownMenu.Trigger
-                    class="mt-2 flex h-8 items-center justify-between rounded-md border border-border bg-bg px-2.5 text-[13px]"
-                >
-                    <span class="truncate font-mono font-semibold"
-                        >{logbook?.name ?? 'Logbook'}</span
-                    >
-                    <span class="flex items-center gap-1 text-xs text-muted"
-                        >Logbook <Icon name="chevron" size={12} /></span
-                    >
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                    <DropdownMenu.Content
-                        align="start"
-                        sideOffset={4}
-                        class="z-40 flex min-w-[200px] flex-col rounded-lg border border-border bg-surface p-1 shadow-lg shadow-shadow"
-                    >
-                        {#each session.logbooks as l (l.id)}
-                            <DropdownMenu.Item
-                                onSelect={() => switchTo(l.id)}
-                                class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
-                            >
-                                <span class="font-mono font-semibold">{l.name}</span>
-                                <span class="text-xs text-muted">{l.role}</span>
-                            </DropdownMenu.Item>
-                        {/each}
-                    </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-            </DropdownMenu.Root>
         </div>
         {#each items as item (item.href)}
             <a
@@ -173,6 +144,36 @@
         </a>
         <div class="flex-1"></div>
         <div class="flex flex-col gap-1.5 border-t border-border p-3 text-xs text-muted">
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger
+                    class="mb-1 flex h-8 items-center justify-between rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
+                >
+                    <span class="truncate font-mono font-semibold"
+                        >{logbook?.name ?? 'Logbook'}</span
+                    >
+                    <span class="flex items-center gap-1 text-xs text-muted"
+                        >Logbook <Icon name="chevron" size={12} /></span
+                    >
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                        side="top"
+                        align="start"
+                        sideOffset={4}
+                        class="z-40 flex min-w-[200px] flex-col rounded-lg border border-border bg-surface p-1 shadow-lg shadow-shadow"
+                    >
+                        {#each session.logbooks as l (l.id)}
+                            <DropdownMenu.Item
+                                onSelect={() => switchTo(l.id)}
+                                class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
+                            >
+                                <span class="font-mono font-semibold">{l.name}</span>
+                                <span class="text-xs text-muted">{l.role}</span>
+                            </DropdownMenu.Item>
+                        {/each}
+                    </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+            </DropdownMenu.Root>
             {#if status !== undefined}
                 <span class="flex items-center gap-2"
                     ><span class={['size-2 rounded-full', statusColor]}></span>{statusText}</span
