@@ -16,7 +16,7 @@ use crate::{
         error::ApiError,
         extract::{Json, Query},
         member::{Item, Member},
-        query::range,
+        query::{Count, RangeQuery, RewriteRequest, range},
     },
 };
 
@@ -65,24 +65,6 @@ impl From<StationRequest> for StationInput {
             fields: req.fields,
         }
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RangeQuery {
-    from: Option<String>,
-    until: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RewriteRequest {
-    from: Option<String>,
-    until: Option<String>,
-    count: usize,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Count {
-    count: usize,
 }
 
 pub async fn list(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<Vec<StationBody>>, ApiError> {

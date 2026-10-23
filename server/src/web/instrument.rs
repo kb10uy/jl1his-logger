@@ -14,8 +14,9 @@ use crate::{
     web::{
         AppState,
         error::ApiError,
-        extract::Json,
+        extract::{Json, Query},
         member::{Item, Member},
+        query::{Count, RangeQuery, RewriteRequest, range},
     },
 };
 
@@ -136,12 +137,42 @@ async fn set_archived(
     Ok(Json(instrument.into()))
 }
 
+pub async fn preview_rewrite(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Path(item): Path<Item>,
+    Query(query): Query<RangeQuery>,
+) -> Result<Json<Count>, ApiError> {
+    let range = range(query.from.as_deref(), query.until.as_deref())?;
+    let owner = member.access.owner()?;
+    let mut conn = state.db.acquire().await?;
+    let count = instrument::preview_rewrite(&mut conn, &owner, &item.id, range).await?;
+    Ok(Json(Count { count }))
+}
+
+pub async fn rewrite(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Path(item): Path<Item>,
+    Json(req): Json<RewriteRequest>,
+) -> Result<Json<Count>, ApiError> {
+    let range = range(req.from.as_deref(), req.until.as_deref())?;
+    let owner = member.access.owner()?;
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let count = instrument::rewrite_qsos(&mut tx, &owner, &item.id, range, req.count).await?;
+    tx.commit().await?;
+    Ok(Json(Count { count }))
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{Value, json};
 
     use super::*;
-    use crate::web::testing::{Auth, Harness};
+    use crate::{
+        domain::qso::QsoId,
+        web::testing::{Auth, Harness},
+    };
 
     fn rig() -> Value {
         json!({
@@ -204,5 +235,57 @@ mod tests {
         assert_eq!(list, json!([restored]));
         let (status, fetched) = h.send("GET", &uri, Auth::Session(&operator), None).await;
         assert_eq!((status, fetched), (StatusCode::OK, restored));
+    }
+
+    #[tokio::test]
+    async fn owners_rewrite_past_qsos_by_the_previewed_count() {
+        let h = Harness::new().await;
+        let owner = h.session(&h.world.owner).await;
+        let operator = h.session(&h.world.operator).await;
+        let rig = h.world.instrument("IC-705").await;
+        let mut body = json!({
+            "id": QsoId::generate().to_string(),
+            "station_id": h.station.id,
+            "instrument_id": rig.id,
+            "fields": { "CALL": "JA1XYZ", "QSO_DATE": "20261022", "TIME_ON": "0100", "BAND": "40m", "MODE": "CW" },
+        });
+        let (status, created) = h
+            .send("POST", &h.path("/qsos"), Auth::Session(&operator), Some(body.clone()))
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+        body["id"] = json!(QsoId::generate().to_string());
+        body["instrument_id"] = Value::Null;
+        body["fields"]["TIME_ON"] = json!("0200");
+        h.send("POST", &h.path("/qsos"), Auth::Session(&operator), Some(body))
+            .await;
+
+        let uri = h.path(&format!("/instruments/{}", rig.id));
+        let mut louder = rig_body(&rig.name);
+        louder["tx_pwr"] = json!("10");
+        let (status, _) = h.send("PUT", &uri, Auth::Session(&operator), Some(louder)).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let rewrite = format!("{uri}/rewrite");
+        let (status, _) = h.send("GET", &rewrite, Auth::Session(&operator), None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, preview) = h.send("GET", &rewrite, Auth::Session(&owner), None).await;
+        assert_eq!((status, preview), (StatusCode::OK, json!({ "count": 1 })));
+        let (status, _) = h
+            .send("POST", &rewrite, Auth::Session(&owner), Some(json!({ "count": 2 })))
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        let (status, done) = h
+            .send("POST", &rewrite, Auth::Session(&owner), Some(json!({ "count": 1 })))
+            .await;
+        assert_eq!((status, done), (StatusCode::OK, json!({ "count": 1 })));
+
+        let qso_uri = h.path(&format!("/qsos/{}", created["qso"]["id"].as_str().unwrap()));
+        let (_, rewritten) = h.send("GET", &qso_uri, Auth::Session(&owner), None).await;
+        assert_eq!(rewritten["fields"]["TX_PWR"], "10");
+        assert_eq!(rewritten["revision"], 2);
+    }
+
+    fn rig_body(name: &str) -> Value {
+        json!({ "name": name, "my_rig": name, "tx_pwr": "0.5" })
     }
 }

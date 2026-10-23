@@ -396,6 +396,24 @@ pub async fn update(
     Ok((stored, checked.warnings))
 }
 
+pub(crate) async fn rewrite_all(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    plan: &[(StoredQso, Qso)],
+    expected: usize,
+) -> Result<usize, StoreError> {
+    if plan.len() != expected {
+        return Err(StoreError::Conflict(format!(
+            "{} QSOs would change, not {expected}",
+            plan.len()
+        )));
+    }
+    for (current, rewritten) in plan {
+        rewrite(tx, access, current, rewritten).await?;
+    }
+    Ok(plan.len())
+}
+
 pub(crate) async fn rewrite(
     tx: &mut WriteTx,
     access: &LogbookAccess,
@@ -997,20 +1015,30 @@ async fn check(
     Ok(checked)
 }
 
-pub(crate) async fn of_station(
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Holder<'a> {
+    Station(&'a str),
+    Instrument(&'a str),
+}
+
+pub(crate) async fn held_by(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
-    station_id: &str,
+    holder: Holder<'_>,
     range: TimeRange,
 ) -> Result<Vec<StoredQso>, StoreError> {
+    let (column, id) = match holder {
+        Holder::Station(id) => ("station_id", id),
+        Holder::Instrument(id) => ("instrument_id", id),
+    };
     let sql = format!(
-        "{} WHERE logbook_id = ? AND station_id = ? AND deleted_at IS NULL \
+        "{} WHERE logbook_id = ? AND {column} = ? AND deleted_at IS NULL \
          AND qso_time >= ? AND qso_time < ? ORDER BY qso_time, id",
         *SELECT
     );
     sqlx::query(AssertSqlSafe(sql))
         .bind(access.logbook_id())
-        .bind(station_id)
+        .bind(id)
         .bind(range.from.unwrap_or(i64::MIN))
         .bind(range.until.unwrap_or(i64::MAX))
         .fetch_all(conn)

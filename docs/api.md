@@ -155,8 +155,8 @@ other fields alone. Its `count` must equal what a preview returns now, or it is
 An Instrument is `{id, name, my_rig, my_antenna, tx_pwr, fields, archived_at,
 created_at, updated_at}`: the equipment baked into new QSOs as `MY_RIG`,
 `MY_ANTENNA` and `TX_PWR`, each `null` when unset, with `fields` holding other
-defaults that win over the Station's. Any member manages them. Paths are
-relative to `/api/logbooks/{logbook_id}`.
+defaults that win over the Station's. Any member manages them; only owners
+rewrite their past QSOs. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
@@ -166,6 +166,8 @@ relative to `/api/logbooks/{logbook_id}`.
 | `PUT /instruments/{id}` | `{name, my_rig?, my_antenna?, tx_pwr?, fields}` | The Instrument |
 | `POST /instruments/{id}/archive` | | The archived Instrument |
 | `DELETE /instruments/{id}/archive` | | The Instrument, no longer archived |
+| `GET /instruments/{id}/rewrite?from=&until=` | | `{count}` of past QSOs a rewrite would change; owners only |
+| `POST /instruments/{id}/rewrite` | `{from?, until?, count}` | `{count}` rewritten; owners only |
 
 `my_rig`, `my_antenna` and `tx_pwr` are trimmed, and an empty one is `null`.
 `tx_pwr` is a decimal number of watts above zero with at most six decimal
@@ -173,6 +175,11 @@ places, such as `0.5` or `100`; anything else is `400`. Field names are read
 ignoring case and an empty value leaves the field out, as for Stations;
 `MY_RIG`, `MY_ANTENNA`, `TX_PWR`, `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`,
 `MODE` and `STATION_CALLSIGN` cannot be in `fields`.
+
+Editing an Instrument never changes past QSOs. A rewrite works as a Station's
+does over the QSOs whose `instrument_id` is the Instrument: it sets `MY_RIG`,
+`MY_ANTENNA` and `TX_PWR` where the Instrument has them, and every field of
+its `fields`, leaving the others alone.
 
 ## QSOs
 

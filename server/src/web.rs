@@ -152,6 +152,10 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
             "/api/logbooks/{logbook_id}/instruments/{id}/archive",
             post(instrument::archive).delete(instrument::unarchive),
         )
+        .route(
+            "/api/logbooks/{logbook_id}/instruments/{id}/rewrite",
+            get(instrument::preview_rewrite).post(instrument::rewrite),
+        )
         .route("/api/logbooks/{logbook_id}/qsl", post(export::update_qsl))
         .route(
             "/api/logbooks/{logbook_id}/imports",

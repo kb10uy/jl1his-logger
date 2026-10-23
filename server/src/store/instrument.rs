@@ -3,8 +3,14 @@ use std::collections::BTreeMap;
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
-    domain::qso::{field_value, tx_power},
-    store::{StoreError, WriteTx, access::LogbookAccess, name as store_name, new_id, now, station::defaults},
+    domain::qso::{Qso, field_value, tx_power},
+    store::{
+        StoreError, WriteTx,
+        access::{LogbookAccess, OwnerAccess},
+        name as store_name, new_id, now,
+        qso::{self, Holder, StoredQso, TimeRange},
+        station::defaults,
+    },
 };
 
 const NOT_DEFAULTS: &[&str] = &[
@@ -187,6 +193,49 @@ pub async fn set_archived(
         return Err(StoreError::NotFound("Instrument"));
     }
     fetch(tx, access, id).await
+}
+
+pub async fn preview_rewrite(
+    conn: &mut SqliteConnection,
+    owner: &OwnerAccess<'_>,
+    id: &str,
+    range: TimeRange,
+) -> Result<usize, StoreError> {
+    owner.revalidate(conn).await?;
+    Ok(rewrite_plan(conn, owner, id, range).await?.len())
+}
+
+pub async fn rewrite_qsos(
+    tx: &mut WriteTx,
+    owner: &OwnerAccess<'_>,
+    id: &str,
+    range: TimeRange,
+    expected: usize,
+) -> Result<usize, StoreError> {
+    owner.revalidate(tx).await?;
+    let plan = rewrite_plan(tx, owner, id, range).await?;
+    qso::rewrite_all(tx, owner, &plan, expected).await
+}
+
+async fn rewrite_plan(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    id: &str,
+    range: TimeRange,
+) -> Result<Vec<(StoredQso, Qso)>, StoreError> {
+    let instrument = fetch(conn, access, id).await?;
+    let defaults = instrument.defaults();
+    let mut plan = vec![];
+    for current in qso::held_by(conn, access, Holder::Instrument(&instrument.id), range).await? {
+        let mut rewritten = current.qso.clone();
+        for (name, value) in &defaults {
+            rewritten.set(name, Some(value.clone()))?;
+        }
+        if rewritten != current.qso {
+            plan.push((current, rewritten));
+        }
+    }
+    Ok(plan)
 }
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<Instrument, StoreError> {

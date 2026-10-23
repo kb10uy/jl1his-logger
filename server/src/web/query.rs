@@ -1,6 +1,25 @@
 use chrono::DateTime;
+use serde::{Deserialize, Serialize};
 
 use crate::{store::qso::TimeRange, web::error::ApiError};
+
+#[derive(Debug, Deserialize)]
+pub struct RangeQuery {
+    pub from: Option<String>,
+    pub until: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RewriteRequest {
+    pub from: Option<String>,
+    pub until: Option<String>,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Count {
+    pub count: usize,
+}
 
 pub fn text(query: Option<&str>) -> Result<jl1his_query::Query, ApiError> {
     jl1his_query::Query::parse(query.unwrap_or_default()).map_err(|e| {

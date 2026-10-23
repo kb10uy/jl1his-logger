@@ -8,7 +8,7 @@ use crate::{
         StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
         is_unique_violation, name as store_name, new_id, now,
-        qso::{self, StoredQso, TimeRange},
+        qso::{self, Holder, StoredQso, TimeRange},
         user::normalize_callsign,
     },
 };
@@ -206,16 +206,7 @@ pub async fn rewrite_qsos(
 ) -> Result<usize, StoreError> {
     owner.revalidate(tx).await?;
     let plan = rewrite_plan(tx, owner, id, range).await?;
-    if plan.len() != expected {
-        return Err(StoreError::Conflict(format!(
-            "{} QSOs would change, not {expected}",
-            plan.len()
-        )));
-    }
-    for (current, rewritten) in &plan {
-        qso::rewrite(tx, owner, current, rewritten).await?;
-    }
-    Ok(plan.len())
+    qso::rewrite_all(tx, owner, &plan, expected).await
 }
 
 async fn rewrite_plan(
@@ -226,7 +217,7 @@ async fn rewrite_plan(
 ) -> Result<Vec<(StoredQso, Qso)>, StoreError> {
     let station = fetch(conn, access, id).await?;
     let mut plan = vec![];
-    for current in qso::of_station(conn, access, &station.id, range).await? {
+    for current in qso::held_by(conn, access, Holder::Station(&station.id), range).await? {
         let mut rewritten = current.qso.clone();
         rewritten.set("STATION_CALLSIGN", Some(station.callsign.clone()))?;
         for (name, value) in &station.fields {
