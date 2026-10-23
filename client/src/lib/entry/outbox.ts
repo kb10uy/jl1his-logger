@@ -6,6 +6,7 @@ export interface Outgoing {
     id: string;
     logbookId: string;
     stationId: string;
+    instrumentId?: string | null;
     fields: Fields;
     createdAt: string;
     error?: string;
@@ -23,6 +24,7 @@ export type Create = (
     logbookId: string,
     id: string,
     stationId: string,
+    instrumentId: string | null,
     fields: Fields
 ) => Promise<Saved>;
 
@@ -58,7 +60,13 @@ export class Outbox {
 
     async send(item: Outgoing, create: Create): Promise<Sent> {
         try {
-            const saved = await create(item.logbookId, item.id, item.stationId, item.fields);
+            const saved = await create(
+                item.logbookId,
+                item.id,
+                item.stationId,
+                item.instrumentId ?? null,
+                item.fields
+            );
             await this.remove(item.id);
             return { saved };
         } catch (e) {

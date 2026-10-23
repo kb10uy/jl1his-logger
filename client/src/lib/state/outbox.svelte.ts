@@ -20,12 +20,18 @@ class OutboxState {
         if (this.logbookId === logbookId) this.items = items;
     }
 
-    async log(logbookId: string, stationId: string, fields: Fields): Promise<Sent> {
+    async log(
+        logbookId: string,
+        stationId: string,
+        instrumentId: string | null,
+        fields: Fields
+    ): Promise<Sent> {
         const outbox = await this.open();
         const item: Outgoing = {
             id: uuidv7(),
             logbookId,
             stationId,
+            instrumentId,
             fields,
             createdAt: new Date().toISOString()
         };

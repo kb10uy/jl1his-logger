@@ -12,6 +12,7 @@
     import Segmented from '#lib/components/ui/Segmented.svelte';
     import Stat from '#lib/components/ui/Stat.svelte';
     import { download } from '#lib/download.ts';
+    import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import { count, stationLabel } from '#lib/qso/format.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { Matches } from '#lib/state/matches.svelte.ts';
@@ -25,6 +26,7 @@
 
     let file = $state<File | undefined>(undefined);
     let stationId = $state('');
+    let instrumentId = $state('');
     let importLength = $state<LengthUnit>('codepoints');
     let report = $state<NewReport | undefined>(undefined);
     let reportError = $state<string | undefined>(undefined);
@@ -45,6 +47,7 @@
             ? stationId
             : (logbook.activeStations[0]?.id ?? '')
     );
+    const instrument = $derived(logbook.activeInstrumentId(instrumentId));
     const format = $derived(file ? formatOf(file.name) : 'adi');
     const matches = new Matches(logbookId, () => q);
     const exports = $derived(batches.filter((b) => b.kind === 'adif' || b.kind === 'pota'));
@@ -75,6 +78,7 @@
                 'new',
                 {
                     station_id: station,
+                    instrument_id: instrument || undefined,
                     format,
                     length: format === 'adi' ? importLength : undefined,
                     apply
@@ -98,6 +102,7 @@
 
     $effect(() => {
         void station;
+        void instrument;
         void importLength;
         if (file === undefined) return;
         untrack(() => {
@@ -202,6 +207,14 @@
                         <option value={s.id}>{stationLabel(s)}</option>
                     {/each}
                 </select>
+                <label for="imp-instrument" class="text-xs text-muted">Instrument</label>
+                <InstrumentSelect
+                    id="imp-instrument"
+                    class="h-10"
+                    value={instrument}
+                    instruments={logbook.activeInstruments}
+                    onchange={(id) => (instrumentId = id)}
+                />
                 {#if format === 'adi'}
                     <span class="text-xs text-muted">Lengths</span>
                     {@render lengthChoice('imp-len', importLength, (v) => (importLength = v))}

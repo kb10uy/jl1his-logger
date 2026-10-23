@@ -37,6 +37,10 @@ export class LogbookState {
         return this.instruments.filter((i) => i.archived_at === null);
     }
 
+    activeInstrumentId(id: string): string {
+        return this.activeInstruments.some((i) => i.id === id) ? id : '';
+    }
+
     instrumentName(id: string | null): string | undefined {
         return this.instrument(id)?.name;
     }

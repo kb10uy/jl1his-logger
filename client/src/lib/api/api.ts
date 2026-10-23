@@ -190,9 +190,15 @@ export const targets = (logbook: string, q: string) =>
 export const getQso = (logbook: string, id: string) =>
     request<Qso>('GET', `${base(logbook)}/qsos/${encodeURIComponent(id)}`);
 
-export const createQso = (logbook: string, id: string, stationId: string, fields: Fields) =>
+export const createQso = (
+    logbook: string,
+    id: string,
+    stationId: string,
+    instrumentId: string | null,
+    fields: Fields
+) =>
     request<Saved>('POST', `${base(logbook)}/qsos`, {
-        body: { id, station_id: stationId, fields }
+        body: { id, station_id: stationId, instrument_id: instrumentId, fields }
     });
 
 export const updateQso = (
@@ -200,10 +206,11 @@ export const updateQso = (
     id: string,
     revision: number,
     stationId: string,
+    instrumentId: string | null,
     fields: Fields
 ) =>
     request<Saved>('PUT', `${base(logbook)}/qsos/${encodeURIComponent(id)}`, {
-        body: { station_id: stationId, fields },
+        body: { station_id: stationId, instrument_id: instrumentId, fields },
         revision
     });
 
@@ -246,6 +253,7 @@ export const applyBatch = (logbook: string, id: string) =>
 
 export interface ImportRequest {
     station_id?: string;
+    instrument_id?: string;
     format: 'adi' | 'adx';
     length?: LengthUnit;
     apply: boolean;

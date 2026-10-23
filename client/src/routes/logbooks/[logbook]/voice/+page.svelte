@@ -3,6 +3,7 @@
     import * as api from '#lib/api/api.ts';
     import type { Qso, Warning } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
+    import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
@@ -66,6 +67,7 @@
             : (logbook.activeStations[0]?.id ?? '')
     );
     const station = $derived(logbook.station(stationId));
+    const instrumentId = $derived(logbook.activeInstrumentId(settings.instrumentId));
     const clock = $derived(utcClock(now));
     const problem = $derived(draftProblem(draft, settings.contest));
     const sent = $derived(
@@ -108,6 +110,7 @@
     $effect(() => {
         saveEntry(logbookId, {
             stationId: settings.stationId,
+            instrumentId: settings.instrumentId,
             freq: draft.freq,
             band: draft.band,
             mode: draft.mode,
@@ -161,7 +164,7 @@
         logging = true;
         try {
             const fields = draftFields(current, settings.contest, new Date());
-            const result = await outbox.log(logbookId, stationId, fields);
+            const result = await outbox.log(logbookId, stationId, instrumentId || null, fields);
             if (settings.contest.enabled && usesSerial(settings.contest.exchangeTemplate)) {
                 settings.contest.nextSerial += 1;
             }
@@ -279,6 +282,14 @@
                 <option value={s.id}>{stationLabel(s)}</option>
             {/each}
         </select>
+        <label for="voice-instrument" class="text-xs text-muted max-md:sr-only">Instrument</label>
+        <InstrumentSelect
+            id="voice-instrument"
+            class="max-w-full bg-surface max-md:order-3 max-md:flex-1 max-md:bg-bg"
+            value={instrumentId}
+            instruments={logbook.activeInstruments}
+            onchange={(id) => (settings.instrumentId = id)}
+        />
         <div
             class="flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 font-mono max-md:border-0 max-md:bg-transparent max-md:px-0"
         >

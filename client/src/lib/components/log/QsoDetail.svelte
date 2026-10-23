@@ -92,6 +92,10 @@
             <dd class="m-0">{join(f.STATION_CALLSIGN, logbook.stationName(qso.station_id))}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-muted">Instrument</dt>
+            <dd class="m-0">{join(logbook.instrumentName(qso.instrument_id), f.MY_RIG)}</dd>
+        </div>
+        <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">My park</dt>
             <dd class="m-0 font-mono text-info">{parks(f).join(', ') || '—'}</dd>
         </div>

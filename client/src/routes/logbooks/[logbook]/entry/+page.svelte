@@ -3,6 +3,7 @@
     import * as api from '#lib/api/api.ts';
     import type { Fields, Lookup, Qso } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
+    import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
@@ -67,6 +68,8 @@
             ? settings.stationId
             : (logbook.activeStations[0]?.id ?? '')
     );
+    const instrumentId = $derived(logbook.activeInstrumentId(settings.instrumentId));
+    const instrumentPower = $derived(logbook.instrument(instrumentId)?.tx_pwr ?? '');
     const call = $derived(entry.call.trim().toUpperCase());
     const at = $derived(locked ?? now);
     const clock = $derived(utcClock(at));
@@ -113,6 +116,7 @@
     $effect(() => {
         saveEntry(logbookId, {
             stationId: settings.stationId,
+            instrumentId: settings.instrumentId,
             freq: entry.freq,
             band: entry.band,
             mode: entry.mode,
@@ -222,7 +226,7 @@
         logging = true;
         const fields: Fields = entryFields(entry, settings.contest, at);
         try {
-            const result = await outbox.log(logbookId, stationId, fields);
+            const result = await outbox.log(logbookId, stationId, instrumentId || null, fields);
             if (settings.contest.enabled && usesSerial(settings.contest.exchangeTemplate)) {
                 settings.contest.nextSerial += 1;
             }
@@ -289,6 +293,17 @@
                 <option value={station.id}>{stationLabel(station)}</option>
             {/each}
         </select>
+        <label for="instrument" class="text-xs text-muted max-md:sr-only">Instrument</label>
+        <InstrumentSelect
+            id="instrument"
+            class="max-w-full bg-surface max-md:order-3 max-md:flex-1 max-md:bg-bg"
+            value={instrumentId}
+            instruments={logbook.activeInstruments}
+            onchange={(id) => {
+                settings.instrumentId = id;
+                entry.txPwr = '';
+            }}
+        />
         <div
             class="flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 font-mono max-md:border-0 max-md:bg-transparent max-md:px-0"
         >
@@ -593,7 +608,7 @@
                             <input
                                 id="tx-pwr"
                                 inputmode="decimal"
-                                placeholder="the Station's"
+                                placeholder={instrumentPower}
                                 class="control h-10 rounded-lg px-3 font-mono"
                                 bind:value={entry.txPwr}
                             />

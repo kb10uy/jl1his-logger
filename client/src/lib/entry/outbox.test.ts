@@ -37,4 +37,17 @@ describe('Outbox', () => {
             { ...item('b', '2026-10-19T09:02:00Z'), error: 'The server could not be reached.' }
         ]);
     });
+
+    it('sends the Instrument, or none for an item queued before Instruments', async () => {
+        const outbox = await Outbox.open('instrument');
+        const saved = { qso: { id: 'a' }, warnings: [] } as unknown as Saved;
+        const sent: (string | null)[] = [];
+        const create = async (_: string, __: string, ___: string, instrumentId: string | null) => {
+            sent.push(instrumentId);
+            return saved;
+        };
+        await outbox.send({ ...item('a', '2026-10-19T09:01:00Z'), instrumentId: 'rig' }, create);
+        await outbox.send(item('b', '2026-10-19T09:02:00Z'), create);
+        expect(sent).toEqual(['rig', null]);
+    });
 });

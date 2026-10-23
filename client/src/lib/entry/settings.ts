@@ -2,6 +2,7 @@ import { defaultContest, type ContestSettings } from '#lib/qso/contest.ts';
 
 export interface EntrySettings {
     stationId: string;
+    instrumentId: string;
     freq: string;
     band: string;
     mode: string;
@@ -12,6 +13,7 @@ export interface EntrySettings {
 export function defaultEntry(): EntrySettings {
     return {
         stationId: '',
+        instrumentId: '',
         freq: '',
         band: '40m',
         mode: 'SSB',

@@ -5,6 +5,7 @@
     import { ApiError } from '#lib/api/client.ts';
     import type { Entity, Qso, Warning } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
+    import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
@@ -26,6 +27,7 @@
 
     let qso = $state<Qso | undefined>(undefined);
     let draft = $state<Draft | undefined>(undefined);
+    let instrumentId = $state('');
     let loadError = $state<string | undefined>(undefined);
     let saveError = $state<string | undefined>(undefined);
     let conflict = $state<Qso | undefined>(undefined);
@@ -62,6 +64,7 @@
     function reset(found: Qso) {
         qso = found;
         draft = draftOf(found.fields);
+        instrumentId = found.instrument_id ?? '';
         conflict = undefined;
         saveError = undefined;
     }
@@ -72,6 +75,9 @@
     }
 
     const absent = $derived(draft === undefined ? [] : missing(draft));
+    const instruments = $derived(
+        logbook.instruments.filter((i) => i.archived_at === null || i.id === qso?.instrument_id)
+    );
     const station = $derived(qso === undefined ? [] : stationFields(qso));
     const others = $derived(
         qso === undefined
@@ -97,6 +103,7 @@
                 qso.id,
                 qso.revision,
                 qso.station_id,
+                instrumentId || null,
                 fieldsOf(draft, qso.fields)
             );
             reset(saved.qso);
@@ -339,9 +346,20 @@
                     {/each}
                 </div>
                 <span class="text-xs text-muted"
-                    >Baked at creation. Editing the Station does not change this QSO.</span
+                    >Baked at creation. Editing the Station or the Instrument, or choosing another
+                    Instrument here, does not change these values.</span
                 >
             </div>
+
+            <Field label="Instrument" for="e-instrument">
+                <InstrumentSelect
+                    id="e-instrument"
+                    class="h-11"
+                    value={instrumentId}
+                    {instruments}
+                    onchange={(id) => (instrumentId = id)}
+                />
+            </Field>
 
             {#if others.length > 0}
                 <details class="rounded-lg border border-border bg-surface p-3">
