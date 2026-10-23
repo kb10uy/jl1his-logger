@@ -432,7 +432,9 @@
             <div bind:this={scroller} class="min-w-0 flex-1 overflow-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead class="sticky top-0 z-[1] bg-bg">
-                        <tr class="text-left text-xs text-muted [&>th:last-child]:pr-6">
+                        <tr
+                            class="text-left text-xs text-muted [&>th:last-child]:pr-6 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2"
+                        >
                             <th
                                 scope="col"
                                 class="group/check w-14 cursor-pointer border-b border-border py-2 pr-3 pl-6"
@@ -474,12 +476,12 @@
                                     ? 'Changed; no longer matches this query'
                                     : undefined}
                                 class={[
-                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap [&>td:last-child]:pr-6',
+                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l',
                                     isChecked
                                         ? 'bg-selected'
                                         : isOpen
                                           ? 'bg-surface'
-                                          : 'hover:bg-surface/60',
+                                          : 'even:bg-zebra hover:bg-surface/60',
                                     isOpen && 'shadow-[inset_3px_0_0_var(--accent)]',
                                     row.stale && 'opacity-50'
                                 ]}

@@ -3,6 +3,7 @@
 :root {
     color-scheme: dark;
     --bg: #0d1117;
+    --zebra: #11161d;
     --surface: #161b22;
     --surface-2: #21262d;
     --border: #30363d;
@@ -33,6 +34,7 @@
     :root {
         color-scheme: light;
         --bg: #f6f8fa;
+        --zebra: #fbfcfd;
         --surface: #ffffff;
         --surface-2: #eaeef2;
         --border: #d0d7de;
@@ -62,6 +64,7 @@
 
 @theme inline {
     --color-bg: var(--bg);
+    --color-zebra: var(--zebra);
     --color-surface: var(--surface);
     --color-surface-2: var(--surface-2);
     --color-border: var(--border);
