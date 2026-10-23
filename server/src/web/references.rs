@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use axum::extract::State;
+use axum::{
+    extract::{Path as UrlPath, State},
+    http::StatusCode,
+};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -45,6 +48,38 @@ pub async fn list(
     let mut conn = state.db.acquire().await?;
     let installed = versions::list(&mut conn, &user).await?;
     Ok(Json(installed.into_iter().map(VersionBody::from).collect()))
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubdivisionBody {
+    code: String,
+    name: String,
+}
+
+pub async fn subdivisions(
+    State(state): State<Arc<AppState>>,
+    SignedIn(_): SignedIn,
+    UrlPath(dxcc): UrlPath<String>,
+) -> Result<Json<Vec<SubdivisionBody>>, ApiError> {
+    let dxcc: u32 = dxcc
+        .parse()
+        .map_err(|_| ApiError::bad_request(format!("{dxcc:?} is not a DXCC entity code")))?;
+    let subdivisions = state
+        .references
+        .subdivisions(&state.db, &state.config.reference)
+        .await?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "no subdivisions are installed"))?;
+    Ok(Json(
+        subdivisions
+            .get(&dxcc)
+            .into_iter()
+            .flatten()
+            .map(|(code, name)| SubdivisionBody {
+                code: code.clone(),
+                name: name.clone(),
+            })
+            .collect(),
+    ))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -149,4 +184,58 @@ async fn load<T>(
         data: data.clone(),
     });
     Ok(Some(data))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    use crate::{
+        store::reference::ReferenceKind,
+        web::testing::{Auth, Harness},
+    };
+
+    #[tokio::test]
+    async fn serves_the_subdivisions_of_an_entity() {
+        let (h, _dir) = Harness::with_references().await;
+        let session = h.session(&h.world.operator).await;
+        let uri = "/api/reference/subdivisions/339";
+        let (status, _) = h.send("GET", uri, Auth::Session(&session), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        h.install_reference(
+            ReferenceKind::Subdivisions,
+            "[339]
+13 = \"Tokyo\"
+01 = \"Hokkaido\"
+[291]
+CA = \"California\"
+",
+            "2026-10-23",
+        )
+        .await;
+        let (status, body) = h.send("GET", uri, Auth::Session(&session), None).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            body,
+            json!([{ "code": "01", "name": "Hokkaido" }, { "code": "13", "name": "Tokyo" }])
+        );
+
+        let (status, body) = h
+            .send("GET", "/api/reference/subdivisions/1", Auth::Session(&session), None)
+            .await;
+        assert_eq!((status, body), (StatusCode::OK, json!([])));
+        let (status, _) = h
+            .send(
+                "GET",
+                "/api/reference/subdivisions/Japan",
+                Auth::Session(&session),
+                None,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, _) = h.send("GET", uri, Auth::Anonymous, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
 }

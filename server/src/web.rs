@@ -113,6 +113,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/sessions", get(session::list))
         .route("/api/sessions/{id}", delete(session::revoke))
         .route("/api/reference", get(references::list))
+        .route("/api/reference/subdivisions/{dxcc}", get(references::subdivisions))
         .route("/api/tokens", get(token::list).post(token::issue))
         .route("/api/tokens/{id}", delete(token::revoke))
         .route("/api/logbooks", get(logbook::list))

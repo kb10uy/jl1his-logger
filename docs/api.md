@@ -60,6 +60,12 @@ cookie only.
 `subdivisions` and `parks`. It takes the session cookie only. Reference data is updated with the
 CLI.
 
+`GET /api/reference/subdivisions/{dxcc}` returns the subdivisions of one DXCC
+entity from the installed `subdivisions` data, `[{code, name}]` ordered by
+code, for the `STATE` and `MY_STATE` choices. It also takes the session cookie
+only. An entity without subdivisions is `[]`, a `dxcc` that is not a number is
+`400`, and `404` means the data is not installed.
+
 ## API Tokens
 
 A token is `{id, user_id, kind, name, logbook_ids, created_at, last_used_at}`.
