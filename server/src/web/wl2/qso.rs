@@ -149,11 +149,18 @@ pub async fn create(
         Some(Value::String(s)) => s.clone(),
         _ => return Err(Wl2Error::validation("station_profile_id is required")),
     };
-    let qso = qso_from_body(&body)?;
+    let mut qso = qso_from_body(&body)?;
+    let entity = state
+        .references
+        .entity_of(&state.db, &state.config.reference, &qso)
+        .await;
 
     let mut tx = WriteTx::begin(&state.db).await?;
     let station_id = mapped(&station::list(&mut tx, &access).await?, &wavelog_id)?.id.clone();
     let id = RecordIds::for_station(access.logbook_id(), &station_id).next(&qso)?;
+    if let Some(entity) = entity {
+        entity.fill(&mut qso)?;
+    }
     match qso::create(&mut tx, &access, &id, QsoInput { station_id, qso }).await? {
         Created::New { stored, .. } => {
             tx.commit().await?;
@@ -211,11 +218,16 @@ pub(super) mod tests {
     use axum::http::StatusCode;
     use rstest::rstest;
     use serde_json::{Value, json};
+    use tempfile::TempDir;
 
     use crate::{
-        domain::adif::{LengthUnit, read_adi},
+        domain::{
+            adif::{LengthUnit, read_adi},
+            reference::tests::CTY,
+        },
         store::{
             WriteTx,
+            reference::ReferenceKind,
             station::{self, StationInput},
             token::TokenKind,
         },
@@ -248,10 +260,11 @@ pub(super) mod tests {
     struct Fixture {
         h: Harness,
         token: String,
+        _dir: TempDir,
     }
 
     async fn fixture() -> Fixture {
-        let h = Harness::new().await;
+        let (h, _dir) = Harness::with_references().await;
         let owner = h.world.access(&h.world.owner).await;
         let mut tx = WriteTx::begin(&h.world.db).await.unwrap();
         let mapped = station::create(
@@ -298,7 +311,7 @@ pub(super) mod tests {
             .await;
         assert_eq!(status, StatusCode::OK);
         let token = h.token(&h.world.operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
-        Fixture { h, token }
+        Fixture { h, token, _dir }
     }
 
     impl Fixture {
@@ -419,6 +432,45 @@ pub(super) mod tests {
         let (status, body) = f.post(nearby).await;
         assert_eq!(status, StatusCode::CREATED, "{body}");
         assert_eq!(f.calls("since_id=6").await, ["JA1XYZ"]);
+    }
+
+    #[tokio::test]
+    async fn fills_entity_fields_without_changing_the_id_of_a_resend() {
+        let f = fixture().await;
+        let (status, created) = f.post(hislog_body()).await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+
+        f.h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
+        f.h.install_reference(
+            ReferenceKind::Dxcc,
+            "JA = 339
+",
+            "1",
+        )
+        .await;
+        let (status, again) = f.post(hislog_body()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{again}");
+        assert_eq!(
+            again["error"]["details"]["duplicate"],
+            json!(["JA1XYZ 20261020 094127 40m CW"])
+        );
+
+        let mut later = hislog_body();
+        later["time_on"] = json!("101500");
+        later["ituz"] = json!("44");
+        let (status, created) = f.post(later).await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+        let session = f.h.session(&f.h.world.operator).await;
+        let uri = format!(
+            "/api/logbooks/{}/qsos/{}",
+            f.h.world.logbook.id,
+            created["data"]["uuid"].as_str().unwrap()
+        );
+        let (_, stored) = f.h.send("GET", &uri, Auth::Session(&session), None).await;
+        assert_eq!(
+            ["DXCC", "CQZ", "ITUZ", "CONT"].map(|name| stored["fields"][name].clone()),
+            [json!("339"), json!("25"), json!("44"), json!("AS")]
+        );
     }
 
     #[tokio::test]

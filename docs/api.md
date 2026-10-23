@@ -170,7 +170,11 @@ Paths below are relative to `/api/logbooks/{logbook_id}`.
 
 `id` is a UUID v7 the client generates; anything else is `400`. Creating
 fills `STATION_CALLSIGN` and the Station's `MY_*` defaults, then `OPERATOR` from
-the caller's callsign, for fields the request leaves out. An `id` that belongs
+the caller's callsign, for fields the request leaves out. It also fills a
+missing `CQZ`, `ITUZ` and `CONT` from the entity `cty.dat` resolves `CALL` to,
+and `DXCC` when the `dxcc` table has a code for it; without `cty.dat`, or when
+it cannot be read (which is logged), nothing is filled and the QSO is still
+created. `PUT` never fills them. An `id` that belongs
 to another Logbook is `409`.
 
 Every response carrying one QSO has an `ETag` of its revision in quotes, such

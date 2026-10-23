@@ -8,7 +8,10 @@ use sha2::{Digest, Sha256};
 use crate::{
     config::ReferenceConfig,
     db::Db,
-    domain::reference::{self, Cty, DxccCodes, Entity, ReferenceError, Subdivisions},
+    domain::{
+        qso::Qso,
+        reference::{self, Cty, DxccCodes, Entity, ReferenceError, Subdivisions},
+    },
     store::{
         StoreError,
         reference::{ReferenceKind, current},
@@ -53,6 +56,17 @@ impl References {
         };
         let codes = self.dxcc(db, paths).await?;
         Ok(reference::entity(&cty, codes.as_deref(), call))
+    }
+
+    pub async fn entity_of(&self, db: &Db, paths: &ReferenceConfig, qso: &Qso) -> Option<Entity> {
+        let call = qso.get("CALL")?;
+        match self.entity(db, paths, call).await {
+            Ok(entity) => entity,
+            Err(e) => {
+                tracing::warn!("recording {call} without entity fields: {e}");
+                None
+            }
+        }
     }
 
     pub async fn subdivisions(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<Subdivisions>>, LoadError> {

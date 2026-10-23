@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use callfind::cty::{CtyDatabase, CtyError, Resolution};
 use serde::{Deserialize, Serialize};
 
+use crate::domain::qso::{Qso, QsoError};
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReferenceError {
     #[error(transparent)]
@@ -34,6 +36,17 @@ pub struct Entity {
     pub itu_zone: u8,
     pub latitude: f64,
     pub longitude: f64,
+}
+
+impl Entity {
+    pub fn fill(&self, qso: &mut Qso) -> Result<(), QsoError> {
+        if let Some(dxcc) = self.dxcc {
+            qso.fill("DXCC", &dxcc.to_string())?;
+        }
+        qso.fill("CQZ", &self.cq_zone.to_string())?;
+        qso.fill("ITUZ", &self.itu_zone.to_string())?;
+        qso.fill("CONT", self.continent)
+    }
 }
 
 pub type DxccCodes = BTreeMap<String, u32>;
@@ -159,6 +172,32 @@ Ogasawara:                27:  45:  AS:   27.05:  -142.20:    -9.0:  JD/o:
         assert_eq!(entity(&cty, Some(&codes), "JD1ABC").unwrap().dxcc, None);
         assert_eq!(entity(&cty, None, "JA1XYZ").unwrap().dxcc, None);
         assert_eq!(entity(&cty, Some(&codes), "XX0XX"), None);
+    }
+
+    #[test]
+    fn fills_only_the_entity_fields_a_qso_lacks() {
+        let cty = parse_cty(CTY).unwrap();
+        let codes = parse_dxcc(
+            "JA = 339
+",
+        )
+        .unwrap();
+        let mut qso = Qso::from_fields([("CALL", "JA1XYZ"), ("CQZ", "26")]).unwrap();
+        entity(&cty, Some(&codes), "JA1XYZ").unwrap().fill(&mut qso).unwrap();
+        assert_eq!(
+            ["DXCC", "CQZ", "ITUZ", "CONT"].map(|name| qso.get(name)),
+            [Some("339"), Some("26"), Some("45"), Some("AS")]
+        );
+
+        let mut uncoded = Qso::from_fields([("CALL", "JD1ABC")]).unwrap();
+        entity(&cty, Some(&codes), "JD1ABC")
+            .unwrap()
+            .fill(&mut uncoded)
+            .unwrap();
+        assert_eq!(
+            ["DXCC", "CQZ", "ITUZ", "CONT"].map(|name| uncoded.get(name)),
+            [None, Some("27"), Some("45"), Some("AS")]
+        );
     }
 
     #[test]

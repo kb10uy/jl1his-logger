@@ -58,7 +58,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT (hislog has rigctld)
 - `station_location_id` is held separately for classification and search.
 - Past rows are corrected with an explicit bulk update that states the number of affected rows.
 - Stations are archived rather than deleted.
-- When a QSO is created through the native API or `/wl2`, the server fills the `DXCC`, `CQZ`, `ITUZ` and `CONT` the record lacks from `cty.dat`, `DXCC` needing the `dxcc` table as well. Values given are never overwritten, nothing is filled for a kind that is not installed, and editing a QSO later does not fill them again. An ADIF import keeps its records as they arrived.
+- When a QSO is created through the native API or `/wl2`, the server fills the `DXCC`, `CQZ`, `ITUZ` and `CONT` the record lacks from `cty.dat`, `DXCC` needing the `dxcc` table as well. Values given are never overwritten, nothing is filled for a kind that is not installed, and editing a QSO later does not fill them again. Reference data that cannot be read is logged and never refuses the QSO. On `/wl2` the fill comes after the ID is derived, so a resend keeps its ID across reference data updates. An ADIF import keeps its records as they arrived.
 
 ### Storage Shape
 

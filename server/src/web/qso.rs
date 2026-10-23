@@ -174,9 +174,17 @@ pub async fn create(
     Json(req): Json<NewQso>,
 ) -> Result<(StatusCode, Tagged<Saved>), ApiError> {
     let id: QsoId = req.id.parse().map_err(|e| StoreError::Invalid(format!("{e}")))?;
+    let mut qso = Qso::from_fields(req.fields)?;
+    if let Some(entity) = state
+        .references
+        .entity_of(&state.db, &state.config.reference, &qso)
+        .await
+    {
+        entity.fill(&mut qso)?;
+    }
     let input = QsoInput {
         station_id: req.station_id,
-        qso: Qso::from_fields(req.fields)?,
+        qso,
     };
     let mut tx = WriteTx::begin(&state.db).await?;
     let access = access::logbook(&mut tx, &caller.principal, &logbook_id).await?;
@@ -400,7 +408,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        store::token::TokenKind,
+        domain::reference::tests::CTY,
+        store::{reference::ReferenceKind, token::TokenKind},
         web::testing::{Auth, Harness},
     };
 
@@ -483,6 +492,62 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(headers[header::ETAG], "\"1\"");
         assert_eq!(fetched, created["qso"]);
+    }
+
+    #[tokio::test]
+    async fn fills_the_entity_fields_a_new_qso_lacks() {
+        let (h, _dir) = Harness::with_references().await;
+        let cookie = h.session(&h.world.operator).await;
+        let entity = |body: &Value| ["DXCC", "CQZ", "ITUZ", "CONT"].map(|name| body["qso"]["fields"][name].clone());
+
+        let bare = create(&h, &cookie, "JA1AAA", "40m", "010000").await;
+        assert_eq!(entity(&bare), [Value::Null, Value::Null, Value::Null, Value::Null]);
+
+        h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
+        let uncoded = create(&h, &cookie, "JA1BBB", "40m", "020000").await;
+        assert_eq!(entity(&uncoded), [Value::Null, json!("25"), json!("45"), json!("AS")]);
+
+        h.install_reference(
+            ReferenceKind::Dxcc,
+            "JA = 339
+",
+            "1",
+        )
+        .await;
+        let mut given = entry(&h, &QsoId::generate(), "JA1CCC", "40m", "030000");
+        given["fields"]["CQZ"] = json!("26");
+        given["fields"]["cont"] = json!("OC");
+        let (status, created) = h.send("POST", &qsos(&h), Auth::Session(&cookie), Some(given)).await;
+        assert_eq!(status, StatusCode::CREATED, "{created}");
+        assert_eq!(entity(&created), [json!("339"), json!("26"), json!("45"), json!("OC")]);
+
+        let mut fields = created["qso"]["fields"].clone();
+        fields.as_object_mut().unwrap().remove("DXCC");
+        let uri = format!("{}/{}", qsos(&h), created["qso"]["id"].as_str().unwrap());
+        let (status, _, updated) = h
+            .send_with(
+                "PUT",
+                &uri,
+                Auth::Session(&cookie),
+                &[("if-match", "\"1\"")],
+                Some(json!({ "station_id": h.station.id, "fields": fields })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{updated}");
+        assert_eq!(updated["qso"]["fields"]["DXCC"], Value::Null);
+
+        let unknown = create(&h, &cookie, "XX0XX", "40m", "040000").await;
+        assert_eq!(entity(&unknown), [Value::Null, Value::Null, Value::Null, Value::Null]);
+    }
+
+    #[tokio::test]
+    async fn records_a_qso_when_the_reference_data_cannot_be_read() {
+        let (h, _dir) = Harness::with_references().await;
+        h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
+        std::fs::write(h.reference_path(ReferenceKind::Cty), "changed").unwrap();
+        let cookie = h.session(&h.world.operator).await;
+        let created = create(&h, &cookie, "JA1AAA", "40m", "010000").await;
+        assert_eq!(created["qso"]["fields"]["CQZ"], Value::Null);
     }
 
     #[tokio::test]
