@@ -228,7 +228,7 @@
     "log_syntax_freq": "MHz 単位、範囲または > < <=",
     "log_syntax_pwr": "TX_PWR（W 単位）、同上",
     "log_syntax_quote": "空白を含む値は引用符で囲む",
-    "log_syntax_instrument": "機材名または MY_RIG",
+    "log_syntax_instrument": "設備名または MY_RIG",
     "log_syntax_park": "いずれかの MY_POTA_REF",
     "log_syntax_missing": "なし / あり",
     "log_syntax_adif": "その他の ADIF フィールド",

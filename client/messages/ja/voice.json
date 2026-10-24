@@ -1,6 +1,6 @@
 {
     "$schema": "https://inlang.com/schema/inlang-message-format",
-    "voice_no_active_station": "このログブックには有効なステーションがありません。オーナーが「ステーション」から追加します。",
+    "voice_no_active_station": "このログブックには有効な運用地がありません。オーナーが「運用地」から追加します。",
     "voice_optional": "任意",
     "voice_sent_number": "送信ナンバー",
     "voice_next_serial": "次のシリアル",
@@ -47,7 +47,7 @@
     "voice_heard_hint": "ボタンを押したまま、「juliett lima one hotel india sierra」のようにコールサインを言い、続けて「received five seven sent five nine」のようにレポートを言ってください。",
     "voice_recent_utterances": "最近の発話",
     "voice_typed": "キー入力",
-    "voice_choose_station_first": "先にステーションを選んでください。",
+    "voice_choose_station_first": "先に運用地を選んでください。",
     "voice_still_logging": "まだ前の QSO を記録しています。",
     "voice_logged": "{call} を記録しました",
     "voice_kept_on_device": "{call} はこの端末に保存されました: {error} 送信できるようになったら、もう一度送信してください。",
