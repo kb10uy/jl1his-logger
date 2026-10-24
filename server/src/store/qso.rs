@@ -15,7 +15,7 @@ use crate::{
         qso::{Checked, Columns, InvalidQsoId, Qso, QsoId, Warning},
     },
     store::{
-        StoreError, WriteTx,
+        Fault, StoreError, WriteTx,
         access::LogbookAccess,
         instrument,
         logbook::{self, next_insert, next_update},
@@ -120,12 +120,12 @@ impl StoredQso {
         }
         let fields: String = row.try_get("fields")?;
         let fields: BTreeMap<String, String> = serde_json::from_str(&fields)
-            .map_err(|e| StoreError::Invalid(format!("stored QSO fields are not a string map: {e}")))?;
+            .map_err(|e| StoreError::Invalid(format!("stored QSO fields are not a string map: {e}").into()))?;
         let id: String = row.try_get("id")?;
         Ok(StoredQso {
             id: id
                 .parse()
-                .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}")))?,
+                .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}").into()))?,
             station_id: row.try_get("station_id")?,
             instrument_id: row.try_get("instrument_id")?,
             seq: row.try_get("seq")?,
@@ -144,13 +144,21 @@ impl StoredQso {
 
     pub fn require_revision(&self, base: i64) -> Result<(), StoreError> {
         if self.deleted_at.is_some() {
-            return Err(StoreError::Conflict(format!("QSO {} has been deleted", self.id)));
+            return Err(StoreError::Conflict(
+                Fault::coded("qso_deleted", format!("QSO {} has been deleted", self.id))
+                    .with("id", self.id.to_string()),
+            ));
         }
         if self.revision != base {
-            return Err(StoreError::Conflict(format!(
-                "QSO {} is at revision {}, not {base}",
-                self.id, self.revision
-            )));
+            return Err(StoreError::Conflict(
+                Fault::coded(
+                    "revision_conflict",
+                    format!("QSO {} is at revision {}, not {base}", self.id, self.revision),
+                )
+                .with("id", self.id.to_string())
+                .with("revision", self.revision)
+                .with("base", base),
+            ));
         }
         Ok(())
     }
@@ -283,7 +291,11 @@ async fn prepare(
         Some(logbook_id) if logbook_id == access.logbook_id() => {
             return Ok(Prepared::Existing(fetch(conn, access, id).await?));
         }
-        Some(_) => return Err(StoreError::Conflict(format!("the ID {id} belongs to another QSO"))),
+        Some(_) => {
+            return Err(StoreError::Conflict(
+                Fault::coded("id_taken", format!("the ID {id} belongs to another QSO")).with("id", id.to_string()),
+            ));
+        }
         None => {}
     }
 
@@ -403,10 +415,14 @@ pub(crate) async fn rewrite_all(
     expected: usize,
 ) -> Result<usize, StoreError> {
     if plan.len() != expected {
-        return Err(StoreError::Conflict(format!(
-            "{} QSOs would change, not {expected}",
-            plan.len()
-        )));
+        return Err(StoreError::Conflict(
+            Fault::coded(
+                "rewrite_count_changed",
+                format!("{} QSOs would change, not {expected}", plan.len()),
+            )
+            .with("count", plan.len())
+            .with("expected", expected),
+        ));
     }
     for (current, rewritten) in plan {
         rewrite(tx, access, current, rewritten).await?;
@@ -454,10 +470,13 @@ async fn write_update(
         .execute(&mut **tx)
         .await?;
     if updated.rows_affected() == 0 {
-        return Err(StoreError::Conflict(format!(
-            "QSO {} changed while it was being updated",
-            current.id
-        )));
+        return Err(StoreError::Conflict(
+            Fault::coded(
+                "qso_changed",
+                format!("QSO {} changed while it was being updated", current.id),
+            )
+            .with("id", current.id.to_string()),
+        ));
     }
     fetch(tx, access, &current.id).await
 }
@@ -594,7 +613,7 @@ pub async fn targets(
             Ok(Target {
                 id: id
                     .parse()
-                    .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}")))?,
+                    .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}").into()))?,
                 revision: row.try_get("revision")?,
             })
         })
@@ -932,9 +951,14 @@ impl Conditions {
         let clause = match values.len() {
             0 => "0".to_owned(),
             n if n > MAX_LIST => {
-                return Err(StoreError::Invalid(format!(
-                    "a filter lists {n} values; at most {MAX_LIST} are taken"
-                )));
+                return Err(StoreError::Invalid(
+                    Fault::coded(
+                        "too_many_values",
+                        format!("a filter lists {n} values; at most {MAX_LIST} are taken"),
+                    )
+                    .with("count", n)
+                    .with("max", MAX_LIST),
+                ));
             }
             n => format!("{expression} IN ({})", vec!["?"; n].join(", ")),
         };

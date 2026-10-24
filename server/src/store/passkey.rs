@@ -1,6 +1,8 @@
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
-use crate::store::{StoreError, WriteTx, access::UserAccess, is_unique_violation, name as store_name, new_id, now};
+use crate::store::{
+    Fault, StoreError, WriteTx, access::UserAccess, is_unique_violation, name as store_name, new_id, now,
+};
 
 const SELECT: &str =
     "SELECT p.id, p.user_id, p.credential_id, p.passkey, p.name, p.created_at, p.last_used_at FROM passkeys p";
@@ -66,7 +68,10 @@ pub async fn delete(tx: &mut WriteTx, user: &UserAccess, id: &str) -> Result<(),
             .fetch_one(&mut **tx)
             .await?;
         if count <= 1 {
-            return Err(StoreError::Conflict("your last passkey cannot be deleted".into()));
+            return Err(StoreError::Conflict(Fault::coded(
+                "last_passkey",
+                "your last passkey cannot be deleted",
+            )));
         }
     }
     sqlx::query("DELETE FROM passkeys WHERE id = ?")
@@ -125,7 +130,10 @@ pub(crate) async fn insert(tx: &mut WriteTx, user_id: &str, new: &NewPasskey) ->
     match inserted {
         Ok(_) => {}
         Err(e) if is_unique_violation(&e) => {
-            return Err(StoreError::Conflict("the passkey is already registered".into()));
+            return Err(StoreError::Conflict(Fault::coded(
+                "passkey_registered",
+                "the passkey is already registered",
+            )));
         }
         Err(e) => return Err(e.into()),
     }
@@ -151,7 +159,7 @@ pub(crate) async fn of_user(conn: &mut SqliteConnection, user_id: &str) -> Resul
 fn check_json(passkey: &str) -> Result<(), StoreError> {
     serde_json::from_str::<serde_json::Value>(passkey)
         .map(|_| ())
-        .map_err(|e| StoreError::Invalid(format!("a passkey is stored as JSON: {e}")))
+        .map_err(|e| StoreError::Invalid(format!("a passkey is stored as JSON: {e}").into()))
 }
 
 #[cfg(test)]

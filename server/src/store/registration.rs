@@ -26,10 +26,9 @@ pub async fn issue(tx: &mut WriteTx, admin: &AdminAccess, user_id: &str, ttl: Ti
 pub async fn issue_for_setup(tx: &mut WriteTx, user_id: &str, ttl: TimeDelta) -> Result<String, StoreError> {
     let user = user::find(tx, user_id).await?.ok_or(StoreError::NotFound("user"))?;
     if user.role != Role::Admin || !passkey::of_user(tx, user_id).await?.is_empty() {
-        return Err(StoreError::Conflict(format!(
-            "{} is not an admin waiting for a first passkey",
-            user.callsign
-        )));
+        return Err(StoreError::Conflict(
+            format!("{} is not an admin waiting for a first passkey", user.callsign).into(),
+        ));
     }
     insert(tx, user_id, None, ttl).await
 }

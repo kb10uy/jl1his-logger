@@ -1,7 +1,7 @@
 use sqlx::SqliteConnection;
 
 use crate::store::{
-    StoreError, WriteTx,
+    Fault, StoreError, WriteTx,
     access::{LogbookAccess, LogbookRole, OwnerAccess},
     now, user,
 };
@@ -85,7 +85,10 @@ async fn keep_another_owner(tx: &mut WriteTx, owner: &OwnerAccess<'_>, user_id: 
     .fetch_one(&mut **tx)
     .await?;
     match others {
-        0 => Err(StoreError::Conflict("a Logbook keeps at least one active owner".into())),
+        0 => Err(StoreError::Conflict(Fault::coded(
+            "last_owner",
+            "a Logbook keeps at least one active owner",
+        ))),
         _ => Ok(()),
     }
 }

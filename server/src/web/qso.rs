@@ -401,8 +401,7 @@ async fn with_current(state: &AppState, access: &LogbookAccess, id: &QsoId, e: S
 }
 
 fn path_id(id: &str) -> Result<QsoId, ApiError> {
-    id.parse()
-        .map_err(|_| ApiError::new(StatusCode::NOT_FOUND, "QSO not found"))
+    id.parse().map_err(|_| StoreError::NotFound("QSO").into())
 }
 
 fn limit(limit: Option<u32>, default: u32) -> Result<u32, ApiError> {
@@ -625,8 +624,13 @@ mod tests {
             .send("GET", &h.path("/qsos/not-a-uuid"), Auth::Session(&cookie), None)
             .await;
         assert_eq!(
-            (status, &body["error"]),
-            (StatusCode::NOT_FOUND, &json!("QSO not found"))
+            (status, &body["error"], &body["code"], &body["what"]),
+            (
+                StatusCode::NOT_FOUND,
+                &json!("QSO not found"),
+                &json!("not_found"),
+                &json!("QSO")
+            )
         );
         let (status, _) = h
             .send(
@@ -651,6 +655,11 @@ mod tests {
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(reply["status"], "error");
         assert!(reply["error"].as_str().unwrap().contains("BAND"), "{reply}");
+        assert_eq!(
+            (&reply["code"], &reply["field"], &reply["value"]),
+            (&json!("qso_invalid"), &json!("BAND"), &json!("41m")),
+            "{reply}"
+        );
 
         let (status, reply) = h
             .send(
@@ -902,14 +911,16 @@ mod tests {
                 &body["term"],
                 &body["index"],
                 &body["start"],
-                &body["end"]
+                &body["end"],
+                &body["value"]
             ),
             (
                 &json!("unknown_field"),
                 &json!("qrg:70"),
                 &json!(1),
                 &json!(9),
-                &json!(15)
+                &json!(15),
+                &json!("qrg")
             )
         );
     }
@@ -961,6 +972,10 @@ mod tests {
             .await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
         assert!(body["error"].as_str().unwrap().contains("at most 100"));
+        assert_eq!(
+            (&body["code"], &body["count"], &body["max"]),
+            (&json!("too_many_values"), &json!(101), &json!(100))
+        );
     }
 
     #[tokio::test]

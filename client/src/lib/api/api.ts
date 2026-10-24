@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { query, request } from './client.ts';
 import type {
     Area,
@@ -48,7 +49,7 @@ export async function signIn(): Promise<Me> {
     const credential = (await navigator.credentials.get(
         requestOptions(options)
     )) as PublicKeyCredential | null;
-    if (credential === null) throw new Error('No passkey was chosen.');
+    if (credential === null) throw new Error(m.passkey_not_chosen());
     return request<Me>('POST', '/api/auth/login/finish', {
         body: { ceremony, credential: authenticationJson(credential) }
     });
@@ -67,7 +68,7 @@ export async function finishRegistration(
     const credential = (await navigator.credentials.create(
         creationOptions(ceremony.options)
     )) as PublicKeyCredential | null;
-    if (credential === null) throw new Error('No passkey was created.');
+    if (credential === null) throw new Error(m.passkey_not_created());
     return request<Me>('POST', '/api/auth/register/finish', {
         body: { ceremony: ceremony.ceremony, credential: registrationJson(credential), name }
     });
@@ -82,7 +83,7 @@ export async function addPasskey(name: string): Promise<Passkey> {
     const credential = (await navigator.credentials.create(
         creationOptions(options)
     )) as PublicKeyCredential | null;
-    if (credential === null) throw new Error('No passkey was created.');
+    if (credential === null) throw new Error(m.passkey_not_created());
     return request<Passkey>('POST', '/api/passkeys/register/finish', {
         body: { ceremony, credential: registrationJson(credential), name }
     });

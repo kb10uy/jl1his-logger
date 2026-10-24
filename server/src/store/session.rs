@@ -86,7 +86,7 @@ pub async fn authenticate(db: &Db, plaintext: &str) -> Result<Principal, StoreEr
 
     if last_used_at < timestamp(now - SESSION_REFRESH) {
         let created = DateTime::parse_from_rfc3339(&created_at)
-            .map_err(|e| StoreError::Invalid(format!("session created_at {created_at:?}: {e}")))?
+            .map_err(|e| StoreError::Invalid(format!("session created_at {created_at:?}: {e}").into()))?
             .to_utc();
         let mut tx = WriteTx::begin(db).await?;
         sqlx::query("UPDATE sessions SET last_used_at = ?, expires_at = max(expires_at, ?) WHERE token_hash = ?")

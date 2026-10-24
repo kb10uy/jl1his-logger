@@ -284,6 +284,7 @@ pub async fn login_finish(
         .map_err(|e| {
             tracing::info!("passkey sign-in failed: {e}");
             ApiError::new(StatusCode::UNAUTHORIZED, format!("passkey sign-in failed: {e}"))
+                .with("code", "passkey_failed".into())
         })?;
     credential.update_credential(&result);
 
@@ -430,7 +431,10 @@ fn finish_registration(
     let credential = state
         .webauthn
         .finish_passkey_registration(&req.credential, registration)
-        .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("passkey registration failed: {e}")))?;
+        .map_err(|e| {
+            ApiError::new(StatusCode::BAD_REQUEST, format!("passkey registration failed: {e}"))
+                .with("code", "passkey_failed".into())
+        })?;
     let name = match req.name.trim() {
         "" => DEFAULT_PASSKEY_NAME,
         name => name,
@@ -473,6 +477,7 @@ fn encode(credential: &Credential) -> Result<String, ApiError> {
 
 fn expired() -> ApiError {
     ApiError::new(StatusCode::BAD_REQUEST, "the passkey request expired; try again")
+        .with("code", "passkey_expired".into())
 }
 
 fn unknown_passkey() -> ApiError {
@@ -480,6 +485,7 @@ fn unknown_passkey() -> ApiError {
         StatusCode::UNAUTHORIZED,
         "this passkey is not registered here, or its user is disabled",
     )
+    .with("code", "passkey_unknown".into())
 }
 
 fn link_failed(e: StoreError) -> ApiError {
@@ -487,7 +493,8 @@ fn link_failed(e: StoreError) -> ApiError {
         StoreError::Unauthenticated => ApiError::new(
             StatusCode::UNAUTHORIZED,
             "the registration link is invalid, used or expired; ask an admin for a new one",
-        ),
+        )
+        .with("code", "registration_link_invalid".into()),
         e => e.into(),
     }
 }

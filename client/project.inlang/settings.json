@@ -4,7 +4,8 @@
     "modules": ["./node_modules/@inlang/plugin-message-format/dist/index.js"],
     "plugin.inlang.messageFormat": {
         "pathPattern": [
-            "./messages/{locale}/common.json"
+            "./messages/{locale}/common.json",
+            "./messages/{locale}/errors.json"
         ]
     }
 }

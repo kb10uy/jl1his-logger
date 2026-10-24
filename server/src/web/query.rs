@@ -1,4 +1,5 @@
 use chrono::DateTime;
+use jl1his_query::{ErrorKind, MAX_VALUES};
 use serde::{Deserialize, Serialize};
 
 use crate::{store::qso::TimeRange, web::error::ApiError};
@@ -23,12 +24,20 @@ pub struct Count {
 
 pub fn text(query: Option<&str>) -> Result<jl1his_query::Query, ApiError> {
     jl1his_query::Query::parse(query.unwrap_or_default()).map_err(|e| {
-        ApiError::bad_request(e.to_string())
+        let error = ApiError::bad_request(e.to_string())
             .with("code", e.kind.code().into())
             .with("term", e.text.into())
             .with("index", e.index.into())
             .with("start", e.start.into())
-            .with("end", e.end.into())
+            .with("end", e.end.into());
+        match e.kind {
+            ErrorKind::UnknownField(value)
+            | ErrorKind::BadFieldName(value)
+            | ErrorKind::BadDate(value)
+            | ErrorKind::BadNumber(value) => error.with("value", value.into()),
+            ErrorKind::TooManyValues(count) => error.with("count", count.into()).with("max", MAX_VALUES.into()),
+            ErrorKind::UnclosedQuote | ErrorKind::Empty | ErrorKind::MissingValue => error,
+        }
     })
 }
 

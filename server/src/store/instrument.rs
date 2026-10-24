@@ -59,8 +59,9 @@ impl Instrument {
             my_rig: row.try_get("my_rig")?,
             my_antenna: row.try_get("my_antenna")?,
             tx_pwr: row.try_get("tx_pwr")?,
-            fields: serde_json::from_str(&fields)
-                .map_err(|e| StoreError::Invalid(format!("stored Instrument fields are not a string map: {e}")))?,
+            fields: serde_json::from_str(&fields).map_err(|e| {
+                StoreError::Invalid(format!("stored Instrument fields are not a string map: {e}").into())
+            })?,
             archived_at: row.try_get("archived_at")?,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,

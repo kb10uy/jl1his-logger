@@ -3,7 +3,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::callsign,
-    store::{StoreError, WriteTx, access::AdminAccess, is_unique_violation, new_id, now},
+    store::{Fault, StoreError, WriteTx, access::AdminAccess, is_unique_violation, new_id, now},
 };
 
 const SELECT: &str = "SELECT id, callsign, role, disabled_at FROM users";
@@ -27,7 +27,7 @@ impl Role {
         match s {
             "admin" => Ok(Role::Admin),
             "user" => Ok(Role::User),
-            _ => Err(StoreError::Invalid(format!("unknown user role {s:?}"))),
+            _ => Err(StoreError::Invalid(format!("unknown user role {s:?}").into())),
         }
     }
 }
@@ -52,7 +52,11 @@ impl User {
 }
 
 pub(crate) fn normalize_callsign(callsign: &str) -> Result<String, StoreError> {
-    callsign::normalize(callsign).ok_or_else(|| StoreError::Invalid(format!("{callsign:?} is not a callsign")))
+    callsign::normalize(callsign).ok_or_else(|| {
+        StoreError::Invalid(
+            Fault::coded("not_a_callsign", format!("{callsign:?} is not a callsign")).with("callsign", callsign),
+        )
+    })
 }
 
 pub async fn create_initial_admin(tx: &mut WriteTx, callsign: &str) -> Result<User, StoreError> {
@@ -117,10 +121,13 @@ pub async fn set_disabled(
         .fetch_optional(&mut **tx)
         .await?;
         if let Some(name) = sole {
-            return Err(StoreError::Conflict(format!(
-                "{} is the only active owner of {name}; set another owner first",
-                user.callsign
-            )));
+            return Err(StoreError::Conflict(
+                format!(
+                    "{} is the only active owner of {name}; set another owner first",
+                    user.callsign
+                )
+                .into(),
+            ));
         }
         for sql in [
             "DELETE FROM sessions WHERE user_id = ?",
@@ -209,7 +216,7 @@ async fn insert(tx: &mut WriteTx, callsign: &str, role: Role) -> Result<User, St
             role,
             disabled_at: None,
         }),
-        Err(e) if is_unique_violation(&e) => Err(StoreError::Conflict(format!("{callsign} already has a user"))),
+        Err(e) if is_unique_violation(&e) => Err(StoreError::Conflict(format!("{callsign} already has a user").into())),
         Err(e) => Err(e.into()),
     }
 }

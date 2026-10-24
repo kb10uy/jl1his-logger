@@ -175,12 +175,17 @@ pub async fn import(
 ) -> Result<Json<ImportBody>, ApiError> {
     let access = member.access;
     let unit = query.length.unwrap_or(state.config.adif.length);
-    let text = std::str::from_utf8(&body).map_err(|_| ApiError::bad_request("the file is not UTF-8"))?;
+    let text = std::str::from_utf8(&body)
+        .map_err(|_| ApiError::bad_request("the file is not UTF-8").with("code", "not_utf8".into()))?;
     let records = match query.format {
         FormatRequest::Adi => adif::read_adi(text, unit),
         FormatRequest::Adx => adif::read_adx(text),
     }
-    .map_err(|e| ApiError::bad_request(format!("the file is not ADIF: {e}")))?;
+    .map_err(|e| {
+        ApiError::bad_request(format!("the file is not ADIF: {e}"))
+            .with("code", "not_adif".into())
+            .with("detail", e.to_string().into())
+    })?;
 
     let station = match &query.station_id {
         Some(id) => {

@@ -1,21 +1,26 @@
 <script lang="ts">
     import type { Warning } from '#lib/api/types.ts';
     import Notice from '#lib/components/ui/Notice.svelte';
+    import { m } from '#lib/paraglide/messages.js';
 
     let { warnings }: { warnings: Warning[] } = $props();
 
     function text(w: Warning): string {
         switch (w.kind) {
             case 'possible_duplicate':
-                return `Possible duplicate of ${w.ids.length} QSO${w.ids.length === 1 ? '' : 's'} within 15 minutes. Both are kept.`;
+                return m.warning_possible_duplicate({ count: w.ids.length });
             case 'frequency_outside_band':
-                return `${w.freq} MHz is outside ${w.band}. Both are kept as entered.`;
+                return m.warning_frequency_outside_band({ freq: w.freq, band: w.band });
             case 'unknown_mode':
-                return `${w.mode} is not an ADIF mode.`;
+                return m.warning_unknown_mode({ mode: w.mode });
             case 'unknown_submode':
-                return `${w.submode} is not an ADIF submode.`;
+                return m.warning_unknown_submode({ submode: w.submode });
             case 'submode_of_another_mode':
-                return `${w.submode} belongs to ${w.expected}, not ${w.mode}.`;
+                return m.warning_submode_of_another_mode({
+                    submode: w.submode,
+                    expected: w.expected,
+                    mode: w.mode
+                });
         }
     }
 </script>

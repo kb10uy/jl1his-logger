@@ -11,7 +11,7 @@ use crate::{
         qso::{InvalidQsoId, Qso},
     },
     store::{
-        StoreError, WriteTx,
+        Fault, StoreError, WriteTx,
         access::LogbookAccess,
         new_id, now,
         qsl::{self, Outcome},
@@ -48,7 +48,7 @@ impl ExportKind {
             "eqsl" => Ok(ExportKind::Eqsl),
             "lotw" => Ok(ExportKind::Lotw),
             "qsl_card" => Ok(ExportKind::QslCard),
-            _ => Err(StoreError::Invalid(format!("unknown export kind {s:?}"))),
+            _ => Err(StoreError::Invalid(format!("unknown export kind {s:?}").into())),
         }
     }
 
@@ -144,15 +144,17 @@ pub async fn create(
 ) -> Result<ExportBatch, StoreError> {
     let access = access.revalidate(tx).await?;
     if qsos.is_empty() {
-        return Err(StoreError::Invalid("an export batch needs a QSO".into()));
+        return Err(StoreError::Invalid(Fault::coded(
+            "batch_empty",
+            "an export batch needs a QSO",
+        )));
     }
     let mut seen = BTreeSet::new();
     for target in qsos {
         if !seen.insert(target.id) {
-            return Err(StoreError::Invalid(format!(
-                "QSO {} is given more than once",
-                target.id
-            )));
+            return Err(StoreError::Invalid(
+                format!("QSO {} is given more than once", target.id).into(),
+            ));
         }
         qso::fetch(tx, &access, &target.id)
             .await?
@@ -208,15 +210,19 @@ pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result
     let access = access.revalidate(tx).await?;
     let batch = fetch(tx, &access, id).await?;
     if batch.applied_at.is_some() {
-        return Err(StoreError::Conflict(format!(
-            "export batch {id} has already been applied"
-        )));
+        return Err(StoreError::Conflict(
+            Fault::coded("batch_applied", format!("export batch {id} has already been applied"))
+                .with("id", id.to_string()),
+        ));
     }
     let Some((sent, date)) = batch.kind.sent_fields() else {
-        return Err(StoreError::Invalid(format!(
-            "{} export batches have nothing to apply",
-            batch.kind.as_str()
-        )));
+        return Err(StoreError::Invalid(
+            Fault::coded(
+                "batch_nothing_to_apply",
+                format!("{} export batches have nothing to apply", batch.kind.as_str()),
+            )
+            .with("kind", batch.kind.as_str()),
+        ));
     };
     let targets = targets(tx, id).await?;
     let changes = vec![(sent, "Y".to_owned()), (date, today())];
@@ -249,7 +255,7 @@ async fn targets(conn: &mut SqliteConnection, batch_id: &str) -> Result<Vec<Targ
         .map(|(id, revision)| {
             let id = id
                 .parse()
-                .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}")))?;
+                .map_err(|e: InvalidQsoId| StoreError::Invalid(format!("stored QSO ID {e}").into()))?;
             Ok(Target { id, revision })
         })
         .collect()

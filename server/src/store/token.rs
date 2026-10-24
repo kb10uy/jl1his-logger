@@ -7,7 +7,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 use crate::{
     db::Db,
     store::{
-        StoreError, WriteTx,
+        Fault, StoreError, WriteTx,
         access::{self, Principal, UserAccess},
         hash_token, name as store_name, new_id, now, random_token, timestamp,
     },
@@ -35,7 +35,7 @@ impl TokenKind {
         match s {
             "native" => Ok(TokenKind::Native),
             "wl2" => Ok(TokenKind::Wl2),
-            _ => Err(StoreError::Invalid(format!("unknown token kind {s:?}"))),
+            _ => Err(StoreError::Invalid(format!("unknown token kind {s:?}").into())),
         }
     }
 }
@@ -68,7 +68,7 @@ impl ApiToken {
             kind: TokenKind::parse(row.try_get("kind")?)?,
             name: row.try_get("name")?,
             logbook_ids: serde_json::from_str(&scopes)
-                .map_err(|e| StoreError::Invalid(format!("token scopes are not a list: {e}")))?,
+                .map_err(|e| StoreError::Invalid(format!("token scopes are not a list: {e}").into()))?,
             created_at: row.try_get("created_at")?,
             last_used_at: row.try_get("last_used_at")?,
         })
@@ -91,14 +91,25 @@ pub async fn issue(tx: &mut WriteTx, user: &UserAccess, input: &TokenInput) -> R
     let name = store_name("a token", &input.name)?;
     let scopes: BTreeSet<&str> = input.logbook_ids.iter().map(String::as_str).collect();
     match (input.kind, scopes.len()) {
-        (_, 0) => return Err(StoreError::Invalid("a token needs a Logbook".into())),
+        (_, 0) => {
+            return Err(StoreError::Invalid(Fault::coded(
+                "token_needs_logbook",
+                "a token needs a Logbook",
+            )));
+        }
         (TokenKind::Wl2, 2..) => {
-            return Err(StoreError::Invalid("a wl2 token is fixed to one Logbook".into()));
+            return Err(StoreError::Invalid(Fault::coded(
+                "wl2_token_one_logbook",
+                "a wl2 token is fixed to one Logbook",
+            )));
         }
         _ => {}
     }
     if input.wl2_prefix && input.kind != TokenKind::Wl2 {
-        return Err(StoreError::Invalid("only wl2 tokens take the wl2_ prefix".into()));
+        return Err(StoreError::Invalid(Fault::coded(
+            "wl2_prefix_only",
+            "only wl2 tokens take the wl2_ prefix",
+        )));
     }
     let principal = Principal::user(user.user_id());
     for logbook_id in &scopes {

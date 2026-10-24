@@ -16,10 +16,12 @@ pub mod token;
 pub mod user;
 
 use std::{
+    fmt,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
 
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 
@@ -36,13 +38,57 @@ pub enum StoreError {
     #[error("{0}")]
     Forbidden(&'static str),
     #[error("{0}")]
-    Conflict(String),
+    Conflict(Fault),
     #[error("{0}")]
-    Invalid(String),
+    Invalid(Fault),
     #[error(transparent)]
     Qso(#[from] QsoError),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+#[derive(Debug)]
+pub struct Fault {
+    pub message: String,
+    pub code: Option<&'static str>,
+    pub params: Vec<(&'static str, Value)>,
+}
+
+impl Fault {
+    pub fn coded(code: &'static str, message: impl Into<String>) -> Fault {
+        Fault {
+            message: message.into(),
+            code: Some(code),
+            params: Vec::new(),
+        }
+    }
+
+    pub fn with(mut self, key: &'static str, value: impl Into<Value>) -> Fault {
+        self.params.push((key, value.into()));
+        self
+    }
+}
+
+impl fmt::Display for Fault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl From<String> for Fault {
+    fn from(message: String) -> Fault {
+        Fault {
+            message,
+            code: None,
+            params: Vec::new(),
+        }
+    }
+}
+
+impl From<&str> for Fault {
+    fn from(message: &str) -> Fault {
+        message.to_owned().into()
+    }
 }
 
 pub struct WriteTx {
@@ -94,13 +140,23 @@ pub(crate) const MAX_TEXT_BYTES: usize = 2048;
 pub(crate) fn name<'a>(what: &str, value: &'a str) -> Result<&'a str, StoreError> {
     let value = value.trim();
     if value.is_empty() {
-        return Err(StoreError::Invalid(format!("{what} needs a name")));
+        return Err(StoreError::Invalid(Fault::coded(
+            "name_required",
+            format!("{what} needs a name"),
+        )));
     }
     if value.len() > MAX_TEXT_BYTES {
-        return Err(StoreError::Invalid(format!(
-            "the name of {what} is {} bytes long; at most {MAX_TEXT_BYTES} are kept",
-            value.len()
-        )));
+        return Err(StoreError::Invalid(
+            Fault::coded(
+                "name_too_long",
+                format!(
+                    "the name of {what} is {} bytes long; at most {MAX_TEXT_BYTES} are kept",
+                    value.len()
+                ),
+            )
+            .with("bytes", value.len())
+            .with("max", MAX_TEXT_BYTES),
+        ));
     }
     Ok(value)
 }

@@ -1,3 +1,6 @@
+import { errorText } from './errors.ts';
+import { m } from '#lib/paraglide/messages.js';
+
 export class ApiError extends Error {
     constructor(
         message: string,
@@ -48,7 +51,7 @@ export async function request<T>(
         });
     } catch (e) {
         if (e instanceof DOMException && e.name === 'AbortError') throw e;
-        throw new ApiError('The server could not be reached.', 0);
+        throw new ApiError(m.error_unreachable(), 0);
     }
     if (response.status === 204) return undefined as T;
     const text = await response.text();
@@ -62,7 +65,8 @@ export async function request<T>(
         const detail = (json ?? {}) as Record<string, unknown>;
         if (response.status === 401 && !path.startsWith('/api/auth/')) unauthorized();
         throw new ApiError(
-            typeof detail.error === 'string' ? detail.error : response.statusText,
+            errorText(detail) ??
+                (typeof detail.error === 'string' ? detail.error : response.statusText),
             response.status,
             detail
         );

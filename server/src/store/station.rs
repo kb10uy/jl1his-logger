@@ -5,7 +5,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 use crate::{
     domain::qso::{MAX_FIELDS, Qso, QsoError, field_name, field_value},
     store::{
-        StoreError, WriteTx,
+        Fault, StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
         is_unique_violation, name as store_name, new_id, now,
         qso::{self, Holder, StoredQso, TimeRange},
@@ -48,7 +48,7 @@ impl Station {
             name: row.try_get("name")?,
             callsign: row.try_get("callsign")?,
             fields: serde_json::from_str(&fields)
-                .map_err(|e| StoreError::Invalid(format!("stored Station fields are not a string map: {e}")))?,
+                .map_err(|e| StoreError::Invalid(format!("stored Station fields are not a string map: {e}").into()))?,
             archived_at: row.try_get("archived_at")?,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
@@ -70,9 +70,13 @@ fn normalize(input: &StationInput) -> Result<Normalized, StoreError> {
         .map(|name| name.to_ascii_uppercase())
         .find(|name| EQUIPMENT.contains(&name.as_str()))
     {
-        return Err(StoreError::Invalid(format!(
-            "{name} belongs to an Instrument, not a Station"
-        )));
+        return Err(StoreError::Invalid(
+            Fault::coded(
+                "instrument_field",
+                format!("{name} belongs to an Instrument, not a Station"),
+            )
+            .with("field", name.as_str()),
+        ));
     }
     let fields = defaults(&input.fields, NOT_DEFAULTS, "a Station default")?;
     Ok(Normalized {
@@ -92,10 +96,14 @@ pub(super) fn defaults(
         let name = field_name(name)?;
         field_value(&name, value)?;
         if refused.contains(&name.as_str()) {
-            return Err(StoreError::Invalid(format!("{name} cannot be {what}")));
+            return Err(StoreError::Invalid(
+                Fault::coded("field_not_allowed", format!("{name} cannot be {what}")).with("field", name.as_str()),
+            ));
         }
         if !value.is_empty() && fields.insert(name.clone(), value.clone()).is_some() {
-            return Err(StoreError::Invalid(format!("{name} is given more than once")));
+            return Err(StoreError::Invalid(
+                Fault::coded("field_repeated", format!("{name} is given more than once")).with("field", name.as_str()),
+            ));
         }
     }
     if fields.len() > MAX_FIELDS {
@@ -106,7 +114,9 @@ pub(super) fn defaults(
 
 fn wavelog_id_taken(e: sqlx::Error, wavelog_id: Option<i64>) -> StoreError {
     match (is_unique_violation(&e), wavelog_id) {
-        (true, Some(id)) => StoreError::Conflict(format!("another Station has the Wavelog ID {id}")),
+        (true, Some(id)) => StoreError::Conflict(
+            Fault::coded("wavelog_id_taken", format!("another Station has the Wavelog ID {id}")).with("id", id),
+        ),
         _ => e.into(),
     }
 }

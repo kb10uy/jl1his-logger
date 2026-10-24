@@ -47,7 +47,7 @@ impl LogbookRole {
         match s {
             "owner" => Ok(LogbookRole::Owner),
             "operator" => Ok(LogbookRole::Operator),
-            _ => Err(StoreError::Invalid(format!("unknown Logbook role {s:?}"))),
+            _ => Err(StoreError::Invalid(format!("unknown Logbook role {s:?}").into())),
         }
     }
 }

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{
     domain::{confirmation::Changes, qsl, qso::QsoId},
     store::{
-        StoreError, WriteTx,
+        Fault, StoreError, WriteTx,
         access::LogbookAccess,
         qso::{self, StoredQso, Target},
     },
@@ -40,9 +40,11 @@ pub async fn update(
     }
     let mut checked: Changes = vec![];
     for (name, value) in changes {
-        let field = qsl::field(name).ok_or_else(|| StoreError::Invalid(format!("{name} is not a QSL field")))?;
+        let field = qsl::field(name).ok_or_else(|| StoreError::Invalid(format!("{name} is not a QSL field").into()))?;
         if checked.iter().any(|(f, _)| *f == field) {
-            return Err(StoreError::Invalid(format!("{field} is given more than once")));
+            return Err(StoreError::Invalid(
+                Fault::coded("field_repeated", format!("{field} is given more than once")).with("field", field),
+            ));
         }
         qsl::check(field, value)?;
         checked.push((field, value.clone()));

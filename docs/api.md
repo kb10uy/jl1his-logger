@@ -7,7 +7,23 @@ in or a passkey or registration link is refused, `403` for a cross-origin write 
 a missing right, `404` for anything not found or not visible, `409` for a
 conflict, `412` when `If-Match` names another revision, `415` / `422` for a body
 that is not the expected JSON, `428` when `If-Match` is missing. Some errors add fields next to `error`, such
-as `current` on a revision conflict. Under `/api/logbooks/{logbook_id}` the
+as `current` on a revision conflict. An error a user can meet in the web client
+also has a stable `code` and its parameters beside it, so the client can word
+it in the user's language; `error` stays English. The codes are `not_found`
+(with `what`: `QSO`, `Station`, `Instrument`, `Logbook`, `user`, `passkey`,
+`API token`, `export batch`, `Membership`), `qso_missing` and `qso_invalid`
+(`field`, `value`), `qso_field_name`, `qso_column_field`, `qso_too_long`
+(`field`, `bytes`, `max`), `qso_too_many_fields` (`count`, `max`),
+`field_repeated`, `field_not_allowed`, `instrument_field` and
+`area_field_not_allowed` (`field`), `name_required`, `name_too_long` (`bytes`,
+`max`), `wavelog_id_taken` (`id`), `last_owner`, `last_passkey`,
+`passkey_registered`, `passkey_failed`, `passkey_expired`, `passkey_unknown`,
+`registration_link_invalid`, `not_a_callsign` (`callsign`),
+`token_needs_logbook`, `wl2_token_one_logbook`, `wl2_prefix_only`,
+`qso_deleted`, `qso_changed`, `id_taken` and `revision_conflict` (`id`),
+`rewrite_count_changed` (`count`, `expected`), `too_many_values` (`count`,
+`max`), `batch_empty`, `batch_applied` (`id`), `batch_nothing_to_apply`
+(`kind`), `not_utf8`, `not_adif` (`detail`) and the query codes below. Under `/api/logbooks/{logbook_id}` the
 caller's Membership is checked before the request itself, so a caller outside
 the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
 and carry the security headers listed in [decisions.md](decisions.md).
@@ -308,14 +324,17 @@ A `q` that cannot be read is `400` and names the term:
   "term": "freq:7",
   "index": 1,
   "start": 9,
-  "end": 15
+  "end": 15,
+  "value": "freq"
 }
 ```
 
 `index` counts the terms from 0; `start` and `end` are positions in the query
 in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
 `missing_value`, `too_many_values`, `bad_date`, `bad_number`, `unclosed_quote` and
-`empty`.
+`empty`. `value` holds the field name, date or number at fault for
+`unknown_field`, `bad_field_name`, `bad_date` and `bad_number`, and
+`too_many_values` adds `count` and `max`.
 
 `GET /targets` takes the same filters, without `cursor` and `limit`, and returns
 the ID and revision of every match, newest first. Checking every match in the

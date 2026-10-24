@@ -3,7 +3,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 use crate::{
     domain::qso::field_name,
     store::{
-        StoreError, WriteTx,
+        Fault, StoreError, WriteTx,
         access::{self, AdminAccess, LogbookAccess, LogbookRole, OwnerAccess, Principal, UserAccess},
         membership, name as store_name, new_id, now, user,
     },
@@ -61,7 +61,10 @@ impl Logbook {
 fn normalize_area(area: &AreaField) -> Result<AreaField, StoreError> {
     let name = field_name(&area.name)?;
     if NOT_AREA.contains(&name.as_str()) || name.starts_with("MY_") {
-        return Err(StoreError::Invalid(format!("{name} cannot be the area field")));
+        return Err(StoreError::Invalid(
+            Fault::coded("area_field_not_allowed", format!("{name} cannot be the area field"))
+                .with("field", name.as_str()),
+        ));
     }
     let label = store_name("the area field", &area.label)?;
     Ok(AreaField {

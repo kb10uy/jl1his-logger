@@ -34,7 +34,7 @@ impl ReferenceKind {
             "dxcc" => Ok(ReferenceKind::Dxcc),
             "subdivisions" => Ok(ReferenceKind::Subdivisions),
             "parks" => Ok(ReferenceKind::Parks),
-            _ => Err(StoreError::Invalid(format!("unknown reference data {s:?}"))),
+            _ => Err(StoreError::Invalid(format!("unknown reference data {s:?}").into())),
         }
     }
 }
