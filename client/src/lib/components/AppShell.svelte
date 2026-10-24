@@ -4,6 +4,8 @@
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
     import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
+    import { roleLabel } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import type { StreamStatus } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { session } from '#lib/state/session.svelte.ts';
@@ -36,45 +38,51 @@
         root === null
             ? []
             : [
-                  { label: 'Logbook', short: 'Log', icon: 'log', href: root, mobile: true },
                   {
-                      label: 'Live entry',
-                      short: 'Entry',
+                      label: m.nav_logbook(),
+                      short: m.nav_logbook_short(),
+                      icon: 'log',
+                      href: root,
+                      mobile: true
+                  },
+                  {
+                      label: m.nav_live_entry(),
+                      short: m.nav_live_entry_short(),
                       icon: 'entry',
                       href: `${root}/entry`,
                       mobile: true
                   },
                   {
-                      label: 'Voice entry',
-                      short: 'Voice',
+                      label: m.nav_voice_entry(),
+                      short: m.nav_voice_entry_short(),
                       icon: 'voice',
                       href: `${root}/voice`,
                       mobile: true
                   },
                   {
-                      label: 'Stations',
-                      short: 'Stations',
+                      label: m.nav_stations(),
+                      short: m.nav_stations(),
                       icon: 'stations',
                       href: `${root}/stations`,
                       mobile: false
                   },
                   {
-                      label: 'Instruments',
-                      short: 'Instruments',
+                      label: m.nav_instruments(),
+                      short: m.nav_instruments(),
                       icon: 'instruments',
                       href: `${root}/instruments`,
                       mobile: false
                   },
                   {
-                      label: 'QSL Management',
-                      short: 'QSL',
+                      label: m.nav_qsl_management(),
+                      short: m.nav_qsl_management_short(),
                       icon: 'qsl',
                       href: `${root}/qsl-management`,
                       mobile: false
                   },
                   {
-                      label: 'Import / Export',
-                      short: 'Import',
+                      label: m.nav_import_export(),
+                      short: m.nav_import_export_short(),
                       icon: 'transfer',
                       href: `${root}/import-export`,
                       mobile: false
@@ -110,11 +118,11 @@
     const statusText = $derived.by(() => {
         const unsent = outbox.items.length;
         if (status === 'offline' || status === 'connecting') {
-            const label = status === 'offline' ? 'Offline' : 'Connecting';
-            return unsent > 0 ? `${label} · ${unsent} unsent` : label;
+            const label = status === 'offline' ? m.shell_offline() : m.shell_connecting();
+            return unsent > 0 ? `${label} · ${m.common_unsent({ count: unsent })}` : label;
         }
-        if (unsent > 0) return `${unsent} unsent`;
-        return `Synced · seq ${lastUpdatedSeq ?? 0}`;
+        if (unsent > 0) return m.common_unsent({ count: unsent });
+        return m.shell_synced({ seq: lastUpdatedSeq ?? 0 });
     });
     const statusColor = $derived(
         status === 'live' && outbox.items.length === 0 ? 'bg-ok' : 'bg-warn'
@@ -127,7 +135,9 @@
         saveCollapsed(collapsed);
     }
 
-    const who = $derived(`${session.me?.callsign ?? ''}${logbook ? ` · ${logbook.role}` : ''}`);
+    const who = $derived(
+        `${session.me?.callsign ?? ''}${logbook ? ` · ${roleLabel(logbook.role)}` : ''}`
+    );
     const linkClass = (active: boolean) => [
         'flex h-10 items-center gap-2.5 rounded-md no-underline',
         collapsed ? 'justify-center' : 'px-3',
@@ -142,7 +152,7 @@
 
 <div class="flex min-h-dvh bg-bg text-text">
     <nav
-        aria-label="Main"
+        aria-label={m.nav_main()}
         class={[
             'sticky top-0 hidden h-dvh shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface py-4 md:flex',
             collapsed ? 'w-[60px] px-2' : 'w-[232px] px-3'
@@ -155,8 +165,8 @@
             {/if}
             <button
                 type="button"
-                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-label={collapsed ? m.shell_expand_sidebar() : m.shell_collapse_sidebar()}
+                title={collapsed ? m.shell_expand_sidebar() : m.shell_collapse_sidebar()}
                 class="inline-flex size-8 items-center justify-center rounded-md text-muted hover:bg-surface-2/60 hover:text-text"
                 onclick={toggle}><Icon name={collapsed ? 'expand' : 'collapse'} /></button
             >
@@ -175,11 +185,11 @@
         <a
             href="/settings/account"
             aria-current={onSettings ? 'page' : undefined}
-            aria-label={collapsed ? 'Settings' : undefined}
-            title={collapsed ? 'Settings' : undefined}
+            aria-label={collapsed ? m.nav_settings() : undefined}
+            title={collapsed ? m.nav_settings() : undefined}
             class={linkClass(onSettings)}
         >
-            <Icon name="settings" />{#if !collapsed}Settings{/if}
+            <Icon name="settings" />{#if !collapsed}{m.nav_settings()}{/if}
         </a>
         <div class="flex-1"></div>
         {#if collapsed}
@@ -200,8 +210,8 @@
                 >
                 <button
                     type="button"
-                    aria-label="Sign out"
-                    title="Sign out"
+                    aria-label={m.shell_sign_out()}
+                    title={m.shell_sign_out()}
                     class="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-text"
                     onclick={signOut}><Icon name="signout" size={16} /></button
                 >
@@ -219,8 +229,8 @@
                     <span>{who}</span>
                     <button
                         type="button"
-                        aria-label="Sign out"
-                        title="Sign out"
+                        aria-label={m.shell_sign_out()}
+                        title={m.shell_sign_out()}
                         class="inline-flex size-7 items-center justify-center rounded-md text-muted hover:text-text"
                         onclick={signOut}><Icon name="signout" size={16} /></button
                     >
@@ -233,8 +243,10 @@
         <DropdownMenu.Root>
             {#if collapsed}
                 <DropdownMenu.Trigger
-                    aria-label={`Logbook: ${logbook?.name ?? 'none'}`}
-                    title={logbook?.name ?? 'Logbook'}
+                    aria-label={m.shell_logbook_menu({
+                        name: logbook?.name ?? m.shell_logbook_none()
+                    })}
+                    title={logbook?.name ?? m.nav_logbook()}
                     class="inline-flex size-9 items-center justify-center rounded-md border border-border bg-bg text-text"
                     ><Icon name="logbook" /></DropdownMenu.Trigger
                 >
@@ -243,10 +255,10 @@
                     class="mb-1 flex h-8 items-center justify-between rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
                 >
                     <span class="truncate font-mono font-semibold"
-                        >{logbook?.name ?? 'Logbook'}</span
+                        >{logbook?.name ?? m.nav_logbook()}</span
                     >
                     <span class="flex items-center gap-1 text-xs text-muted"
-                        >Logbook <Icon name="chevron" size={12} /></span
+                        >{m.nav_logbook()} <Icon name="chevron" size={12} /></span
                     >
                 </DropdownMenu.Trigger>
             {/if}
@@ -263,7 +275,7 @@
                             class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
                         >
                             <span class="font-mono font-semibold">{l.name}</span>
-                            <span class="text-xs text-muted">{l.role}</span>
+                            <span class="text-xs text-muted">{roleLabel(l.role)}</span>
                         </DropdownMenu.Item>
                     {/each}
                 </DropdownMenu.Content>
@@ -277,7 +289,7 @@
 
     {#if root !== null}
         <nav
-            aria-label="Main"
+            aria-label={m.nav_main()}
             class="fixed inset-x-0 bottom-0 z-30 grid h-[84px] grid-cols-4 border-t border-border bg-surface px-2 pt-1.5 pb-6 md:hidden"
         >
             {#each items.filter((i) => i.mobile) as item (item.href)}
@@ -300,7 +312,7 @@
                     onMore ? 'font-semibold text-accent' : 'text-muted'
                 ]}
             >
-                <Icon name="more" size={22} />More
+                <Icon name="more" size={22} />{m.nav_more()}
             </a>
         </nav>
     {/if}

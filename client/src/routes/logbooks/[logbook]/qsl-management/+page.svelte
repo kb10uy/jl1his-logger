@@ -10,9 +10,12 @@
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import Segmented from '#lib/components/ui/Segmented.svelte';
+    import Slotted from '#lib/components/ui/Slotted.svelte';
     import Stat from '#lib/components/ui/Stat.svelte';
     import { download } from '#lib/download.ts';
-    import { count, stationLabel } from '#lib/qso/format.ts';
+    import { SLOT } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
+    import { stationLabel } from '#lib/qso/format.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { Matches } from '#lib/state/matches.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
@@ -64,8 +67,8 @@
     const fields = $derived(SENT_FIELDS[kind] ?? ['', '']);
     const format = $derived(file ? formatOf(file.name) : 'adi');
     const lengths: { value: LengthUnit; label: string }[] = [
-        { value: 'codepoints', label: 'Codepoints' },
-        { value: 'bytes', label: 'Bytes' }
+        { value: 'codepoints', label: m.transfer_length_codepoints() },
+        { value: 'bytes', label: m.transfer_length_bytes() }
     ];
     const rejects = $derived(report ? rejectCount(report) : 0);
 
@@ -94,12 +97,12 @@
                 length: exportLength
             });
             if (result.batch === null || result.adif === null) {
-                toasts.show('No QSO matches, so no batch was created.');
+                toasts.show(m.transfer_qsl_no_batch());
                 return;
             }
             download(fileName(logbook.logbook.name, kind, new Date()), result.adif);
             batches = [result.batch, ...batches];
-            toasts.show(`Created a batch of ${count(result.batch.qso_count, 'QSO')}`);
+            toasts.show(m.transfer_qsl_batch_created({ count: result.batch.qso_count }));
         } catch (e) {
             toasts.error((e as Error).message);
         } finally {
@@ -126,7 +129,7 @@
     async function run(apply: boolean) {
         if (file === undefined) return;
         if (file.size > MAX_IMPORT) {
-            reportError = 'The file is larger than 64 MiB.';
+            reportError = m.transfer_file_too_large();
             return;
         }
         reportError = undefined;
@@ -147,7 +150,7 @@
             report = result;
             merged = apply ? result : undefined;
             if (apply) {
-                toasts.show(`Merged ${count(result.merged, 'confirmation')}`);
+                toasts.show(m.transfer_qsl_merged_count({ count: result.merged }));
                 matches.refresh();
             }
         } catch (e) {
@@ -171,10 +174,10 @@
     });
 </script>
 
-<PageTitle title="QSL Management" />
+<PageTitle title={m.nav_qsl_management()} />
 
 {#snippet lengthChoice(name: string, value: LengthUnit, set: (v: LengthUnit) => void)}
-    <div role="radiogroup" aria-label="Lengths" class="flex gap-4 text-[13px]">
+    <div role="radiogroup" aria-label={m.transfer_lengths()} class="flex gap-4 text-[13px]">
         {#each lengths as l (l.value)}
             <label class="flex cursor-pointer items-center gap-1.5">
                 <input
@@ -194,14 +197,18 @@
     <header class="flex flex-wrap items-center gap-3">
         <a
             href={`/logbooks/${logbookId}/more`}
-            aria-label="Back to More"
+            aria-label={m.settings_back_more()}
             class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
             ><Icon name="back" size={22} /></a
         >
-        <h1 class="text-xl font-semibold">QSL Management</h1>
+        <h1 class="text-xl font-semibold">{m.nav_qsl_management()}</h1>
     </header>
-    <div role="tablist" aria-label="Direction" class="grid grid-cols-2 gap-1.5 md:hidden">
-        {#each [['send', 'Send'], ['receive', 'Receive']] as [id, label] (id)}
+    <div
+        role="tablist"
+        aria-label={m.transfer_direction()}
+        class="grid grid-cols-2 gap-1.5 md:hidden"
+    >
+        {#each [['send', m.transfer_qsl_send()], ['receive', m.transfer_qsl_receive()]] as [id, label] (id)}
             <button
                 type="button"
                 role="tab"
@@ -225,21 +232,21 @@
             ]}
         >
             <section
-                aria-label="Send"
+                aria-label={m.transfer_qsl_send()}
                 class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
             >
-                <h2 class="text-[15px] font-semibold">Send</h2>
+                <h2 class="text-[15px] font-semibold">{m.transfer_qsl_send()}</h2>
                 <Segmented
-                    label="Kind"
+                    label={m.transfer_kind()}
                     options={[
-                        { value: 'qsl_card', label: 'QSL card' },
+                        { value: 'qsl_card', label: m.transfer_kind_qsl_card() },
                         { value: 'eqsl', label: 'eQSL' },
                         { value: 'lotw', label: 'LoTW' }
                     ]}
                     bind:value={() => kind, (next) => pick(next as SendKind)}
                 />
                 <div class="flex flex-col gap-1">
-                    <label for="qsl-query" class="text-xs text-muted">Query</label>
+                    <label for="qsl-query" class="text-xs text-muted">{m.transfer_query()}</label>
                     <input
                         id="qsl-query"
                         class="control h-10 font-mono"
@@ -250,7 +257,7 @@
                     />
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
-                    <span class="text-xs text-muted">Lengths</span>
+                    <span class="text-xs text-muted">{m.transfer_lengths()}</span>
                     {@render lengthChoice('qsl-len', exportLength, (v) => (exportLength = v))}
                 </div>
                 {#if matches.error}
@@ -258,7 +265,10 @@
                 {/if}
                 <div class="flex flex-wrap items-center gap-3">
                     <span class="text-[13px]"
-                        ><strong class="font-mono text-base">{matches.total ?? '…'}</strong> QSOs match</span
+                        ><Slotted text={m.transfer_qsos_match({ total: SLOT })}
+                            ><strong class="font-mono text-base">{matches.total ?? '…'}</strong
+                            ></Slotted
+                        ></span
                     >
                     <div class="flex-1"></div>
                     <Button
@@ -266,44 +276,45 @@
                         size="lg"
                         disabled={creating || matches.error !== undefined || matches.total === 0}
                         onclick={create}
-                        >{creating ? 'Creating…' : 'Create batch and download ADIF'}</Button
+                        >{creating
+                            ? m.transfer_qsl_creating()
+                            : m.transfer_qsl_create_batch()}</Button
                     >
                 </div>
                 <span class="text-xs text-muted"
-                    >Marking the batch as sent later sets {fields[0]} = Y and {fields[1]} on the QSOs
-                    still at their recorded revisions.</span
+                    >{m.transfer_qsl_mark_note({ sent: fields[0], date: fields[1] })}</span
                 >
             </section>
 
-            <section aria-label="Batches" class="flex flex-col gap-2">
-                <h2 class="eyebrow">Batches</h2>
+            <section aria-label={m.transfer_qsl_batches()} class="flex flex-col gap-2">
+                <h2 class="eyebrow">{m.transfer_qsl_batches()}</h2>
                 <BatchTable {batches} {callsigns} {results} {applying} onapply={apply} />
             </section>
         </div>
 
         <section
-            aria-label="Receive"
+            aria-label={m.transfer_qsl_receive()}
             class={[
                 'flex min-w-0 flex-[1_1_440px] flex-col gap-3 rounded-lg border border-border bg-surface p-4',
                 tab !== 'receive' && 'max-md:hidden'
             ]}
         >
-            <h2 class="text-[15px] font-semibold">Receive</h2>
+            <h2 class="text-[15px] font-semibold">{m.transfer_qsl_receive()}</h2>
             <Segmented
-                label="Source"
+                label={m.transfer_qsl_source()}
                 options={[
                     { value: 'lotw', label: 'LoTW' },
                     { value: 'eqsl', label: 'eQSL' },
-                    { value: 'card', label: 'Card' }
+                    { value: 'card', label: m.transfer_qsl_source_card() }
                 ]}
                 bind:value={source}
             />
             <FileDrop bind:file />
             <div class="flex flex-wrap items-end gap-3">
                 <div class="flex min-w-0 flex-col gap-1">
-                    <label for="rcv-station" class="text-xs text-muted">Station</label>
+                    <label for="rcv-station" class="text-xs text-muted">{m.field_station()}</label>
                     <select id="rcv-station" class="control" bind:value={stationId}>
-                        <option value="">Any Station</option>
+                        <option value="">{m.transfer_qsl_any_station()}</option>
                         {#each logbook.stations as s (s.id)}
                             <option value={s.id}>{stationLabel(s)}</option>
                         {/each}
@@ -316,7 +327,7 @@
                 {/if}
                 <div class="flex-1"></div>
                 <Button disabled={file === undefined || previewing} onclick={() => run(false)}
-                    >{previewing ? 'Reading…' : 'Preview again'}</Button
+                    >{previewing ? m.transfer_reading() : m.transfer_preview_again()}</Button
                 >
             </div>
 
@@ -325,70 +336,75 @@
             {/if}
             {#if report}
                 <span class="text-xs text-muted"
-                    >{merged ? 'Merged' : 'Preview · nothing written yet'}</span
+                    >{merged ? m.transfer_qsl_merged() : m.transfer_preview_note()}</span
                 >
                 <div class="grid grid-cols-3 gap-2">
-                    <Stat label="Read" value={report.read} />
-                    <Stat label={merged ? 'Merged' : 'To merge'} value={report.merged} tone="ok" />
-                    <Stat label="Already received" value={report.already} />
+                    <Stat label={m.transfer_stat_read()} value={report.read} />
                     <Stat
-                        label="Unmatched"
+                        label={merged ? m.transfer_qsl_merged() : m.transfer_qsl_to_merge()}
+                        value={report.merged}
+                        tone="ok"
+                    />
+                    <Stat label={m.transfer_qsl_already_received()} value={report.already} />
+                    <Stat
+                        label={m.transfer_qsl_unmatched()}
                         value={report.unmatched.length}
                         tone={report.unmatched.length > 0 ? 'warn' : undefined}
                     />
                     <Stat
-                        label="Ambiguous"
+                        label={m.transfer_qsl_ambiguous()}
                         value={report.ambiguous.length}
                         tone={report.ambiguous.length > 0 ? 'warn' : undefined}
                     />
                     <Stat
-                        label="Invalid"
+                        label={m.transfer_invalid()}
                         value={report.invalid.length}
                         tone={report.invalid.length > 0 ? 'error' : undefined}
                     />
                 </div>
                 {#if report.not_confirmations > 0}
                     <span class="text-xs text-muted"
-                        >{count(report.not_confirmations, 'record')} are not confirmations and are left
-                        alone.</span
+                        >{m.transfer_qsl_not_confirmations({
+                            records: m.common_record_count({ count: report.not_confirmations })
+                        })}</span
                     >
                 {/if}
                 <RecordList
-                    title="Ambiguous"
-                    note="matches several QSOs"
+                    title={m.transfer_qsl_ambiguous()}
+                    note={m.transfer_qsl_note_several()}
                     items={report.ambiguous.map((a) => ({
                         record: a.record,
-                        text: `→ ${count(a.ids.length, 'QSO')}`,
+                        text: `→ ${m.common_qso_count({ count: a.ids.length })}`,
                         ids: a.ids
                     }))}
                     {qsoHref}
                 />
                 <RecordList
-                    title="Unmatched"
-                    note="no QSO found"
+                    title={m.transfer_qsl_unmatched()}
+                    note={m.transfer_qsl_note_no_qso()}
                     items={report.unmatched.map((record) => ({ record, text: '' }))}
                 />
                 <RecordList
-                    title="Invalid"
-                    note="skipped"
+                    title={m.transfer_invalid()}
+                    note={m.transfer_note_skipped()}
                     items={report.invalid.map((i) => ({ record: i.record, text: i.error }))}
                 />
                 {#if report.skipped.length > 0}
                     <Notice
-                        >{count(report.skipped.length, 'QSO')} changed while merging and were skipped.
-                        Preview again to merge them.</Notice
+                        >{m.transfer_qsl_skipped_notice({
+                            qsos: m.common_qso_count({ count: report.skipped.length })
+                        })}</Notice
                     >
                 {/if}
                 {#if differencesText(report.differences)}
                     <details class="rounded-lg border border-border px-3">
                         <summary class="flex h-10 cursor-pointer items-center text-[13px]"
-                            >Differences not applied · {differencesText(
-                                report.differences
-                            )}</summary
+                            >{m.transfer_qsl_differences({
+                                differences: differencesText(report.differences)
+                            })}</summary
                         >
                         <p class="pb-3 text-[13px] text-muted">
-                            Fields the confirmations carry that differ from the QSOs. They are
-                            counted, never written.
+                            {m.transfer_qsl_differences_help()}
                         </p>
                     </details>
                 {/if}
@@ -400,14 +416,14 @@
                                 download(
                                     fileName(logbook.logbook.name, 'adif', new Date(), '-rejects'),
                                     report?.rejects ?? ''
-                                )}>Download rejects ({count(rejects, 'record')})</Button
+                                )}>{m.transfer_download_rejects({ count: rejects })}</Button
                         >
                     {/if}
                     <div class="flex-1"></div>
                     {#if merged}
                         <span
                             class="flex h-10 items-center rounded-md bg-ok-bg px-4 font-bold text-ok"
-                            >Merged {count(merged.merged, 'confirmation')}</span
+                            >{m.transfer_qsl_merged_count({ count: merged.merged })}</span
                         >
                     {:else}
                         <Button
@@ -416,8 +432,8 @@
                             disabled={report.merged === 0 || merging || previewing}
                             onclick={() => run(true)}
                             >{merging
-                                ? 'Merging…'
-                                : `Merge ${count(report.merged, 'confirmation')}`}</Button
+                                ? m.transfer_qsl_merging()
+                                : m.transfer_qsl_merge_count({ count: report.merged })}</Button
                         >
                     {/if}
                 </div>

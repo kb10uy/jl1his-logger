@@ -1,4 +1,5 @@
 import type { Area, Fields } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 import {
     contestProblem,
@@ -7,7 +8,7 @@ import {
     type ContestSettings
 } from '#lib/qso/contest.ts';
 import { utcFields } from '#lib/qso/format.ts';
-import { isPower, POWER_RULE } from '#lib/qso/power.ts';
+import { isPower, powerRule } from '#lib/qso/power.ts';
 import { qslRequestFields, type QslRequest } from '#lib/qso/qsl.ts';
 
 export interface ExtraField {
@@ -63,9 +64,9 @@ export function extraFieldNames(area: Area): string[] {
 }
 
 export function extraFieldProblem(name: string, area: Area): string | undefined {
-    if (entered(name, area)) return `${name} has its own field.`;
-    if (name === 'STATION_CALLSIGN') return 'STATION_CALLSIGN comes from the Station.';
-    if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
+    if (entered(name, area)) return m.entry_field_has_own({ name });
+    if (name === 'STATION_CALLSIGN') return m.entry_field_from_station({ name });
+    if (!isAdifQsoField(name)) return m.entry_field_unknown({ name });
     return undefined;
 }
 
@@ -80,20 +81,19 @@ export function entryProblem(
     contest: ContestSettings,
     area: Area = null
 ): string | undefined {
-    if (entry.call.trim() === '') return 'Enter the call.';
-    if (entry.band === '' || entry.mode === '') return 'Choose the band and the mode.';
+    if (entry.call.trim() === '') return m.entry_enter_call();
+    if (entry.band === '' || entry.mode === '') return m.entry_choose_band_mode();
     const problem = contestProblem(contest);
     if (problem !== undefined) return problem;
-    if (contest.enabled && entry.received.trim() === '')
-        return 'Contest: the received number is required.';
+    if (contest.enabled && entry.received.trim() === '') return m.entry_received_required();
     const power = entry.txPwr.trim();
-    if (power !== '' && !isPower(power)) return POWER_RULE;
+    if (power !== '' && !isPower(power)) return powerRule();
     const seen = new Set<string>();
     for (const { name } of filledExtras(entry)) {
-        if (name === '') return 'Name the extra field, or clear its value.';
+        if (name === '') return m.entry_name_extra_field();
         const extra = extraFieldProblem(name, area);
         if (extra !== undefined) return extra;
-        if (seen.has(name)) return `${name} is entered twice.`;
+        if (seen.has(name)) return m.entry_field_twice({ name });
         seen.add(name);
     }
     return undefined;

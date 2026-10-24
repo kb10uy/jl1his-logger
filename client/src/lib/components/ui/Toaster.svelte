@@ -1,5 +1,6 @@
 <script lang="ts">
     import { toasts } from '#lib/state/toast.svelte.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import Icon from './Icon.svelte';
 </script>
 
@@ -32,7 +33,7 @@
             {/if}
             <button
                 type="button"
-                aria-label="Dismiss"
+                aria-label={m.common_dismiss()}
                 class="inline-flex size-7 items-center justify-center rounded-md text-muted"
                 onclick={() => toasts.dismiss(toast.id)}
             >

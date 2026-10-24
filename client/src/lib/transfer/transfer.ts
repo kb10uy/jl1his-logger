@@ -1,13 +1,14 @@
 import type { ExportKind, MergeReport, NewReport, Outcome } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 
 export const MAX_IMPORT = 64 * 1024 * 1024;
 
-export const KIND_LABELS: Record<ExportKind, string> = {
-    adif: 'ADIF',
-    pota: 'POTA',
-    qsl_card: 'QSL card',
-    eqsl: 'eQSL',
-    lotw: 'LoTW'
+export const KIND_LABELS: Record<ExportKind, () => string> = {
+    adif: () => 'ADIF',
+    pota: () => 'POTA',
+    qsl_card: () => m.transfer_kind_qsl_card(),
+    eqsl: () => 'eQSL',
+    lotw: () => 'LoTW'
 };
 
 export const SENT_FIELDS: Partial<Record<ExportKind, [string, string]>> = {
@@ -45,6 +46,9 @@ export function differencesText(differences: Record<string, number>): string {
 }
 
 export function outcomeText(outcome: Outcome): string {
+    const updated = outcome.updated.length;
     const skipped = outcome.skipped.length;
-    return `${outcome.updated.length} updated${skipped > 0 ? `, ${skipped} skipped` : ''}`;
+    return skipped > 0
+        ? m.transfer_outcome_updated_skipped({ updated, skipped })
+        : m.transfer_outcome_updated({ updated });
 }

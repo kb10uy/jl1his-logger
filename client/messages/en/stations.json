@@ -1,0 +1,137 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "stations_page_title": "{name} - Stations",
+    "stations_back": "Back to Stations",
+    "stations_counts": [
+        {
+            "declarations": [
+                "input active",
+                "input archived",
+                "local a = active: number",
+                "local b = archived: number"
+            ],
+            "selectors": [],
+            "match": { "": "{a} active · {b} archived" }
+        }
+    ],
+    "stations_new": "New Station",
+    "stations_list": "Station list",
+    "stations_no_active": "No active Station yet.",
+    "stations_archived": "Archived",
+    "stations_choose": "Choose a Station to see its values.",
+    "stations_choose_or_create": "Choose a Station to see its values, or create one.",
+    "stations_owners_create": "Only owners of this Logbook create Stations.",
+    "stations_not_found": "This Station does not exist.",
+    "stations_created": "Created {name}",
+    "stations_saved": "Saved {name}",
+    "stations_archived_toast": "Archived {name}",
+    "stations_restored": "Restored {name}",
+    "stations_wavelog_id_taken": "Another Station already has Wavelog ID {id}.",
+    "stations_archived_on": "archived {date}",
+    "stations_restore": "Restore",
+    "stations_callsign": "Callsign",
+    "stations_wavelog_id": "Wavelog ID",
+    "stations_placeholder_none": "none",
+    "stations_field_grid": "Grid locator",
+    "stations_field_city": "City",
+    "stations_field_state": "State",
+    "stations_field_county": "County",
+    "stations_field_dxcc": "DXCC entity",
+    "stations_field_sig": "Special activity",
+    "stations_field_sig_info": "Special activity info",
+    "stations_field_iota": "IOTA",
+    "stations_field_wwff": "WWFF",
+    "stations_field_cq_zone": "CQ zone",
+    "stations_field_itu_zone": "ITU zone",
+    "stations_field_operator": "Operator",
+    "stations_pota_parks": "POTA parks",
+    "stations_park_placeholder": "Add park, US-0001…",
+    "stations_state_follows": "State choices follow this",
+    "stations_field_name": "Field name",
+    "stations_remove_named": "Remove {name}",
+    "stations_remove_field": "Remove field",
+    "stations_add_field": "Add field",
+    "stations_add_field_choice": "+ Add field…",
+    "stations_another_field": "Another ADIF field…",
+    "stations_new_hint": "New QSOs at this Station get these values.",
+    "stations_saving_hint": "Saving changes new QSOs only.",
+    "stations_revert": "Revert",
+    "stations_create": "Create Station",
+    "stations_owners_edit": "Only owners of this Logbook edit its Stations.",
+    "stations_rewrite_title": "Rewrite past QSOs",
+    "stations_rewrite_lead": "Sets STATION_CALLSIGN and every saved field above on this Station's QSOs in the range. Other fields stay.",
+    "stations_rewrite_from": "From (UTC)",
+    "stations_rewrite_until": "Until (UTC, exclusive)",
+    "stations_preview": "Preview",
+    "stations_would_change": [
+        {
+            "declarations": ["input count", "input n", "local countPlural = count: plural"],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} QSO would change",
+                "countPlural=other": "{n} QSOs would change"
+            }
+        }
+    ],
+    "stations_rewriting": "Rewriting…",
+    "stations_rewrite_count": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Rewrite {n} QSO",
+                "countPlural=other": "Rewrite {n} QSOs"
+            }
+        }
+    ],
+    "stations_rewrote": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Rewrote {n} QSO.",
+                "countPlural=other": "Rewrote {n} QSOs."
+            }
+        }
+    ],
+    "stations_save_first": "Save or revert the changes above first.",
+    "stations_rewrite_confirm_title": "Rewrite past QSOs?",
+    "stations_rewrite_confirm_description": "This sets the Station's current values on {qsos}. It cannot be undone from here.",
+    "stations_rewrite_confirm": "Rewrite",
+    "stations_range_changed": "The QSOs in the range changed. Preview again.",
+    "stations_problem_name": "A Station needs a name.",
+    "stations_problem_callsign": "A Station needs a callsign.",
+    "stations_problem_wavelog_id": "The Wavelog ID is a positive whole number.",
+    "stations_problem_dxcc": "MY_DXCC is a DXCC entity code.",
+    "stations_problem_not_adif": "{name} is not an ADIF QSO field.",
+    "stations_problem_reserved": "{key} cannot be a Station default.",
+    "stations_problem_equipment": "{key} belongs to an Instrument.",
+    "stations_problem_twice": "{key} is listed twice.",
+    "stations_instrument_page_title": "{name} - Instruments",
+    "stations_instrument_back": "Back to Instruments",
+    "stations_instrument_new": "New Instrument",
+    "stations_instrument_list": "Instrument list",
+    "stations_instrument_no_active": "No active Instrument yet.",
+    "stations_instrument_choose": "Choose an Instrument to see its values, or create one.",
+    "stations_instrument_not_found": "This Instrument does not exist.",
+    "stations_instrument_rig": "Rig",
+    "stations_instrument_antenna": "Antenna",
+    "stations_instrument_power": "TX power (W)",
+    "stations_instrument_value_named": "Value of {name}",
+    "stations_instrument_value_field": "Value of field",
+    "stations_instrument_add_field": "+ Add ADIF field",
+    "stations_instrument_new_hint": "New QSOs with this Instrument get these values over the Station’s.",
+    "stations_instrument_create": "Create Instrument",
+    "stations_instrument_rewrite_lead": "Sets every saved value above on this Instrument's QSOs in the range. Other fields stay.",
+    "stations_instrument_rewrite_confirm_description": "This sets the Instrument's current values on {qsos}. It cannot be undone from here.",
+    "stations_instrument_problem_name": "An Instrument needs a name.",
+    "stations_instrument_problem_reserved": "{key} cannot be another field of an Instrument."
+}

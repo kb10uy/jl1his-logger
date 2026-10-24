@@ -1,0 +1,222 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "transfer_file_too_large": "The file is larger than 64 MiB.",
+    "transfer_lengths": "Lengths",
+    "transfer_length_codepoints": "Codepoints",
+    "transfer_length_bytes": "Bytes",
+    "transfer_direction": "Direction",
+    "transfer_kind": "Kind",
+    "transfer_kind_qsl_card": "QSL card",
+    "transfer_query": "Query",
+    "transfer_qsos_match": "{total} QSOs match",
+    "transfer_qsos_match_pota": "{total} QSOs match, one record per park",
+    "transfer_preview_note": "Preview · nothing written yet",
+    "transfer_reading": "Reading…",
+    "transfer_preview_again": "Preview again",
+    "transfer_stat_read": "Read",
+    "transfer_invalid": "Invalid",
+    "transfer_note_skipped": "skipped",
+    "transfer_download_rejects": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Download rejects ({n} record)",
+                "countPlural=other": "Download rejects ({n} records)"
+            }
+        }
+    ],
+    "transfer_import": "Import",
+    "transfer_export": "Export",
+    "transfer_import_new_title": "Import new QSOs",
+    "transfer_station_required": "Create a Station first; new QSOs are recorded at one.",
+    "transfer_imported_label": "Imported",
+    "transfer_stat_created": "Created",
+    "transfer_stat_new": "New",
+    "transfer_stat_already_imported": "Already imported",
+    "transfer_possible_duplicates": "Possible duplicates",
+    "transfer_stat_outside_band_modes": "Outside band · modes",
+    "transfer_note_imported_anyway": "imported anyway",
+    "transfer_duplicate_item": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "≈ {n} other QSO",
+                "countPlural=other": "≈ {n} other QSOs"
+            }
+        }
+    ],
+    "transfer_outside_band": "Outside band",
+    "transfer_note_kept": "kept as they are",
+    "transfer_outside_band_item": "{freq} MHz is not in {band}",
+    "transfer_modes": "Modes",
+    "transfer_unknown_mode": "MODE {mode} is unknown",
+    "transfer_unknown_submode": "SUBMODE {submode} is unknown",
+    "transfer_submode_of_another_mode": "SUBMODE {submode} belongs to {expected}",
+    "transfer_imported": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Imported {n} QSO",
+                "countPlural=other": "Imported {n} QSOs"
+            }
+        }
+    ],
+    "transfer_importing": "Importing…",
+    "transfer_import_count": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Import {n} QSO",
+                "countPlural=other": "Import {n} QSOs"
+            }
+        }
+    ],
+    "transfer_reading_file": "Reading the file…",
+    "transfer_export_nothing": "No QSO matches, so nothing was exported.",
+    "transfer_exported": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Exported {n} record",
+                "countPlural=other": "Exported {n} records"
+            }
+        }
+    ],
+    "transfer_park": "Park",
+    "transfer_query_everything": "everything",
+    "transfer_park_every": "every park",
+    "transfer_exporting": "Exporting…",
+    "transfer_download_adif": "Download ADIF",
+    "transfer_recent_exports": "Recent exports",
+    "transfer_qsl_no_batch": "No QSO matches, so no batch was created.",
+    "transfer_qsl_batch_created": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Created a batch of {n} QSO",
+                "countPlural=other": "Created a batch of {n} QSOs"
+            }
+        }
+    ],
+    "transfer_qsl_merged_count": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Merged {n} confirmation",
+                "countPlural=other": "Merged {n} confirmations"
+            }
+        }
+    ],
+    "transfer_qsl_send": "Send",
+    "transfer_qsl_receive": "Receive",
+    "transfer_qsl_creating": "Creating…",
+    "transfer_qsl_create_batch": "Create batch and download ADIF",
+    "transfer_qsl_mark_note": "Marking the batch as sent later sets {sent} = Y and {date} on the QSOs still at their recorded revisions.",
+    "transfer_qsl_batches": "Batches",
+    "transfer_qsl_source": "Source",
+    "transfer_qsl_source_card": "Card",
+    "transfer_qsl_any_station": "Any Station",
+    "transfer_qsl_merged": "Merged",
+    "transfer_qsl_to_merge": "To merge",
+    "transfer_qsl_already_received": "Already received",
+    "transfer_qsl_unmatched": "Unmatched",
+    "transfer_qsl_ambiguous": "Ambiguous",
+    "transfer_qsl_not_confirmations": "{records} are not confirmations and are left alone.",
+    "transfer_qsl_note_several": "matches several QSOs",
+    "transfer_qsl_note_no_qso": "no QSO found",
+    "transfer_qsl_skipped_notice": "{qsos} changed while merging and were skipped. Preview again to merge them.",
+    "transfer_qsl_differences": "Differences not applied · {differences}",
+    "transfer_qsl_differences_help": "Fields the confirmations carry that differ from the QSOs. They are counted, never written.",
+    "transfer_qsl_merging": "Merging…",
+    "transfer_qsl_merge_count": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Merge {n} confirmation",
+                "countPlural=other": "Merge {n} confirmations"
+            }
+        }
+    ],
+    "transfer_batch_created_at": "Created",
+    "transfer_batch_qsos": "QSOs",
+    "transfer_batch_state": "State",
+    "transfer_batch_record_only": "Record only",
+    "transfer_batch_applied_result": "Applied · {result}",
+    "transfer_batch_applied_at": "Applied {at}",
+    "transfer_batch_marking": "Marking…",
+    "transfer_batch_mark_sent": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Mark {n} as sent" }
+        }
+    ],
+    "transfer_batch_none": "No batches yet.",
+    "transfer_outcome_updated": [
+        {
+            "declarations": ["input updated", "local u = updated: number"],
+            "selectors": [],
+            "match": { "": "{u} updated" }
+        }
+    ],
+    "transfer_outcome_updated_skipped": [
+        {
+            "declarations": [
+                "input updated",
+                "input skipped",
+                "local u = updated: number",
+                "local s = skipped: number"
+            ],
+            "selectors": [],
+            "match": { "": "{u} updated, {s} skipped" }
+        }
+    ],
+    "transfer_record_qso": "QSO {index}",
+    "transfer_show_all": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Show all {n}" }
+        }
+    ]
+}

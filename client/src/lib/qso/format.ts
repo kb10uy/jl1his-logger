@@ -76,7 +76,3 @@ export function compareNewestFirst(
 ): number {
     return qsoTime(b.fields) - qsoTime(a.fields) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 }
-
-export function count(n: number, one: string, many: string = `${one}s`): string {
-    return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
-}

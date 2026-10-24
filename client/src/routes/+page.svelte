@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import PageTitle from '#lib/components/PageTitle.svelte';
+    import { m } from '#lib/paraglide/messages.js';
     import { lastLogbook, session } from '#lib/state/session.svelte.ts';
 
     const target = $derived.by(() => {
@@ -17,10 +18,9 @@
 
 {#if !target}
     <main class="flex min-h-dvh flex-col items-center justify-center gap-2 p-6 text-center">
-        <h1 class="text-xl font-semibold">No Logbook yet</h1>
+        <h1 class="text-xl font-semibold">{m.no_logbook_title()}</h1>
         <p class="max-w-sm text-muted">
-            You are signed in as {session.me?.callsign}, but no Logbook has you as a member. An
-            owner of a Logbook can add you.
+            {m.no_logbook_body({ callsign: session.me?.callsign ?? '' })}
         </p>
     </main>
 {/if}

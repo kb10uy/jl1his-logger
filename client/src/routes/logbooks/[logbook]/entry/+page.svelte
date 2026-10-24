@@ -27,6 +27,7 @@
     import { defaultRst } from '#lib/qso/modes.ts';
     import { QSL_REQUESTS } from '#lib/qso/qsl.ts';
     import { withBand, withFreq, withMode } from '#lib/qso/tuning.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
@@ -80,10 +81,13 @@
     const freqBand = $derived(entry.freq.trim() === '' ? undefined : bandOf(entry.freq));
     const bandWarning = $derived.by(() => {
         if (entry.freq.trim() === '') return undefined;
-        if (freqBand === undefined)
-            return `${entry.freq} MHz is outside every ADIF band. FREQ and BAND are kept as entered.`;
+        if (freqBand === undefined) return m.entry_band_outside({ freq: entry.freq });
         if (freqBand.name !== entry.band)
-            return `${entry.freq} MHz is in ${freqBand.name}, not ${entry.band}. Both are kept as entered.`;
+            return m.entry_band_mismatch({
+                freq: entry.freq,
+                band: freqBand.name,
+                chosen: entry.band
+            });
         return undefined;
     });
     const area = $derived(logbook.area);
@@ -234,11 +238,9 @@
                 recent = [...recent.filter((r) => r.id !== qso.id), qso]
                     .sort(compareNewestFirst)
                     .slice(0, RECENT);
-                toasts.show(`Logged ${qso.fields.CALL}`);
+                toasts.show(m.entry_logged({ call: qso.fields.CALL }));
             } else {
-                toasts.error(
-                    `${fields.CALL} is kept on this device: ${result.error.message} Send it again when you can.`
-                );
+                toasts.error(m.entry_kept({ call: fields.CALL, error: result.error.message }));
             }
         } finally {
             logging = false;
@@ -257,15 +259,15 @@
         }
         toasts.show(
             failed > 0
-                ? `Sent ${saved.length}; ${failed} still unsent.`
-                : `Sent ${saved.length} QSO${saved.length === 1 ? '' : 's'}.`
+                ? m.entry_sent_some_unsent({ sent: saved.length, failed })
+                : m.entry_sent({ count: saved.length })
         );
     }
 
     const isToday = (q: Qso) => q.fields.QSO_DATE === utcFields(now).QSO_DATE;
 </script>
 
-<PageTitle title="Live entry" />
+<PageTitle title={m.nav_live_entry()} />
 
 <svelte:window
     onkeydown={(e) => {
@@ -277,9 +279,9 @@
     <header
         class="flex flex-wrap items-center gap-2 max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:-mt-4 max-md:border-b max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-3 md:gap-3"
     >
-        <h1 class="text-xl font-semibold">Live entry</h1>
+        <h1 class="text-xl font-semibold">{m.nav_live_entry()}</h1>
         <div class="flex-1"></div>
-        <label for="station" class="text-xs text-muted max-md:sr-only">Station</label>
+        <label for="station" class="text-xs text-muted max-md:sr-only">{m.field_station()}</label>
         <select
             id="station"
             class="control max-w-full bg-surface max-md:order-3 max-md:min-w-[60%] max-md:flex-1 max-md:bg-bg"
@@ -290,7 +292,9 @@
                 <option value={station.id}>{stationLabel(station)}</option>
             {/each}
         </select>
-        <label for="instrument" class="text-xs text-muted max-md:sr-only">Instrument</label>
+        <label for="instrument" class="text-xs text-muted max-md:sr-only"
+            >{m.field_instrument()}</label
+        >
         <InstrumentSelect
             id="instrument"
             class="max-w-full bg-surface max-md:order-3 max-md:flex-1 max-md:bg-bg"
@@ -304,7 +308,7 @@
         <div
             class="flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 font-mono max-md:border-0 max-md:bg-transparent max-md:px-0"
         >
-            <span class="text-xs text-muted">UTC</span>
+            <span class="text-xs text-muted">{m.field_utc()}</span>
             <span class={['text-base font-semibold tabular', locked && 'text-warn']}
                 >{clock.time}</span
             >
@@ -315,30 +319,31 @@
             size="md"
             class="max-md:hidden"
             pressed={locked !== undefined}
-            onclick={() => (locked = locked ? undefined : new Date())}>Lock time</Button
+            onclick={() => (locked = locked ? undefined : new Date())}>{m.entry_lock_time()}</Button
         >
         <Button
             variant="toggle"
             class="max-md:order-4"
             pressed={settings.contest.enabled}
-            onclick={() => (settings.contest.enabled = !settings.contest.enabled)}>Contest</Button
+            onclick={() => (settings.contest.enabled = !settings.contest.enabled)}
+            >{m.field_contest()}</Button
         >
     </header>
 
     {#if logbook.activeStations.length === 0}
-        <Notice>This Logbook has no active Station. An owner adds one under Stations.</Notice>
+        <Notice>{m.entry_no_station()}</Notice>
     {/if}
 
     {#if settings.contest.enabled}
         <section
-            aria-label="Contest"
+            aria-label={m.field_contest()}
             class="flex flex-wrap items-end gap-x-5 gap-y-3 rounded-lg border border-info-strong bg-selected px-4 py-3"
         >
             <div class="flex flex-col gap-1">
                 <label for="contest-id" class="text-xs text-muted">CONTEST_ID</label>
                 <input
                     id="contest-id"
-                    placeholder="optional"
+                    placeholder={m.entry_optional()}
                     autocomplete="off"
                     spellcheck="false"
                     class="control w-[180px] font-mono uppercase"
@@ -346,7 +351,7 @@
                 />
             </div>
             <div class="flex flex-col gap-1">
-                <label for="contest-sent" class="text-xs text-muted">Sent number</label>
+                <label for="contest-sent" class="text-xs text-muted">{m.entry_sent_number()}</label>
                 <input
                     id="contest-sent"
                     placeholder={'{serial}'}
@@ -357,7 +362,7 @@
                 />
             </div>
             <div class="flex flex-col gap-1">
-                <label for="contest-next" class="text-xs text-muted">Next serial</label>
+                <label for="contest-next" class="text-xs text-muted">{m.entry_next_serial()}</label>
                 <input
                     id="contest-next"
                     type="number"
@@ -373,14 +378,14 @@
                     class="size-4 accent-info"
                     bind:checked={settings.contest.includeRst}
                 />
-                RST in front
+                {m.entry_rst_in_front()}
             </label>
             <div class="flex-1"></div>
             <div class="flex flex-col items-end gap-1">
-                <span class="text-xs text-muted">Next STX_STRING</span>
+                <span class="text-xs text-muted">{m.entry_next_stx()}</span>
                 <strong class="flex h-9 items-center font-mono text-lg font-semibold"
                     >{(settings.contest.includeRst ? entry.rstSent : '') + sent ||
-                        '(nothing)'}</strong
+                        m.entry_nothing()}</strong
                 >
             </div>
         </section>
@@ -389,20 +394,20 @@
     <div class="flex flex-wrap items-start gap-4">
         <div class="flex min-w-0 flex-[1_1_440px] flex-col gap-4">
             <form
-                aria-label="New QSO"
+                aria-label={m.entry_new_qso()}
                 class="flex flex-col gap-3 md:rounded-lg md:border md:border-accent md:bg-surface md:p-4"
                 onsubmit={log}
                 bind:this={form}
             >
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="freq" class="text-xs text-muted">Freq / Band</label>
+                    <label for="freq" class="text-xs text-muted">{m.entry_freq_band()}</label>
                     <div
                         class="grid grid-cols-2 gap-2.5 md:flex md:flex-wrap md:items-center md:gap-2"
                     >
                         <input
                             id="freq"
                             inputmode="decimal"
-                            placeholder="optional"
+                            placeholder={m.entry_optional()}
                             class="control h-11 w-full rounded-lg px-3 text-right font-mono text-lg md:w-[140px]"
                             value={entry.freq}
                             oninput={(e) => setFreq(e.currentTarget.value)}
@@ -421,7 +426,7 @@
                     {/if}
                 </div>
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="mode" class="text-xs text-muted">Mode</label>
+                    <label for="mode" class="text-xs text-muted">{m.field_mode()}</label>
                     <ModeSelect
                         id="mode"
                         class="h-11 rounded-lg text-[15px]"
@@ -434,7 +439,7 @@
                 <div class="h-px bg-border"></div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="call" class="text-xs text-muted">Call</label>
+                    <label for="call" class="text-xs text-muted">{m.field_call()}</label>
                     <input
                         id="call"
                         bind:this={callInput}
@@ -462,7 +467,7 @@
                             </span>
                             {#if lookup.previous.count > 0}
                                 <span class="rounded-full bg-info-bg px-2 py-px text-xs text-info"
-                                    >worked before · {lookup.previous.count}</span
+                                    >{m.entry_worked_before({ count: lookup.previous.count })}</span
                                 >
                             {/if}
                         </div>
@@ -471,26 +476,30 @@
                         {@const d = duplicates[0]}
                         <span class="max-md:hidden"></span>
                         <Notice>
-                            <strong class="font-semibold">Possible duplicate.</strong>
-                            {d.fields.CALL} · {d.fields.BAND}
-                            {d.fields.MODE} · {hhmm(d.fields.TIME_ON)} UTC {isToday(d)
-                                ? 'today'
-                                : isoDate(d.fields.QSO_DATE)}. Logging keeps both.
+                            <strong class="font-semibold">{m.entry_possible_duplicate()}</strong>
+                            {m.entry_duplicate_detail({
+                                call: d.fields.CALL,
+                                band: d.fields.BAND,
+                                mode: d.fields.MODE,
+                                time: hhmm(d.fields.TIME_ON),
+                                when: isToday(d) ? m.entry_today() : isoDate(d.fields.QSO_DATE)
+                            })}
                             <a
                                 class="ml-1 font-medium text-warn"
                                 href={`/logbooks/${logbookId}?q=${encodeURIComponent(`base:"${call}"`)}`}
-                                >Show in log</a
+                                >{m.entry_show_in_log()}</a
                             >
                         </Notice>
                     {/if}
                 </div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <span class="text-xs text-muted max-md:hidden">RST</span>
+                    <span class="text-xs text-muted max-md:hidden">{m.field_rst()}</span>
                     <div class="grid grid-cols-2 gap-2.5 md:flex md:items-center md:gap-3">
                         <div class="flex flex-col gap-1 md:flex-row md:items-center md:gap-3">
                             <label for="rsts" class="text-xs text-muted"
-                                ><span class="md:hidden">{'RST '}</span>Sent</label
+                                ><span class="md:hidden">{'RST '}</span
+                                >{m.entry_sent_short()}</label
                             >
                             <input
                                 id="rsts"
@@ -503,7 +512,8 @@
                             class="flex flex-col gap-1 md:ml-2 md:flex-row md:items-center md:gap-3"
                         >
                             <label for="rstr" class="text-xs text-muted"
-                                ><span class="md:hidden">{'RST '}</span>Rcvd</label
+                                ><span class="md:hidden">{'RST '}</span
+                                >{m.entry_rcvd_short()}</label
                             >
                             <input
                                 id="rstr"
@@ -519,15 +529,17 @@
                     <div
                         class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                     >
-                        <span class="text-xs text-muted">Number</span>
+                        <span class="text-xs text-muted">{m.entry_number()}</span>
                         <div class="flex flex-wrap items-center gap-3">
-                            <span class="text-xs text-muted">Sent</span>
+                            <span class="text-xs text-muted">{m.entry_sent_short()}</span>
                             <output
-                                aria-label="Sent number"
+                                aria-label={m.entry_sent_number()}
                                 class="inline-flex h-11 min-w-24 items-center rounded-lg border border-dashed border-border px-3 font-mono text-xl"
                                 >{sentShown}</output
                             >
-                            <label for="srx" class="ml-2 text-xs text-muted">Rcvd</label>
+                            <label for="srx" class="ml-2 text-xs text-muted"
+                                >{m.entry_rcvd_short()}</label
+                            >
                             <input
                                 id="srx"
                                 required
@@ -550,10 +562,10 @@
                     <div
                         class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                     >
-                        <label for="name" class="text-xs text-muted">Name</label>
+                        <label for="name" class="text-xs text-muted">{m.field_name()}</label>
                         <input
                             id="name"
-                            placeholder={lookup?.previous.fields.NAME ?? 'optional'}
+                            placeholder={lookup?.previous.fields.NAME ?? m.entry_optional()}
                             class="control h-11 rounded-lg px-3 text-base"
                             bind:value={entry.name}
                         />
@@ -561,10 +573,10 @@
                     <div
                         class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                     >
-                        <label for="qth" class="text-xs text-muted">QTH</label>
+                        <label for="qth" class="text-xs text-muted">{m.field_qth()}</label>
                         <input
                             id="qth"
-                            placeholder={lookup?.previous.fields.QTH ?? 'optional'}
+                            placeholder={lookup?.previous.fields.QTH ?? m.entry_optional()}
                             class="control h-11 rounded-lg px-3 text-base"
                             bind:value={entry.qth}
                         />
@@ -581,7 +593,8 @@
                                 >
                                 <input
                                     id="area"
-                                    placeholder={lookup?.previous.fields[area.name] ?? 'optional'}
+                                    placeholder={lookup?.previous.fields[area.name] ??
+                                        m.entry_optional()}
                                     autocomplete="off"
                                     spellcheck="false"
                                     class="control h-11 w-full rounded-lg px-3 font-mono text-base md:w-40"
@@ -599,7 +612,7 @@
                                 bind:value={entry.qsl}
                             >
                                 {#each QSL_REQUESTS as [value, label] (value)}
-                                    <option {value}>{label}</option>
+                                    <option {value}>{label()}</option>
                                 {/each}
                             </select>
                         </div>
@@ -609,7 +622,7 @@
                 <div class="h-px bg-border"></div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="comment" class="text-xs text-muted">Comment</label>
+                    <label for="comment" class="text-xs text-muted">{m.field_comment()}</label>
                     <input
                         id="comment"
                         placeholder="P2P US-0001…"
@@ -621,7 +634,9 @@
                 <details class="group">
                     <summary
                         class="-ml-2 inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-text [&::-webkit-details-marker]:hidden"
-                        >Extra fields{#if extraCount > 0}<span>&nbsp;· {extraCount}</span>{/if}<Icon
+                        >{m.entry_extra_fields()}{#if extraCount > 0}<span
+                                >&nbsp;· {extraCount}</span
+                            >{/if}<Icon
                             name="chevron"
                             size={14}
                             class="transition-transform group-open:rotate-180"
@@ -631,7 +646,9 @@
                         <div
                             class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                         >
-                            <label for="tx-pwr" class="text-xs text-muted">TX power (W)</label>
+                            <label for="tx-pwr" class="text-xs text-muted"
+                                >{m.entry_tx_power_w()}</label
+                            >
                             <input
                                 id="tx-pwr"
                                 inputmode="decimal"
@@ -643,10 +660,10 @@
                         <div
                             class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                         >
-                            <label for="notes" class="text-xs text-muted">Notes</label>
+                            <label for="notes" class="text-xs text-muted">{m.field_notes()}</label>
                             <input
                                 id="notes"
-                                placeholder="optional"
+                                placeholder={m.entry_optional()}
                                 class="control h-10 rounded-lg px-3"
                                 bind:value={entry.notes}
                             />
@@ -655,18 +672,22 @@
                             <div
                                 class="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2 md:gap-3"
                             >
-                                <label for={`extra-name-${i}`} class="sr-only">ADIF field</label>
+                                <label for={`extra-name-${i}`} class="sr-only"
+                                    >{m.entry_adif_field()}</label
+                                >
                                 <input
                                     id={`extra-name-${i}`}
                                     list="adif-fields"
-                                    placeholder="ADIF field"
+                                    placeholder={m.entry_adif_field()}
                                     autocomplete="off"
                                     autocapitalize="characters"
                                     spellcheck="false"
                                     class="control h-10 w-full rounded-lg px-2 font-mono text-xs uppercase"
                                     bind:value={extra.name}
                                 />
-                                <label for={`extra-value-${i}`} class="sr-only">Value</label>
+                                <label for={`extra-value-${i}`} class="sr-only"
+                                    >{m.entry_value()}</label
+                                >
                                 <input
                                     id={`extra-value-${i}`}
                                     class="control h-10 rounded-lg px-3"
@@ -674,7 +695,7 @@
                                 />
                                 <button
                                     type="button"
-                                    aria-label="Remove this field"
+                                    aria-label={m.entry_remove_field()}
                                     class="inline-flex size-10 items-center justify-center rounded-lg text-muted hover:bg-surface-2"
                                     onclick={() => entry.extra.splice(i, 1)}
                                     ><Icon name="close" size={16} /></button
@@ -683,7 +704,7 @@
                         {/each}
                         <div>
                             <Button onclick={() => entry.extra.push({ name: '', value: '' })}
-                                >+ Add ADIF field</Button
+                                >{m.entry_add_adif_field()}</Button
                             >
                         </div>
                         <datalist id="adif-fields">
@@ -701,14 +722,11 @@
                         class={[
                             'flex-1 text-xs max-md:hidden',
                             problem && entry.call !== '' ? 'text-info' : 'text-muted'
-                        ]}
-                        >{problem && entry.call !== ''
-                            ? problem
-                            : 'Tab moves down the rows. Enter logs from any field.'}</span
+                        ]}>{problem && entry.call !== '' ? problem : m.entry_keys_hint()}</span
                     >
                     <Button size="lg" class="max-md:h-12" onclick={clear}
-                        >Clear <span class="font-mono text-[11px] text-muted max-md:hidden"
-                            >Esc</span
+                        >{m.common_clear()}
+                        <span class="font-mono text-[11px] text-muted max-md:hidden">Esc</span
                         ></Button
                     >
                     <Button
@@ -717,8 +735,8 @@
                         size="xl"
                         class="font-bold max-md:h-12 max-md:flex-1"
                         disabled={problem !== undefined || stationId === '' || logging}
-                        >Log QSO <span class="font-mono text-xs font-medium opacity-80">↵</span
-                        ></Button
+                        >{m.entry_log_qso()}
+                        <span class="font-mono text-xs font-medium opacity-80">↵</span></Button
                     >
                 </div>
             </form>
@@ -726,8 +744,8 @@
             <WarningList {warnings} />
 
             {#if before.length > 0}
-                <section aria-label="Previous QSOs with this station" class="flex flex-col gap-2">
-                    <h2 class="eyebrow">Before with {call}</h2>
+                <section aria-label={m.entry_previous_label()} class="flex flex-col gap-2">
+                    <h2 class="eyebrow">{m.entry_before_with({ call })}</h2>
                     <div class="flex flex-col rounded-lg border border-border bg-surface">
                         {#each before as q (q.id)}
                             <a
@@ -742,7 +760,7 @@
                                 {#if isToday(q)}
                                     <span
                                         class="rounded bg-warn-bg px-1.5 text-xs font-semibold text-warn"
-                                        >today</span
+                                        >{m.entry_today()}</span
                                     >
                                 {:else}
                                     <QslBadge

@@ -1,5 +1,6 @@
 <script lang="ts">
     import { AlertDialog } from 'bits-ui';
+    import { m } from '#lib/paraglide/messages.js';
 
     let {
         open = $bindable(false),
@@ -31,7 +32,7 @@
             <div class="mt-2 flex justify-end gap-2">
                 <AlertDialog.Cancel
                     class="h-9 rounded-md border border-border bg-transparent px-3.5 text-text"
-                    >Cancel</AlertDialog.Cancel
+                    >{m.common_cancel()}</AlertDialog.Cancel
                 >
                 <AlertDialog.Action
                     class={[

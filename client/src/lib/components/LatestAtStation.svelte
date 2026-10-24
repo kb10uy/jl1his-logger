@@ -4,6 +4,7 @@
     import type { Outgoing } from '#lib/entry/outbox.ts';
     import { compareNewestFirst, hhmm, isoDate } from '#lib/qso/format.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
+    import { m } from '#lib/paraglide/messages.js';
 
     let {
         logbookId,
@@ -31,28 +32,35 @@
     );
 
     const pair = (a: string | undefined, b: string | undefined) => `${a || '—'} / ${b || '—'}`;
+
+    const headers = [
+        { h: m.field_utc(), wide: false },
+        { h: m.field_call(), wide: false },
+        { h: m.field_band_mode(), wide: true },
+        { h: m.field_rst(), wide: false }
+    ];
 </script>
 
-<aside
-    aria-label="Latest QSOs at this Station"
-    class="flex min-w-0 flex-[1_1_440px] flex-col gap-3"
->
+<aside aria-label={m.latest_label()} class="flex min-w-0 flex-[1_1_440px] flex-col gap-3">
     {#if unsent.length > 0}
         <section
-            aria-label="Unsent"
+            aria-label={m.latest_unsent_label()}
             class="flex flex-col gap-2 rounded-lg border border-warn-border bg-warn-surface px-4 py-3 text-[13px]"
         >
             <div class="flex items-center gap-3">
                 <Icon name="offline" size={16} class="text-warn" />
                 <span class="flex-1"
-                    ><strong class="font-semibold text-warn">{unsent.length} unsent</strong>
-                    <span class="text-muted">· kept on this device</span></span
+                    ><strong class="font-semibold text-warn"
+                        >{m.common_unsent({ count: unsent.length })}</strong
+                    >
+                    <span class="text-muted">{m.latest_kept_here()}</span></span
                 >
                 <button
                     type="button"
                     disabled={outbox.sending}
                     class="h-8 rounded-md border border-warn px-3 font-semibold text-warn"
-                    onclick={onsendnow}>{outbox.sending ? 'Sending…' : 'Send now'}</button
+                    onclick={onsendnow}
+                    >{outbox.sending ? m.common_sending() : m.common_send_now()}</button
                 >
             </div>
             {#each unsent.filter((i) => i.error) as item (item.id)}
@@ -62,39 +70,39 @@
                     <button
                         type="button"
                         class="text-error-text"
-                        onclick={() => outbox.discard(item.id)}>Discard</button
+                        onclick={() => outbox.discard(item.id)}>{m.common_discard()}</button
                     >
                 </div>
             {/each}
         </section>
     {/if}
     <div class="flex items-baseline justify-between gap-2">
-        <h2 class="eyebrow">Latest at this Station</h2>
+        <h2 class="eyebrow">{m.latest_title()}</h2>
         <a
             href={`/logbooks/${logbookId}?q=${encodeURIComponent(`station:"${stationName}"`)}`}
-            class="text-[13px] no-underline">Open in log</a
+            class="text-[13px] no-underline">{m.latest_open_in_log()}</a
         >
     </div>
     <div class="overflow-x-auto rounded-lg border border-border bg-surface">
         <table class="w-full border-collapse text-[13px]">
             <thead>
                 <tr class="text-left text-xs text-muted">
-                    {#each ['UTC', 'Call', 'Band / Mode', 'RST'] as h (h)}
+                    {#each headers as c (c.h)}
                         <th
                             scope="col"
                             class={[
                                 'border-b border-border px-3 py-2 font-medium',
-                                h === 'Band / Mode' && 'max-md:hidden'
-                            ]}>{h}</th
+                                c.wide && 'max-md:hidden'
+                            ]}>{c.h}</th
                         >
                     {/each}
                     {#if contest}
                         <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                            >Number S / R</th
+                            >{m.field_number_sr()}</th
                         >
                     {/if}
                     <th scope="col" class="border-b border-border px-3 py-2"
-                        ><span class="sr-only">Sync</span></th
+                        ><span class="sr-only">{m.latest_sync()}</span></th
                     >
                 </tr>
             </thead>
@@ -123,7 +131,7 @@
                         {/if}
                         <td class="text-right">
                             <span
-                                title={row.unsent ? 'unsent' : 'synced'}
+                                title={row.unsent ? m.latest_unsent_dot() : m.latest_synced_dot()}
                                 class={[
                                     'inline-block size-2 rounded-full',
                                     row.unsent ? 'bg-warn' : 'bg-ok'
@@ -134,7 +142,7 @@
                 {:else}
                     <tr
                         ><td colspan="6" class="px-3 py-6 text-center text-muted"
-                            >No QSOs at this Station yet.</td
+                            >{m.latest_empty()}</td
                         ></tr
                     >
                 {/each}

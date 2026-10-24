@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { bandNamed, formatMhz, frequencyHz } from '#lib/qso/bands.ts';
 import { defaultRst } from '#lib/qso/modes.ts';
 import * as tuning from '#lib/qso/tuning.ts';
@@ -86,23 +87,28 @@ export function modeText(mode: string, submode: string): string {
 export function describeUpdate(update: SpokenUpdate, after: Draft): string {
     switch (update.kind) {
         case 'callsign':
-            return `Call → ${update.value}`;
+            return m.voice_change_call({ value: update.value });
         case 'rstSent':
-            return `RST sent → ${update.value}`;
+            return m.voice_change_rst_sent({ value: update.value });
         case 'rstReceived':
-            return `RST received → ${update.value}`;
+            return m.voice_change_rst_received({ value: update.value });
         case 'frequency':
-            return `Frequency ${formatFrequencyPattern(update.value)} → ${after.freq} MHz`;
+            return m.voice_change_frequency({
+                pattern: formatFrequencyPattern(update.value),
+                freq: after.freq
+            });
         case 'area':
-            return `Area → ${update.value}`;
+            return m.voice_change_area({ value: update.value });
         case 'qsl':
-            return { none: 'No QSL', requested: 'QSL requested', oneWay: 'QSL one way' }[
-                update.value
-            ];
+            return {
+                none: m.voice_qsl_none,
+                requested: m.voice_qsl_requested,
+                oneWay: m.voice_qsl_one_way
+            }[update.value]();
         case 'mode':
-            return `Mode → ${modeText(after.mode, after.submode)}`;
+            return m.voice_change_mode({ mode: modeText(after.mode, after.submode) });
         case 'exchangeReceived':
-            return `Number → ${update.value}`;
+            return m.voice_change_number({ value: update.value });
     }
 }
 

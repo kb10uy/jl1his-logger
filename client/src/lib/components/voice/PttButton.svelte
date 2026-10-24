@@ -1,5 +1,8 @@
 <script lang="ts">
     import Icon from '#lib/components/ui/Icon.svelte';
+    import Slotted from '#lib/components/ui/Slotted.svelte';
+    import { SLOT } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import type { VoiceState } from '#lib/voice/voice.svelte.ts';
 
     let { voice, class: className = '' }: { voice: VoiceState; class?: string } = $props();
@@ -23,11 +26,11 @@
 
     const label = $derived(
         {
-            idle: 'Hold to talk',
-            opening: 'Opening the microphone…',
-            listening: 'Listening…',
-            finishing: 'Recognizing…'
-        }[voice.ptt]
+            idle: m.voice_ptt_idle,
+            opening: m.voice_ptt_opening,
+            listening: m.voice_ptt_listening,
+            finishing: m.voice_ptt_finishing
+        }[voice.ptt]()
     );
     const active = $derived(voice.ptt === 'listening' || voice.ptt === 'opening');
     const meter = $derived(Math.min(1, Math.sqrt(voice.level) * 2.5));
@@ -35,7 +38,7 @@
 
 <button
     type="button"
-    aria-label="Push to talk"
+    aria-label={m.voice_ptt_label()}
     aria-pressed={active}
     class={[
         'relative flex h-32 w-full touch-none flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border-0 text-white transition-[background-color,scale] duration-75 select-none [-webkit-touch-callout:none]',
@@ -60,7 +63,9 @@
         <span class="px-4 text-[15px] opacity-90">{voice.partial}</span>
     {:else}
         <span class="text-xs opacity-85 max-md:hidden"
-            >or hold <kbd class="rounded border border-white/40 px-1.5 font-mono">Space</kbd></span
+            ><Slotted text={m.voice_ptt_or_hold({ key: SLOT })}
+                ><kbd class="rounded border border-white/40 px-1.5 font-mono">Space</kbd></Slotted
+            ></span
         >
     {/if}
 </button>

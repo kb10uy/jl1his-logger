@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { toasts } from '#lib/state/toast.svelte.ts';
 import { formatSpeech, formatTokens } from '#lib/voice/dsl/display.ts';
 import { parseSpeech, type SpokenUpdate } from '#lib/voice/dsl/parser.ts';
@@ -61,7 +62,7 @@ async function checkModel(url: string) {
     }
     const type = response.headers.get('Content-Type') ?? '';
     if (!response.ok || type.startsWith('text/html'))
-        throw new Error('The speech model is not installed on this server.');
+        throw new Error(m.voice_model_not_installed());
 }
 
 export class VoiceState {
@@ -154,7 +155,7 @@ export class VoiceState {
         if (this.ptt !== 'idle') return;
         const recognizer = this.#recognizer;
         if (recognizer === null || this.engine !== 'ready') {
-            toasts.error('The speech engine is not loaded.');
+            toasts.error(m.voice_engine_not_loaded_toast());
             return;
         }
         this.ptt = 'opening';
@@ -165,14 +166,14 @@ export class VoiceState {
             if (recognizer.needsAudio) await this.#capture.open();
         } catch (e) {
             this.ptt = 'idle';
-            toasts.error(`Microphone: ${errorMessage(e)}`);
+            toasts.error(m.voice_microphone_error({ error: errorMessage(e) }));
             void this.#capture.close();
             return;
         }
         this.#microphoneUsed = true;
         if (this.#releaseRequested) {
             this.ptt = 'idle';
-            toasts.show('Microphone ready. Hold the button while speaking.');
+            toasts.show(m.voice_microphone_ready());
             return;
         }
         try {
@@ -201,7 +202,7 @@ export class VoiceState {
             const result = await withTimeout(
                 recognizer.endUtterance(),
                 FINAL_RESULT_TIMEOUT_MS,
-                'speech recognition timed out'
+                m.voice_recognition_timed_out()
             );
             await this.handleText(result.text, 'voice');
         } catch (e) {
@@ -235,18 +236,18 @@ export class VoiceState {
     async handleText(text: string, source: Utterance['source']) {
         const raw = text.trim();
         const parsed = parseSpeech(raw);
-        const heard = formatTokens(parsed.tokens) || '(nothing)';
+        const heard = formatTokens(parsed.tokens) || m.voice_nothing();
         let ok = parsed.ok;
         let message: string;
         if (parsed.ok && parsed.log) {
             const result = await this.log();
             ok = result.ok;
-            message = result.ok ? `logged ${result.call}` : result.reason;
+            message = result.ok ? m.voice_utterance_logged({ call: result.call }) : result.reason;
             vibrate(result.ok ? 40 : [60, 60, 60]);
         } else if (parsed.ok) {
             const { draft, descriptions } = applyUpdates(this.draft, parsed.updates);
             this.draft = draft;
-            message = descriptions.join(', ');
+            message = descriptions.join(m.voice_change_separator());
         } else {
             message = parsed.error;
             vibrate([60, 60, 60]);

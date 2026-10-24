@@ -1,5 +1,6 @@
 <script lang="ts">
     import { BAND_GROUPS, bandNamed } from '#lib/qso/bands.ts';
+    import { m } from '#lib/paraglide/messages.js';
 
     let {
         value = $bindable(''),
@@ -16,6 +17,7 @@
     } = $props();
 
     const known = $derived(value === '' || bandNamed(value) !== undefined);
+    const groupLabel = (label: string) => (label === 'SHF and up' ? m.band_group_shf() : label);
 </script>
 
 <select
@@ -28,12 +30,12 @@
     }}
 >
     {#if value === ''}
-        <option value="" disabled>Band</option>
+        <option value="" disabled>{m.band_choose()}</option>
     {:else if !known}
-        <option {value}>{value} (as recorded)</option>
+        <option {value}>{m.common_as_recorded({ value })}</option>
     {/if}
     {#each BAND_GROUPS as group (group.label)}
-        <optgroup label={group.label}>
+        <optgroup label={groupLabel(group.label)}>
             {#each group.bands as band (band.name)}
                 <option value={band.name}
                     >{detailed ? `${band.name} · ${band.label}` : band.name}</option

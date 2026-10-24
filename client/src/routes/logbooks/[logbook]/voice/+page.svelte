@@ -13,6 +13,7 @@
     import Notice from '#lib/components/ui/Notice.svelte';
     import PttButton from '#lib/components/voice/PttButton.svelte';
     import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
     import {
         compareNewestFirst,
@@ -37,7 +38,17 @@
     import { VoiceState, type LogResult } from '#lib/voice/voice.svelte.ts';
 
     const RECENT = 20;
-    const QSL_TEXT = { none: '', requested: 'QSL requested', oneWay: 'QSL one way' } as const;
+    const QSL_TEXT = {
+        none: () => '',
+        requested: m.voice_qsl_requested,
+        oneWay: m.voice_qsl_one_way
+    } as const;
+    const ENGINE_TEXT = {
+        unloaded: m.voice_engine_state_unloaded,
+        loading: m.voice_engine_state_loading,
+        ready: m.voice_engine_state_ready,
+        error: m.voice_engine_state_error
+    } as const;
 
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
@@ -81,14 +92,28 @@
             : queuedDuplicate(unsent, draftFields(draft, settings.contest, now, logbook.area))
     );
     const duplicate = $derived(queued?.fields ?? duplicates[0]?.fields);
+    const duplicateText = $derived(
+        duplicate === undefined
+            ? ''
+            : [
+                  duplicate.CALL,
+                  duplicate.BAND,
+                  duplicate.MODE,
+                  `${hhmm(duplicate.TIME_ON)} UTC${
+                      duplicate.QSO_DATE === utcFields(now).QSO_DATE
+                          ? ''
+                          : ` ${isoDate(duplicate.QSO_DATE)}`
+                  }`
+              ].join(' ')
+    );
     const extras = $derived(
         [
             draft.area
                 ? logbook.area
                     ? `${logbook.area.label} ${draft.area}`
-                    : `Area ${draft.area} · not recorded: this Logbook has no area field`
+                    : m.voice_area_not_recorded({ area: draft.area })
                 : '',
-            QSL_TEXT[draft.qsl],
+            QSL_TEXT[draft.qsl](),
             draft.name ?? '',
             draft.qth ?? ''
         ].filter((s) => s !== '')
@@ -174,14 +199,14 @@
     });
 
     async function logDraft(): Promise<LogResult> {
-        if (stationId === '') return { ok: false, reason: 'Choose a Station first.' };
+        if (stationId === '') return { ok: false, reason: m.voice_choose_station_first() };
         const current = voice.draft;
         const reason = draftProblem(current, settings.contest);
         if (reason !== undefined) {
             toasts.error(reason);
             return { ok: false, reason };
         }
-        if (logging) return { ok: false, reason: 'Still logging the previous QSO.' };
+        if (logging) return { ok: false, reason: m.voice_still_logging() };
         logging = true;
         try {
             const fields = draftFields(current, settings.contest, new Date(), logbook.area);
@@ -197,11 +222,11 @@
                 recent = [...recent.filter((r) => r.id !== qso.id), qso]
                     .sort(compareNewestFirst)
                     .slice(0, RECENT);
-                toasts.show(`Logged ${fields.CALL}`);
+                toasts.show(m.voice_logged({ call: fields.CALL }));
             } else {
                 warnings = [];
                 toasts.error(
-                    `${fields.CALL} is kept on this device: ${result.error.message} Send it again when you can.`
+                    m.voice_kept_on_device({ call: fields.CALL, error: result.error.message })
                 );
             }
             return { ok: true, call: fields.CALL };
@@ -228,8 +253,8 @@
         }
         toasts.show(
             failed > 0
-                ? `Sent ${saved.length}; ${failed} still unsent.`
-                : `Sent ${saved.length} QSO${saved.length === 1 ? '' : 's'}.`
+                ? m.voice_sent_some_unsent({ saved: saved.length, failed })
+                : m.voice_sent_qsos({ count: saved.length })
         );
     }
 
@@ -276,7 +301,7 @@
     const time = (at: Date) => at.toISOString().slice(11, 19);
 </script>
 
-<PageTitle title="Voice entry" />
+<PageTitle title={m.nav_voice_entry()} />
 
 <svelte:window onkeydown={keydown} onkeyup={keyup} onblur={() => void voice.pttCancel()} />
 
@@ -284,15 +309,17 @@
     <header
         class="flex flex-wrap items-center gap-2 max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:-mt-4 max-md:border-b max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-3 md:gap-3"
     >
-        <h1 class="text-xl font-semibold">Voice entry</h1>
+        <h1 class="text-xl font-semibold">{m.nav_voice_entry()}</h1>
         <div class="flex-1"></div>
         {#if logbook.status === 'offline'}
             <span
                 class="flex h-7 items-center gap-1.5 rounded-full bg-warn-bg px-2.5 text-xs font-medium text-warn md:hidden"
-                ><Icon name="offline" size={14} />Offline</span
+                ><Icon name="offline" size={14} />{m.shell_offline()}</span
             >
         {/if}
-        <label for="voice-station" class="text-xs text-muted max-md:sr-only">Station</label>
+        <label for="voice-station" class="text-xs text-muted max-md:sr-only"
+            >{m.field_station()}</label
+        >
         <select
             id="voice-station"
             class="control max-w-full bg-surface max-md:order-3 max-md:min-w-[60%] max-md:flex-1 max-md:bg-bg"
@@ -303,7 +330,9 @@
                 <option value={s.id}>{stationLabel(s)}</option>
             {/each}
         </select>
-        <label for="voice-instrument" class="text-xs text-muted max-md:sr-only">Instrument</label>
+        <label for="voice-instrument" class="text-xs text-muted max-md:sr-only"
+            >{m.field_instrument()}</label
+        >
         <InstrumentSelect
             id="voice-instrument"
             class="max-w-full bg-surface max-md:order-3 max-md:flex-1 max-md:bg-bg"
@@ -314,31 +343,32 @@
         <div
             class="flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 font-mono max-md:border-0 max-md:bg-transparent max-md:px-0"
         >
-            <span class="text-xs text-muted">UTC</span>
+            <span class="text-xs text-muted">{m.field_utc()}</span>
             <span class="text-base font-semibold tabular">{clock.time}</span>
         </div>
         <Button
             variant="toggle"
             class="max-md:order-4"
             pressed={settings.contest.enabled}
-            onclick={() => (settings.contest.enabled = !settings.contest.enabled)}>Contest</Button
+            onclick={() => (settings.contest.enabled = !settings.contest.enabled)}
+            >{m.field_contest()}</Button
         >
     </header>
 
     {#if logbook.activeStations.length === 0}
-        <Notice>This Logbook has no active Station. An owner adds one under Stations.</Notice>
+        <Notice>{m.voice_no_active_station()}</Notice>
     {/if}
 
     {#if settings.contest.enabled}
         <section
-            aria-label="Contest"
+            aria-label={m.field_contest()}
             class="flex flex-wrap items-end gap-x-5 gap-y-3 rounded-lg border border-info-strong bg-selected px-4 py-3"
         >
             <div class="flex flex-col gap-1">
                 <label for="voice-contest-id" class="text-xs text-muted">CONTEST_ID</label>
                 <input
                     id="voice-contest-id"
-                    placeholder="optional"
+                    placeholder={m.voice_optional()}
                     autocomplete="off"
                     spellcheck="false"
                     class="control w-[180px] font-mono uppercase"
@@ -346,7 +376,9 @@
                 />
             </div>
             <div class="flex flex-col gap-1">
-                <label for="voice-contest-sent" class="text-xs text-muted">Sent number</label>
+                <label for="voice-contest-sent" class="text-xs text-muted"
+                    >{m.voice_sent_number()}</label
+                >
                 <input
                     id="voice-contest-sent"
                     placeholder={'{serial}'}
@@ -357,7 +389,9 @@
                 />
             </div>
             <div class="flex flex-col gap-1">
-                <label for="voice-contest-next" class="text-xs text-muted">Next serial</label>
+                <label for="voice-contest-next" class="text-xs text-muted"
+                    >{m.voice_next_serial()}</label
+                >
                 <input
                     id="voice-contest-next"
                     type="number"
@@ -373,14 +407,14 @@
                     class="size-4 accent-info"
                     bind:checked={settings.contest.includeRst}
                 />
-                RST in front
+                {m.voice_rst_in_front()}
             </label>
             <div class="flex-1"></div>
             <div class="flex flex-col items-end gap-1">
-                <span class="text-xs text-muted">Next STX_STRING</span>
+                <span class="text-xs text-muted">{m.voice_next_stx()}</span>
                 <strong class="flex h-9 items-center font-mono text-lg font-semibold"
                     >{(settings.contest.includeRst ? draft.rstSent : '') + sent ||
-                        '(nothing)'}</strong
+                        m.voice_nothing()}</strong
                 >
             </div>
         </section>
@@ -389,11 +423,11 @@
     <div class="flex flex-wrap items-start gap-4">
         <div class="flex min-w-0 flex-[1_1_440px] flex-col gap-4">
             <section
-                aria-label="Parsed QSO"
+                aria-label={m.voice_parsed_qso()}
                 class="flex flex-col gap-3 rounded-lg border border-accent bg-surface p-4"
             >
                 <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
-                    <span class="text-xs text-muted">Call</span>
+                    <span class="text-xs text-muted">{m.field_call()}</span>
                     <span
                         class={[
                             'font-mono text-[32px] leading-none font-semibold tracking-[0.04em]',
@@ -417,12 +451,12 @@
                             </span>
                             {#if lookup.previous.count > 0}
                                 <span class="rounded-full bg-info-bg px-2 py-px text-xs text-info"
-                                    >worked before · {lookup.previous.count}</span
+                                    >{m.voice_worked_before({ count: lookup.previous.count })}</span
                                 >
                             {/if}
                         </div>
                     {/if}
-                    <span class="text-xs text-muted">Band / Mode</span>
+                    <span class="text-xs text-muted">{m.field_band_mode()}</span>
                     <span class="flex flex-col gap-0.5">
                         <span class="flex flex-wrap gap-x-2 font-mono text-lg">
                             <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
@@ -430,30 +464,32 @@
                             <span>{draft.mode} <span class="text-muted">{draft.submode}</span></span
                             >
                         </span>
-                        <span class="text-xs text-muted">Carried over to the next QSO</span>
+                        <span class="text-xs text-muted">{m.voice_carried_over()}</span>
                     </span>
-                    <span class="text-xs text-muted">RST</span>
+                    <span class="text-xs text-muted">{m.field_rst()}</span>
                     <span class="font-mono text-lg"
-                        ><span class="font-sans text-xs text-muted">Sent</span>
+                        ><span class="font-sans text-xs text-muted">{m.voice_sent()}</span>
                         {draft.rstSent}
-                        <span class="ml-3 font-sans text-xs text-muted">Rcvd</span>
+                        <span class="ml-3 font-sans text-xs text-muted">{m.voice_rcvd()}</span>
                         {draft.rstRcvd}</span
                     >
                     {#if settings.contest.enabled || draft.received !== undefined}
-                        <span class="text-xs text-muted">Number</span>
+                        <span class="text-xs text-muted">{m.voice_number()}</span>
                         <span class="font-mono text-lg"
                             >{#if settings.contest.enabled}<span
-                                    class="font-sans text-xs text-muted">Sent</span
+                                    class="font-sans text-xs text-muted">{m.voice_sent()}</span
                                 >
                                 {sent || '—'}
-                                <span class="ml-3 font-sans text-xs text-muted">Rcvd</span>
+                                <span class="ml-3 font-sans text-xs text-muted"
+                                    >{m.voice_rcvd()}</span
+                                >
                             {/if}<span class={draft.received === undefined ? 'text-info' : ''}
-                                >{draft.received ?? 'say “number …”'}</span
+                                >{draft.received ?? m.voice_say_number()}</span
                             ></span
                         >
                     {/if}
                     {#if extras.length > 0}
-                        <span class="text-xs text-muted">Also</span>
+                        <span class="text-xs text-muted">{m.voice_also()}</span>
                         <span class="flex flex-wrap gap-1.5">
                             {#each extras as extra (extra)}
                                 <span class="rounded-full bg-surface-2 px-2 py-px text-xs"
@@ -465,13 +501,9 @@
                     {#if duplicate}
                         <span></span>
                         <Notice>
-                            Possible duplicate{queued ? ' in the queue' : ''}: {duplicate.CALL}
-                            {duplicate.BAND}
-                            {duplicate.MODE}
-                            {hhmm(duplicate.TIME_ON)} UTC{duplicate.QSO_DATE ===
-                            utcFields(now).QSO_DATE
-                                ? ''
-                                : ` ${isoDate(duplicate.QSO_DATE)}`}. Logging keeps both.
+                            {queued
+                                ? m.voice_possible_duplicate_queued({ qso: duplicateText })
+                                : m.voice_possible_duplicate({ qso: duplicateText })}
                         </Notice>
                     {/if}
                 </div>
@@ -479,20 +511,22 @@
                 {#if correcting}
                     <div class="flex flex-col gap-3 border-t border-border pt-3">
                         <form class="flex gap-2" onsubmit={submitCommand}>
-                            <label for="voice-command" class="sr-only">Command</label>
+                            <label for="voice-command" class="sr-only">{m.voice_command()}</label>
                             <input
                                 id="voice-command"
-                                placeholder="received five seven, or call jh1xyz"
+                                placeholder={m.voice_command_placeholder()}
                                 autocomplete="off"
                                 spellcheck="false"
                                 class="control h-10 flex-1 font-mono"
                                 bind:value={command}
                             />
-                            <Button type="submit" size="lg">Apply</Button>
+                            <Button type="submit" size="lg">{m.common_apply()}</Button>
                         </form>
                         <div class="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                             <div class="flex flex-col gap-1">
-                                <label for="voice-call" class="text-xs text-muted">Call</label>
+                                <label for="voice-call" class="text-xs text-muted"
+                                    >{m.field_call()}</label
+                                >
                                 <input
                                     id="voice-call"
                                     autocomplete="off"
@@ -504,12 +538,13 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-freq" class="text-xs text-muted">Freq (MHz)</label
+                                <label for="voice-freq" class="text-xs text-muted"
+                                    >{m.voice_freq_mhz()}</label
                                 >
                                 <input
                                     id="voice-freq"
                                     inputmode="decimal"
-                                    placeholder="optional"
+                                    placeholder={m.voice_optional()}
                                     class="control text-right font-mono"
                                     value={draft.freq}
                                     onchange={(e) =>
@@ -519,7 +554,9 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-band" class="text-xs text-muted">Band</label>
+                                <label for="voice-band" class="text-xs text-muted"
+                                    >{m.field_band()}</label
+                                >
                                 <BandSelect
                                     id="voice-band"
                                     value={draft.band}
@@ -527,7 +564,9 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-mode" class="text-xs text-muted">Mode</label>
+                                <label for="voice-mode" class="text-xs text-muted"
+                                    >{m.field_mode()}</label
+                                >
                                 <ModeSelect
                                     id="voice-mode"
                                     mode={draft.mode}
@@ -537,7 +576,9 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-rsts" class="text-xs text-muted">RST sent</label>
+                                <label for="voice-rsts" class="text-xs text-muted"
+                                    >{m.field_rst_sent()}</label
+                                >
                                 <input
                                     id="voice-rsts"
                                     inputmode="numeric"
@@ -551,7 +592,9 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-rstr" class="text-xs text-muted">RST rcvd</label>
+                                <label for="voice-rstr" class="text-xs text-muted"
+                                    >{m.field_rst_rcvd()}</label
+                                >
                                 <input
                                     id="voice-rstr"
                                     inputmode="numeric"
@@ -565,7 +608,9 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-name" class="text-xs text-muted">Name</label>
+                                <label for="voice-name" class="text-xs text-muted"
+                                    >{m.field_name()}</label
+                                >
                                 <input
                                     id="voice-name"
                                     maxlength={FREE_TEXT_MAX_LENGTH}
@@ -575,7 +620,9 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-qth" class="text-xs text-muted">QTH</label>
+                                <label for="voice-qth" class="text-xs text-muted"
+                                    >{m.field_qth()}</label
+                                >
                                 <input
                                     id="voice-qth"
                                     maxlength={FREE_TEXT_MAX_LENGTH}
@@ -593,26 +640,23 @@
                         class={[
                             'flex-[1_1_200px] text-xs',
                             problem && draft.call !== undefined ? 'text-info' : 'text-muted'
-                        ]}
-                        >{problem && draft.call !== undefined
-                            ? problem
-                            : 'Say “q s o” or press Log. Speaking a field again replaces it.'}</span
+                        ]}>{problem && draft.call !== undefined ? problem : m.voice_hint()}</span
                     >
                     <Button
                         size="lg"
                         variant="toggle"
                         pressed={correcting}
-                        onclick={() => (correcting = !correcting)}>Correct</Button
+                        onclick={() => (correcting = !correcting)}>{m.voice_correct()}</Button
                     >
                     <Button size="lg" variant="ghost" class="border border-border" onclick={discard}
-                        >Discard</Button
+                        >{m.common_discard()}</Button
                     >
                     <Button
                         variant="primary"
                         size="xl"
                         class="font-bold max-md:flex-1"
                         disabled={problem !== undefined || stationId === '' || logging}
-                        onclick={() => void logDraft()}>Log QSO</Button
+                        onclick={() => void logDraft()}>{m.voice_log_qso()}</Button
                     >
                 </div>
 
@@ -620,7 +664,7 @@
             </section>
 
             <section
-                aria-label="Speech engine"
+                aria-label={m.voice_speech_engine()}
                 class={[
                     'flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]',
                     voice.engine !== 'ready' &&
@@ -633,13 +677,13 @@
                     <div class="flex min-w-0 flex-[1_1_240px] flex-col gap-0.5">
                         <strong class="font-semibold"
                             >{voice.engine === 'loading'
-                                ? 'Loading the speech engine…'
-                                : 'The speech engine is not loaded'}</strong
+                                ? m.voice_engine_loading()
+                                : m.voice_engine_not_loaded()}</strong
                         >
                         <span class={voice.engine === 'error' ? 'text-error-text' : 'text-muted'}
                             >{voice.engine === 'error'
                                 ? voice.engineError
-                                : 'The model is downloaded once and then kept on this device, so voice entry works offline.'}</span
+                                : m.voice_engine_offline_hint()}</span
                         >
                     </div>
                     <Button
@@ -650,26 +694,27 @@
                         >{#if voice.engine === 'loading'}<Icon
                                 name="spinner"
                                 size={16}
-                            />{/if}{voice.engine === 'error' ? 'Try again' : 'Load'}</Button
+                            />{/if}{voice.engine === 'error'
+                            ? m.common_try_again()
+                            : m.voice_load()}</Button
                     >
                 {/if}
                 <div class="flex w-full items-center gap-2 text-xs text-muted">
                     <span
-                        >Vosk · {LANGUAGE_LABELS[voice.settings.language]} · {voice.engine ===
-                        'ready'
-                            ? 'ready'
-                            : voice.engine}</span
+                        >Vosk · {LANGUAGE_LABELS[voice.settings.language]()} · {ENGINE_TEXT[
+                            voice.engine
+                        ]()}</span
                     >
-                    <a href="/settings/voice">Change the language</a>
+                    <a href="/settings/voice">{m.voice_change_language()}</a>
                 </div>
             </section>
 
             <section
-                aria-label="Heard"
+                aria-label={m.voice_heard()}
                 class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-4 py-3"
             >
                 <div class="flex items-center justify-between text-xs text-muted">
-                    <span class="tracking-[0.06em] uppercase">Heard</span>
+                    <span class="tracking-[0.06em] uppercase">{m.voice_heard()}</span>
                     {#if voice.heard}
                         <span class="font-mono">{time(voice.heard.at)}</span>
                     {/if}
@@ -681,18 +726,17 @@
                     >
                 {:else}
                     <p class="text-muted">
-                        Hold the button and say the call, such as “juliett lima one hotel india
-                        sierra”, then the reports: “received five seven sent five nine”.
+                        {m.voice_heard_hint()}
                     </p>
                 {/if}
             </section>
 
             {#if voice.utterances.length > 0}
                 <section
-                    aria-label="Recent utterances"
+                    aria-label={m.voice_recent_utterances()}
                     class="flex flex-col gap-2 max-md:order-4 max-md:hidden"
                 >
-                    <h2 class="eyebrow">Recent utterances</h2>
+                    <h2 class="eyebrow">{m.voice_recent_utterances()}</h2>
                     <div
                         class="flex flex-col rounded-lg border border-border bg-surface text-[13px]"
                     >
@@ -704,7 +748,7 @@
                                 <span class="flex min-w-0 flex-1 flex-col">
                                     <span>{u.heard}</span>
                                     {#if u.source === 'typed'}
-                                        <span class="text-xs text-muted">typed</span>
+                                        <span class="text-xs text-muted">{m.voice_typed()}</span>
                                     {/if}
                                 </span>
                                 <span

@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { formatTokens, letterOf, tokenLabel } from './display.ts';
 import { DslError } from './errors.ts';
 import { MAX_FRACTION_DIGITS, MAX_INTEGER_DIGITS, type FrequencyPattern } from './frequency.ts';
@@ -52,7 +53,7 @@ function readSpelled(tokens: readonly string[], allowStroke: boolean): string {
             i += 1;
         } else if (isNumberToken(token)) {
             const { digits, end } = readDigits(tokens, i);
-            if (end === i) throw new DslError(`unexpected "${tokenLabel(token)}"`);
+            if (end === i) throw new DslError(m.voice_dsl_unexpected({ token: tokenLabel(token) }));
             out += digits;
             i = end;
         } else if (allowStroke && STROKES.has(token)) {
@@ -63,7 +64,7 @@ function readSpelled(tokens: readonly string[], allowStroke: boolean): string {
             out += next !== undefined && isNumberToken(next) ? '/' : suffix;
             i += 1;
         } else {
-            throw new DslError(`unexpected "${tokenLabel(token)}"`);
+            throw new DslError(m.voice_dsl_unexpected({ token: tokenLabel(token) }));
         }
     }
     return out;
@@ -76,23 +77,23 @@ export function isCallsign(s: string): boolean {
 }
 
 function parseCallsign(tokens: readonly string[]): string {
-    if (tokens.length === 0) throw new DslError('callsign is empty');
+    if (tokens.length === 0) throw new DslError(m.voice_dsl_callsign_empty());
     const callsign = readSpelled(tokens, true);
-    if (!isCallsign(callsign)) throw new DslError(`"${callsign}" is not a valid callsign`);
+    if (!isCallsign(callsign)) throw new DslError(m.voice_dsl_callsign_invalid({ callsign }));
     return callsign;
 }
 
 function readAllDigits(tokens: readonly string[], what: string): string {
     const { digits, end } = readDigits(tokens, 0);
     if (end !== tokens.length)
-        throw new DslError(`unexpected "${tokenLabel(tokens[end])}" in ${what}`);
-    if (digits === '') throw new DslError(`${what} is empty`);
+        throw new DslError(m.voice_dsl_unexpected_in({ token: tokenLabel(tokens[end]), what }));
+    if (digits === '') throw new DslError(m.voice_dsl_empty({ what }));
     return digits;
 }
 
 function parseRst(tokens: readonly string[]): string {
     const rst = readAllDigits(tokens, 'RST');
-    if (!/^[1-5][1-9][1-9]?$/.test(rst)) throw new DslError(`"${rst}" is not a valid RST`);
+    if (!/^[1-5][1-9][1-9]?$/.test(rst)) throw new DslError(m.voice_dsl_rst_invalid({ rst }));
     return rst;
 }
 
@@ -102,16 +103,17 @@ function parseFrequency(tokens: readonly string[]): FrequencyPattern {
     let fractionDigits = '';
     if (i < tokens.length && POINTS.has(tokens[i])) {
         const fraction = readDigits(tokens, i + 1);
-        if (fraction.end === i + 1) throw new DslError('expected digits after "point"');
+        if (fraction.end === i + 1) throw new DslError(m.voice_dsl_digits_after_point());
         fractionDigits = fraction.digits;
         i = fraction.end;
     }
     if (i < tokens.length && MEGAHERTZ.has(tokens[i])) i += 1;
     if (i !== tokens.length)
-        throw new DslError(`unexpected "${tokenLabel(tokens[i])}" in frequency`);
-    if (integer.digits === '' && fractionDigits === '') throw new DslError('frequency is empty');
+        throw new DslError(m.voice_dsl_frequency_unexpected({ token: tokenLabel(tokens[i]) }));
+    if (integer.digits === '' && fractionDigits === '')
+        throw new DslError(m.voice_dsl_frequency_empty());
     if (integer.digits.length > MAX_INTEGER_DIGITS || fractionDigits.length > MAX_FRACTION_DIGITS) {
-        throw new DslError('frequency has too many digits');
+        throw new DslError(m.voice_dsl_frequency_too_many_digits());
     }
     return { integerDigits: integer.digits, fractionDigits };
 }
@@ -119,9 +121,9 @@ function parseFrequency(tokens: readonly string[]): FrequencyPattern {
 const AREA_MAX_LENGTH = 16;
 
 function parseArea(tokens: readonly string[]): string {
-    if (tokens.length === 0) throw new DslError('area code is empty');
+    if (tokens.length === 0) throw new DslError(m.voice_dsl_area_empty());
     const area = readSpelled(tokens, false);
-    if (area.length > AREA_MAX_LENGTH) throw new DslError('area code is too long');
+    if (area.length > AREA_MAX_LENGTH) throw new DslError(m.voice_dsl_area_too_long());
     return area;
 }
 
@@ -131,24 +133,24 @@ function parseQsl(tokens: readonly string[]): QslStatus {
     );
     if (value !== undefined) return value.status;
     const expected = QSL_VALUES.map(({ words }) => `"${words.join(' ')}"`).join(', ');
-    throw new DslError(`expected ${expected} after "card", got "${formatTokens(tokens)}"`);
+    throw new DslError(m.voice_dsl_qsl_expected({ expected, got: formatTokens(tokens) }));
 }
 
 function parseMode(tokens: readonly string[]): QsoMode {
-    if (tokens.length === 0) throw new DslError('mode is empty');
+    if (tokens.length === 0) throw new DslError(m.voice_dsl_mode_empty());
     const name =
         (tokens.length === 1 ? lookup(MODE_WORDS, tokens[0]) : undefined) ??
         readSpelled(tokens, false);
-    if (!isKnownModeName(name)) throw new DslError(`unknown mode "${name}"`);
+    if (!isKnownModeName(name)) throw new DslError(m.voice_dsl_mode_unknown({ mode: name }));
     return { ...KNOWN_MODES[name] };
 }
 
 const EXCHANGE_MAX_LENGTH = 16;
 
 function parseExchange(tokens: readonly string[]): string {
-    if (tokens.length === 0) throw new DslError('number is empty');
+    if (tokens.length === 0) throw new DslError(m.voice_dsl_number_empty());
     const exchange = readSpelled(tokens, false);
-    if (exchange.length > EXCHANGE_MAX_LENGTH) throw new DslError('number is too long');
+    if (exchange.length > EXCHANGE_MAX_LENGTH) throw new DslError(m.voice_dsl_number_too_long());
     return exchange;
 }
 
@@ -174,7 +176,7 @@ function parseSegment(kind: CommandKind, tokens: readonly string[]): SpokenUpdat
 }
 
 export function parseTokens(tokens: readonly string[]): SpokenUpdate[] {
-    if (tokens.length === 0) throw new DslError('nothing recognized');
+    if (tokens.length === 0) throw new DslError(m.voice_dsl_nothing_recognized());
 
     const segments: { kind: CommandKind; tokens: string[] }[] = [];
     let current: { kind: CommandKind; tokens: string[] } = { kind: 'callsign', tokens: [] };
@@ -200,7 +202,7 @@ export function parseSpeech(text: string): ParseResult {
     try {
         if (tokens.some((_, i) => logAt(tokens, i) !== undefined)) {
             if (logAt(tokens, 0)?.length !== tokens.length)
-                throw new DslError('say "QSO" on its own');
+                throw new DslError(m.voice_dsl_qso_alone());
             return { ok: true, tokens, updates: [], log: true };
         }
         return { ok: true, tokens, updates: parseTokens(tokens), log: false };

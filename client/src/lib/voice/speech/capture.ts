@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import workletUrl from './pcm-worklet.ts?worker&url';
 import type { WorkletCommand, WorkletEvent } from './pcm-worklet.ts';
 import { withTimeout } from './timeout.ts';
@@ -40,9 +41,9 @@ export class AudioCapture {
 
     async #resume(context: AudioContext): Promise<void> {
         if (context.state === 'running') return;
-        await withTimeout(context.resume(), RESUME_TIMEOUT_MS, 'audio did not start');
+        await withTimeout(context.resume(), RESUME_TIMEOUT_MS, m.voice_audio_did_not_start());
         const state = stateOf(context);
-        if (state !== 'running') throw new Error(`audio is ${state}`);
+        if (state !== 'running') throw new Error(m.voice_audio_state({ state }));
     }
 
     async #open(): Promise<void> {
@@ -51,12 +52,12 @@ export class AudioCapture {
         let stream: MediaStream | null = null;
         try {
             stream = await this.#requestMicrophone();
-            await withTimeout(resumed, RESUME_TIMEOUT_MS, 'audio did not start');
+            await withTimeout(resumed, RESUME_TIMEOUT_MS, m.voice_audio_did_not_start());
             await this.#resume(context);
             await withTimeout(
                 context.audioWorklet.addModule(workletUrl),
                 WORKLET_TIMEOUT_MS,
-                'the audio processor did not load'
+                m.voice_audio_processor_did_not_load()
             );
             const source = context.createMediaStreamSource(stream);
             const node = new AudioWorkletNode(context, 'pcm-processor', {
@@ -90,7 +91,7 @@ export class AudioCapture {
             return await withTimeout(
                 request,
                 MICROPHONE_TIMEOUT_MS,
-                'the microphone did not respond'
+                m.voice_microphone_did_not_respond()
             );
         } catch (e) {
             request.then(

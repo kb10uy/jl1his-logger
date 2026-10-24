@@ -24,6 +24,7 @@
     } from '#lib/qso/edit.ts';
     import { QSL_RCVD_VALUES, QSL_SENT_VALUES, QSL_VIA_VALUES } from '#lib/qso/qsl.ts';
     import { withBand, withFreq, withMode } from '#lib/qso/tuning.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
@@ -104,7 +105,9 @@
             );
             reset(saved.qso);
             warnings = saved.warnings;
-            toasts.show(`Saved ${saved.qso.fields.CALL} · rev ${saved.qso.revision}`);
+            toasts.show(
+                m.entry_editor_saved({ call: saved.qso.fields.CALL, revision: saved.qso.revision })
+            );
             if (saved.warnings.length === 0) back();
         } catch (e) {
             if (e instanceof ApiError && (e.status === 412 || e.status === 409) && e.body.current) {
@@ -121,7 +124,7 @@
         if (qso === undefined) return;
         try {
             await api.deleteQso(logbookId, qso.id, qso.revision);
-            toasts.show(`Deleted ${qso.fields.CALL}`);
+            toasts.show(m.entry_editor_deleted({ call: qso.fields.CALL }));
             goto(logHref, { replace: true });
         } catch (e) {
             if (e instanceof ApiError && e.body.current) conflict = e.body.current as Qso;
@@ -142,25 +145,31 @@
     }
 </script>
 
-<PageTitle title="Edit QSO" />
+<PageTitle title={m.entry_editor_title()} />
 
 <header
     class="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-surface px-2 py-2 md:px-6 md:py-3"
 >
     <button
         type="button"
-        aria-label="Back"
+        aria-label={m.common_back()}
         class="inline-flex size-11 items-center justify-center rounded-lg text-text"
         onclick={back}
     >
         <Icon name="back" size={22} />
     </button>
     <div class="flex min-w-0 flex-1 flex-col">
-        <h1 class="text-lg font-semibold">Edit QSO</h1>
+        <h1 class="text-lg font-semibold">{m.entry_editor_title()}</h1>
         {#if qso}
+            {@const updated = qso.updated_at.replace('T', ' ').slice(0, 16)}
             <span class="truncate text-xs text-muted"
-                >rev {qso.revision} · updated {qso.updated_at.replace('T', ' ').slice(0, 16)}
-                {qso.updated_by_callsign ? `by ${qso.updated_by_callsign}` : ''}</span
+                >{qso.updated_by_callsign
+                    ? m.entry_editor_revision_by({
+                          revision: qso.revision,
+                          updated,
+                          callsign: qso.updated_by_callsign
+                      })
+                    : m.entry_editor_revision({ revision: qso.revision, updated })}</span
             >
         {/if}
     </div>
@@ -168,7 +177,7 @@
         variant="primary"
         size="lg"
         disabled={saving || problem !== undefined || qso?.deleted_at !== null}
-        onclick={save}>{saving ? 'Saving…' : 'Save'}</Button
+        onclick={save}>{saving ? m.common_saving() : m.common_save()}</Button
     >
 </header>
 
@@ -177,15 +186,15 @@
         <Notice tone="error">{loadError}</Notice>
     {:else if qso && draft}
         {#if qso.deleted_at}
-            <Notice tone="error">This QSO was deleted at {qso.deleted_at}.</Notice>
+            <Notice tone="error">{m.entry_editor_deleted_at({ at: qso.deleted_at })}</Notice>
         {/if}
         {#if conflict}
             <Notice tone="error">
-                Someone else saved this QSO (rev {conflict.revision}) while you were editing.
+                {m.entry_editor_conflict({ revision: conflict.revision })}
                 <button
                     type="button"
                     class="ml-2 font-semibold underline"
-                    onclick={() => reset(conflict!)}>Load their version</button
+                    onclick={() => reset(conflict!)}>{m.entry_editor_load_theirs()}</button
                 >
             </Notice>
         {/if}
@@ -201,7 +210,7 @@
                 save();
             }}
         >
-            <Field label="Call" adif="CALL" for="e-call">
+            <Field label={m.field_call()} adif="CALL" for="e-call">
                 <input
                     id="e-call"
                     class="control h-12 font-mono text-[22px] font-semibold tracking-wide uppercase"
@@ -216,7 +225,7 @@
                 {/if}
             </Field>
             <div class="grid grid-cols-2 gap-3">
-                <Field label="Date (UTC)" adif="QSO_DATE" for="e-date">
+                <Field label={m.entry_editor_date_utc()} adif="QSO_DATE" for="e-date">
                     <input
                         id="e-date"
                         type="date"
@@ -224,7 +233,7 @@
                         bind:value={draft.date}
                     />
                 </Field>
-                <Field label="Time (UTC)" adif="TIME_ON" for="e-time">
+                <Field label={m.entry_editor_time_utc()} adif="TIME_ON" for="e-time">
                     <input
                         id="e-time"
                         type="time"
@@ -235,21 +244,21 @@
                 </Field>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <Field label="Freq MHz" adif="FREQ" for="e-freq">
+                <Field label={m.field_freq_mhz()} adif="FREQ" for="e-freq">
                     <input
                         id="e-freq"
                         inputmode="decimal"
-                        placeholder="optional"
+                        placeholder={m.entry_optional()}
                         class="control h-11 font-mono"
                         value={draft.freq}
                         oninput={(e) => onFreq(e.currentTarget.value)}
                     />
                 </Field>
-                <Field label="Band" adif="BAND" for="e-band">
+                <Field label={m.field_band()} adif="BAND" for="e-band">
                     <BandSelect id="e-band" class="h-11" value={draft.band} onchange={onBand} />
                 </Field>
             </div>
-            <Field label="Mode / Submode" adif="MODE · SUBMODE" for="e-mode">
+            <Field label={m.entry_editor_mode_submode()} adif="MODE · SUBMODE" for="e-mode">
                 <ModeSelect
                     id="e-mode"
                     class="h-11"
@@ -259,18 +268,18 @@
                 />
             </Field>
             <div class="grid grid-cols-2 gap-3">
-                <Field label="RST sent" adif="RST_SENT" for="e-rsts">
+                <Field label={m.field_rst_sent()} adif="RST_SENT" for="e-rsts">
                     <input id="e-rsts" class="control h-11 font-mono" bind:value={draft.rstSent} />
                 </Field>
-                <Field label="RST rcvd" adif="RST_RCVD" for="e-rstr">
+                <Field label={m.field_rst_rcvd()} adif="RST_RCVD" for="e-rstr">
                     <input id="e-rstr" class="control h-11 font-mono" bind:value={draft.rstRcvd} />
                 </Field>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <Field label="Name" adif="NAME" for="e-name">
+                <Field label={m.field_name()} adif="NAME" for="e-name">
                     <input id="e-name" class="control h-11 text-base" bind:value={draft.name} />
                 </Field>
-                <Field label="QTH" adif="QTH" for="e-qth">
+                <Field label={m.field_qth()} adif="QTH" for="e-qth">
                     <input id="e-qth" class="control h-11 text-base" bind:value={draft.qth} />
                 </Field>
             </div>
@@ -286,7 +295,7 @@
                         />
                     </Field>
                 {/if}
-                <Field label="TX power (W)" adif="TX_PWR" for="e-txpwr">
+                <Field label={m.entry_tx_power_w()} adif="TX_PWR" for="e-txpwr">
                     <input
                         id="e-txpwr"
                         inputmode="decimal"
@@ -295,14 +304,14 @@
                     />
                 </Field>
             </div>
-            <Field label="Comment" adif="COMMENT" for="e-comment">
+            <Field label={m.field_comment()} adif="COMMENT" for="e-comment">
                 <textarea
                     id="e-comment"
                     rows="2"
                     class="control h-auto py-2 text-base"
                     bind:value={draft.comment}></textarea>
             </Field>
-            <Field label="Notes" adif="NOTES" for="e-notes">
+            <Field label={m.field_notes()} adif="NOTES" for="e-notes">
                 <textarea
                     id="e-notes"
                     rows="2"
@@ -313,33 +322,33 @@
             <fieldset class="m-0 flex flex-col gap-3 rounded-lg border border-border p-3">
                 <legend class="px-1.5 eyebrow">QSL</legend>
                 <div class="grid grid-cols-2 gap-3">
-                    <Field label="Sent" adif="QSL_SENT" for="e-qsls">
+                    <Field label={m.entry_editor_qsl_sent()} adif="QSL_SENT" for="e-qsls">
                         <select id="e-qsls" class="control h-11" bind:value={draft.qslSent}>
                             <option value="">—</option>
                             {#each QSL_SENT_VALUES as [code, label] (code)}
-                                <option value={code}>{code} · {label}</option>
+                                <option value={code}>{code} · {label()}</option>
                             {/each}
                         </select>
                     </Field>
-                    <Field label="Received" adif="QSL_RCVD" for="e-qslr">
+                    <Field label={m.entry_editor_qsl_rcvd()} adif="QSL_RCVD" for="e-qslr">
                         <select id="e-qslr" class="control h-11" bind:value={draft.qslRcvd}>
                             <option value="">—</option>
                             {#each QSL_RCVD_VALUES as [code, label] (code)}
-                                <option value={code}>{code} · {label}</option>
+                                <option value={code}>{code} · {label()}</option>
                             {/each}
                         </select>
                     </Field>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <Field label="Sent via" adif="QSL_SENT_VIA" for="e-via">
+                    <Field label={m.entry_editor_qsl_sent_via()} adif="QSL_SENT_VIA" for="e-via">
                         <select id="e-via" class="control h-11" bind:value={draft.qslSentVia}>
                             <option value="">—</option>
                             {#each QSL_VIA_VALUES as [code, label] (code)}
-                                <option value={code}>{code} · {label}</option>
+                                <option value={code}>{code} · {label()}</option>
                             {/each}
                         </select>
                     </Field>
-                    <Field label="Sent date" adif="QSLSDATE" for="e-qslsdate">
+                    <Field label={m.entry_editor_qsl_sent_date()} adif="QSLSDATE" for="e-qslsdate">
                         <input
                             id="e-qslsdate"
                             type="date"
@@ -349,15 +358,15 @@
                     </Field>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <Field label="Received via" adif="QSL_RCVD_VIA" for="e-rvia">
+                    <Field label={m.entry_editor_qsl_rcvd_via()} adif="QSL_RCVD_VIA" for="e-rvia">
                         <select id="e-rvia" class="control h-11" bind:value={draft.qslRcvdVia}>
                             <option value="">—</option>
                             {#each QSL_VIA_VALUES as [code, label] (code)}
-                                <option value={code}>{code} · {label}</option>
+                                <option value={code}>{code} · {label()}</option>
                             {/each}
                         </select>
                     </Field>
-                    <Field label="Received date" adif="QSLRDATE" for="e-qslrdate">
+                    <Field label={m.entry_editor_qsl_rcvd_date()} adif="QSLRDATE" for="e-qslrdate">
                         <input
                             id="e-qslrdate"
                             type="date"
@@ -367,13 +376,13 @@
                     </Field>
                 </div>
                 <div class="flex justify-between text-[13px] text-muted">
-                    <span>LoTW sent / rcvd</span>
+                    <span>{m.entry_editor_lotw()}</span>
                     <span class="font-mono"
                         >{qso.fields.LOTW_QSL_SENT || '—'} / {qso.fields.LOTW_QSL_RCVD || '—'}</span
                     >
                 </div>
                 <div class="flex justify-between text-[13px] text-muted">
-                    <span>eQSL sent / rcvd</span>
+                    <span>{m.entry_editor_eqsl()}</span>
                     <span class="font-mono"
                         >{qso.fields.EQSL_QSL_SENT || '—'} / {qso.fields.EQSL_QSL_RCVD || '—'}</span
                     >
@@ -382,8 +391,8 @@
 
             <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
                 <div class="flex justify-between">
-                    <span class="eyebrow">Station at the time</span>
-                    <span class="text-xs text-muted">read only</span>
+                    <span class="eyebrow">{m.entry_editor_station_at_time()}</span>
+                    <span class="text-xs text-muted">{m.entry_editor_read_only()}</span>
                 </div>
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
                     {#each station as [name, value] (name)}
@@ -393,13 +402,10 @@
                         >
                     {/each}
                 </div>
-                <span class="text-xs text-muted"
-                    >Baked at creation. Editing the Station or the Instrument, or choosing another
-                    Instrument here, does not change these values.</span
-                >
+                <span class="text-xs text-muted">{m.entry_editor_baked()}</span>
             </div>
 
-            <Field label="Instrument" for="e-instrument">
+            <Field label={m.field_instrument()} for="e-instrument">
                 <InstrumentSelect
                     id="e-instrument"
                     class="h-11"
@@ -410,23 +416,25 @@
             </Field>
 
             <fieldset class="m-0 flex flex-col gap-2.5 rounded-lg border border-border p-3">
-                <legend class="px-1.5 eyebrow">Other ADIF fields</legend>
+                <legend class="px-1.5 eyebrow">{m.entry_editor_other_fields()}</legend>
                 {#each draft.extra as extra, i (i)}
                     <div
                         class="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-2"
                     >
-                        <label for={`e-extra-name-${i}`} class="sr-only">ADIF field</label>
+                        <label for={`e-extra-name-${i}`} class="sr-only"
+                            >{m.entry_adif_field()}</label
+                        >
                         <input
                             id={`e-extra-name-${i}`}
                             list="e-adif-fields"
-                            placeholder="ADIF field"
+                            placeholder={m.entry_adif_field()}
                             autocomplete="off"
                             autocapitalize="characters"
                             spellcheck="false"
                             class="control h-10 w-full px-2 font-mono text-xs uppercase"
                             bind:value={extra.name}
                         />
-                        <label for={`e-extra-value-${i}`} class="sr-only">Value</label>
+                        <label for={`e-extra-value-${i}`} class="sr-only">{m.entry_value()}</label>
                         <input
                             id={`e-extra-value-${i}`}
                             class="control h-10"
@@ -434,18 +442,18 @@
                         />
                         <button
                             type="button"
-                            aria-label="Remove this field"
+                            aria-label={m.entry_remove_field()}
                             class="inline-flex size-10 items-center justify-center rounded-lg text-muted hover:bg-surface-2"
                             onclick={() => draft?.extra.splice(i, 1)}
                             ><Icon name="close" size={16} /></button
                         >
                     </div>
                 {:else}
-                    <span class="text-xs text-muted">None.</span>
+                    <span class="text-xs text-muted">{m.entry_editor_none()}</span>
                 {/each}
                 <div>
                     <Button onclick={() => draft?.extra.push({ name: '', value: '' })}
-                        >+ Add ADIF field</Button
+                        >{m.entry_add_adif_field()}</Button
                     >
                 </div>
                 <datalist id="e-adif-fields">
@@ -458,25 +466,25 @@
             {#if problem}
                 <p class="text-xs text-error-text">{problem}</p>
             {/if}
-            <button type="submit" class="hidden">Save</button>
+            <button type="submit" class="hidden">{m.common_save()}</button>
             {#if qso.deleted_at === null}
                 <button
                     type="button"
                     class="h-11 rounded-lg border border-error bg-transparent font-medium text-error"
-                    onclick={() => (confirmDelete = true)}>Delete QSO</button
+                    onclick={() => (confirmDelete = true)}>{m.entry_editor_delete_qso()}</button
                 >
             {/if}
         </form>
     {:else}
-        <p class="text-muted">Loading…</p>
+        <p class="text-muted">{m.common_loading()}</p>
     {/if}
 </main>
 
 <ConfirmDialog
     bind:open={confirmDelete}
-    title="Delete this QSO?"
-    description="It leaves the log and every export. Nobody can bring it back from the web UI."
-    confirm="Delete"
+    title={m.entry_editor_delete_title()}
+    description={m.entry_editor_delete_description()}
+    confirm={m.common_delete()}
     danger
     onconfirm={remove}
 />

@@ -2,7 +2,13 @@
     import type { Fields, Qso } from '#lib/api/types.ts';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { distribution } from '#lib/log/rows.ts';
-    import { QSL_RCVD_VALUES, QSL_SENT_VALUES, QSL_VIA_VALUES } from '#lib/qso/qsl.ts';
+    import { m } from '#lib/paraglide/messages.js';
+    import {
+        QSL_RCVD_VALUES,
+        QSL_SENT_VALUES,
+        QSL_VIA_VALUES,
+        type QslChoice
+    } from '#lib/qso/qsl.ts';
 
     let {
         count,
@@ -20,22 +26,22 @@
         onclose: () => void;
     } = $props();
 
-    type Choice = { name: string; label: string; options: [string, string][]; date?: boolean };
+    type Choice = { name: string; label: string; options: QslChoice[]; date?: boolean };
     const groups: { legend: string; choices: Choice[] }[] = [
         {
-            legend: 'QSL sent',
+            legend: m.field_qsl_sent(),
             choices: [
-                { name: 'QSL_SENT', label: 'Sent', options: QSL_SENT_VALUES },
-                { name: 'QSL_SENT_VIA', label: 'Via', options: QSL_VIA_VALUES },
-                { name: 'QSLSDATE', label: 'Sent date', options: [], date: true }
+                { name: 'QSL_SENT', label: m.log_sent(), options: QSL_SENT_VALUES },
+                { name: 'QSL_SENT_VIA', label: m.log_via(), options: QSL_VIA_VALUES },
+                { name: 'QSLSDATE', label: m.log_sent_date(), options: [], date: true }
             ]
         },
         {
-            legend: 'QSL received',
+            legend: m.log_qsl_received(),
             choices: [
-                { name: 'QSL_RCVD', label: 'Received', options: QSL_RCVD_VALUES },
-                { name: 'QSL_RCVD_VIA', label: 'Via', options: QSL_VIA_VALUES },
-                { name: 'QSLRDATE', label: 'Received date', options: [], date: true }
+                { name: 'QSL_RCVD', label: m.log_received(), options: QSL_RCVD_VALUES },
+                { name: 'QSL_RCVD_VIA', label: m.log_via(), options: QSL_VIA_VALUES },
+                { name: 'QSLRDATE', label: m.log_received_date(), options: [], date: true }
             ]
         }
     ];
@@ -48,23 +54,20 @@
             .map(([name, v]) => [name, v === 'today' ? today : v === 'clear' ? '' : v] as const)
     );
     const fields = $derived(Object.fromEntries(changes));
-    const n = $derived(`${count} QSO${count === 1 ? '' : 's'}`);
 </script>
 
 <aside
-    aria-label="Bulk edit"
+    aria-label={m.log_bulk_edit()}
     class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-3.5 overflow-y-auto border-l border-border bg-surface px-6 pt-4 pb-6 shadow-[-12px_0_32px] shadow-shadow"
 >
     <div class="flex items-start justify-between gap-2">
         <div class="flex flex-col gap-0.5">
-            <span class="eyebrow">Bulk edit</span>
-            <span class="text-xl font-semibold"
-                >Edit {count} checked QSO{count === 1 ? '' : 's'}</span
-            >
+            <span class="eyebrow">{m.log_bulk_edit()}</span>
+            <span class="text-xl font-semibold">{m.log_bulk_title({ count })}</span>
         </div>
         <button
             type="button"
-            aria-label="Close bulk edit"
+            aria-label={m.log_bulk_close()}
             class="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted"
             onclick={onclose}
         >
@@ -87,19 +90,19 @@
                         value={values[choice.name] ?? ''}
                         onchange={(e) => (values[choice.name] = e.currentTarget.value)}
                     >
-                        <option value="">Keep</option>
+                        <option value="">{m.log_bulk_keep()}</option>
                         {#if choice.date}
-                            <option value="today">Today · {today}</option>
-                            <option value="clear">Clear</option>
+                            <option value="today">{m.log_bulk_today({ date: today })}</option>
+                            <option value="clear">{m.common_clear()}</option>
                         {:else}
                             {#each choice.options as [code, label] (code)}
-                                <option value={code}>{code} · {label}</option>
+                                <option value={code}>{code} · {label()}</option>
                             {/each}
-                            <option value="clear">Clear</option>
+                            <option value="clear">{m.common_clear()}</option>
                         {/if}
                     </select>
                     <span class="font-mono text-xs text-muted"
-                        >now {distribution(known, choice.name)}</span
+                        >{m.log_bulk_now({ values: distribution(known, choice.name) })}</span
                     >
                 </div>
             {/each}
@@ -107,11 +110,13 @@
     {/each}
 
     <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-bg p-3">
-        <span class="eyebrow">Changes</span>
+        <span class="eyebrow">{m.log_bulk_changes()}</span>
         {#each changes as [name, value] (name)}
-            <span class="font-mono text-xs">{name} → {value === '' ? '(removed)' : value}</span>
+            <span class="font-mono text-xs"
+                >{name} → {value === '' ? m.log_bulk_removed() : value}</span
+            >
         {:else}
-            <span class="text-xs text-muted">Nothing yet.</span>
+            <span class="text-xs text-muted">{m.log_bulk_nothing()}</span>
         {/each}
     </div>
 
@@ -119,7 +124,7 @@
         <button
             type="button"
             class="h-10 rounded-md border border-border px-3.5"
-            onclick={() => (values = {})}>Reset</button
+            onclick={() => (values = {})}>{m.log_reset()}</button
         >
         <button
             type="button"
@@ -128,11 +133,10 @@
             onclick={() => {
                 onapply(fields);
                 values = {};
-            }}>Apply to {n}</button
+            }}>{m.log_bulk_apply({ count })}</button
         >
     </div>
     <span class="text-[11px] text-muted">
-        Each row is sent with its revision. A row someone changed meanwhile is skipped and listed
-        afterwards.
+        {m.log_bulk_help()}
     </span>
 </aside>

@@ -4,6 +4,7 @@
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
+    import { m } from '#lib/paraglide/messages.js';
     import { parks } from '#lib/qso/format.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import StationEditor from './StationEditor.svelte';
@@ -25,7 +26,9 @@
     }
 </script>
 
-<PageTitle title={current === undefined ? 'Stations' : `${current.name} - Stations`} />
+<PageTitle
+    title={current === undefined ? m.nav_stations() : m.stations_page_title({ name: current.name })}
+/>
 
 {#snippet card(station: Station)}
     <a
@@ -62,17 +65,20 @@
     >
         <a
             href={`/logbooks/${logbookId}/more`}
-            aria-label="Back to More"
+            aria-label={m.settings_back_more()}
             class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
             ><Icon name="back" size={22} /></a
         >
-        <h1 class="text-xl font-semibold">Stations</h1>
+        <h1 class="text-xl font-semibold">{m.nav_stations()}</h1>
         <span class="text-[13px] text-muted"
-            >{logbook.activeStations.length} active · {archived.length} archived</span
+            >{m.stations_counts({
+                active: logbook.activeStations.length,
+                archived: archived.length
+            })}</span
         >
         <div class="flex-1"></div>
         {#if canEdit}
-            <Button variant="primary" href={`${root}/new`}>New Station</Button>
+            <Button variant="primary" href={`${root}/new`}>{m.stations_new()}</Button>
         {/if}
     </header>
 
@@ -80,19 +86,19 @@
         <header class="flex items-center gap-2 md:hidden">
             <a
                 href={root}
-                aria-label="Back to Stations"
+                aria-label={m.stations_back()}
                 class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text"
                 ><Icon name="back" size={22} /></a
             >
             <h1 class="truncate text-lg font-semibold">
-                {selected === 'new' ? 'New Station' : (current?.name ?? 'Station')}
+                {selected === 'new' ? m.stations_new() : (current?.name ?? m.field_station())}
             </h1>
         </header>
     {/if}
 
     <div class="flex flex-wrap items-start gap-4">
         <section
-            aria-label="Station list"
+            aria-label={m.stations_list()}
             class={[
                 'flex min-w-0 flex-[1_1_280px] flex-col gap-2 md:max-w-[340px]',
                 selected !== undefined && 'max-md:hidden'
@@ -101,10 +107,10 @@
             {#each logbook.activeStations as station (station.id)}
                 {@render card(station)}
             {:else}
-                <p class="text-[13px] text-muted">No active Station yet.</p>
+                <p class="text-[13px] text-muted">{m.stations_no_active()}</p>
             {/each}
             {#if archived.length > 0}
-                <h2 class="mt-3 eyebrow">Archived</h2>
+                <h2 class="mt-3 eyebrow">{m.stations_archived()}</h2>
                 {#each archived as station (station.id)}
                     <a
                         href={`${root}/${station.id}`}
@@ -127,13 +133,13 @@
         <div class="flex min-w-0 flex-[999_1_480px] flex-col gap-4">
             {#if selected === undefined}
                 <p class="hidden rounded-lg border border-border p-6 text-muted md:block">
-                    Choose a Station to see its values{canEdit ? ', or create one' : ''}.
+                    {canEdit ? m.stations_choose_or_create() : m.stations_choose()}
                 </p>
             {:else if selected === 'new' && !canEdit}
-                <p class="text-muted">Only owners of this Logbook create Stations.</p>
+                <p class="text-muted">{m.stations_owners_create()}</p>
             {:else if selected !== 'new' && current === undefined}
                 <p class="text-muted">
-                    {logbook.stations.length === 0 ? 'Loading…' : 'This Station does not exist.'}
+                    {logbook.stations.length === 0 ? m.common_loading() : m.stations_not_found()}
                 </p>
             {:else}
                 {#key selected}

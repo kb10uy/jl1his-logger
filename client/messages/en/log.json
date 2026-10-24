@@ -1,0 +1,294 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "log_new_outside": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} new outside this query" }
+        }
+    ],
+    "log_matching": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} matching" }
+        }
+    ],
+    "log_loading_qsos": "Loading QSOs…",
+    "log_loading_older": "Loading older QSOs…",
+    "log_no_match": "No QSOs match this query.",
+    "log_all_loaded": "That is all of them.",
+    "log_entered": [
+        {
+            "declarations": [
+                "input name",
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{name} · {n} QSO entered",
+                "countPlural=other": "{name} · {n} QSOs entered"
+            }
+        }
+    ],
+    "log_export_adif": "Export ADIF",
+    "log_new_qso": "New QSO",
+    "log_check_all_loaded": "Check all loaded",
+    "log_row_stale": "Changed; no longer matches this query",
+    "log_check_row": "Check {call} at {date} {time}",
+    "log_checked_qsos": "Checked QSOs",
+    "log_checked_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} checked" }
+        }
+    ],
+    "log_check_all_matching": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Check all {n} matching" }
+        }
+    ],
+    "log_mark_sent_today": "Mark QSL sent today",
+    "log_mark_received": "Mark QSL received",
+    "log_edit_fields": "Edit fields…",
+    "log_marked_sent": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Marked QSL sent on {n} QSO",
+                "countPlural=other": "Marked QSL sent on {n} QSOs"
+            }
+        }
+    ],
+    "log_marked_received": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Marked QSL received on {n} QSO",
+                "countPlural=other": "Marked QSL received on {n} QSOs"
+            }
+        }
+    ],
+    "log_updated_qsl": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Updated QSL fields on {n} QSO",
+                "countPlural=other": "Updated QSL fields on {n} QSOs"
+            }
+        }
+    ],
+    "log_skipped_meanwhile": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "; {n} skipped because they changed meanwhile" }
+        }
+    ],
+    "log_undo": "Undo",
+    "log_deleted": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Deleted {n} QSO",
+                "countPlural=other": "Deleted {n} QSOs"
+            }
+        }
+    ],
+    "log_delete_failed": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "; {n} could not be deleted" }
+        }
+    ],
+    "log_synced": "Synced",
+    "log_delete_title": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Delete {n} QSO?",
+                "countPlural=other": "Delete {n} QSOs?"
+            }
+        }
+    ],
+    "log_delete_description": "Deleted QSOs leave the log and every export. Each is deleted at the revision it was checked at; one changed meanwhile is kept.",
+    "log_bulk_edit": "Bulk edit",
+    "log_bulk_title": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Edit {n} checked QSO",
+                "countPlural=other": "Edit {n} checked QSOs"
+            }
+        }
+    ],
+    "log_bulk_close": "Close bulk edit",
+    "log_qsl_received": "QSL received",
+    "log_sent": "Sent",
+    "log_received": "Received",
+    "log_via": "Via",
+    "log_sent_date": "Sent date",
+    "log_received_date": "Received date",
+    "log_via_date": "Via / date",
+    "log_bulk_keep": "Keep",
+    "log_bulk_today": "Today · {date}",
+    "log_bulk_now": "now {values}",
+    "log_bulk_changes": "Changes",
+    "log_bulk_removed": "(removed)",
+    "log_bulk_nothing": "Nothing yet.",
+    "log_bulk_apply": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "Apply to {n} QSO",
+                "countPlural=other": "Apply to {n} QSOs"
+            }
+        }
+    ],
+    "log_bulk_help": "Each row is sent with its revision. A row someone changed meanwhile is skipped and listed afterwards.",
+    "log_reset": "Reset",
+    "log_columns": "Columns",
+    "log_columns_shown": "Shown columns, left to right",
+    "log_column_move_left": "Move {name} left",
+    "log_column_move_right": "Move {name} right",
+    "log_column_hide": "Hide {name}",
+    "log_adif_field": "ADIF field",
+    "log_column_qsl": "QSL S / R",
+    "log_column_lotw": "LoTW S / R",
+    "log_column_eqsl": "eQSL S / R",
+    "log_column_rst": "RST S / R",
+    "log_column_tx_power": "TX Power W",
+    "log_column_park": "Park",
+    "log_column_enter_field": "Enter an ADIF field name.",
+    "log_column_not_adif": "{name} is not an ADIF QSO field.",
+    "log_detail_label": "QSO details",
+    "log_detail_close": "Close details",
+    "log_detail_deleted": "This QSO was deleted.",
+    "log_detail_stale": "This QSO changed and no longer matches the query.",
+    "log_detail_not_recorded": "not recorded",
+    "log_detail_rst": "RST sent / rcvd",
+    "log_detail_name_qth": "Name / QTH",
+    "log_detail_state_grid": "State · Grid",
+    "log_detail_number": "Number sent / rcvd",
+    "log_detail_lotw": "LoTW sent / rcvd",
+    "log_detail_eqsl": "eQSL sent / rcvd",
+    "log_detail_other_fields": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Other ADIF fields · {n}" }
+        }
+    ],
+    "log_detail_rev": "rev {revision}",
+    "log_query": "Query",
+    "log_syntax": "Syntax",
+    "log_query_remove": "Remove {term}",
+    "log_add_condition": "+ Condition",
+    "log_clear_all": "Clear all",
+    "log_chip_text": "Text",
+    "log_chip_base_call": "Base call",
+    "log_chip_lotw_sent": "LoTW sent",
+    "log_chip_lotw_rcvd": "LoTW rcvd",
+    "log_chip_eqsl_sent": "eQSL sent",
+    "log_chip_eqsl_rcvd": "eQSL rcvd",
+    "log_chip_freq": "Freq",
+    "log_chip_error_unknown_field": "unknown field",
+    "log_chip_error_bad_field_name": "bad field name",
+    "log_chip_error_bad_date": "bad date",
+    "log_chip_error_bad_number": "bad number",
+    "log_chip_error_unclosed_quote": "open quote",
+    "log_chip_error_too_many_values": "too many values",
+    "log_chip_error_empty": "empty",
+    "log_chip_is": "is",
+    "log_chip_is_not": "is not",
+    "log_chip_is_any_of": "is any of",
+    "log_chip_is_none_of": "is none of",
+    "log_chip_matches": "matches",
+    "log_chip_contains": "contains",
+    "log_chip_excludes": "excludes",
+    "log_chip_is_present": "is present",
+    "log_chip_is_missing": "is missing",
+    "log_chip_between": "between",
+    "log_chip_not_between": "not between",
+    "log_chip_date_from": "from",
+    "log_chip_date_not_from": "not from",
+    "log_chip_date_until": "until",
+    "log_chip_date_not_until": "not until",
+    "log_chip_date_after": "after",
+    "log_chip_date_not_after": "not after",
+    "log_chip_date_before": "before",
+    "log_chip_date_not_before": "not before",
+    "log_chip_date_on": "on",
+    "log_chip_date_not_on": "not on",
+    "log_chip_at_least": "at least",
+    "log_chip_not_at_least": "not at least",
+    "log_chip_at_most": "at most",
+    "log_chip_not_at_most": "not at most",
+    "log_chip_above": "above",
+    "log_chip_not_above": "not above",
+    "log_chip_below": "below",
+    "log_chip_not_below": "not below",
+    "log_chip_number_is": "is",
+    "log_chip_number_not_is": "not is",
+    "log_template_lotw_received": "LoTW received",
+    "log_template_eqsl_received": "eQSL received",
+    "log_template_date_from": "Date from",
+    "log_template_tx_power_w": "TX power W",
+    "log_template_freq_missing": "FREQ missing",
+    "log_syntax_wildcard": "wildcard, * and ?",
+    "log_syntax_any_of": "comma = any of",
+    "log_syntax_exclude": "leading - excludes",
+    "log_syntax_range": "range, either end open",
+    "log_syntax_compare": "also > < <=",
+    "log_syntax_lotw_eqsl": "also lotw-rcvd, eqsl-sent",
+    "log_syntax_freq": "MHz, range or > < <=",
+    "log_syntax_pwr": "TX_PWR in watts, same",
+    "log_syntax_quote": "quote values with spaces",
+    "log_syntax_instrument": "Instrument name or MY_RIG",
+    "log_syntax_park": "any MY_POTA_REF",
+    "log_syntax_missing": "missing / present",
+    "log_syntax_adif": "any other ADIF field",
+    "log_syntax_dxcc": "DXCC entity code",
+    "log_syntax_bare": "bare word: call, name, QTH, comment"
+}

@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Instrument } from '#lib/api/types.ts';
+    import { m } from '#lib/paraglide/messages.js';
 
     let {
         id,
@@ -22,7 +23,7 @@
     {value}
     onchange={(e) => onchange(e.currentTarget.value)}
 >
-    <option value="">No Instrument</option>
+    <option value="">{m.instrument_none()}</option>
     {#each instruments as instrument (instrument.id)}
         <option value={instrument.id}
             >{instrument.name}{instrument.tx_pwr === null

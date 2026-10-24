@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import type { Area, Fields } from '#lib/api/types.ts';
 import {
     contestProblem,
@@ -12,18 +13,18 @@ import { FREE_TEXT_MAX_LENGTH, type Draft } from './draft.ts';
 const DUPLICATE_WINDOW_SECONDS = 15 * 60;
 
 export function draftProblem(draft: Draft, contest: ContestSettings): string | undefined {
-    if (draft.call === undefined) return 'Say the call first.';
-    if (draft.band === '' || draft.mode === '') return 'Choose the band and the mode.';
+    if (draft.call === undefined) return m.voice_problem_say_call();
+    if (draft.band === '' || draft.mode === '') return m.voice_problem_band_mode();
     for (const [label, text] of [
-        ['Name', draft.name],
-        ['QTH', draft.qth]
+        [m.field_name, draft.name],
+        [m.field_qth, draft.qth]
     ] as const) {
         if (text !== undefined && [...text].length > FREE_TEXT_MAX_LENGTH)
-            return `${label} is longer than ${FREE_TEXT_MAX_LENGTH} characters.`;
+            return m.voice_problem_too_long({ label: label(), count: FREE_TEXT_MAX_LENGTH });
     }
     const problem = contestProblem(contest);
     if (problem !== undefined) return problem;
-    if (contest.enabled && draft.received === undefined) return 'Contest: say the received number.';
+    if (contest.enabled && draft.received === undefined) return m.voice_problem_contest_received();
     return undefined;
 }
 

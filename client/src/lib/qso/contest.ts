@@ -1,3 +1,5 @@
+import { m } from '#lib/paraglide/messages.js';
+
 export interface ContestSettings {
     enabled: boolean;
     contestId: string;
@@ -36,10 +38,10 @@ export function expandExchange(template: string, serial: number): string {
 export function contestProblem(contest: ContestSettings): string | undefined {
     if (!contest.enabled) return undefined;
     const rest = contest.exchangeTemplate.replace(SERIAL_PLACEHOLDER, '');
-    if (/[{}]/.test(rest)) return 'Sent number: only {serial} and {serial:N} can be used.';
-    if (/\p{Cc}/u.test(rest)) return 'Sent number has control characters.';
+    if (/[{}]/.test(rest)) return m.entry_contest_placeholders();
+    if (/\p{Cc}/u.test(rest)) return m.entry_contest_control();
     if (!Number.isSafeInteger(contest.nextSerial) || contest.nextSerial < 1)
-        return 'Next serial must be 1 or more.';
+        return m.entry_contest_next_serial();
     return undefined;
 }
 

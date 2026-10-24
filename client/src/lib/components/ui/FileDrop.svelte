@@ -1,7 +1,9 @@
 <script lang="ts">
+    import { m } from '#lib/paraglide/messages.js';
+
     let {
         file = $bindable(),
-        hint = 'Drop an .adi or .adx file or choose one',
+        hint = m.file_drop_hint(),
         accept = '.adi,.adx'
     }: { file: File | undefined; hint?: string; accept?: string } = $props();
 
@@ -9,8 +11,8 @@
 
     const size = (n: number) =>
         n < 1024 * 1024
-            ? `${Math.max(1, Math.round(n / 1024))} KB`
-            : `${(n / 1048576).toFixed(1)} MB`;
+            ? m.file_size_kb({ size: Math.max(1, Math.round(n / 1024)) })
+            : m.file_size_mb({ size: (n / 1048576).toFixed(1) });
 </script>
 
 <label

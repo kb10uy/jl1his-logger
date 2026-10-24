@@ -4,6 +4,7 @@
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
+    import { m } from '#lib/paraglide/messages.js';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import InstrumentEditor from './InstrumentEditor.svelte';
 
@@ -27,7 +28,11 @@
         [instrument.my_rig, instrument.my_antenna].filter((v) => v !== null).join(' · ');
 </script>
 
-<PageTitle title={current === undefined ? 'Instruments' : `${current.name} - Instruments`} />
+<PageTitle
+    title={current === undefined
+        ? m.nav_instruments()
+        : m.stations_instrument_page_title({ name: current.name })}
+/>
 
 {#snippet card(instrument: Instrument)}
     <a
@@ -58,35 +63,40 @@
     >
         <a
             href={`/logbooks/${logbookId}/more`}
-            aria-label="Back to More"
+            aria-label={m.settings_back_more()}
             class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
             ><Icon name="back" size={22} /></a
         >
-        <h1 class="text-xl font-semibold">Instruments</h1>
+        <h1 class="text-xl font-semibold">{m.nav_instruments()}</h1>
         <span class="text-[13px] text-muted"
-            >{logbook.activeInstruments.length} active · {archived.length} archived</span
+            >{m.stations_counts({
+                active: logbook.activeInstruments.length,
+                archived: archived.length
+            })}</span
         >
         <div class="flex-1"></div>
-        <Button variant="primary" href={`${root}/new`}>New Instrument</Button>
+        <Button variant="primary" href={`${root}/new`}>{m.stations_instrument_new()}</Button>
     </header>
 
     {#if selected !== undefined}
         <header class="flex items-center gap-2 md:hidden">
             <a
                 href={root}
-                aria-label="Back to Instruments"
+                aria-label={m.stations_instrument_back()}
                 class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text"
                 ><Icon name="back" size={22} /></a
             >
             <h1 class="truncate text-lg font-semibold">
-                {selected === 'new' ? 'New Instrument' : (current?.name ?? 'Instrument')}
+                {selected === 'new'
+                    ? m.stations_instrument_new()
+                    : (current?.name ?? m.field_instrument())}
             </h1>
         </header>
     {/if}
 
     <div class="flex flex-wrap items-start gap-4">
         <section
-            aria-label="Instrument list"
+            aria-label={m.stations_instrument_list()}
             class={[
                 'flex min-w-0 flex-[1_1_280px] flex-col gap-2 md:max-w-[340px]',
                 selected !== undefined && 'max-md:hidden'
@@ -95,10 +105,10 @@
             {#each logbook.activeInstruments as instrument (instrument.id)}
                 {@render card(instrument)}
             {:else}
-                <p class="text-[13px] text-muted">No active Instrument yet.</p>
+                <p class="text-[13px] text-muted">{m.stations_instrument_no_active()}</p>
             {/each}
             {#if archived.length > 0}
-                <h2 class="mt-3 eyebrow">Archived</h2>
+                <h2 class="mt-3 eyebrow">{m.stations_archived()}</h2>
                 {#each archived as instrument (instrument.id)}
                     <a
                         href={`${root}/${instrument.id}`}
@@ -120,13 +130,13 @@
         <div class="flex min-w-0 flex-[999_1_480px] flex-col gap-4">
             {#if selected === undefined}
                 <p class="hidden rounded-lg border border-border p-6 text-muted md:block">
-                    Choose an Instrument to see its values, or create one.
+                    {m.stations_instrument_choose()}
                 </p>
             {:else if selected !== 'new' && current === undefined}
                 <p class="text-muted">
                     {logbook.instruments.length === 0
-                        ? 'Loading…'
-                        : 'This Instrument does not exist.'}
+                        ? m.common_loading()
+                        : m.stations_instrument_not_found()}
                 </p>
             {:else}
                 {#key selected}

@@ -1,4 +1,7 @@
 <script lang="ts">
+    import { formatNumber } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
+
     const SHOWN = 20;
 
     let {
@@ -22,7 +25,7 @@
 {#if items.length > 0}
     <details {open} class="rounded-lg border border-border px-3">
         <summary class="flex h-10 cursor-pointer items-center gap-2 text-[13px]">
-            {title} · {items.length.toLocaleString('en-US')}
+            {title} · {formatNumber(items.length)}
             {#if note}<span class="text-muted">{note}</span>{/if}
         </summary>
         <ul class="flex flex-col gap-1.5 pb-3 font-mono text-[13px]">
@@ -32,7 +35,9 @@
                     <span class="min-w-0 break-words">{item.text}</span>
                     {#if qsoHref && item.ids}
                         {#each item.ids as id, n (id)}
-                            <a href={qsoHref(id)} class="font-sans">QSO {n + 1}</a>
+                            <a href={qsoHref(id)} class="font-sans"
+                                >{m.transfer_record_qso({ index: n + 1 })}</a
+                            >
                         {/each}
                     {/if}
                 </li>
@@ -40,7 +45,7 @@
             {#if items.length > shown.length}
                 <li>
                     <button type="button" class="font-sans text-info" onclick={() => (all = true)}
-                        >Show all {items.length.toLocaleString('en-US')}</button
+                        >{m.transfer_show_all({ count: items.length })}</button
                     >
                 </li>
             {/if}

@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import type { SpeechLanguage } from '#lib/voice/dsl/lexicon.ts';
 
 export interface VoiceSettings {
@@ -13,9 +14,9 @@ export const MODEL_PATHS: Readonly<Record<SpeechLanguage, string>> = {
 
 export const WORKER_PATH = '/vosk-worker.js';
 
-export const LANGUAGE_LABELS: Readonly<Record<SpeechLanguage, string>> = {
-    en: 'English',
-    ja: 'Japanese'
+export const LANGUAGE_LABELS: Readonly<Record<SpeechLanguage, () => string>> = {
+    en: () => m.voice_language_en(),
+    ja: () => m.voice_language_ja()
 };
 
 export function speechLanguageFor(browserLanguage: string | undefined): SpeechLanguage {

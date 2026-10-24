@@ -5,6 +5,8 @@
     import type { Passkey } from '#lib/api/types.ts';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
+    import { roleLabel } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { session } from '#lib/state/session.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
@@ -14,7 +16,7 @@
     let removing = $state<Passkey | undefined>(undefined);
     let confirming = $state(false);
 
-    const day = (at: string | null) => (at === null ? 'never' : at.slice(0, 10));
+    const day = (at: string | null) => (at === null ? m.settings_never() : at.slice(0, 10));
 
     onMount(load);
 
@@ -33,7 +35,7 @@
             const added = await api.addPasskey(name.trim());
             passkeys = [...(passkeys ?? []), added];
             name = '';
-            toasts.show(`Added ${added.name}`);
+            toasts.show(m.settings_account_added({ name: added.name }));
         } catch (e) {
             toasts.error((e as Error).message);
         } finally {
@@ -47,7 +49,7 @@
         try {
             await api.deletePasskey(passkey.id);
             passkeys = (passkeys ?? []).filter((p) => p.id !== passkey.id);
-            toasts.show(`Removed ${passkey.name}`);
+            toasts.show(m.settings_account_removed({ name: passkey.name }));
         } catch (e) {
             toasts.error((e as Error).message);
         }
@@ -59,31 +61,37 @@
     }
 </script>
 
-<section aria-label="Account" class="flex max-w-2xl flex-col gap-4">
+<section aria-label={m.settings_account()} class="flex max-w-2xl flex-col gap-4">
     <div
         class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3.5"
     >
         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
             <span class="font-mono text-lg font-semibold">{session.me?.callsign}</span>
-            <span class="text-xs text-muted">{session.me?.role} · signed in with a passkey</span>
+            <span class="text-xs text-muted"
+                >{m.settings_account_signed_in({ role: roleLabel(session.me?.role ?? '') })}</span
+            >
         </div>
-        <Button onclick={signOut}>Sign out</Button>
+        <Button onclick={signOut}>{m.shell_sign_out()}</Button>
     </div>
 
     <form class="flex flex-wrap items-end gap-3" onsubmit={add}>
-        <h2 class="mr-auto self-center text-[15px] font-semibold">Passkeys</h2>
+        <h2 class="mr-auto self-center text-[15px] font-semibold">
+            {m.settings_account_passkeys()}
+        </h2>
         <div class="flex flex-col gap-1">
-            <label for="pk-name" class="text-xs text-muted">Name of the new passkey</label>
+            <label for="pk-name" class="text-xs text-muted"
+                >{m.settings_account_passkey_name()}</label
+            >
             <input
                 id="pk-name"
                 class="control w-52"
-                placeholder="This device"
+                placeholder={m.settings_account_passkey_placeholder()}
                 autocomplete="off"
                 bind:value={name}
             />
         </div>
         <Button type="submit" variant="primary" disabled={adding}
-            >{adding ? 'Waiting for the device…' : 'Add passkey'}</Button
+            >{adding ? m.settings_account_waiting() : m.settings_account_add_passkey()}</Button
         >
     </form>
     <div class="flex flex-col rounded-lg border border-border bg-surface">
@@ -93,24 +101,25 @@
             >
                 <span class="min-w-0 flex-1 truncate font-medium">{passkey.name}</span>
                 <span class="text-xs text-muted"
-                    >added {day(passkey.created_at)} · used {day(passkey.last_used_at)}</span
+                    >{m.settings_account_passkey_dates({
+                        created: day(passkey.created_at),
+                        used: day(passkey.last_used_at)
+                    })}</span
                 >
                 <Button
                     size="sm"
                     variant="danger"
                     disabled={passkeys?.length === 1}
-                    title={passkeys?.length === 1
-                        ? 'Your last passkey cannot be removed'
-                        : undefined}
+                    title={passkeys?.length === 1 ? m.settings_account_last_passkey() : undefined}
                     onclick={() => {
                         removing = passkey;
                         confirming = true;
-                    }}>Remove</Button
+                    }}>{m.common_remove()}</Button
                 >
             </div>
         {:else}
             <p class="px-4 py-3 text-muted">
-                {passkeys === undefined ? 'Loading…' : 'No passkeys.'}
+                {passkeys === undefined ? m.common_loading() : m.settings_account_no_passkeys()}
             </p>
         {/each}
     </div>
@@ -118,9 +127,14 @@
 
 <ConfirmDialog
     bind:open={confirming}
-    title="Remove this passkey?"
-    description={`${removing?.name ?? 'It'} can no longer sign in as ${session.me?.callsign}.`}
-    confirm="Remove"
+    title={m.settings_account_remove_title()}
+    description={removing
+        ? m.settings_account_remove_description({
+              name: removing.name,
+              callsign: session.me?.callsign ?? ''
+          })
+        : m.settings_account_remove_description_unnamed({ callsign: session.me?.callsign ?? '' })}
+    confirm={m.common_remove()}
     danger
     onconfirm={remove}
 />

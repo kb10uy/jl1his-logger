@@ -3,6 +3,7 @@
     import { DropdownMenu } from 'bits-ui';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { SYNTAX, chip, templates } from '#lib/query/chips.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { analyze, appendTerm, removeToken } from '#lib/query/index.ts';
     import { utcClock } from '#lib/qso/format.ts';
 
@@ -87,7 +88,7 @@
 
 <div class="flex flex-col gap-2.5">
     <div class="flex flex-wrap items-center gap-2">
-        <label for="log-query" class="sr-only">Query</label>
+        <label for="log-query" class="sr-only">{m.log_query()}</label>
         <div
             class={[
                 'flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2.5',
@@ -128,7 +129,7 @@
                     'h-10 rounded-md border border-border px-3',
                     showHelp ? 'bg-surface-2' : 'bg-surface'
                 ]}
-                onclick={() => (showHelp = !showHelp)}>Syntax</button
+                onclick={() => (showHelp = !showHelp)}>{m.log_syntax()}</button
             >
         {/if}
     </div>
@@ -140,7 +141,7 @@
             {#each SYNTAX as [example, meaning] (example)}
                 <div class="flex gap-2.5">
                     <code class="min-w-[150px] font-mono text-text">{example}</code>
-                    <span class="text-muted">{meaning}</span>
+                    <span class="text-muted">{meaning()}</span>
                 </div>
             {/each}
         </div>
@@ -174,7 +175,7 @@
                 {/if}
                 <button
                     type="button"
-                    aria-label={`Remove ${token.text}`}
+                    aria-label={m.log_query_remove({ term: token.text })}
                     class="inline-flex size-[22px] items-center justify-center rounded text-muted hover:text-text"
                     onclick={() => set(removeToken(text, token))}
                 >
@@ -187,7 +188,7 @@
                 class={[
                     'shrink-0 rounded-md border border-dashed border-border px-2.5 text-muted',
                     compact ? 'h-8' : 'h-[30px]'
-                ]}>+ Condition</DropdownMenu.Trigger
+                ]}>{m.log_add_condition()}</DropdownMenu.Trigger
             >
             <DropdownMenu.Portal>
                 <DropdownMenu.Content
@@ -209,7 +210,7 @@
         </DropdownMenu.Root>
         {#if chips.length > 0 && !compact}
             <button type="button" class="h-[30px] px-2 text-info" onclick={() => set('')}
-                >Clear all</button
+                >{m.log_clear_all()}</button
             >
         {/if}
         {#if aside && !compact}

@@ -1,0 +1,237 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "log_new_outside": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "検索条件外の新しい QSO {n} 件" }
+        }
+    ],
+    "log_matching": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件が一致" }
+        }
+    ],
+    "log_loading_qsos": "QSO を読み込み中…",
+    "log_loading_older": "古い QSO を読み込み中…",
+    "log_no_match": "この検索条件に一致する QSO はありません。",
+    "log_all_loaded": "これですべてです。",
+    "log_entered": [
+        {
+            "declarations": ["input name", "input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{name} · {n} 件の QSO を記録済み" }
+        }
+    ],
+    "log_export_adif": "ADIF をエクスポート",
+    "log_new_qso": "新規 QSO",
+    "log_check_all_loaded": "読み込み済みの QSO をすべてチェック",
+    "log_row_stale": "変更され、この検索条件に一致しなくなりました",
+    "log_check_row": "{date} {time} の {call} をチェック",
+    "log_checked_qsos": "チェックした QSO",
+    "log_checked_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件をチェック中" }
+        }
+    ],
+    "log_check_all_matching": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "一致する {n} 件をすべてチェック" }
+        }
+    ],
+    "log_mark_sent_today": "今日 QSL 送付済みにする",
+    "log_mark_received": "QSL 受領済みにする",
+    "log_edit_fields": "フィールドを編集…",
+    "log_marked_sent": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO を QSL 送付済みにしました。" }
+        }
+    ],
+    "log_marked_received": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO を QSL 受領済みにしました。" }
+        }
+    ],
+    "log_updated_qsl": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO の QSL フィールドを更新しました。" }
+        }
+    ],
+    "log_skipped_meanwhile": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "途中で変更された {n} 件はスキップしました。" }
+        }
+    ],
+    "log_undo": "元に戻す",
+    "log_deleted": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO を削除しました。" }
+        }
+    ],
+    "log_delete_failed": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件は削除できませんでした。" }
+        }
+    ],
+    "log_synced": "同期済み",
+    "log_delete_title": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO を削除しますか？" }
+        }
+    ],
+    "log_delete_description": "削除した QSO はログとすべてのエクスポートから外れます。各 QSO はチェックした時点のリビジョンで削除され、その後に変更された QSO は削除されずに残ります。",
+    "log_bulk_edit": "一括編集",
+    "log_bulk_title": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "チェックした {n} 件の QSO を編集" }
+        }
+    ],
+    "log_bulk_close": "一括編集を閉じる",
+    "log_qsl_received": "QSL 受領",
+    "log_sent": "送付",
+    "log_received": "受領",
+    "log_via": "経由",
+    "log_sent_date": "送付日",
+    "log_received_date": "受領日",
+    "log_via_date": "経由 / 日付",
+    "log_bulk_keep": "変更しない",
+    "log_bulk_today": "今日 · {date}",
+    "log_bulk_now": "現在 {values}",
+    "log_bulk_changes": "変更内容",
+    "log_bulk_removed": "（削除）",
+    "log_bulk_nothing": "まだありません。",
+    "log_bulk_apply": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO に適用" }
+        }
+    ],
+    "log_bulk_help": "各行はリビジョン付きで送信されます。その間に誰かが変更した行はスキップされ、後で一覧に表示されます。",
+    "log_reset": "リセット",
+    "log_columns": "列",
+    "log_columns_shown": "表示中の列（左から順）",
+    "log_column_move_left": "{name} を左へ移動",
+    "log_column_move_right": "{name} を右へ移動",
+    "log_column_hide": "{name} を非表示",
+    "log_adif_field": "ADIF フィールド",
+    "log_column_qsl": "QSL 送 / 受",
+    "log_column_lotw": "LoTW 送 / 受",
+    "log_column_eqsl": "eQSL 送 / 受",
+    "log_column_rst": "RST 送 / 受",
+    "log_column_tx_power": "送信出力 W",
+    "log_column_park": "運用パーク",
+    "log_column_enter_field": "ADIF フィールド名を入力してください。",
+    "log_column_not_adif": "{name} は ADIF の QSO フィールドではありません。",
+    "log_detail_label": "QSO の詳細",
+    "log_detail_close": "詳細を閉じる",
+    "log_detail_deleted": "この QSO は削除されました。",
+    "log_detail_stale": "この QSO は変更され、検索条件に一致しなくなりました。",
+    "log_detail_not_recorded": "記録なし",
+    "log_detail_rst": "RST 送 / 受",
+    "log_detail_name_qth": "名前 / QTH",
+    "log_detail_state_grid": "都道府県・州 · グリッド",
+    "log_detail_number": "ナンバー 送 / 受",
+    "log_detail_lotw": "LoTW 送 / 受",
+    "log_detail_eqsl": "eQSL 送 / 受",
+    "log_detail_other_fields": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "その他の ADIF フィールド · {n}" }
+        }
+    ],
+    "log_detail_rev": "リビジョン {revision}",
+    "log_query": "検索条件",
+    "log_syntax": "構文",
+    "log_query_remove": "{term} を削除",
+    "log_add_condition": "+ 条件",
+    "log_clear_all": "すべてクリア",
+    "log_chip_text": "テキスト",
+    "log_chip_base_call": "ベースコール",
+    "log_chip_lotw_sent": "LoTW 送付",
+    "log_chip_lotw_rcvd": "LoTW 受領",
+    "log_chip_eqsl_sent": "eQSL 送付",
+    "log_chip_eqsl_rcvd": "eQSL 受領",
+    "log_chip_freq": "周波数",
+    "log_chip_error_unknown_field": "不明なフィールド",
+    "log_chip_error_bad_field_name": "不正なフィールド名",
+    "log_chip_error_bad_date": "不正な日付",
+    "log_chip_error_bad_number": "不正な数値",
+    "log_chip_error_unclosed_quote": "引用符が閉じていない",
+    "log_chip_error_too_many_values": "値が多すぎる",
+    "log_chip_error_empty": "空",
+    "log_chip_is": "次と等しい",
+    "log_chip_is_not": "次と等しくない",
+    "log_chip_is_any_of": "次のいずれか",
+    "log_chip_is_none_of": "次のいずれでもない",
+    "log_chip_matches": "次のパターンに一致",
+    "log_chip_contains": "次を含む",
+    "log_chip_excludes": "次を含まない",
+    "log_chip_is_present": "あり",
+    "log_chip_is_missing": "なし",
+    "log_chip_between": "範囲",
+    "log_chip_not_between": "範囲外",
+    "log_chip_date_from": "次以降",
+    "log_chip_date_not_from": "次より前",
+    "log_chip_date_until": "次以前",
+    "log_chip_date_not_until": "次より後",
+    "log_chip_date_after": "次より後",
+    "log_chip_date_not_after": "次以前",
+    "log_chip_date_before": "次より前",
+    "log_chip_date_not_before": "次以降",
+    "log_chip_date_on": "次の日",
+    "log_chip_date_not_on": "次の日以外",
+    "log_chip_at_least": "次以上",
+    "log_chip_not_at_least": "次未満",
+    "log_chip_at_most": "次以下",
+    "log_chip_not_at_most": "次より大きい",
+    "log_chip_above": "次より大きい",
+    "log_chip_not_above": "次以下",
+    "log_chip_below": "次未満",
+    "log_chip_not_below": "次以上",
+    "log_chip_number_is": "次と等しい",
+    "log_chip_number_not_is": "次と等しくない",
+    "log_template_lotw_received": "LoTW 受領",
+    "log_template_eqsl_received": "eQSL 受領",
+    "log_template_date_from": "開始日",
+    "log_template_tx_power_w": "送信出力 W",
+    "log_template_freq_missing": "FREQ なし",
+    "log_syntax_wildcard": "ワイルドカード（* と ?）",
+    "log_syntax_any_of": "カンマ区切りでいずれか",
+    "log_syntax_exclude": "先頭の - で除外",
+    "log_syntax_range": "範囲（片側は省略可）",
+    "log_syntax_compare": "> < <= も使用可",
+    "log_syntax_lotw_eqsl": "lotw-rcvd、eqsl-sent も同様",
+    "log_syntax_freq": "MHz 単位、範囲または > < <=",
+    "log_syntax_pwr": "TX_PWR（W 単位）、同上",
+    "log_syntax_quote": "空白を含む値は引用符で囲む",
+    "log_syntax_instrument": "機材名または MY_RIG",
+    "log_syntax_park": "いずれかの MY_POTA_REF",
+    "log_syntax_missing": "なし / あり",
+    "log_syntax_adif": "その他の ADIF フィールド",
+    "log_syntax_dxcc": "DXCC エンティティコード",
+    "log_syntax_bare": "単語のみ: コールサイン、名前、QTH、コメント"
+}

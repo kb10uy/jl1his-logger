@@ -1,5 +1,6 @@
 <script lang="ts">
     import { MODE_CHOICES, MODE_ENTRIES, modeKey, parseModeKey } from '#lib/qso/modes.ts';
+    import { m } from '#lib/paraglide/messages.js';
 
     let {
         mode = $bindable(''),
@@ -32,7 +33,9 @@
 >
     {#if !known}
         <option value={key}
-            >{[mode, submode].filter((s) => s).join(' ') || 'Mode'} (as recorded)</option
+            >{m.common_as_recorded({
+                value: [mode, submode].filter((s) => s).join(' ') || m.mode_choose()
+            })}</option
         >
     {/if}
     {#each MODE_ENTRIES as entry, i (i)}

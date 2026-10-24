@@ -1,13 +1,16 @@
 import type { Fields } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 
 export type QslTone = 'ok' | 'warn' | 'none';
 
 export type QslRequest = 'none' | 'requested' | 'oneWay';
 
-export const QSL_REQUESTS: [QslRequest, string][] = [
-    ['none', 'No QSL'],
-    ['requested', 'QSL requested'],
-    ['oneWay', 'QSL one way']
+export type QslChoice<T extends string = string> = [T, () => string];
+
+export const QSL_REQUESTS: QslChoice<QslRequest>[] = [
+    ['none', m.entry_qsl_request_none],
+    ['requested', m.entry_qsl_request_requested],
+    ['oneWay', m.entry_qsl_request_one_way]
 ];
 
 export function qslRequestFields(request: QslRequest): Fields {
@@ -21,27 +24,27 @@ export function qslRequestFields(request: QslRequest): Fields {
     }
 }
 
-export const QSL_SENT_VALUES: [string, string][] = [
-    ['N', 'No'],
-    ['R', 'Requested'],
-    ['Q', 'Queued'],
-    ['Y', 'Yes'],
-    ['I', 'Ignore']
+export const QSL_SENT_VALUES: QslChoice[] = [
+    ['N', m.entry_qsl_no],
+    ['R', m.entry_qsl_requested],
+    ['Q', m.entry_qsl_queued],
+    ['Y', m.entry_qsl_yes],
+    ['I', m.entry_qsl_ignore]
 ];
 
-export const QSL_RCVD_VALUES: [string, string][] = [
-    ['N', 'No'],
-    ['R', 'Requested'],
-    ['Y', 'Yes'],
-    ['V', 'Verified'],
-    ['I', 'Ignore']
+export const QSL_RCVD_VALUES: QslChoice[] = [
+    ['N', m.entry_qsl_no],
+    ['R', m.entry_qsl_requested],
+    ['Y', m.entry_qsl_yes],
+    ['V', m.entry_qsl_verified],
+    ['I', m.entry_qsl_ignore]
 ];
 
-export const QSL_VIA_VALUES: [string, string][] = [
-    ['B', 'Bureau'],
-    ['D', 'Direct'],
-    ['E', 'Electronic'],
-    ['M', 'Manager']
+export const QSL_VIA_VALUES: QslChoice[] = [
+    ['B', m.entry_qsl_via_bureau],
+    ['D', m.entry_qsl_via_direct],
+    ['E', m.entry_qsl_via_electronic],
+    ['M', m.entry_qsl_via_manager]
 ];
 
 export function qslValue(value: string | undefined): string {
@@ -59,5 +62,5 @@ export function qslTone(value: string | undefined): QslTone {
 export function qslLabel(value: string | undefined, sent: boolean): string {
     const v = qslValue(value);
     const table = sent ? QSL_SENT_VALUES : QSL_RCVD_VALUES;
-    return table.find(([code]) => code === v)?.[1] ?? v;
+    return table.find(([code]) => code === v)?.[1]() ?? v;
 }

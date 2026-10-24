@@ -9,6 +9,7 @@
         column,
         moveColumn
     } from '#lib/log/columns.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { ADIF_QSO_FIELDS } from '#lib/qso/adif-fields.ts';
 
     let {
@@ -54,7 +55,7 @@
     <Popover.Trigger
         class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text"
     >
-        <Icon name="columns" size={16} />Columns
+        <Icon name="columns" size={16} />{m.log_columns()}
     </Popover.Trigger>
     <Popover.Portal>
         <Popover.Content
@@ -63,16 +64,16 @@
             class="z-40 flex max-h-[min(640px,calc(100dvh-96px))] w-[300px] flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3 text-[13px] shadow-lg shadow-shadow"
         >
             <div class="flex items-center justify-between">
-                <h2 class="text-sm font-semibold">Columns</h2>
+                <h2 class="text-sm font-semibold">{m.log_columns()}</h2>
                 <button
                     type="button"
                     class="h-7 px-1 text-info disabled:text-muted"
                     disabled={isDefault}
-                    onclick={() => onchange([...DEFAULT_COLUMNS])}>Reset</button
+                    onclick={() => onchange([...DEFAULT_COLUMNS])}>{m.log_reset()}</button
                 >
             </div>
 
-            <ol aria-label="Shown columns, left to right" class="flex flex-col">
+            <ol aria-label={m.log_columns_shown()} class="flex flex-col">
                 {#each columns as id, i (id)}
                     <li
                         draggable="true"
@@ -114,7 +115,7 @@
                         >
                         <button
                             type="button"
-                            aria-label={`Move ${column(id)?.label} left`}
+                            aria-label={m.log_column_move_left({ name: column(id)?.label ?? id })}
                             class={iconButton}
                             disabled={i === 0}
                             onclick={() => move(i, i - 1)}
@@ -122,14 +123,14 @@
                         >
                         <button
                             type="button"
-                            aria-label={`Move ${column(id)?.label} right`}
+                            aria-label={m.log_column_move_right({ name: column(id)?.label ?? id })}
                             class={iconButton}
                             disabled={i === columns.length - 1}
                             onclick={() => move(i, i + 1)}><Icon name="chevron" size={14} /></button
                         >
                         <button
                             type="button"
-                            aria-label={`Hide ${column(id)?.label}`}
+                            aria-label={m.log_column_hide({ name: column(id)?.label ?? id })}
                             class={iconButton}
                             disabled={columns.length === 1}
                             onclick={() => hide(i)}><Icon name="close" size={14} /></button
@@ -157,7 +158,7 @@
                     addField();
                 }}
             >
-                <label for="column-field" class="text-xs text-muted">ADIF field</label>
+                <label for="column-field" class="text-xs text-muted">{m.log_adif_field()}</label>
                 <div class="flex gap-2">
                     <input
                         id="column-field"
@@ -174,7 +175,7 @@
                     <button
                         type="submit"
                         class="h-9 rounded-md border border-border bg-surface-2 px-3 font-medium"
-                        >Add</button
+                        >{m.common_add()}</button
                     >
                 </div>
                 {#if problem}

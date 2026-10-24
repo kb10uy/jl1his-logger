@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { grammarPhrases } from '#lib/voice/dsl/grammar.ts';
 import type { SpeechLanguage } from '#lib/voice/dsl/lexicon.ts';
 import { ASR_SAMPLE_RATE, type SpeechRecognizer, type SpeechResult } from './recognizer.ts';
@@ -96,7 +97,7 @@ export class VoskRecognizer implements SpeechRecognizer {
             if (message.event === 'load') {
                 this.#loading = null;
                 if (message.result) loading.resolve();
-                else loading.reject(new Error('the speech model did not load'));
+                else loading.reject(new Error(m.voice_model_did_not_load()));
                 return;
             }
             if (message.event === 'error' && message.recognizerId === undefined) {

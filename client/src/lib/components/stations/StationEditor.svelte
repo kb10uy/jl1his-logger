@@ -7,7 +7,9 @@
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
-    import { count } from '#lib/qso/format.ts';
+    import Slotted from '#lib/components/ui/Slotted.svelte';
+    import { SLOT, formatNumber } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import {
         EXTRA_FIELDS,
         FIELD_NAMES,
@@ -51,10 +53,14 @@
     const changed = $derived(station === undefined || !sameInput(input, original));
     const problem = $derived(stationProblem(draft));
     const logbook = useLogbook();
-    const countyLabel = $derived(logbook.area?.name === 'CNTY' ? logbook.area.label : 'County');
+    const countyLabel = $derived(
+        logbook.area?.name === 'CNTY' ? logbook.area.label : m.stations_field_county()
+    );
     const dxcc = $derived(Number(draft.main.MY_DXCC?.trim() || 'NaN'));
     const label = (name: string) =>
-        [...MAIN_FIELDS, ...EXTRA_FIELDS].find((f) => f.name === name.trim().toUpperCase())?.label;
+        [...MAIN_FIELDS, ...EXTRA_FIELDS]
+            .find((f) => f.name === name.trim().toUpperCase())
+            ?.label();
     const addable = $derived(
         EXTRA_FIELDS.filter((f) => !draft.extra.some((e) => e.name.trim().toUpperCase() === f.name))
     );
@@ -103,12 +109,16 @@
                 station === undefined
                     ? await api.createStation(logbookId, input)
                     : await api.updateStation(logbookId, station.id, input);
-            toasts.show(station === undefined ? `Created ${saved.name}` : `Saved ${saved.name}`);
+            toasts.show(
+                station === undefined
+                    ? m.stations_created({ name: saved.name })
+                    : m.stations_saved({ name: saved.name })
+            );
             onsaved(saved);
         } catch (e) {
             saveError =
                 e instanceof ApiError && e.status === 409
-                    ? `Another Station already has Wavelog ID ${input.wavelog_id}.`
+                    ? m.stations_wavelog_id_taken({ id: String(input.wavelog_id) })
                     : message(e);
         } finally {
             saving = false;
@@ -119,7 +129,11 @@
         if (station === undefined) return;
         try {
             const saved = await api.archiveStation(logbookId, station.id, archived);
-            toasts.show(archived ? `Archived ${saved.name}` : `Restored ${saved.name}`);
+            toasts.show(
+                archived
+                    ? m.stations_archived_toast({ name: saved.name })
+                    : m.stations_restored({ name: saved.name })
+            );
             onsaved(saved);
         } catch (e) {
             toasts.error(message(e));
@@ -154,7 +168,7 @@
             preview = undefined;
         } catch (e) {
             if (e instanceof ApiError && e.status === 409) {
-                toasts.error('The QSOs in the range changed. Preview again.');
+                toasts.error(m.stations_range_changed());
                 preview = undefined;
             } else {
                 toasts.error(message(e));
@@ -177,16 +191,19 @@
 <form class="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4" onsubmit={save}>
     <div class="flex flex-wrap items-center gap-3">
         <h2 class="min-w-0 flex-1 truncate text-base font-semibold">
-            {station === undefined ? 'New Station' : station.name}
+            {station === undefined ? m.stations_new() : station.name}
         </h2>
         {#if station?.archived_at}
-            <span class="text-xs text-muted">archived {station.archived_at.slice(0, 10)}</span>
+            <span class="text-xs text-muted"
+                >{m.stations_archived_on({ date: station.archived_at.slice(0, 10) })}</span
+            >
         {/if}
         {#if station && canEdit}
             {#if station.archived_at}
-                <Button size="sm" onclick={() => setArchived(false)}>Restore</Button>
+                <Button size="sm" onclick={() => setArchived(false)}>{m.stations_restore()}</Button>
             {:else}
-                <Button size="sm" variant="danger" onclick={() => setArchived(true)}>Archive</Button
+                <Button size="sm" variant="danger" onclick={() => setArchived(true)}
+                    >{m.common_archive()}</Button
                 >
             {/if}
         {/if}
@@ -196,9 +213,9 @@
         disabled={!canEdit}
         class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[168px_minmax(0,1fr)]"
     >
-        {@render labelFor('st-name', 'Name')}
+        {@render labelFor('st-name', m.field_name())}
         <input id="st-name" class="control h-10" autocomplete="off" bind:value={draft.name} />
-        {@render labelFor('st-call', 'Callsign', 'STATION_CALLSIGN')}
+        {@render labelFor('st-call', m.stations_callsign(), 'STATION_CALLSIGN')}
         <input
             id="st-call"
             class="control h-10 font-mono uppercase"
@@ -206,18 +223,18 @@
             spellcheck="false"
             bind:value={draft.callsign}
         />
-        {@render labelFor('st-wl', 'Wavelog ID', '/wl2 station_id')}
+        {@render labelFor('st-wl', m.stations_wavelog_id(), '/wl2 station_id')}
         <input
             id="st-wl"
             inputmode="numeric"
-            placeholder="none"
+            placeholder={m.stations_placeholder_none()}
             class="control h-10 font-mono"
             bind:value={draft.wavelogId}
         />
 
         <div class="border-t border-border md:col-span-2"></div>
 
-        {@render labelFor('st-MY_GRIDSQUARE', 'Grid locator', 'MY_GRIDSQUARE')}
+        {@render labelFor('st-MY_GRIDSQUARE', m.stations_field_grid(), 'MY_GRIDSQUARE')}
         <input
             id="st-MY_GRIDSQUARE"
             class="control h-10 font-mono"
@@ -225,9 +242,9 @@
             spellcheck="false"
             bind:value={draft.main.MY_GRIDSQUARE}
         />
-        {@render labelFor('st-MY_CITY', 'City', 'MY_CITY')}
+        {@render labelFor('st-MY_CITY', m.stations_field_city(), 'MY_CITY')}
         <input id="st-MY_CITY" class="control h-10" bind:value={draft.main.MY_CITY} />
-        {@render labelFor('st-MY_STATE', 'State', 'MY_STATE')}
+        {@render labelFor('st-MY_STATE', m.stations_field_state(), 'MY_STATE')}
         {#if stateChoices}
             <select id="st-MY_STATE" class="control h-10" bind:value={draft.main.MY_STATE}>
                 <option value="">—</option>
@@ -244,7 +261,7 @@
         {/if}
         {@render labelFor('st-MY_CNTY', countyLabel, 'MY_CNTY')}
         <input id="st-MY_CNTY" class="control h-10 font-mono" bind:value={draft.main.MY_CNTY} />
-        {@render labelFor('st-park', 'POTA parks', 'MY_POTA_REF')}
+        {@render labelFor('st-park', m.stations_pota_parks(), 'MY_POTA_REF')}
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
             {#each draft.parks as park (park)}
                 <span
@@ -253,7 +270,7 @@
                     {park}
                     <button
                         type="button"
-                        aria-label={`Remove ${park}`}
+                        aria-label={m.stations_remove_named({ name: park })}
                         class="inline-flex size-6 items-center justify-center rounded text-muted hover:text-text"
                         onclick={() => (draft.parks = draft.parks.filter((p) => p !== park))}
                         ><Icon name="close" size={12} strokeWidth={2.5} /></button
@@ -262,7 +279,7 @@
             {/each}
             <input
                 id="st-park"
-                placeholder="Add park, US-0001…"
+                placeholder={m.stations_park_placeholder()}
                 class="control h-8 w-52 font-mono uppercase placeholder:normal-case"
                 autocomplete="off"
                 spellcheck="false"
@@ -276,7 +293,7 @@
                 onblur={addParks}
             />
         </div>
-        {@render labelFor('st-MY_DXCC', 'DXCC entity', 'MY_DXCC')}
+        {@render labelFor('st-MY_DXCC', m.stations_field_dxcc(), 'MY_DXCC')}
         <div class="flex min-w-0 flex-wrap items-center gap-3">
             <input
                 id="st-MY_DXCC"
@@ -284,7 +301,7 @@
                 class="control h-10 w-28 font-mono"
                 bind:value={draft.main.MY_DXCC}
             />
-            <span class="text-xs text-muted">State choices follow this</span>
+            <span class="text-xs text-muted">{m.stations_state_follows()}</span>
         </div>
 
         {#each draft.extra as field, i (i)}
@@ -292,7 +309,7 @@
                 {@render labelFor(`st-extra-${i}`, label(field.name) ?? '', field.name)}
             {:else}
                 <input
-                    aria-label="Field name"
+                    aria-label={m.stations_field_name()}
                     list="st-adif-fields"
                     placeholder="FIELD_NAME"
                     class="control h-10 font-mono text-xs uppercase"
@@ -305,7 +322,9 @@
                 <input id={`st-extra-${i}`} class="control h-10 flex-1" bind:value={field.value} />
                 <button
                     type="button"
-                    aria-label={`Remove ${field.name || 'field'}`}
+                    aria-label={field.name
+                        ? m.stations_remove_named({ name: field.name })
+                        : m.stations_remove_field()}
                     class="inline-flex size-9 items-center justify-center rounded-md text-muted hover:text-text"
                     onclick={() => (draft.extra = draft.extra.filter((_, j) => j !== i))}
                     ><Icon name="close" size={16} /></button
@@ -316,7 +335,7 @@
         {#if canEdit}
             <span class="hidden md:block"></span>
             <div>
-                <label for="st-add" class="sr-only">Add field</label>
+                <label for="st-add" class="sr-only">{m.stations_add_field()}</label>
                 <select
                     id="st-add"
                     class="control h-10"
@@ -326,11 +345,11 @@
                         e.currentTarget.value = '';
                     }}
                 >
-                    <option value="">+ Add field…</option>
+                    <option value="">{m.stations_add_field_choice()}</option>
                     {#each addable as f (f.name)}
-                        <option value={f.name}>{f.label} · {f.name}</option>
+                        <option value={f.name}>{f.label()} · {f.name}</option>
                     {/each}
-                    <option value="*">Another ADIF field…</option>
+                    <option value="*">{m.stations_another_field()}</option>
                 </select>
                 <datalist id="st-adif-fields">
                     {#each FIELD_NAMES as name (name)}
@@ -350,40 +369,41 @@
     {#if canEdit}
         <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
             <span class="mr-auto text-xs text-muted">
-                {station === undefined
-                    ? 'New QSOs at this Station get these values.'
-                    : 'Saving changes new QSOs only.'}
+                {station === undefined ? m.stations_new_hint() : m.stations_saving_hint()}
             </span>
             {#if station}
                 <Button disabled={!changed || saving} onclick={() => (draft = draftOf(station))}
-                    >Revert</Button
+                    >{m.stations_revert()}</Button
                 >
             {/if}
             <Button
                 type="submit"
                 variant="primary"
                 disabled={!changed || problem !== undefined || saving}
-                >{saving ? 'Saving…' : station === undefined ? 'Create Station' : 'Save'}</Button
+                >{saving
+                    ? m.common_saving()
+                    : station === undefined
+                      ? m.stations_create()
+                      : m.common_save()}</Button
             >
         </div>
     {:else}
-        <p class="text-xs text-muted">Only owners of this Logbook edit its Stations.</p>
+        <p class="text-xs text-muted">{m.stations_owners_edit()}</p>
     {/if}
 </form>
 
 {#if station && canEdit}
     <section
-        aria-label="Rewrite past QSOs"
+        aria-label={m.stations_rewrite_title()}
         class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
     >
-        <h2 class="text-[15px] font-semibold">Rewrite past QSOs</h2>
+        <h2 class="text-[15px] font-semibold">{m.stations_rewrite_title()}</h2>
         <p class="text-[13px] text-muted">
-            Sets STATION_CALLSIGN and every saved field above on this Station's QSOs in the range.
-            Other fields stay.
+            {m.stations_rewrite_lead()}
         </p>
         <div class="flex flex-wrap items-end gap-3">
             <div class="flex flex-col gap-1">
-                <label for="rw-from" class="text-xs text-muted">From (UTC)</label>
+                <label for="rw-from" class="text-xs text-muted">{m.stations_rewrite_from()}</label>
                 <input
                     id="rw-from"
                     type="date"
@@ -393,7 +413,8 @@
                 />
             </div>
             <div class="flex flex-col gap-1">
-                <label for="rw-until" class="text-xs text-muted">Until (UTC, exclusive)</label>
+                <label for="rw-until" class="text-xs text-muted">{m.stations_rewrite_until()}</label
+                >
                 <input
                     id="rw-until"
                     type="date"
@@ -402,34 +423,43 @@
                     onchange={resetPreview}
                 />
             </div>
-            <Button size="lg" disabled={changed} onclick={previewRewrite}>Preview</Button>
+            <Button size="lg" disabled={changed} onclick={previewRewrite}
+                >{m.stations_preview()}</Button
+            >
             {#if preview !== undefined}
                 <span class="text-[13px]"
-                    ><strong class="font-mono text-base">{preview}</strong> QSOs would change</span
+                    ><Slotted text={m.stations_would_change({ count: preview, n: SLOT })}
+                        ><strong class="font-mono text-base">{formatNumber(preview)}</strong
+                        ></Slotted
+                    ></span
                 >
                 <Button
                     size="lg"
                     variant="danger"
                     disabled={preview === 0 || rewriting}
                     onclick={() => (confirmRewrite = true)}
-                    >{rewriting ? 'Rewriting…' : `Rewrite ${count(preview, 'QSO')}`}</Button
+                    >{rewriting
+                        ? m.stations_rewriting()
+                        : m.stations_rewrite_count({ count: preview })}</Button
                 >
             {/if}
             {#if rewritten !== undefined}
                 <span role="status" class="text-[13px] text-ok"
-                    >Rewrote {count(rewritten, 'QSO')}.</span
+                    >{m.stations_rewrote({ count: rewritten })}</span
                 >
             {/if}
         </div>
         {#if changed}
-            <span class="text-xs text-muted">Save or revert the changes above first.</span>
+            <span class="text-xs text-muted">{m.stations_save_first()}</span>
         {/if}
     </section>
     <ConfirmDialog
         bind:open={confirmRewrite}
-        title="Rewrite past QSOs?"
-        description={`This sets the Station's current values on ${count(preview ?? 0, 'QSO')}. It cannot be undone from here.`}
-        confirm="Rewrite"
+        title={m.stations_rewrite_confirm_title()}
+        description={m.stations_rewrite_confirm_description({
+            qsos: m.common_qso_count({ count: preview ?? 0 })
+        })}
+        confirm={m.stations_rewrite_confirm()}
         danger
         onconfirm={runRewrite}
     />

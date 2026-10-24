@@ -8,6 +8,8 @@
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
+    import { roleLabel } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { session } from '#lib/state/session.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
@@ -21,13 +23,13 @@
     let removing = $state<Member | undefined>(undefined);
     let confirming = $state(false);
 
-    const owners = $derived((members ?? []).filter((m) => m.role === 'owner' && !m.disabled));
-    const locked = (m: Member) => m.role === 'owner' && !m.disabled && owners.length === 1;
-    const note = (m: Member) =>
+    const owners = $derived((members ?? []).filter((u) => u.role === 'owner' && !u.disabled));
+    const locked = (u: Member) => u.role === 'owner' && !u.disabled && owners.length === 1;
+    const note = (u: Member) =>
         [
-            m.user_id === session.me?.id && 'you',
-            locked(m) && 'last active owner',
-            m.disabled && 'disabled'
+            u.user_id === session.me?.id && m.settings_members_you(),
+            locked(u) && m.settings_members_last_owner(),
+            u.disabled && m.settings_members_disabled()
         ]
             .filter((s) => s)
             .join(' · ');
@@ -42,9 +44,9 @@
         const status = (e as { status?: number }).status;
         toasts.error(
             status === 404
-                ? 'No active user has that callsign on this instance.'
+                ? m.settings_members_no_user()
                 : status === 409
-                  ? 'The Logbook needs at least one active owner.'
+                  ? m.settings_members_owner_needed()
                   : (e as Error).message
         );
     }
@@ -63,7 +65,11 @@
         try {
             members = await api.setMember(logbookId, call, role);
             callsign = '';
-            toasts.show(`${call} is now ${role === 'owner' ? 'an owner' : 'an operator'}`);
+            toasts.show(
+                role === 'owner'
+                    ? m.settings_members_now_owner({ callsign: call })
+                    : m.settings_members_now_operator({ callsign: call })
+            );
         } catch (e) {
             failed(e);
         } finally {
@@ -86,8 +92,8 @@
         if (member === undefined) return;
         try {
             await api.removeMember(logbookId, member.callsign);
-            members = (members ?? []).filter((m) => m.user_id !== member.user_id);
-            toasts.show(`Removed ${member.callsign}`);
+            members = (members ?? []).filter((u) => u.user_id !== member.user_id);
+            toasts.show(m.settings_members_removed({ callsign: member.callsign }));
             await afterOwnChange(member);
         } catch (e) {
             failed(e);
@@ -96,14 +102,16 @@
 </script>
 
 <SettingsFrame {logbookId}>
-    <section aria-label="Members" class="flex max-w-2xl flex-col gap-4">
+    <section aria-label={m.settings_members()} class="flex max-w-2xl flex-col gap-4">
         {#if canEdit}
             <form
                 class="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
                 onsubmit={add}
             >
                 <div class="flex flex-col gap-1">
-                    <label for="mem-call" class="text-xs text-muted">Callsign</label>
+                    <label for="mem-call" class="text-xs text-muted"
+                        >{m.settings_members_callsign()}</label
+                    >
                     <input
                         id="mem-call"
                         class="control h-10 w-40 font-mono uppercase"
@@ -114,24 +122,24 @@
                     />
                 </div>
                 <div class="flex flex-col gap-1">
-                    <label for="mem-role" class="text-xs text-muted">Role</label>
+                    <label for="mem-role" class="text-xs text-muted"
+                        >{m.settings_members_role()}</label
+                    >
                     <select id="mem-role" class="control h-10" bind:value={role}>
-                        <option value="operator">operator</option>
-                        <option value="owner">owner</option>
+                        <option value="operator">{roleLabel('operator')}</option>
+                        <option value="owner">{roleLabel('owner')}</option>
                     </select>
                 </div>
                 <Button
                     type="submit"
                     variant="primary"
                     size="lg"
-                    disabled={adding || callsign.trim() === ''}>Add member</Button
+                    disabled={adding || callsign.trim() === ''}>{m.settings_members_add()}</Button
                 >
-                <span class="basis-full text-xs text-muted"
-                    >The user must already exist on this instance.</span
-                >
+                <span class="basis-full text-xs text-muted">{m.settings_members_must_exist()}</span>
             </form>
         {:else}
-            <Notice tone="info">Only owners of this Logbook change its members.</Notice>
+            <Notice tone="info">{m.settings_members_owners_only()}</Notice>
         {/if}
 
         <div class="flex flex-col rounded-lg border border-border bg-surface">
@@ -145,7 +153,7 @@
                     <span class="min-w-0 flex-1 text-xs text-muted">{note(member)}</span>
                     {#if canEdit}
                         <label for={`role-${member.user_id}`} class="sr-only"
-                            >Role of {member.callsign}</label
+                            >{m.settings_members_role_of({ callsign: member.callsign })}</label
                         >
                         <select
                             id={`role-${member.user_id}`}
@@ -154,8 +162,8 @@
                             value={member.role}
                             onchange={(e) => setRole(member, e.currentTarget.value as LogbookRole)}
                         >
-                            <option value="owner">owner</option>
-                            <option value="operator">operator</option>
+                            <option value="owner">{roleLabel('owner')}</option>
+                            <option value="operator">{roleLabel('operator')}</option>
                         </select>
                         <Button
                             size="sm"
@@ -164,14 +172,16 @@
                             onclick={() => {
                                 removing = member;
                                 confirming = true;
-                            }}>Remove</Button
+                            }}>{m.common_remove()}</Button
                         >
                     {:else}
-                        <span class="text-[13px]">{member.role}</span>
+                        <span class="text-[13px]">{roleLabel(member.role)}</span>
                     {/if}
                 </div>
             {:else}
-                <p class="px-4 py-3 text-muted">{members === undefined ? 'Loading…' : ''}</p>
+                <p class="px-4 py-3 text-muted">
+                    {members === undefined ? m.common_loading() : ''}
+                </p>
             {/each}
         </div>
     </section>
@@ -179,11 +189,13 @@
 
 <ConfirmDialog
     bind:open={confirming}
-    title={`Remove ${removing?.callsign ?? 'this member'}?`}
+    title={removing
+        ? m.settings_members_remove_title({ callsign: removing.callsign })
+        : m.settings_members_remove_title_unnamed()}
     description={removing?.user_id === session.me?.id
-        ? 'You lose access to this Logbook and its QSOs.'
-        : 'They lose access to this Logbook. Their QSOs stay.'}
-    confirm="Remove"
+        ? m.settings_members_remove_self()
+        : m.settings_members_remove_other()}
+    confirm={m.common_remove()}
     danger
     onconfirm={remove}
 />

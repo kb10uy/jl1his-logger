@@ -18,7 +18,8 @@
     import { adifFieldOf, column, type Column } from '#lib/log/columns.ts';
     import { applyEvent, replaceRows, undoOf, type Row } from '#lib/log/rows.ts';
     import { loadColumns, saveColumns } from '#lib/log/settings.ts';
-    import { adifDate, count, hhmm, isoDate, parks, rst, utcClock } from '#lib/qso/format.ts';
+    import { m } from '#lib/paraglide/messages.js';
+    import { adifDate, hhmm, isoDate, parks, rst, utcClock } from '#lib/qso/format.ts';
     import { loadQuery, matcher } from '#lib/query/index.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
@@ -222,7 +223,7 @@
         checked = next;
     }
 
-    async function changeQsl(targets: Target[], fields: Fields, label: string) {
+    async function changeQsl(targets: Target[], fields: Fields, done: (count: number) => string) {
         const before = rows.filter((r) => checked[r.qso.id] !== undefined).map((r) => r.qso);
         busy = true;
         try {
@@ -230,15 +231,15 @@
             applied(outcome.updated);
             const undo = undoOf(before, outcome.updated, Object.keys(fields));
             const skipped = outcome.skipped.length;
-            const text = `${label} on ${count(outcome.updated.length, 'QSO')}${
-                skipped > 0 ? `; ${skipped} skipped because they changed meanwhile` : ''
+            const text = `${done(outcome.updated.length)}${
+                skipped > 0 ? m.log_skipped_meanwhile({ count: skipped }) : ''
             }`;
             toasts.show(text, {
                 action:
                     undo === undefined
                         ? undefined
                         : {
-                              label: 'Undo',
+                              label: m.log_undo(),
                               run: async () => {
                                   try {
                                       for (const group of undo) {
@@ -284,7 +285,7 @@
         clearChecked();
         busy = false;
         toasts.show(
-            `Deleted ${count(deleted, 'QSO')}${failed > 0 ? `; ${failed} could not be deleted` : ''}`
+            `${m.log_deleted({ count: deleted })}${failed > 0 ? m.log_delete_failed({ count: failed }) : ''}`
         );
     }
 
@@ -315,17 +316,15 @@
         return out;
     });
 
-    const matchText = $derived(
-        total === undefined ? '' : `${total.toLocaleString('en-US')} matching`
-    );
+    const matchText = $derived(total === undefined ? '' : m.log_matching({ count: total }));
 </script>
 
-<PageTitle title="Logbook" />
+<PageTitle title={m.nav_logbook()} />
 
 {#snippet counts()}
     {#if outside > 0}
         <button type="button" class="text-xs text-info" onclick={() => search(q)}
-            >{outside} new outside this query</button
+            >{m.log_new_outside({ count: outside })}</button
         >
     {/if}
     <span class="text-[13px] text-muted">{matchText}</span>
@@ -399,11 +398,11 @@
     >
         {#if loading}
             <Icon name="spinner" size={14} strokeWidth={2.5} />
-            <span>{rows.length === 0 ? 'Loading QSOs…' : 'Loading older QSOs…'}</span>
+            <span>{rows.length === 0 ? m.log_loading_qsos() : m.log_loading_older()}</span>
         {:else if loaded && rows.length === 0}
-            <span>No QSOs match this query.</span>
+            <span>{m.log_no_match()}</span>
         {:else if loaded && next === null && rows.length > 0}
-            <span>That is all of them.</span>
+            <span>{m.log_all_loaded()}</span>
         {/if}
     </div>
 {/snippet}
@@ -412,14 +411,19 @@
     <main class="flex h-dvh min-w-0 flex-col">
         <header class="flex flex-col gap-2.5 border-b border-border px-6 pt-4 pb-3">
             <div class="flex flex-wrap items-center gap-3">
-                <h1 class="text-xl font-semibold">Logbook</h1>
+                <h1 class="text-xl font-semibold">{m.nav_logbook()}</h1>
                 <span class="text-[13px] text-muted"
-                    >{logbook.logbook.name} · {count(logbook.logbook.last_seq, 'QSO')} entered</span
+                    >{m.log_entered({
+                        name: logbook.logbook.name,
+                        count: logbook.logbook.last_seq
+                    })}</span
                 >
                 <div class="flex-[1_1_40px]"></div>
                 <ColumnsPanel {columns} onchange={changeColumns} />
-                <Button href={`/logbooks/${logbookId}/import-export`}>Export ADIF</Button>
-                <Button variant="primary" href={`/logbooks/${logbookId}/entry`}>New QSO</Button>
+                <Button href={`/logbooks/${logbookId}/import-export`}>{m.log_export_adif()}</Button>
+                <Button variant="primary" href={`/logbooks/${logbookId}/entry`}
+                    >{m.log_new_qso()}</Button
+                >
             </div>
             <QueryBar
                 query={q}
@@ -445,7 +449,7 @@
                                 <span class={checkHalo}>
                                     <input
                                         type="checkbox"
-                                        aria-label="Check all loaded"
+                                        aria-label={m.log_check_all_loaded()}
                                         checked={allLoadedChecked}
                                         onclick={(e) => {
                                             e.stopPropagation();
@@ -474,9 +478,7 @@
                             {@const isOpen = row.qso.id === openId}
                             <tr
                                 aria-current={isOpen ? 'true' : undefined}
-                                title={row.stale
-                                    ? 'Changed; no longer matches this query'
-                                    : undefined}
+                                title={row.stale ? m.log_row_stale() : undefined}
                                 class={[
                                     'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l',
                                     isChecked
@@ -499,7 +501,11 @@
                                     <span class={checkHalo}>
                                         <input
                                             type="checkbox"
-                                            aria-label={`Check ${f.CALL} at ${isoDate(f.QSO_DATE)} ${hhmm(f.TIME_ON)}`}
+                                            aria-label={m.log_check_row({
+                                                call: f.CALL ?? '',
+                                                date: isoDate(f.QSO_DATE),
+                                                time: hhmm(f.TIME_ON)
+                                            })}
                                             checked={isChecked}
                                             onclick={(e) => toggle(e, row.qso)}
                                             class="size-4 cursor-pointer accent-info"
@@ -520,23 +526,23 @@
             {#if n > 0}
                 <div
                     role="toolbar"
-                    aria-label="Checked QSOs"
+                    aria-label={m.log_checked_qsos()}
                     class={[
                         'absolute bottom-4 left-6 z-[4] flex flex-wrap items-center gap-2 rounded-[10px] border border-info-strong bg-selected px-2.5 py-2 text-[13px] shadow-lg shadow-shadow',
                         showBulk || openQso ? 'right-[404px]' : 'right-6'
                     ]}
                 >
-                    <span class="pl-1 font-semibold">{n} checked</span>
+                    <span class="pl-1 font-semibold">{m.log_checked_count({ count: n })}</span>
                     {#if total !== undefined && n < total}
                         <button
                             type="button"
                             class="h-[30px] px-2 text-info"
                             onclick={checkAllMatching}
-                            >Check all {total.toLocaleString('en-US')} matching</button
+                            >{m.log_check_all_matching({ count: total })}</button
                         >
                     {/if}
                     <button type="button" class="h-[30px] px-2 text-info" onclick={clearChecked}
-                        >Clear</button
+                        >{m.common_clear()}</button
                     >
                     <span aria-hidden="true" class="mx-1 h-5 w-px bg-border"></span>
                     <Button
@@ -546,8 +552,8 @@
                             changeQsl(
                                 targetsOfChecked(),
                                 { QSL_SENT: 'Y', QSLSDATE: adifDate(today) },
-                                'Marked QSL sent'
-                            )}>Mark QSL sent today</Button
+                                (count) => m.log_marked_sent({ count })
+                            )}>{m.log_mark_sent_today()}</Button
                     >
                     <Button
                         size="sm"
@@ -556,20 +562,20 @@
                             changeQsl(
                                 targetsOfChecked(),
                                 { QSL_RCVD: 'Y', QSLRDATE: adifDate(today) },
-                                'Marked QSL received'
-                            )}>Mark QSL received</Button
+                                (count) => m.log_marked_received({ count })
+                            )}>{m.log_mark_received()}</Button
                     >
                     <Button
                         size="sm"
                         variant="toggle"
                         pressed={showBulk}
-                        onclick={() => (bulkOpen = !bulkOpen)}>Edit fields…</Button
+                        onclick={() => (bulkOpen = !bulkOpen)}>{m.log_edit_fields()}</Button
                     >
                     <Button
                         size="sm"
                         variant="danger"
                         disabled={busy}
-                        onclick={() => (confirmDelete = true)}>Delete</Button
+                        onclick={() => (confirmDelete = true)}>{m.common_delete()}</Button
                     >
                 </div>
             {/if}
@@ -581,7 +587,9 @@
                     {today}
                     {busy}
                     onapply={(fields) =>
-                        changeQsl(targetsOfChecked(), fields, 'Updated QSL fields')}
+                        changeQsl(targetsOfChecked(), fields, (count) =>
+                            m.log_updated_qsl({ count })
+                        )}
                     onclose={() => (bulkOpen = false)}
                 />
             {:else if openQso}
@@ -599,16 +607,18 @@
     >
         <div class="flex items-center justify-between">
             <div class="flex flex-col">
-                <h1 class="text-xl font-semibold">Logbook</h1>
+                <h1 class="text-xl font-semibold">{m.nav_logbook()}</h1>
                 <span class="text-xs text-muted"
-                    >{logbook.logbook.name} · {count(logbook.logbook.last_seq, 'QSO')}</span
+                    >{logbook.logbook.name} · {m.common_qso_count({
+                        count: logbook.logbook.last_seq
+                    })}</span
                 >
             </div>
             <span class="flex items-center gap-1.5 text-xs text-muted">
                 <span
                     class={['size-2 rounded-full', logbook.status === 'live' ? 'bg-ok' : 'bg-warn']}
                 ></span>
-                {logbook.status === 'live' ? 'Synced' : 'Offline'}
+                {logbook.status === 'live' ? m.log_synced() : m.shell_offline()}
             </span>
         </div>
         <QueryBar
@@ -662,9 +672,9 @@
 
 <ConfirmDialog
     bind:open={confirmDelete}
-    title={`Delete ${count(n, 'QSO')}?`}
-    description="Deleted QSOs leave the log and every export. Each is deleted at the revision it was checked at; one changed meanwhile is kept."
-    confirm="Delete"
+    title={m.log_delete_title({ count: n })}
+    description={m.log_delete_description()}
+    confirm={m.common_delete()}
     danger
     onconfirm={deleteChecked}
 />

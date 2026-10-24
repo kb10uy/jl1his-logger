@@ -5,7 +5,13 @@
     "plugin.inlang.messageFormat": {
         "pathPattern": [
             "./messages/{locale}/common.json",
-            "./messages/{locale}/errors.json"
+            "./messages/{locale}/errors.json",
+            "./messages/{locale}/log.json",
+            "./messages/{locale}/entry.json",
+            "./messages/{locale}/voice.json",
+            "./messages/{locale}/stations.json",
+            "./messages/{locale}/transfer.json",
+            "./messages/{locale}/settings.json"
         ]
     }
 }

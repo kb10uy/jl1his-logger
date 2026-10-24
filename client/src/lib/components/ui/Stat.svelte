@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { formatNumber } from '#lib/i18n.ts';
+
     let {
         label,
         value,
@@ -14,6 +16,6 @@
             tone === 'ok' && 'text-ok',
             tone === 'warn' && 'text-warn',
             tone === 'error' && 'text-error-text'
-        ]}>{typeof value === 'number' ? value.toLocaleString('en-US') : value}</span
+        ]}>{typeof value === 'number' ? formatNumber(value) : value}</span
     >
 </div>

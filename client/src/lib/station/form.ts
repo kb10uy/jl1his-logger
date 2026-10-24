@@ -1,22 +1,23 @@
 import type { Fields, Station, StationInput } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export const MAIN_FIELDS = [
-    { name: 'MY_GRIDSQUARE', label: 'Grid locator' },
-    { name: 'MY_CITY', label: 'City' },
-    { name: 'MY_STATE', label: 'State' },
-    { name: 'MY_CNTY', label: 'County' },
-    { name: 'MY_DXCC', label: 'DXCC entity' }
+    { name: 'MY_GRIDSQUARE', label: m.stations_field_grid },
+    { name: 'MY_CITY', label: m.stations_field_city },
+    { name: 'MY_STATE', label: m.stations_field_state },
+    { name: 'MY_CNTY', label: m.stations_field_county },
+    { name: 'MY_DXCC', label: m.stations_field_dxcc }
 ] as const;
 
 export const EXTRA_FIELDS = [
-    { name: 'MY_SIG', label: 'Special activity' },
-    { name: 'MY_SIG_INFO', label: 'Special activity info' },
-    { name: 'MY_IOTA', label: 'IOTA' },
-    { name: 'MY_WWFF_REF', label: 'WWFF' },
-    { name: 'MY_CQ_ZONE', label: 'CQ zone' },
-    { name: 'MY_ITU_ZONE', label: 'ITU zone' },
-    { name: 'OPERATOR', label: 'Operator' }
+    { name: 'MY_SIG', label: m.stations_field_sig },
+    { name: 'MY_SIG_INFO', label: m.stations_field_sig_info },
+    { name: 'MY_IOTA', label: m.stations_field_iota },
+    { name: 'MY_WWFF_REF', label: m.stations_field_wwff },
+    { name: 'MY_CQ_ZONE', label: m.stations_field_cq_zone },
+    { name: 'MY_ITU_ZONE', label: m.stations_field_itu_zone },
+    { name: 'OPERATOR', label: m.stations_field_operator }
 ] as const;
 
 const RESERVED = new Set(['CALL', 'QSO_DATE', 'TIME_ON', 'BAND', 'MODE', 'STATION_CALLSIGN']);
@@ -81,20 +82,20 @@ export function stationInput(draft: StationDraft): StationInput {
 }
 
 export function stationProblem(draft: StationDraft): string | undefined {
-    if (draft.name.trim() === '') return 'A Station needs a name.';
-    if (draft.callsign.trim() === '') return 'A Station needs a callsign.';
+    if (draft.name.trim() === '') return m.stations_problem_name();
+    if (draft.callsign.trim() === '') return m.stations_problem_callsign();
     if (draft.wavelogId.trim() !== '' && !/^[1-9]\d*$/.test(draft.wavelogId.trim()))
-        return 'The Wavelog ID is a positive whole number.';
+        return m.stations_problem_wavelog_id();
     const dxcc = draft.main.MY_DXCC?.trim() ?? '';
-    if (dxcc !== '' && !/^\d+$/.test(dxcc)) return 'MY_DXCC is a DXCC entity code.';
+    if (dxcc !== '' && !/^\d+$/.test(dxcc)) return m.stations_problem_dxcc();
     const names = new Set<string>();
     for (const { name } of draft.extra) {
         const key = name.trim().toUpperCase();
         if (key === '') continue;
-        if (!isAdifQsoField(key)) return `${name} is not an ADIF QSO field.`;
-        if (RESERVED.has(key)) return `${key} cannot be a Station default.`;
-        if (EQUIPMENT.has(key)) return `${key} belongs to an Instrument.`;
-        if (MAIN.has(key) || names.has(key)) return `${key} is listed twice.`;
+        if (!isAdifQsoField(key)) return m.stations_problem_not_adif({ name });
+        if (RESERVED.has(key)) return m.stations_problem_reserved({ key });
+        if (EQUIPMENT.has(key)) return m.stations_problem_equipment({ key });
+        if (MAIN.has(key) || names.has(key)) return m.stations_problem_twice({ key });
         names.add(key);
     }
     return undefined;

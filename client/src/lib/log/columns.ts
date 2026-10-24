@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export interface Column {
@@ -6,22 +7,30 @@ export interface Column {
     right?: boolean;
 }
 
+const builtIn = (id: string, label: () => string, right?: true): Column => ({
+    id,
+    get label() {
+        return label();
+    },
+    ...(right && { right })
+});
+
 export const BUILT_IN_COLUMNS: readonly Column[] = [
-    { id: 'time', label: 'Date / UTC' },
-    { id: 'call', label: 'Call' },
-    { id: 'qsl', label: 'QSL S / R' },
-    { id: 'lotw', label: 'LoTW S / R' },
-    { id: 'eqsl', label: 'eQSL S / R' },
-    { id: 'band', label: 'Band' },
-    { id: 'freq', label: 'Freq MHz', right: true },
-    { id: 'mode', label: 'Mode' },
-    { id: 'rst', label: 'RST S / R' },
-    { id: 'txpwr', label: 'TX Power W', right: true },
-    { id: 'contest', label: 'Contest' },
-    { id: 'number', label: 'Number S / R' },
-    { id: 'station', label: 'Station' },
-    { id: 'instrument', label: 'Instrument' },
-    { id: 'park', label: 'Park' }
+    builtIn('time', m.field_date_utc),
+    builtIn('call', m.field_call),
+    builtIn('qsl', m.log_column_qsl),
+    builtIn('lotw', m.log_column_lotw),
+    builtIn('eqsl', m.log_column_eqsl),
+    builtIn('band', m.field_band),
+    builtIn('freq', m.field_freq_mhz, true),
+    builtIn('mode', m.field_mode),
+    builtIn('rst', m.log_column_rst),
+    builtIn('txpwr', m.log_column_tx_power, true),
+    builtIn('contest', m.field_contest),
+    builtIn('number', m.field_number_sr),
+    builtIn('station', m.field_station),
+    builtIn('instrument', m.field_instrument),
+    builtIn('park', m.log_column_park)
 ];
 
 export const DEFAULT_COLUMNS: readonly string[] = [
@@ -44,8 +53,8 @@ export function adifFieldOf(id: string): string | undefined {
 }
 
 export function adifColumnProblem(name: string): string | undefined {
-    if (name === '') return 'Enter an ADIF field name.';
-    if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
+    if (name === '') return m.log_column_enter_field();
+    if (!isAdifQsoField(name)) return m.log_column_not_adif({ name });
     return undefined;
 }
 

@@ -2,6 +2,9 @@
     import { goto } from '$app/navigation';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
+    import Slotted from '#lib/components/ui/Slotted.svelte';
+    import { roleLabel, SLOT } from '#lib/i18n.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { session } from '#lib/state/session.svelte.ts';
@@ -11,21 +14,21 @@
 
     const links: { label: string; icon: IconName; href: string; detail?: () => string }[] = [
         {
-            label: 'Stations',
+            label: m.nav_stations(),
             icon: 'stations',
             href: `${root}/stations`,
-            detail: () => `${logbook.activeStations.length} active`
+            detail: () => m.more_active({ count: logbook.activeStations.length })
         },
         {
-            label: 'Instruments',
+            label: m.nav_instruments(),
             icon: 'instruments',
             href: `${root}/instruments`,
-            detail: () => `${logbook.activeInstruments.length} active`
+            detail: () => m.more_active({ count: logbook.activeInstruments.length })
         },
-        { label: 'QSL Management', icon: 'qsl', href: `${root}/qsl-management` },
-        { label: 'Import / Export', icon: 'transfer', href: `${root}/import-export` },
-        { label: 'Members', icon: 'members', href: `${root}/members` },
-        { label: 'Settings', icon: 'settings', href: '/settings' }
+        { label: m.nav_qsl_management(), icon: 'qsl', href: `${root}/qsl-management` },
+        { label: m.nav_import_export(), icon: 'transfer', href: `${root}/import-export` },
+        { label: m.nav_members(), icon: 'members', href: `${root}/members` },
+        { label: m.nav_settings(), icon: 'settings', href: '/settings' }
     ];
 
     async function signOut() {
@@ -34,11 +37,11 @@
     }
 </script>
 
-<PageTitle title="More" />
+<PageTitle title={m.nav_more()} />
 
 <header class="flex flex-col gap-2.5 border-b border-border bg-surface px-4 pt-4 pb-3">
-    <h1 class="text-xl font-semibold">More</h1>
-    <label for="more-logbook" class="text-xs text-muted">Logbook</label>
+    <h1 class="text-xl font-semibold">{m.nav_more()}</h1>
+    <label for="more-logbook" class="text-xs text-muted">{m.more_logbook()}</label>
     <select
         id="more-logbook"
         class="control h-11"
@@ -46,7 +49,7 @@
         onchange={(e) => goto(`/logbooks/${e.currentTarget.value}/more`)}
     >
         {#each session.logbooks as l (l.id)}
-            <option value={l.id}>{l.name} · {l.role}</option>
+            <option value={l.id}>{l.name} · {roleLabel(l.role)}</option>
         {/each}
     </select>
 </header>
@@ -77,17 +80,23 @@
                     logbook.status === 'live' && outbox.items.length === 0 ? 'bg-ok' : 'bg-warn'
                 ]}
             ></span>
-            {logbook.status === 'live' ? `Synced · seq ${logbook.lastUpdatedSeq}` : 'Offline'}
-            {outbox.items.length > 0 ? ` · ${outbox.items.length} unsent` : ''}
+            {logbook.status === 'live'
+                ? m.shell_synced({ seq: logbook.lastUpdatedSeq })
+                : m.shell_offline()}
+            {outbox.items.length > 0 ? ` · ${m.common_unsent({ count: outbox.items.length })}` : ''}
         </span>
         <span
-            >Signed in as <span class="font-mono text-text">{session.me?.callsign}</span> · {session
-                .me?.role}</span
+            ><Slotted
+                text={m.more_signed_in_as({
+                    callsign: SLOT,
+                    role: roleLabel(session.me?.role ?? '')
+                })}><span class="font-mono text-text">{session.me?.callsign}</span></Slotted
+            ></span
         >
     </div>
     <button
         type="button"
         class="h-11 rounded-lg border border-border bg-surface-2 font-medium"
-        onclick={signOut}>Sign out</button
+        onclick={signOut}>{m.shell_sign_out()}</button
     >
 </main>

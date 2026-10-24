@@ -1,0 +1,166 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "transfer_file_too_large": "ファイルが 64 MiB を超えています。",
+    "transfer_lengths": "長さの単位",
+    "transfer_length_codepoints": "コードポイント",
+    "transfer_length_bytes": "バイト",
+    "transfer_direction": "方向",
+    "transfer_kind": "種類",
+    "transfer_kind_qsl_card": "紙 QSL",
+    "transfer_query": "検索条件",
+    "transfer_qsos_match": "{total} 件の QSO が該当",
+    "transfer_qsos_match_pota": "{total} 件の QSO が該当、パークごとに 1 レコード",
+    "transfer_preview_note": "プレビュー · まだ何も書き込んでいません",
+    "transfer_reading": "読み込み中…",
+    "transfer_preview_again": "もう一度プレビュー",
+    "transfer_stat_read": "読み込み",
+    "transfer_invalid": "不正",
+    "transfer_note_skipped": "スキップ",
+    "transfer_download_rejects": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "除外レコードのファイルをダウンロード ({n} 件)" }
+        }
+    ],
+    "transfer_import": "インポート",
+    "transfer_export": "エクスポート",
+    "transfer_import_new_title": "新しい QSO のインポート",
+    "transfer_station_required": "先にステーションを作成してください。新しい QSO はいずれかのステーションで記録します。",
+    "transfer_imported_label": "インポート完了",
+    "transfer_stat_created": "作成",
+    "transfer_stat_new": "新規",
+    "transfer_stat_already_imported": "インポート済み",
+    "transfer_possible_duplicates": "重複の可能性",
+    "transfer_stat_outside_band_modes": "バンド外 · モード",
+    "transfer_note_imported_anyway": "そのままインポート",
+    "transfer_duplicate_item": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "≈ 他の QSO {n} 件" }
+        }
+    ],
+    "transfer_outside_band": "バンド外",
+    "transfer_note_kept": "そのまま保持",
+    "transfer_outside_band_item": "{freq} MHz は {band} の範囲外",
+    "transfer_modes": "モード",
+    "transfer_unknown_mode": "MODE {mode} は不明",
+    "transfer_unknown_submode": "SUBMODE {submode} は不明",
+    "transfer_submode_of_another_mode": "SUBMODE {submode} は {expected} のサブモード",
+    "transfer_imported": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO をインポートしました" }
+        }
+    ],
+    "transfer_importing": "インポート中…",
+    "transfer_import_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO をインポート" }
+        }
+    ],
+    "transfer_reading_file": "ファイルを読み込み中…",
+    "transfer_export_nothing": "該当する QSO がないため、何もエクスポートしませんでした。",
+    "transfer_exported": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件のレコードをエクスポートしました" }
+        }
+    ],
+    "transfer_park": "パーク",
+    "transfer_query_everything": "すべて",
+    "transfer_park_every": "すべてのパーク",
+    "transfer_exporting": "エクスポート中…",
+    "transfer_download_adif": "ADIF をダウンロード",
+    "transfer_recent_exports": "最近のエクスポート",
+    "transfer_qsl_no_batch": "該当する QSO がないため、バッチを作成しませんでした。",
+    "transfer_qsl_batch_created": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の QSO のバッチを作成しました" }
+        }
+    ],
+    "transfer_qsl_merged_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の交信確認を反映しました" }
+        }
+    ],
+    "transfer_qsl_send": "送付",
+    "transfer_qsl_receive": "受領",
+    "transfer_qsl_creating": "作成中…",
+    "transfer_qsl_create_batch": "バッチを作成して ADIF をダウンロード",
+    "transfer_qsl_mark_note": "後でバッチを送付済みにすると、記録したリビジョンから変わっていない QSO に {sent} = Y と {date} を設定します。",
+    "transfer_qsl_batches": "バッチ",
+    "transfer_qsl_source": "取り込み元",
+    "transfer_qsl_source_card": "紙 QSL",
+    "transfer_qsl_any_station": "すべてのステーション",
+    "transfer_qsl_merged": "反映済み",
+    "transfer_qsl_to_merge": "反映予定",
+    "transfer_qsl_already_received": "受領済み",
+    "transfer_qsl_unmatched": "該当なし",
+    "transfer_qsl_ambiguous": "候補が複数",
+    "transfer_qsl_not_confirmations": "{records}は交信確認ではないため、変更しません。",
+    "transfer_qsl_note_several": "複数の QSO に該当",
+    "transfer_qsl_note_no_qso": "QSO が見つかりません",
+    "transfer_qsl_skipped_notice": "{qsos}が反映中に変更されたため、スキップしました。もう一度プレビューすると反映できます。",
+    "transfer_qsl_differences": "反映しない差異 · {differences}",
+    "transfer_qsl_differences_help": "交信確認に含まれる、QSO と異なるフィールドです。件数を数えるだけで、書き込みはしません。",
+    "transfer_qsl_merging": "反映中…",
+    "transfer_qsl_merge_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件の交信確認を反映" }
+        }
+    ],
+    "transfer_batch_created_at": "作成日時",
+    "transfer_batch_qsos": "QSO 数",
+    "transfer_batch_state": "状態",
+    "transfer_batch_record_only": "記録のみ",
+    "transfer_batch_applied_result": "適用済み · {result}",
+    "transfer_batch_applied_at": "適用済み {at}",
+    "transfer_batch_marking": "送付済みにしています…",
+    "transfer_batch_mark_sent": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件を送付済みにする" }
+        }
+    ],
+    "transfer_batch_none": "バッチはまだありません。",
+    "transfer_outcome_updated": [
+        {
+            "declarations": ["input updated", "local u = updated: number"],
+            "selectors": [],
+            "match": { "": "{u} 件を更新" }
+        }
+    ],
+    "transfer_outcome_updated_skipped": [
+        {
+            "declarations": [
+                "input updated",
+                "input skipped",
+                "local u = updated: number",
+                "local s = skipped: number"
+            ],
+            "selectors": [],
+            "match": { "": "{u} 件を更新、{s} 件をスキップ" }
+        }
+    ],
+    "transfer_record_qso": "QSO {index}",
+    "transfer_show_all": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "すべて表示 ({n} 件)" }
+        }
+    ]
+}

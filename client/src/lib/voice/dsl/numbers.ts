@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import {
     DIGIT_WORDS,
     HUNDRED_WORDS,
@@ -58,7 +59,7 @@ export function readDigits(
         } else if (HUNDREDS.has(token)) {
             const prev = groups.pop();
             if (prev === undefined || prev.length !== 1) {
-                throw new DslError(`"${token}" must follow a single digit`);
+                throw new DslError(m.voice_dsl_hundred_after_digit({ token }));
             }
             const rest = readSmallGroup(tokens, i + 1);
             if (rest !== null) {
@@ -72,7 +73,7 @@ export function readDigits(
             const repeat = lookup(REPEAT_WORDS, token);
             if (repeat === undefined) break;
             const digit = digitOf(tokens[i + 1]);
-            if (digit === undefined) throw new DslError(`"${token}" must be followed by a digit`);
+            if (digit === undefined) throw new DslError(m.voice_dsl_repeat_before_digit({ token }));
             groups.push(digit.repeat(repeat));
             i += 2;
         }

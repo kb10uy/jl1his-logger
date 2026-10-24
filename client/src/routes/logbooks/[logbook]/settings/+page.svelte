@@ -6,6 +6,7 @@
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import { AREA_PRESETS, areaDraftOf, areaInput, areaProblem } from '#lib/logbook/area.ts';
+    import { m } from '#lib/paraglide/messages.js';
     import { session } from '#lib/state/session.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
@@ -28,7 +29,11 @@
             await api.setLogbookSettings(logbookId, { area_field: input });
             await session.load();
             draft = areaDraftOf(session.logbook(logbookId)?.area_field ?? null);
-            toasts.show(input === null ? 'Removed the area code field' : `Saved ${input.label}`);
+            toasts.show(
+                input === null
+                    ? m.settings_area_removed()
+                    : m.settings_area_saved({ label: input.label })
+            );
         } catch (e) {
             toasts.error(e instanceof Error ? e.message : String(e));
         } finally {
@@ -39,16 +44,14 @@
 
 <SettingsFrame {logbookId}>
     <form
-        aria-label="Area code field"
+        aria-label={m.settings_area_field()}
         class="flex max-w-2xl flex-col gap-4 rounded-lg border border-border bg-surface p-4"
         onsubmit={save}
     >
         <div class="flex flex-col gap-1">
-            <h2 class="text-base font-semibold">Area code field</h2>
+            <h2 class="text-base font-semibold">{m.settings_area_field()}</h2>
             <p class="text-[13px] text-muted">
-                The regional code of the other station that Live entry, voice entry and the QSO
-                editor take next to the name and QTH, such as JCC / JCG in Japan or the county in
-                the US. Leave it empty to show no such field.
+                {m.settings_area_help()}
             </p>
         </div>
 
@@ -57,7 +60,7 @@
             class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[168px_minmax(0,1fr)]"
         >
             <label for="area-name" class="flex flex-col text-xs text-muted md:pt-2">
-                <span>ADIF field</span>
+                <span>{m.settings_area_adif_field()}</span>
             </label>
             <input
                 id="area-name"
@@ -70,11 +73,11 @@
                 bind:value={draft.name}
             />
             <label for="area-label" class="flex flex-col text-xs text-muted md:pt-2">
-                <span>Label</span>
+                <span>{m.settings_area_label()}</span>
             </label>
             <input
                 id="area-label"
-                placeholder="County"
+                placeholder={m.settings_area_label_placeholder()}
                 autocomplete="off"
                 class="control h-10 w-full md:w-60"
                 bind:value={draft.label}
@@ -90,7 +93,8 @@
                             <span class="font-mono text-xs text-muted">{preset.name}</span></Button
                         >
                     {/each}
-                    <Button size="sm" onclick={() => (draft = { name: '', label: '' })}>None</Button
+                    <Button size="sm" onclick={() => (draft = { name: '', label: '' })}
+                        >{m.common_none()}</Button
                     >
                 </div>
             {/if}
@@ -107,18 +111,16 @@
 
         {#if canEdit}
             <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-                <span class="mr-auto text-xs text-muted"
-                    >Changing the field does not move values already recorded.</span
-                >
+                <span class="mr-auto text-xs text-muted">{m.settings_area_keeps_values()}</span>
                 <Button
                     type="submit"
                     variant="primary"
                     disabled={!changed || problem !== undefined || saving}
-                    >{saving ? 'Saving…' : 'Save'}</Button
+                    >{saving ? m.common_saving() : m.common_save()}</Button
                 >
             </div>
         {:else}
-            <p class="text-xs text-muted">Only owners of this Logbook change its settings.</p>
+            <p class="text-xs text-muted">{m.settings_area_owners_only()}</p>
         {/if}
     </form>
 </SettingsFrame>

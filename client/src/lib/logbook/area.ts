@@ -1,4 +1,5 @@
 import type { Area, AreaField } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export interface AreaDraft {
@@ -7,8 +8,18 @@ export interface AreaDraft {
 }
 
 export const AREA_PRESETS: readonly AreaField[] = [
-    { name: 'CNTY', label: 'County' },
-    { name: 'STATE', label: 'State' },
+    {
+        name: 'CNTY',
+        get label() {
+            return m.settings_area_preset_county();
+        }
+    },
+    {
+        name: 'STATE',
+        get label() {
+            return m.settings_area_preset_state();
+        }
+    },
     { name: 'CNTY', label: 'JCC / JCG' },
     { name: 'IOTA', label: 'IOTA' },
     { name: 'SOTA_REF', label: 'SOTA' },
@@ -47,10 +58,10 @@ export function areaInput(draft: AreaDraft): Area {
 export function areaProblem(draft: AreaDraft): string | undefined {
     const input = areaInput(draft);
     if (input === null) return undefined;
-    if (input.name === '') return 'Name the ADIF field, or clear the label.';
-    if (!isAdifQsoField(input.name)) return `${input.name} is not an ADIF QSO field.`;
+    if (input.name === '') return m.settings_area_problem_name();
+    if (!isAdifQsoField(input.name)) return m.settings_area_problem_not_adif({ name: input.name });
     if (NOT_AREA.has(input.name) || input.name.startsWith('MY_') || input.name.startsWith('QSL'))
-        return `${input.name} has its own place on the screens.`;
-    if (input.label === '') return 'Give the field a label.';
+        return m.settings_area_problem_own_place({ name: input.name });
+    if (input.label === '') return m.settings_area_problem_label();
     return undefined;
 }

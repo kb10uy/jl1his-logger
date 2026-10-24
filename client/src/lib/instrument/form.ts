@@ -1,6 +1,7 @@
 import type { Fields, Instrument, InstrumentInput } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
-import { isPower, POWER_RULE } from '#lib/qso/power.ts';
+import { isPower, powerRule } from '#lib/qso/power.ts';
 
 const RESERVED = new Set([
     'CALL',
@@ -52,16 +53,16 @@ export function instrumentInput(draft: InstrumentDraft): InstrumentInput {
 }
 
 export function instrumentProblem(draft: InstrumentDraft): string | undefined {
-    if (draft.name.trim() === '') return 'An Instrument needs a name.';
+    if (draft.name.trim() === '') return m.stations_instrument_problem_name();
     const power = draft.power.trim();
-    if (power !== '' && !isPower(power)) return POWER_RULE;
+    if (power !== '' && !isPower(power)) return powerRule();
     const names = new Set<string>();
     for (const { name } of draft.extra) {
         const key = name.trim().toUpperCase();
         if (key === '') continue;
-        if (!isAdifQsoField(key)) return `${name} is not an ADIF QSO field.`;
-        if (RESERVED.has(key)) return `${key} cannot be another field of an Instrument.`;
-        if (names.has(key)) return `${key} is listed twice.`;
+        if (!isAdifQsoField(key)) return m.stations_problem_not_adif({ name });
+        if (RESERVED.has(key)) return m.stations_instrument_problem_reserved({ key });
+        if (names.has(key)) return m.stations_problem_twice({ key });
         names.add(key);
     }
     return undefined;

@@ -4,6 +4,7 @@
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
+    import { m } from '#lib/paraglide/messages.js';
     import { hhmmss, isoDate, parks } from '#lib/qso/format.ts';
     import { qslLabel } from '#lib/qso/qsl.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
@@ -78,16 +79,18 @@
 </script>
 
 <aside
-    aria-label="QSO details"
+    aria-label={m.log_detail_label()}
     class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-4 overflow-y-auto border-l border-border bg-surface px-6 pt-4 pb-6 shadow-[-12px_0_32px] shadow-shadow"
 >
     <div class="flex items-center justify-between gap-2">
         <span class="eyebrow">QSO</span>
         <div class="flex gap-2">
-            <Button size="sm" href={`/logbooks/${logbook.logbook.id}/qsos/${qso.id}`}>Edit</Button>
+            <Button size="sm" href={`/logbooks/${logbook.logbook.id}/qsos/${qso.id}`}
+                >{m.common_edit()}</Button
+            >
             <button
                 type="button"
-                aria-label="Close details"
+                aria-label={m.log_detail_close()}
                 class="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted"
                 onclick={onclose}
             >
@@ -97,9 +100,7 @@
     </div>
     {#if stale}
         <p class="rounded-md bg-warn-bg px-3 py-2 text-xs text-warn">
-            {qso.deleted_at
-                ? 'This QSO was deleted.'
-                : 'This QSO changed and no longer matches the query.'}
+            {qso.deleted_at ? m.log_detail_deleted() : m.log_detail_stale()}
         </p>
     {/if}
     <div class="flex flex-col gap-1">
@@ -110,11 +111,11 @@
     </div>
     <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 text-[13px] wrap-anywhere">
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">Date / UTC</dt>
+            <dt class="text-xs text-muted">{m.field_date_utc()}</dt>
             <dd class="m-0 font-mono">{isoDate(f.QSO_DATE)} {hhmmss(f.TIME_ON)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">Band / Mode</dt>
+            <dt class="text-xs text-muted">{m.field_band_mode()}</dt>
             <dd class="m-0 font-mono">
                 {f.BAND}
                 {f.MODE}
@@ -122,37 +123,37 @@
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">Frequency</dt>
+            <dt class="text-xs text-muted">{m.field_frequency()}</dt>
             <dd class={['m-0 font-mono', !f.FREQ && 'text-muted']}>
-                {f.FREQ ? `${f.FREQ} MHz` : 'not recorded'}
+                {f.FREQ ? `${f.FREQ} MHz` : m.log_detail_not_recorded()}
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">RST sent / rcvd</dt>
+            <dt class="text-xs text-muted">{m.log_detail_rst()}</dt>
             <dd class="m-0 font-mono">{pair(f.RST_SENT, f.RST_RCVD)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">Station</dt>
+            <dt class="text-xs text-muted">{m.field_station()}</dt>
             <dd class="m-0">{join(f.STATION_CALLSIGN, logbook.stationName(qso.station_id))}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">Instrument</dt>
+            <dt class="text-xs text-muted">{m.field_instrument()}</dt>
             <dd class="m-0">
                 {join(logbook.instrumentName(qso.instrument_id), f.MY_RIG, f.MY_ANTENNA)}
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">TX power</dt>
+            <dt class="text-xs text-muted">{m.field_tx_power()}</dt>
             <dd class={['m-0 font-mono', !f.TX_PWR && 'text-muted']}>
                 {f.TX_PWR ? `${f.TX_PWR} W` : '—'}
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">My park</dt>
+            <dt class="text-xs text-muted">{m.field_park()}</dt>
             <dd class="m-0 font-mono text-info">{parks(f).join(', ') || '—'}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">Name / QTH</dt>
+            <dt class="text-xs text-muted">{m.log_detail_name_qth()}</dt>
             <dd class="m-0">{join(f.NAME, f.QTH)}</dd>
         </div>
         {#if area}
@@ -162,7 +163,7 @@
             </div>
         {/if}
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">State · Grid</dt>
+            <dt class="text-xs text-muted">{m.log_detail_state_grid()}</dt>
             <dd class="m-0 font-mono">{join(f.STATE, f.GRIDSQUARE)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
@@ -171,11 +172,11 @@
         </div>
         {#if f.CONTEST_ID || f.STX_STRING || f.SRX_STRING}
             <div class="flex flex-col gap-0.5">
-                <dt class="text-xs text-muted">Contest</dt>
+                <dt class="text-xs text-muted">{m.field_contest()}</dt>
                 <dd class="m-0 font-mono">{f.CONTEST_ID || '—'}</dd>
             </div>
             <div class="flex flex-col gap-0.5">
-                <dt class="text-xs text-muted">Number sent / rcvd</dt>
+                <dt class="text-xs text-muted">{m.log_detail_number()}</dt>
                 <dd class="m-0 font-mono">{pair(f.STX_STRING, f.SRX_STRING)}</dd>
             </div>
         {/if}
@@ -183,43 +184,45 @@
     <div class="flex flex-col gap-2 rounded-lg border border-border bg-bg p-3 text-[13px]">
         <span class="eyebrow">QSL</span>
         <div class="flex items-center justify-between">
-            <span>Sent</span>
+            <span>{m.log_sent()}</span>
             <QslBadge value={f.QSL_SENT} label={qslLabel(f.QSL_SENT, true)} />
         </div>
         <div class="flex items-center justify-between text-muted">
-            <span>Via / date</span>
+            <span>{m.log_via_date()}</span>
             <span class="font-mono">{f.QSL_SENT_VIA || '—'} · {isoDate(f.QSLSDATE) || '—'}</span>
         </div>
         <div class="flex items-center justify-between">
-            <span>Received</span>
+            <span>{m.log_received()}</span>
             <QslBadge value={f.QSL_RCVD} label={qslLabel(f.QSL_RCVD, false)} />
         </div>
         <div class="flex items-center justify-between text-muted">
-            <span>Via / date</span>
+            <span>{m.log_via_date()}</span>
             <span class="font-mono">{f.QSL_RCVD_VIA || '—'} · {isoDate(f.QSLRDATE) || '—'}</span>
         </div>
         <div class="flex items-center justify-between text-muted">
-            <span>LoTW sent / rcvd</span>
+            <span>{m.log_detail_lotw()}</span>
             <span class="font-mono">{pair(f.LOTW_QSL_SENT, f.LOTW_QSL_RCVD)}</span>
         </div>
         <div class="flex items-center justify-between text-muted">
-            <span>eQSL sent / rcvd</span>
+            <span>{m.log_detail_eqsl()}</span>
             <span class="font-mono">{pair(f.EQSL_QSL_SENT, f.EQSL_QSL_RCVD)}</span>
         </div>
     </div>
     <div class="flex flex-col gap-1.5 text-xs text-muted">
-        <span>Comment</span>
+        <span>{m.field_comment()}</span>
         <p class="m-0 text-[13px] text-text">{f.COMMENT || '—'}</p>
     </div>
     {#if f.NOTES}
         <div class="flex flex-col gap-1.5 text-xs text-muted">
-            <span>Notes</span>
+            <span>{m.field_notes()}</span>
             <p class="m-0 text-[13px] whitespace-pre-line text-text">{f.NOTES}</p>
         </div>
     {/if}
     {#if others.length > 0}
         <details class="rounded-lg border border-border bg-bg p-3 text-[13px]">
-            <summary class="cursor-pointer">Other ADIF fields · {others.length}</summary>
+            <summary class="cursor-pointer"
+                >{m.log_detail_other_fields({ count: others.length })}</summary
+            >
             <div class="mt-2 flex flex-col gap-1">
                 {#each others as [name, value] (name)}
                     <span class="break-all whitespace-pre-line"
@@ -232,6 +235,7 @@
     {/if}
     <div class="flex-1"></div>
     <span class="font-mono text-[11px] text-muted"
-        >{qso.id} · rev {qso.revision} · {qso.updated_by_callsign ?? ''}</span
+        >{qso.id} · {m.log_detail_rev({ revision: qso.revision })} · {qso.updated_by_callsign ??
+            ''}</span
     >
 </aside>

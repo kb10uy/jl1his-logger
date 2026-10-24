@@ -1,7 +1,8 @@
 import type { Area, Fields } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from './adif-fields.ts';
 import { adifDate, adifTime, hhmmss, isoDate } from './format.ts';
-import { isPower, POWER_RULE } from './power.ts';
+import { isPower, powerRule } from './power.ts';
 
 export interface ExtraField {
     name: string;
@@ -67,9 +68,9 @@ export function extraFieldNames(area: Area): string[] {
 }
 
 export function extraFieldProblem(name: string, area: Area): string | undefined {
-    if (edited(name, area)) return `${name} has its own field.`;
-    if (isStationField(name)) return `${name} comes from the Station.`;
-    if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
+    if (edited(name, area)) return m.entry_field_has_own({ name });
+    if (isStationField(name)) return m.entry_field_from_station({ name });
+    if (!isAdifQsoField(name)) return m.entry_field_unknown({ name });
     return undefined;
 }
 
@@ -151,26 +152,27 @@ export function fieldsOf(draft: Draft, original: Fields, area: Area = null): Fie
 
 export function missing(draft: Draft): string[] {
     const required: [string, string][] = [
-        ['Call', draft.call.trim()],
-        ['Date', draft.date],
-        ['Time', draft.time],
-        ['Band', draft.band],
-        ['Mode', draft.mode]
+        [m.field_call(), draft.call.trim()],
+        [m.field_date(), draft.date],
+        [m.entry_editor_time(), draft.time],
+        [m.field_band(), draft.band],
+        [m.field_mode(), draft.mode]
     ];
     return required.filter(([, v]) => v === '').map(([label]) => label);
 }
 
 export function problem(draft: Draft, area: Area = null): string | undefined {
     const absent = missing(draft);
-    if (absent.length > 0) return `Needed before saving: ${absent.join(', ')}.`;
+    if (absent.length > 0)
+        return m.entry_editor_needed({ fields: absent.join(m.entry_editor_list_separator()) });
     const power = draft.txPwr.trim();
-    if (power !== '' && !isPower(power)) return POWER_RULE;
+    if (power !== '' && !isPower(power)) return powerRule();
     const seen = new Set<string>();
     for (const { name } of filledExtras(draft)) {
-        if (name === '') return 'Name the extra field, or clear its value.';
+        if (name === '') return m.entry_name_extra_field();
         const extra = extraFieldProblem(name, area);
         if (extra !== undefined) return extra;
-        if (seen.has(name)) return `${name} is entered twice.`;
+        if (seen.has(name)) return m.entry_field_twice({ name });
         seen.add(name);
     }
     return undefined;
