@@ -198,7 +198,7 @@
             class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
             ><Icon name="back" size={22} /></a
         >
-        <h1 class="text-xl font-semibold">QSL</h1>
+        <h1 class="text-xl font-semibold">QSL Management</h1>
     </header>
     <div role="tablist" aria-label="Direction" class="grid grid-cols-2 gap-1.5 md:hidden">
         {#each [['send', 'Send'], ['receive', 'Receive']] as [id, label] (id)}

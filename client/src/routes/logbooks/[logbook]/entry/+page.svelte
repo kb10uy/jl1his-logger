@@ -478,7 +478,7 @@
                                 : isoDate(d.fields.QSO_DATE)}. Logging keeps both.
                             <a
                                 class="ml-1 font-medium text-warn"
-                                href={`/logbooks/${logbookId}/log?q=${encodeURIComponent(`base:"${call}"`)}`}
+                                href={`/logbooks/${logbookId}?q=${encodeURIComponent(`base:"${call}"`)}`}
                                 >Show in log</a
                             >
                         </Notice>
@@ -731,7 +731,7 @@
                     <div class="flex flex-col rounded-lg border border-border bg-surface">
                         {#each before as q (q.id)}
                             <a
-                                href={`/logbooks/${logbookId}/log?qso=${q.id}&q=${encodeURIComponent(`base:"${call}"`)}`}
+                                href={`/logbooks/${logbookId}?qso=${q.id}&q=${encodeURIComponent(`base:"${call}"`)}`}
                                 class="flex items-center gap-3 border-b border-surface-2 px-3 py-2.5 text-[13px] text-text no-underline last:border-b-0"
                             >
                                 <span class="font-mono text-muted"

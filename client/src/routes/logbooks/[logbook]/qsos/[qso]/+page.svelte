@@ -30,7 +30,7 @@
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
     const qsoId = $derived(page.params.qso ?? '');
-    const logHref = `/logbooks/${logbookId}/log`;
+    const logHref = `/logbooks/${logbookId}`;
 
     let qso = $state<Qso | undefined>(undefined);
     let draft = $state<Draft | undefined>(undefined);

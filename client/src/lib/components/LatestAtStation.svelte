@@ -71,7 +71,7 @@
     <div class="flex items-baseline justify-between gap-2">
         <h2 class="eyebrow">Latest at this Station</h2>
         <a
-            href={`/logbooks/${logbookId}/log?q=${encodeURIComponent(`station:"${stationName}"`)}`}
+            href={`/logbooks/${logbookId}?q=${encodeURIComponent(`station:"${stationName}"`)}`}
             class="text-[13px] no-underline">Open in log</a
         >
     </div>

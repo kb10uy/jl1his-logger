@@ -9,7 +9,7 @@
     });
 
     $effect(() => {
-        if (target) goto(`/logbooks/${target.id}/log`, { replace: true });
+        if (target) goto(`/logbooks/${target.id}`, { replace: true });
     });
 </script>
 

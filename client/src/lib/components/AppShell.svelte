@@ -35,7 +35,7 @@
         root === null
             ? []
             : [
-                  { label: 'Log', short: 'Log', icon: 'log', href: `${root}/log`, mobile: true },
+                  { label: 'Logbook', short: 'Log', icon: 'log', href: root, mobile: true },
                   {
                       label: 'Live entry',
                       short: 'Entry',
@@ -64,7 +64,13 @@
                       href: `${root}/instruments`,
                       mobile: false
                   },
-                  { label: 'QSL', short: 'QSL', icon: 'qsl', href: `${root}/qsl`, mobile: false },
+                  {
+                      label: 'QSL Management',
+                      short: 'QSL',
+                      icon: 'qsl',
+                      href: `${root}/qsl-management`,
+                      mobile: false
+                  },
                   {
                       label: 'Import / Export',
                       short: 'Import',
@@ -76,7 +82,7 @@
     );
 
     const current = (href: string) =>
-        page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
+        page.url.pathname === href || (href !== root && page.url.pathname.startsWith(`${href}/`));
     const onSettings = $derived(
         page.url.pathname.startsWith('/settings') || page.url.pathname === `${root}/members`
     );
@@ -88,12 +94,16 @@
 
     function switchTo(id: string) {
         if (logbookId === null) {
-            goto(`/logbooks/${id}/log`);
+            goto(`/logbooks/${id}`);
             return;
         }
         const rest = page.url.pathname.slice(`/logbooks/${logbookId}`.length);
-        const screen = rest.split('/').filter((s) => s !== '')[0] ?? 'log';
-        goto(`/logbooks/${id}/${screen === 'qsos' ? 'log' : screen}`);
+        const screen = rest.split('/').filter((s) => s !== '')[0];
+        goto(
+            screen === undefined || screen === 'qsos'
+                ? `/logbooks/${id}`
+                : `/logbooks/${id}/${screen}`
+        );
     }
 
     const statusText = $derived.by(() => {
