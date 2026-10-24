@@ -1,4 +1,4 @@
-import type { Fields } from '#lib/api/types.ts';
+import type { Area, Fields } from '#lib/api/types.ts';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from './adif-fields.ts';
 import { adifDate, adifTime, hhmmss, isoDate } from './format.ts';
 import { isPower, POWER_RULE } from './power.ts';
@@ -20,7 +20,7 @@ export interface Draft {
     rstRcvd: string;
     name: string;
     qth: string;
-    cnty: string;
+    area: string;
     comment: string;
     notes: string;
     txPwr: string;
@@ -45,7 +45,6 @@ export const EDITED = [
     'RST_RCVD',
     'NAME',
     'QTH',
-    'CNTY',
     'COMMENT',
     'NOTES',
     'TX_PWR',
@@ -61,18 +60,20 @@ export function isStationField(name: string): boolean {
     return name === 'STATION_CALLSIGN' || name === 'OPERATOR' || name.startsWith('MY_');
 }
 
-export const EXTRA_FIELD_NAMES = ADIF_QSO_FIELDS.filter(
-    (name) => !EDITED.includes(name) && !isStationField(name)
-);
+const edited = (name: string, area: Area) => EDITED.includes(name) || name === area?.name;
 
-export function extraFieldProblem(name: string): string | undefined {
-    if (EDITED.includes(name)) return `${name} has its own field.`;
+export function extraFieldNames(area: Area): string[] {
+    return ADIF_QSO_FIELDS.filter((name) => !edited(name, area) && !isStationField(name));
+}
+
+export function extraFieldProblem(name: string, area: Area): string | undefined {
+    if (edited(name, area)) return `${name} has its own field.`;
     if (isStationField(name)) return `${name} comes from the Station.`;
     if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
     return undefined;
 }
 
-export function draftOf(f: Fields): Draft {
+export function draftOf(f: Fields, area: Area = null): Draft {
     return {
         call: f.CALL ?? '',
         date: isoDate(f.QSO_DATE),
@@ -85,7 +86,7 @@ export function draftOf(f: Fields): Draft {
         rstRcvd: f.RST_RCVD ?? '',
         name: f.NAME ?? '',
         qth: f.QTH ?? '',
-        cnty: f.CNTY ?? '',
+        area: area === null ? '' : (f[area.name] ?? ''),
         comment: f.COMMENT ?? '',
         notes: f.NOTES ?? '',
         txPwr: f.TX_PWR ?? '',
@@ -96,13 +97,14 @@ export function draftOf(f: Fields): Draft {
         qslRcvdVia: (f.QSL_RCVD_VIA ?? '').toUpperCase(),
         qslRcvdDate: isoDate(f.QSLRDATE),
         extra: Object.entries(f)
-            .filter(([name]) => !EDITED.includes(name) && !isStationField(name))
+            .filter(([name]) => !edited(name, area) && !isStationField(name))
             .map(([name, value]) => ({ name, value }))
     };
 }
 
-function fieldsOfDraft(draft: Draft): Fields {
+function fieldsOfDraft(draft: Draft, area: Area): Fields {
     return {
+        ...(area === null ? {} : { [area.name]: draft.area.trim() }),
         CALL: draft.call.trim().toUpperCase(),
         QSO_DATE: adifDate(draft.date),
         TIME_ON: adifTime(draft.time),
@@ -114,7 +116,6 @@ function fieldsOfDraft(draft: Draft): Fields {
         RST_RCVD: draft.rstRcvd.trim(),
         NAME: draft.name.trim(),
         QTH: draft.qth.trim(),
-        CNTY: draft.cnty.trim(),
         COMMENT: draft.comment.trim(),
         NOTES: draft.notes.trim(),
         TX_PWR: draft.txPwr.trim(),
@@ -133,9 +134,9 @@ function filledExtras(draft: Draft): ExtraField[] {
         .filter(({ value }) => value !== '');
 }
 
-export function fieldsOf(draft: Draft, original: Fields): Fields {
-    const edited = fieldsOfDraft(draft);
-    const before = fieldsOfDraft(draftOf(original));
+export function fieldsOf(draft: Draft, original: Fields, area: Area = null): Fields {
+    const edited = fieldsOfDraft(draft, area);
+    const before = fieldsOfDraft(draftOf(original, area), area);
     const asBefore = (name: string, value: string) => {
         const kept = original[name];
         return kept !== undefined && value === kept.trim() ? kept : value;
@@ -159,7 +160,7 @@ export function missing(draft: Draft): string[] {
     return required.filter(([, v]) => v === '').map(([label]) => label);
 }
 
-export function problem(draft: Draft): string | undefined {
+export function problem(draft: Draft, area: Area = null): string | undefined {
     const absent = missing(draft);
     if (absent.length > 0) return `Needed before saving: ${absent.join(', ')}.`;
     const power = draft.txPwr.trim();
@@ -167,7 +168,7 @@ export function problem(draft: Draft): string | undefined {
     const seen = new Set<string>();
     for (const { name } of filledExtras(draft)) {
         if (name === '') return 'Name the extra field, or clear its value.';
-        const extra = extraFieldProblem(name);
+        const extra = extraFieldProblem(name, area);
         if (extra !== undefined) return extra;
         if (seen.has(name)) return `${name} is entered twice.`;
         seen.add(name);

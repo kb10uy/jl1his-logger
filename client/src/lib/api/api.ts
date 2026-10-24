@@ -1,5 +1,6 @@
 import { query, request } from './client.ts';
 import type {
+    Area,
     Batch,
     Exported,
     ExportKind,
@@ -113,6 +114,9 @@ export const revokeToken = (id: string) =>
 export const logbooks = () => request<Logbook[]>('GET', '/api/logbooks');
 
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
+
+export const setLogbookSettings = (logbook: string, settings: { area_field: Area }) =>
+    request<Logbook>('PUT', `${base(logbook)}/settings`, { body: settings });
 
 export const stations = (logbook: string) => request<Station[]>('GET', `${base(logbook)}/stations`);
 

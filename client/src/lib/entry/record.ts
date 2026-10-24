@@ -1,4 +1,4 @@
-import type { Fields } from '#lib/api/types.ts';
+import type { Area, Fields } from '#lib/api/types.ts';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 import {
     contestProblem,
@@ -26,7 +26,7 @@ export interface Entry {
     received: string;
     name: string;
     qth: string;
-    cnty: string;
+    area: string;
     qsl: QslRequest;
     comment: string;
     txPwr: string;
@@ -46,7 +46,6 @@ const ENTERED = new Set([
     'RST_RCVD',
     'NAME',
     'QTH',
-    'CNTY',
     'QSL_SENT',
     'QSL_RCVD',
     'COMMENT',
@@ -57,12 +56,14 @@ const ENTERED = new Set([
     'SRX_STRING'
 ]);
 
-export const EXTRA_FIELD_NAMES = ADIF_QSO_FIELDS.filter(
-    (name) => !ENTERED.has(name) && name !== 'STATION_CALLSIGN'
-);
+const entered = (name: string, area: Area) => ENTERED.has(name) || name === area?.name;
 
-export function extraFieldProblem(name: string): string | undefined {
-    if (ENTERED.has(name)) return `${name} has its own field.`;
+export function extraFieldNames(area: Area): string[] {
+    return ADIF_QSO_FIELDS.filter((name) => !entered(name, area) && name !== 'STATION_CALLSIGN');
+}
+
+export function extraFieldProblem(name: string, area: Area): string | undefined {
+    if (entered(name, area)) return `${name} has its own field.`;
     if (name === 'STATION_CALLSIGN') return 'STATION_CALLSIGN comes from the Station.';
     if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
     return undefined;
@@ -74,7 +75,11 @@ function filledExtras(entry: Entry): ExtraField[] {
         .filter(({ value }) => value !== '');
 }
 
-export function entryProblem(entry: Entry, contest: ContestSettings): string | undefined {
+export function entryProblem(
+    entry: Entry,
+    contest: ContestSettings,
+    area: Area = null
+): string | undefined {
     if (entry.call.trim() === '') return 'Enter the call.';
     if (entry.band === '' || entry.mode === '') return 'Choose the band and the mode.';
     const problem = contestProblem(contest);
@@ -86,7 +91,7 @@ export function entryProblem(entry: Entry, contest: ContestSettings): string | u
     const seen = new Set<string>();
     for (const { name } of filledExtras(entry)) {
         if (name === '') return 'Name the extra field, or clear its value.';
-        const extra = extraFieldProblem(name);
+        const extra = extraFieldProblem(name, area);
         if (extra !== undefined) return extra;
         if (seen.has(name)) return `${name} is entered twice.`;
         seen.add(name);
@@ -94,7 +99,12 @@ export function entryProblem(entry: Entry, contest: ContestSettings): string | u
     return undefined;
 }
 
-export function entryFields(entry: Entry, contest: ContestSettings, at: Date): Fields {
+export function entryFields(
+    entry: Entry,
+    contest: ContestSettings,
+    at: Date,
+    area: Area = null
+): Fields {
     const fields: Fields = {
         ...Object.fromEntries(filledExtras(entry).map(({ name, value }) => [name, value])),
         CALL: entry.call.trim().toUpperCase(),
@@ -107,7 +117,7 @@ export function entryFields(entry: Entry, contest: ContestSettings, at: Date): F
         RST_RCVD: entry.rstRcvd.trim(),
         NAME: entry.name.trim(),
         QTH: entry.qth.trim(),
-        CNTY: entry.cnty.trim(),
+        ...(area === null ? {} : { [area.name]: entry.area.trim() }),
         ...qslRequestFields(entry.qsl),
         COMMENT: entry.comment.trim(),
         TX_PWR: entry.txPwr.trim(),

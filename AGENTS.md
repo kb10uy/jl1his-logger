@@ -54,6 +54,10 @@ or another shared crate.
   those three. Their values are baked in before the Station's, so they win;
   `instrument_id` is kept like `station_id`. Without one, nothing fills them.
   `/wl2` QSOs have none.
+- **A Logbook may name an area code field** (`area_field`: an ADIF field
+  and a label, such as `CNTY` labelled "JCC / JCG"), set by owners. Live
+  entry, voice entry and the QSO editor show one field for it and nothing
+  without one. JCC / JCG is a setting, not a built-in.
 - **FREQ may be missing**; the server never fills it with a representative
   frequency. In the client's editors, choosing a band sets the frequency field
   to the band's representative frequency, and typing a frequency moves the band.

@@ -13,7 +13,7 @@ const entry: Entry = {
     received: '',
     name: '',
     qth: 'Tokyo',
-    cnty: '',
+    area: '',
     qsl: 'none',
     comment: '',
     txPwr: '',
@@ -37,10 +37,17 @@ describe('entry records', () => {
         });
     });
 
-    it('records JCC / JCG and the QSL request', () => {
+    it('records the area code in the Logbook field and the QSL request', () => {
+        const jcx = { name: 'CNTY', label: 'JCC / JCG' };
+        const area = { ...entry, area: ' 100101 ', qsl: 'requested' as const };
+        expect(entryFields(area, defaultContest(), at, jcx)).toMatchObject({
+            CNTY: '100101',
+            QSL_SENT: 'R'
+        });
+        expect(entryFields(area, defaultContest(), at)).not.toHaveProperty('CNTY');
         expect(
-            entryFields({ ...entry, cnty: ' 100101 ', qsl: 'requested' }, defaultContest(), at)
-        ).toMatchObject({ CNTY: '100101', QSL_SENT: 'R' });
+            entryProblem({ ...entry, extra: [{ name: 'CNTY', value: 'x' }] }, defaultContest(), jcx)
+        ).toBe('CNTY has its own field.');
         const oneWay = entryFields({ ...entry, qsl: 'oneWay' }, defaultContest(), at);
         expect([oneWay.QSL_SENT, oneWay.QSL_RCVD]).toEqual(['N', 'R']);
     });

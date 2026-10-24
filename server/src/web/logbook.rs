@@ -10,12 +10,36 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::{self, LogbookRole},
-        logbook::{self, Logbook},
+        logbook::{self, AreaField, Logbook},
         membership::{self, Member as Membership},
         user,
     },
     web::{AppState, auth::Caller, error::ApiError, extract::Json, member::Member},
 };
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AreaFieldBody {
+    name: String,
+    label: String,
+}
+
+impl From<AreaField> for AreaFieldBody {
+    fn from(area: AreaField) -> AreaFieldBody {
+        AreaFieldBody {
+            name: area.name,
+            label: area.label,
+        }
+    }
+}
+
+impl From<AreaFieldBody> for AreaField {
+    fn from(body: AreaFieldBody) -> AreaField {
+        AreaField {
+            name: body.name,
+            label: body.label,
+        }
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct LogbookBody {
@@ -25,6 +49,7 @@ pub struct LogbookBody {
     cursor_generation: String,
     last_seq: i64,
     last_updated_seq: i64,
+    area_field: Option<AreaFieldBody>,
 }
 
 impl LogbookBody {
@@ -36,8 +61,14 @@ impl LogbookBody {
             cursor_generation: logbook.cursor_generation,
             last_seq: logbook.last_seq,
             last_updated_seq: logbook.last_updated_seq,
+            area_field: logbook.area.map(AreaFieldBody::from),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SettingsRequest {
+    area_field: Option<AreaFieldBody>,
 }
 
 #[derive(Debug, Serialize)]
@@ -89,6 +120,19 @@ pub async fn list(State(state): State<Arc<AppState>>, caller: Caller) -> Result<
 pub async fn get(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<LogbookBody>, ApiError> {
     let mut conn = state.db.acquire().await?;
     let logbook = logbook::get(&mut conn, &member.access).await?;
+    Ok(Json(LogbookBody::new(logbook, member.access.role())))
+}
+
+pub async fn set_settings(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Json(req): Json<SettingsRequest>,
+) -> Result<Json<LogbookBody>, ApiError> {
+    let owner = member.access.owner()?;
+    let area = req.area_field.map(AreaField::from);
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let logbook = logbook::set_area(&mut tx, &owner, area.as_ref()).await?;
+    tx.commit().await?;
     Ok(Json(LogbookBody::new(logbook, member.access.role())))
 }
 
@@ -154,6 +198,7 @@ mod tests {
             "cursor_generation": logbook.cursor_generation,
             "last_seq": 0,
             "last_updated_seq": 0,
+            "area_field": null,
         }]);
 
         let operator = h.session(&h.world.operator).await;
@@ -172,6 +217,31 @@ mod tests {
         assert_eq!((status, body), (StatusCode::OK, json!([])));
         let (status, _) = h.send("GET", &h.path(""), Auth::Session(&outsider), None).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn owners_set_the_area_field() {
+        let h = Harness::new().await;
+        let settings = h.path("/settings");
+        let owner = h.session(&h.world.owner).await;
+        let operator = h.session(&h.world.operator).await;
+        let jcx = Some(json!({ "area_field": { "name": "cnty", "label": "JCC / JCG" } }));
+
+        let (status, _) = h.send("PUT", &settings, Auth::Session(&operator), jcx.clone()).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, body) = h.send("PUT", &settings, Auth::Session(&owner), jcx).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["area_field"], json!({ "name": "CNTY", "label": "JCC / JCG" }));
+        let (_, body) = h.send("GET", &h.path(""), Auth::Session(&operator), None).await;
+        assert_eq!(body["area_field"]["name"], "CNTY");
+
+        let bad = Some(json!({ "area_field": { "name": "MY_CNTY", "label": "County" } }));
+        let (status, _) = h.send("PUT", &settings, Auth::Session(&owner), bad).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
+        let none = Some(json!({ "area_field": null }));
+        let (status, body) = h.send("PUT", &settings, Auth::Session(&owner), none).await;
+        assert_eq!((status, &body["area_field"]), (StatusCode::OK, &json!(null)));
     }
 
     #[tokio::test]

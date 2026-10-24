@@ -1,11 +1,12 @@
 import { getContext, setContext } from 'svelte';
 import * as api from '#lib/api/api.ts';
 import type { RowMatcher } from '#lib/query/index.ts';
-import type { Hello, Instrument, Logbook, Qso, QsoEvent, Station } from '#lib/api/types.ts';
+import type { Area, Hello, Instrument, Logbook, Qso, QsoEvent, Station } from '#lib/api/types.ts';
 
 export type StreamStatus = 'connecting' | 'live' | 'offline';
 
 export class LogbookState {
+    logbook = $state<Logbook>() as Logbook;
     stations = $state<Station[]>([]);
     instruments = $state<Instrument[]>([]);
     status = $state<StreamStatus>('connecting');
@@ -15,7 +16,13 @@ export class LogbookState {
     private listeners = new Set<(qso: Qso) => void>();
     private resetListeners = new Set<() => void>();
 
-    constructor(readonly logbook: Logbook) {}
+    constructor(logbook: Logbook) {
+        this.logbook = logbook;
+    }
+
+    get area(): Area {
+        return this.logbook.area_field;
+    }
 
     get activeStations(): Station[] {
         return this.stations.filter((s) => s.archived_at === null);

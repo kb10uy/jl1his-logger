@@ -15,8 +15,8 @@
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import {
-        EXTRA_FIELD_NAMES,
         draftOf,
+        extraFieldNames,
         fieldsOf,
         isStationField,
         problem as problemOf,
@@ -70,7 +70,7 @@
 
     function reset(found: Qso) {
         qso = found;
-        draft = draftOf(found.fields);
+        draft = draftOf(found.fields, logbook.area);
         instrumentId = found.instrument_id ?? '';
         conflict = undefined;
         saveError = undefined;
@@ -81,7 +81,7 @@
         else goto(logHref);
     }
 
-    const problem = $derived(draft === undefined ? undefined : problemOf(draft));
+    const problem = $derived(draft === undefined ? undefined : problemOf(draft, logbook.area));
     const instruments = $derived(
         logbook.instruments.filter((i) => i.archived_at === null || i.id === qso?.instrument_id)
     );
@@ -100,7 +100,7 @@
                 qso.revision,
                 qso.station_id,
                 instrumentId || null,
-                fieldsOf(draft, qso.fields)
+                fieldsOf(draft, qso.fields, logbook.area)
             );
             reset(saved.qso);
             warnings = saved.warnings;
@@ -275,14 +275,17 @@
                 </Field>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <Field label="JCC / JCG" adif="CNTY" for="e-cnty">
-                    <input
-                        id="e-cnty"
-                        inputmode="numeric"
-                        class="control h-11 font-mono"
-                        bind:value={draft.cnty}
-                    />
-                </Field>
+                {#if logbook.area}
+                    <Field label={logbook.area.label} adif={logbook.area.name} for="e-area">
+                        <input
+                            id="e-area"
+                            autocomplete="off"
+                            spellcheck="false"
+                            class="control h-11 font-mono"
+                            bind:value={draft.area}
+                        />
+                    </Field>
+                {/if}
                 <Field label="TX power (W)" adif="TX_PWR" for="e-txpwr">
                     <input
                         id="e-txpwr"
@@ -446,7 +449,7 @@
                     >
                 </div>
                 <datalist id="e-adif-fields">
-                    {#each EXTRA_FIELD_NAMES as name (name)}
+                    {#each extraFieldNames(logbook.area) as name (name)}
                         <option value={name}></option>
                     {/each}
                 </datalist>

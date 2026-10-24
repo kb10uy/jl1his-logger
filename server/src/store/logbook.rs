@@ -1,12 +1,32 @@
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
-use crate::store::{
-    StoreError, WriteTx,
-    access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal, UserAccess},
-    membership, name as store_name, new_id, now, user,
+use crate::{
+    domain::qso::field_name,
+    store::{
+        StoreError, WriteTx,
+        access::{self, AdminAccess, LogbookAccess, LogbookRole, OwnerAccess, Principal, UserAccess},
+        membership, name as store_name, new_id, now, user,
+    },
 };
 
-const SELECT: &str = "SELECT id, name, last_seq, last_updated_seq, cursor_generation FROM logbooks";
+const SELECT: &str =
+    "SELECT id, name, last_seq, last_updated_seq, cursor_generation, area_field, area_label FROM logbooks";
+
+const NOT_AREA: &[&str] = &[
+    "CALL",
+    "QSO_DATE",
+    "TIME_ON",
+    "BAND",
+    "MODE",
+    "STATION_CALLSIGN",
+    "OPERATOR",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AreaField {
+    pub name: String,
+    pub label: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Logbook {
@@ -15,18 +35,55 @@ pub struct Logbook {
     pub last_seq: i64,
     pub last_updated_seq: i64,
     pub cursor_generation: String,
+    pub area: Option<AreaField>,
 }
 
 impl Logbook {
     fn from_row(row: &SqliteRow) -> Result<Logbook, StoreError> {
+        let area = match (
+            row.try_get::<Option<String>, _>("area_field")?,
+            row.try_get::<Option<String>, _>("area_label")?,
+        ) {
+            (Some(name), Some(label)) => Some(AreaField { name, label }),
+            _ => None,
+        };
         Ok(Logbook {
             id: row.try_get("id")?,
             name: row.try_get("name")?,
             last_seq: row.try_get("last_seq")?,
             last_updated_seq: row.try_get("last_updated_seq")?,
             cursor_generation: row.try_get("cursor_generation")?,
+            area,
         })
     }
+}
+
+fn normalize_area(area: &AreaField) -> Result<AreaField, StoreError> {
+    let name = field_name(&area.name)?;
+    if NOT_AREA.contains(&name.as_str()) || name.starts_with("MY_") {
+        return Err(StoreError::Invalid(format!("{name} cannot be the area field")));
+    }
+    let label = store_name("the area field", &area.label)?;
+    Ok(AreaField {
+        name,
+        label: label.to_owned(),
+    })
+}
+
+pub async fn set_area(
+    tx: &mut WriteTx,
+    owner: &OwnerAccess<'_>,
+    area: Option<&AreaField>,
+) -> Result<Logbook, StoreError> {
+    let area = area.map(normalize_area).transpose()?;
+    sqlx::query("UPDATE logbooks SET area_field = ?, area_label = ?, updated_at = ? WHERE id = ?")
+        .bind(area.as_ref().map(|a| &a.name))
+        .bind(area.as_ref().map(|a| &a.label))
+        .bind(now())
+        .bind(owner.logbook_id())
+        .execute(&mut **tx)
+        .await?;
+    get(tx, owner).await
 }
 
 pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, name: &str, owner_id: &str) -> Result<Logbook, StoreError> {
@@ -42,6 +99,7 @@ pub async fn create(tx: &mut WriteTx, admin: &AdminAccess, name: &str, owner_id:
         last_seq: 0,
         last_updated_seq: 0,
         cursor_generation: new_id(),
+        area: None,
     };
     let now = now();
     sqlx::query("INSERT INTO logbooks (id, name, cursor_generation, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
@@ -98,7 +156,7 @@ pub async fn list_all(conn: &mut SqliteConnection, admin: &AdminAccess) -> Resul
 pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<(Logbook, LogbookRole)>, StoreError> {
     let user = user.revalidate(conn).await?;
     sqlx::query(
-        "SELECT l.id, l.name, l.last_seq, l.last_updated_seq, l.cursor_generation, m.role \
+        "SELECT l.id, l.name, l.last_seq, l.last_updated_seq, l.cursor_generation, l.area_field, l.area_label, m.role \
          FROM logbooks l JOIN memberships m ON m.logbook_id = l.id \
          WHERE m.user_id = ? ORDER BY l.name, l.id",
     )
@@ -291,6 +349,46 @@ mod tests {
         assert_eq!(logbook, world.logbook);
         assert_eq!((logbook.name.as_str(), logbook.last_seq), ("Club", 0));
         assert_eq!(access.role(), LogbookRole::Owner);
+    }
+
+    #[tokio::test]
+    async fn owners_set_and_clear_the_area_field() {
+        let world = World::new().await;
+        let access = world.access(&world.owner).await;
+        let owner = access.owner().unwrap();
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let jcx = AreaField {
+            name: "cnty".to_owned(),
+            label: " JCC / JCG ".to_owned(),
+        };
+        let logbook = set_area(&mut tx, &owner, Some(&jcx)).await.unwrap();
+        assert_eq!(
+            logbook.area,
+            Some(AreaField {
+                name: "CNTY".to_owned(),
+                label: "JCC / JCG".to_owned()
+            })
+        );
+        assert_eq!(get(&mut tx, &access).await.unwrap(), logbook);
+        for (name, label) in [
+            ("MY_CNTY", "County"),
+            ("CALL", "Call"),
+            ("no field", "x"),
+            ("STATE", " "),
+        ] {
+            let bad = AreaField {
+                name: name.to_owned(),
+                label: label.to_owned(),
+            };
+            assert!(
+                matches!(
+                    set_area(&mut tx, &owner, Some(&bad)).await,
+                    Err(StoreError::Invalid(_) | StoreError::Qso(_))
+                ),
+                "{name} / {label}"
+            );
+        }
+        assert_eq!(set_area(&mut tx, &owner, None).await.unwrap().area, None);
     }
 
     #[tokio::test]

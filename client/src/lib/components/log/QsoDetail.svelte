@@ -50,7 +50,6 @@
         'MY_POTA_REF',
         'NAME',
         'QTH',
-        'CNTY',
         'STATE',
         'GRIDSQUARE',
         'DXCC',
@@ -72,7 +71,10 @@
         'COMMENT',
         'NOTES'
     ]);
-    const others = $derived(Object.entries(f).filter(([name]) => !SHOWN.has(name)));
+    const area = $derived(logbook.area);
+    const others = $derived(
+        Object.entries(f).filter(([name]) => !SHOWN.has(name) && name !== area?.name)
+    );
 </script>
 
 <aside
@@ -153,9 +155,15 @@
             <dt class="text-xs text-muted">Name / QTH</dt>
             <dd class="m-0">{join(f.NAME, f.QTH)}</dd>
         </div>
+        {#if area}
+            <div class="flex flex-col gap-0.5">
+                <dt class="text-xs text-muted">{area.label}</dt>
+                <dd class="m-0 font-mono">{f[area.name] || '—'}</dd>
+            </div>
+        {/if}
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">JCC/JCG · State · Grid</dt>
-            <dd class="m-0 font-mono">{join(f.CNTY, f.STATE, f.GRIDSQUARE)}</dd>
+            <dt class="text-xs text-muted">State · Grid</dt>
+            <dd class="m-0 font-mono">{join(f.STATE, f.GRIDSQUARE)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">DXCC / CQ / ITU</dt>

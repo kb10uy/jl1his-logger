@@ -15,6 +15,13 @@
             logbookId === null
                 ? undefined
                 : {
+                      label: 'Logbook',
+                      scope: `${session.logbook(logbookId)?.name ?? ''} Logbook`,
+                      href: `/logbooks/${logbookId}/settings`
+                  },
+            logbookId === null
+                ? undefined
+                : {
                       label: 'Members',
                       scope: `${session.logbook(logbookId)?.name ?? ''} Logbook`,
                       href: `/logbooks/${logbookId}/members`

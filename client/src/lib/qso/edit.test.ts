@@ -58,6 +58,20 @@ describe('QSO drafts', () => {
         expect(fieldsOf(draftOf(original), original)).toEqual(original);
     });
 
+    it('edits the area code in the field the Logbook names', () => {
+        const jcx = { name: 'CNTY', label: 'JCC / JCG' };
+        const withCnty = { ...original, CNTY: '100101' };
+        expect(draftOf(withCnty).extra).toContainEqual({ name: 'CNTY', value: '100101' });
+        const draft = draftOf(withCnty, jcx);
+        expect(draft.area).toBe('100101');
+        expect(draft.extra).not.toContainEqual({ name: 'CNTY', value: '100101' });
+        expect(fieldsOf({ ...draft, area: ' 100102 ' }, withCnty, jcx).CNTY).toBe('100102');
+        expect(fieldsOf({ ...draft, area: '' }, withCnty, jcx)).not.toHaveProperty('CNTY');
+        expect(problem({ ...draft, extra: [{ name: 'cnty', value: 'x' }] }, jcx)).toBe(
+            'CNTY has its own field.'
+        );
+    });
+
     it('edits, adds and removes the other fields', () => {
         const draft = draftOf(original);
         draft.extra = [

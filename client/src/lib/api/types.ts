@@ -8,6 +8,13 @@ export interface Me {
 
 export type LogbookRole = 'owner' | 'operator';
 
+export interface AreaField {
+    name: string;
+    label: string;
+}
+
+export type Area = AreaField | null;
+
 export interface Logbook {
     id: string;
     name: string;
@@ -15,6 +22,7 @@ export interface Logbook {
     cursor_generation: string;
     last_seq: number;
     last_updated_seq: number;
+    area_field: Area;
 }
 
 export interface Station {

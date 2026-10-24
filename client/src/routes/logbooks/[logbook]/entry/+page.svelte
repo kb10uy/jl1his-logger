@@ -12,7 +12,7 @@
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
-    import { EXTRA_FIELD_NAMES, entryFields, entryProblem, type Entry } from '#lib/entry/record.ts';
+    import { entryFields, entryProblem, extraFieldNames, type Entry } from '#lib/entry/record.ts';
     import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
     import { bandOf } from '#lib/qso/bands.ts';
     import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
@@ -49,7 +49,7 @@
         received: '',
         name: '',
         qth: '',
-        cnty: '',
+        area: '',
         qsl: 'none',
         comment: '',
         txPwr: '',
@@ -86,7 +86,8 @@
             return `${entry.freq} MHz is in ${freqBand.name}, not ${entry.band}. Both are kept as entered.`;
         return undefined;
     });
-    const problem = $derived(entryProblem(entry, settings.contest));
+    const area = $derived(logbook.area);
+    const problem = $derived(entryProblem(entry, settings.contest, area));
     const extraCount = $derived(
         [entry.txPwr, entry.notes, ...entry.extra.map((f) => f.value)].filter(
             (v) => v.trim() !== ''
@@ -207,7 +208,7 @@
         entry.received = '';
         entry.name = '';
         entry.qth = '';
-        entry.cnty = '';
+        entry.area = '';
         entry.qsl = 'none';
         entry.comment = '';
         entry.notes = '';
@@ -220,7 +221,7 @@
         event?.preventDefault();
         if (problem !== undefined || stationId === '' || logging) return;
         logging = true;
-        const fields: Fields = entryFields(entry, settings.contest, at);
+        const fields: Fields = entryFields(entry, settings.contest, at, area);
         try {
             const result = await outbox.log(logbookId, stationId, instrumentId || null, fields);
             if (settings.contest.enabled && usesSerial(settings.contest.exchangeTemplate)) {
@@ -568,31 +569,40 @@
                             bind:value={entry.qth}
                         />
                     </div>
-                    <div
-                        class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
-                    >
-                        <label for="cnty" class="text-xs text-muted">JCC / JCG</label>
-                        <input
-                            id="cnty"
-                            inputmode="numeric"
-                            placeholder={lookup?.previous.fields.CNTY ?? 'optional'}
-                            class="control h-11 rounded-lg px-3 font-mono text-base"
-                            bind:value={entry.cnty}
-                        />
-                    </div>
-                    <div
-                        class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
-                    >
-                        <label for="qsl" class="text-xs text-muted">QSL</label>
-                        <select
-                            id="qsl"
-                            class="control h-11 rounded-lg text-base"
-                            bind:value={entry.qsl}
-                        >
-                            {#each QSL_REQUESTS as [value, label] (value)}
-                                <option {value}>{label}</option>
-                            {/each}
-                        </select>
+                </div>
+
+                <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
+                    <span class="text-xs text-muted max-md:hidden">{area?.label ?? 'QSL'}</span>
+                    <div class="grid grid-cols-2 gap-2.5 md:flex md:items-center md:gap-3">
+                        {#if area}
+                            <div class="flex flex-col gap-1">
+                                <label for="area" class="text-xs text-muted md:hidden"
+                                    >{area.label}</label
+                                >
+                                <input
+                                    id="area"
+                                    placeholder={lookup?.previous.fields[area.name] ?? 'optional'}
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    class="control h-11 w-full rounded-lg px-3 font-mono text-base md:w-40"
+                                    bind:value={entry.area}
+                                />
+                            </div>
+                        {/if}
+                        <div class="flex flex-col gap-1 md:flex-row md:items-center md:gap-3">
+                            <label for="qsl" class={['text-xs text-muted', !area && 'md:hidden']}
+                                >QSL</label
+                            >
+                            <select
+                                id="qsl"
+                                class="control h-11 w-full rounded-lg text-base md:w-48"
+                                bind:value={entry.qsl}
+                            >
+                                {#each QSL_REQUESTS as [value, label] (value)}
+                                    <option {value}>{label}</option>
+                                {/each}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -677,7 +687,7 @@
                             >
                         </div>
                         <datalist id="adif-fields">
-                            {#each EXTRA_FIELD_NAMES as name (name)}
+                            {#each extraFieldNames(area) as name (name)}
                                 <option value={name}></option>
                             {/each}
                         </datalist>

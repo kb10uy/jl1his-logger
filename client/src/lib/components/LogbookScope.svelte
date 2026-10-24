@@ -12,9 +12,14 @@
     provideLogbook(state);
 
     $effect(() => {
+        state.logbook = logbook;
+    });
+
+    $effect(() => {
+        const id = untrack(() => logbook.id);
         state.start();
-        rememberLogbook(logbook.id);
-        outbox.show(logbook.id);
+        rememberLogbook(id);
+        outbox.show(id);
         return () => state.stop();
     });
 </script>

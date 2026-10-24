@@ -55,14 +55,22 @@ describe('draftFields', () => {
         );
     });
 
-    it('writes the QSL arrangement, JCC/JCG, name and QTH', () => {
-        expect(
-            draftFields(
-                { ...draft, qsl: 'requested', jcx: '100110', name: 'Taro', qth: 'Minato' },
-                defaultContest(),
-                at
-            )
-        ).toMatchObject({ QSL_SENT: 'R', CNTY: '100110', NAME: 'Taro', QTH: 'Minato' });
+    it('writes the QSL arrangement, the area code, name and QTH', () => {
+        const spoken = {
+            ...draft,
+            qsl: 'requested' as const,
+            jcx: '100110',
+            name: 'Taro',
+            qth: 'Minato'
+        };
+        const jcx = { name: 'CNTY', label: 'JCC / JCG' };
+        expect(draftFields(spoken, defaultContest(), at, jcx)).toMatchObject({
+            QSL_SENT: 'R',
+            CNTY: '100110',
+            NAME: 'Taro',
+            QTH: 'Minato'
+        });
+        expect(draftFields(spoken, defaultContest(), at)).not.toHaveProperty('CNTY');
         const oneWay = draftFields({ ...draft, qsl: 'oneWay' }, defaultContest(), at);
         expect([oneWay.QSL_SENT, oneWay.QSL_RCVD]).toEqual(['N', 'R']);
         expect(draftFields(draft, defaultContest(), at)).not.toHaveProperty('QSL_SENT');

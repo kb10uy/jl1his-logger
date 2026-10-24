@@ -78,12 +78,16 @@
     const queued = $derived(
         draft.call === undefined
             ? undefined
-            : queuedDuplicate(unsent, draftFields(draft, settings.contest, now))
+            : queuedDuplicate(unsent, draftFields(draft, settings.contest, now, logbook.area))
     );
     const duplicate = $derived(queued?.fields ?? duplicates[0]?.fields);
     const extras = $derived(
         [
-            draft.jcx ? `JCC/JCG ${draft.jcx}` : '',
+            draft.jcx
+                ? logbook.area
+                    ? `${logbook.area.label} ${draft.jcx}`
+                    : `JCC/JCG ${draft.jcx} · not recorded: this Logbook has no area field`
+                : '',
             QSL_TEXT[draft.qsl],
             draft.name ?? '',
             draft.qth ?? ''
@@ -180,7 +184,7 @@
         if (logging) return { ok: false, reason: 'Still logging the previous QSO.' };
         logging = true;
         try {
-            const fields = draftFields(current, settings.contest, new Date());
+            const fields = draftFields(current, settings.contest, new Date(), logbook.area);
             const result = await outbox.log(logbookId, stationId, instrumentId || null, fields);
             if (settings.contest.enabled && usesSerial(settings.contest.exchangeTemplate)) {
                 settings.contest.nextSerial += 1;

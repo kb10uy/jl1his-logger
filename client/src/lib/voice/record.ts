@@ -1,4 +1,4 @@
-import type { Fields } from '#lib/api/types.ts';
+import type { Area, Fields } from '#lib/api/types.ts';
 import {
     contestProblem,
     exchangeString,
@@ -27,7 +27,12 @@ export function draftProblem(draft: Draft, contest: ContestSettings): string | u
     return undefined;
 }
 
-export function draftFields(draft: Draft, contest: ContestSettings, at: Date): Fields {
+export function draftFields(
+    draft: Draft,
+    contest: ContestSettings,
+    at: Date,
+    area: Area = null
+): Fields {
     const fields: Fields = {
         CALL: draft.call ?? '',
         ...utcFields(at),
@@ -37,7 +42,7 @@ export function draftFields(draft: Draft, contest: ContestSettings, at: Date): F
         SUBMODE: draft.submode,
         RST_SENT: draft.rstSent,
         RST_RCVD: draft.rstRcvd,
-        CNTY: draft.jcx ?? '',
+        ...(area === null ? {} : { [area.name]: draft.jcx ?? '' }),
         ...qslRequestFields(draft.qsl),
         NAME: draft.name ?? '',
         QTH: draft.qth ?? ''

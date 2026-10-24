@@ -119,6 +119,7 @@ pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
         .route("/api/tokens/{id}", delete(token::revoke))
         .route("/api/logbooks", get(logbook::list))
         .route("/api/logbooks/{logbook_id}", get(logbook::get))
+        .route("/api/logbooks/{logbook_id}/settings", put(logbook::set_settings))
         .route("/api/logbooks/{logbook_id}/members", get(logbook::members))
         .route(
             "/api/logbooks/{logbook_id}/members/{callsign}",
