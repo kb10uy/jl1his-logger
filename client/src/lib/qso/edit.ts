@@ -1,5 +1,12 @@
 import type { Fields } from '#lib/api/types.ts';
+import { ADIF_QSO_FIELDS } from './adif-fields.ts';
 import { adifDate, adifTime, hhmmss, isoDate } from './format.ts';
+import { isPower, POWER_RULE } from './power.ts';
+
+export interface ExtraField {
+    name: string;
+    value: string;
+}
 
 export interface Draft {
     call: string;
@@ -13,11 +20,17 @@ export interface Draft {
     rstRcvd: string;
     name: string;
     qth: string;
+    cnty: string;
     comment: string;
+    notes: string;
+    txPwr: string;
     qslSent: string;
     qslRcvd: string;
     qslSentVia: string;
     qslSentDate: string;
+    qslRcvdVia: string;
+    qslRcvdDate: string;
+    extra: ExtraField[];
 }
 
 export const EDITED = [
@@ -32,12 +45,34 @@ export const EDITED = [
     'RST_RCVD',
     'NAME',
     'QTH',
+    'CNTY',
     'COMMENT',
+    'NOTES',
+    'TX_PWR',
     'QSL_SENT',
     'QSL_RCVD',
     'QSL_SENT_VIA',
-    'QSLSDATE'
+    'QSLSDATE',
+    'QSL_RCVD_VIA',
+    'QSLRDATE'
 ];
+
+const KNOWN = new Set(ADIF_QSO_FIELDS);
+
+export function isStationField(name: string): boolean {
+    return name === 'STATION_CALLSIGN' || name === 'OPERATOR' || name.startsWith('MY_');
+}
+
+export const EXTRA_FIELD_NAMES = ADIF_QSO_FIELDS.filter(
+    (name) => !EDITED.includes(name) && !isStationField(name)
+);
+
+export function extraFieldProblem(name: string): string | undefined {
+    if (EDITED.includes(name)) return `${name} has its own field.`;
+    if (isStationField(name)) return `${name} comes from the Station.`;
+    if (!KNOWN.has(name) && !name.startsWith('APP_')) return `${name} is not an ADIF QSO field.`;
+    return undefined;
+}
 
 export function draftOf(f: Fields): Draft {
     return {
@@ -52,11 +87,19 @@ export function draftOf(f: Fields): Draft {
         rstRcvd: f.RST_RCVD ?? '',
         name: f.NAME ?? '',
         qth: f.QTH ?? '',
+        cnty: f.CNTY ?? '',
         comment: f.COMMENT ?? '',
+        notes: f.NOTES ?? '',
+        txPwr: f.TX_PWR ?? '',
         qslSent: (f.QSL_SENT ?? '').toUpperCase(),
         qslRcvd: (f.QSL_RCVD ?? '').toUpperCase(),
         qslSentVia: (f.QSL_SENT_VIA ?? '').toUpperCase(),
-        qslSentDate: isoDate(f.QSLSDATE)
+        qslSentDate: isoDate(f.QSLSDATE),
+        qslRcvdVia: (f.QSL_RCVD_VIA ?? '').toUpperCase(),
+        qslRcvdDate: isoDate(f.QSLRDATE),
+        extra: Object.entries(f)
+            .filter(([name]) => !EDITED.includes(name) && !isStationField(name))
+            .map(([name, value]) => ({ name, value }))
     };
 }
 
@@ -73,22 +116,38 @@ function fieldsOfDraft(draft: Draft): Fields {
         RST_RCVD: draft.rstRcvd.trim(),
         NAME: draft.name.trim(),
         QTH: draft.qth.trim(),
+        CNTY: draft.cnty.trim(),
         COMMENT: draft.comment.trim(),
+        NOTES: draft.notes.trim(),
+        TX_PWR: draft.txPwr.trim(),
         QSL_SENT: draft.qslSent,
         QSL_RCVD: draft.qslRcvd,
         QSL_SENT_VIA: draft.qslSentVia,
-        QSLSDATE: adifDate(draft.qslSentDate)
+        QSLSDATE: adifDate(draft.qslSentDate),
+        QSL_RCVD_VIA: draft.qslRcvdVia,
+        QSLRDATE: adifDate(draft.qslRcvdDate)
     };
+}
+
+function filledExtras(draft: Draft): ExtraField[] {
+    return draft.extra
+        .map(({ name, value }) => ({ name: name.trim().toUpperCase(), value: value.trim() }))
+        .filter(({ value }) => value !== '');
 }
 
 export function fieldsOf(draft: Draft, original: Fields): Fields {
     const edited = fieldsOfDraft(draft);
     const before = fieldsOfDraft(draftOf(original));
-    const kept = Object.entries(original).filter(([name]) => !EDITED.includes(name));
+    const asBefore = (name: string, value: string) => {
+        const kept = original[name];
+        return kept !== undefined && value === kept.trim() ? kept : value;
+    };
+    const station = Object.entries(original).filter(([name]) => isStationField(name));
     const changed = Object.entries(edited)
         .map(([name, value]) => [name, value === before[name] ? (original[name] ?? '') : value])
         .filter(([, value]) => value !== '');
-    return Object.fromEntries([...kept, ...changed]);
+    const extras = filledExtras(draft).map(({ name, value }) => [name, asBefore(name, value)]);
+    return Object.fromEntries([...station, ...changed, ...extras]);
 }
 
 export function missing(draft: Draft): string[] {
@@ -100,4 +159,20 @@ export function missing(draft: Draft): string[] {
         ['Mode', draft.mode]
     ];
     return required.filter(([, v]) => v === '').map(([label]) => label);
+}
+
+export function problem(draft: Draft): string | undefined {
+    const absent = missing(draft);
+    if (absent.length > 0) return `Needed before saving: ${absent.join(', ')}.`;
+    const power = draft.txPwr.trim();
+    if (power !== '' && !isPower(power)) return POWER_RULE;
+    const seen = new Set<string>();
+    for (const { name } of filledExtras(draft)) {
+        if (name === '') return 'Name the extra field, or clear its value.';
+        const extra = extraFieldProblem(name);
+        if (extra !== undefined) return extra;
+        if (seen.has(name)) return `${name} is entered twice.`;
+        seen.add(name);
+    }
+    return undefined;
 }

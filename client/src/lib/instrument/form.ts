@@ -1,4 +1,5 @@
 import type { Fields, Instrument, InstrumentInput } from '#lib/api/types.ts';
+import { isPower, POWER_RULE } from '#lib/qso/power.ts';
 
 const RESERVED = new Set([
     'CALL',
@@ -47,15 +48,10 @@ export function instrumentInput(draft: InstrumentDraft): InstrumentInput {
     };
 }
 
-export function isPower(value: string): boolean {
-    return /^(\d+(\.\d{0,6})?|\.\d{1,6})$/.test(value) && Number(value) > 0;
-}
-
 export function instrumentProblem(draft: InstrumentDraft): string | undefined {
     if (draft.name.trim() === '') return 'An Instrument needs a name.';
     const power = draft.power.trim();
-    if (power !== '' && !isPower(power))
-        return 'TX power is watts above zero, with at most six decimal places.';
+    if (power !== '' && !isPower(power)) return POWER_RULE;
     const names = new Set<string>();
     for (const { name } of draft.extra) {
         const key = name.trim().toUpperCase();

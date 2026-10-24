@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Instrument } from '#lib/api/types.ts';
-import { draftOf, instrumentInput, instrumentProblem, isPower, sameInput } from './form.ts';
+import { isPower } from '#lib/qso/power.ts';
+import { draftOf, instrumentInput, instrumentProblem, sameInput } from './form.ts';
 
 const instrument: Instrument = {
     id: 'i1',

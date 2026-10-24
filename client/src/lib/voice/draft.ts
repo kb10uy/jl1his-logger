@@ -1,5 +1,6 @@
-import { bandNamed, bandOf, formatMhz, frequencyHz, representativeFreq } from '#lib/qso/bands.ts';
-import { defaultRst, followsBand, sidebandFor } from '#lib/qso/modes.ts';
+import { bandNamed, formatMhz, frequencyHz } from '#lib/qso/bands.ts';
+import { defaultRst } from '#lib/qso/modes.ts';
+import * as tuning from '#lib/qso/tuning.ts';
 import { formatFrequencyPattern, resolveFrequency } from '#lib/voice/dsl/frequency.ts';
 import type { QslStatus } from '#lib/voice/dsl/lexicon.ts';
 import { modeLabel } from '#lib/voice/dsl/mode.ts';
@@ -50,32 +51,15 @@ export function anchorHz(carry: Carry): number {
 }
 
 export function withMode(draft: Draft, mode: string, submode: string): Draft {
-    const before = defaultRst(draft.mode);
-    const after = defaultRst(mode);
-    return {
-        ...draft,
-        mode,
-        submode,
-        rstSent: draft.rstSent === before ? after : draft.rstSent,
-        rstRcvd: draft.rstRcvd === before ? after : draft.rstRcvd
-    };
-}
-
-function movedTo(draft: Draft, band: string): Draft {
-    const submode =
-        band !== draft.band && followsBand(draft.mode, draft.submode)
-            ? sidebandFor(band)
-            : draft.submode;
-    return { ...draft, band, submode };
+    return tuning.withMode(draft, mode, submode);
 }
 
 export function withBand(draft: Draft, band: string): Draft {
-    return movedTo({ ...draft, freq: representativeFreq(band) ?? draft.freq }, band);
+    return tuning.withBand(draft, band);
 }
 
 export function withFreq(draft: Draft, freq: string): Draft {
-    const band = bandOf(freq)?.name ?? draft.band;
-    return movedTo({ ...draft, freq }, band);
+    return tuning.withFreq(draft, freq);
 }
 
 export function withFrequency(draft: Draft, hz: number): Draft {

@@ -14,9 +14,16 @@
     import Field from '#lib/components/ui/Field.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
-    import { bandOf, representativeFreq } from '#lib/qso/bands.ts';
-    import { EDITED, draftOf, fieldsOf, missing, type Draft } from '#lib/qso/edit.ts';
+    import {
+        EXTRA_FIELD_NAMES,
+        draftOf,
+        fieldsOf,
+        isStationField,
+        problem as problemOf,
+        type Draft
+    } from '#lib/qso/edit.ts';
     import { QSL_RCVD_VALUES, QSL_SENT_VALUES, QSL_VIA_VALUES } from '#lib/qso/qsl.ts';
+    import { withBand, withFreq, withMode } from '#lib/qso/tuning.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
@@ -74,27 +81,16 @@
         else goto(logHref);
     }
 
-    const absent = $derived(draft === undefined ? [] : missing(draft));
+    const problem = $derived(draft === undefined ? undefined : problemOf(draft));
     const instruments = $derived(
         logbook.instruments.filter((i) => i.archived_at === null || i.id === qso?.instrument_id)
     );
-    const station = $derived(qso === undefined ? [] : stationFields(qso));
-    const others = $derived(
-        qso === undefined
-            ? []
-            : Object.entries(qso.fields).filter(
-                  ([name]) => !EDITED.includes(name) && !station.some(([n]) => n === name)
-              )
+    const station = $derived(
+        qso === undefined ? [] : Object.entries(qso.fields).filter(([name]) => isStationField(name))
     );
 
-    function stationFields(q: Qso): [string, string][] {
-        return Object.entries(q.fields).filter(
-            ([name]) => name === 'STATION_CALLSIGN' || name === 'OPERATOR' || name.startsWith('MY_')
-        );
-    }
-
     async function save() {
-        if (qso === undefined || draft === undefined || absent.length > 0) return;
+        if (qso === undefined || draft === undefined || problem !== undefined) return;
         saving = true;
         saveError = undefined;
         try {
@@ -134,16 +130,15 @@
     }
 
     function onFreq(value: string) {
-        if (draft === undefined) return;
-        draft.freq = value;
-        const band = bandOf(value);
-        if (band) draft.band = band.name;
+        if (draft !== undefined) draft = withFreq(draft, value);
     }
 
     function onBand(band: string) {
-        if (draft === undefined) return;
-        draft.band = band;
-        draft.freq = representativeFreq(band) ?? draft.freq;
+        if (draft !== undefined) draft = withBand(draft, band);
+    }
+
+    function onMode(mode: string, submode: string) {
+        if (draft !== undefined) draft = withMode(draft, mode, submode);
     }
 </script>
 
@@ -172,7 +167,7 @@
     <Button
         variant="primary"
         size="lg"
-        disabled={saving || draft === undefined || absent.length > 0 || qso?.deleted_at !== null}
+        disabled={saving || problem !== undefined || qso?.deleted_at !== null}
         onclick={save}>{saving ? 'Saving…' : 'Save'}</Button
     >
 </header>
@@ -258,8 +253,9 @@
                 <ModeSelect
                     id="e-mode"
                     class="h-11"
-                    bind:mode={draft.mode}
-                    bind:submode={draft.submode}
+                    mode={draft.mode}
+                    submode={draft.submode}
+                    onchange={onMode}
                 />
             </Field>
             <div class="grid grid-cols-2 gap-3">
@@ -278,12 +274,37 @@
                     <input id="e-qth" class="control h-11 text-base" bind:value={draft.qth} />
                 </Field>
             </div>
+            <div class="grid grid-cols-2 gap-3">
+                <Field label="JCC / JCG" adif="CNTY" for="e-cnty">
+                    <input
+                        id="e-cnty"
+                        inputmode="numeric"
+                        class="control h-11 font-mono"
+                        bind:value={draft.cnty}
+                    />
+                </Field>
+                <Field label="TX power (W)" adif="TX_PWR" for="e-txpwr">
+                    <input
+                        id="e-txpwr"
+                        inputmode="decimal"
+                        class="control h-11 font-mono"
+                        bind:value={draft.txPwr}
+                    />
+                </Field>
+            </div>
             <Field label="Comment" adif="COMMENT" for="e-comment">
                 <textarea
                     id="e-comment"
                     rows="2"
                     class="control h-auto py-2 text-base"
                     bind:value={draft.comment}></textarea>
+            </Field>
+            <Field label="Notes" adif="NOTES" for="e-notes">
+                <textarea
+                    id="e-notes"
+                    rows="2"
+                    class="control h-auto py-2 text-base"
+                    bind:value={draft.notes}></textarea>
             </Field>
 
             <fieldset class="m-0 flex flex-col gap-3 rounded-lg border border-border p-3">
@@ -307,7 +328,7 @@
                     </Field>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <Field label="Via" adif="QSL_SENT_VIA" for="e-via">
+                    <Field label="Sent via" adif="QSL_SENT_VIA" for="e-via">
                         <select id="e-via" class="control h-11" bind:value={draft.qslSentVia}>
                             <option value="">—</option>
                             {#each QSL_VIA_VALUES as [code, label] (code)}
@@ -324,10 +345,34 @@
                         />
                     </Field>
                 </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <Field label="Received via" adif="QSL_RCVD_VIA" for="e-rvia">
+                        <select id="e-rvia" class="control h-11" bind:value={draft.qslRcvdVia}>
+                            <option value="">—</option>
+                            {#each QSL_VIA_VALUES as [code, label] (code)}
+                                <option value={code}>{code} · {label}</option>
+                            {/each}
+                        </select>
+                    </Field>
+                    <Field label="Received date" adif="QSLRDATE" for="e-qslrdate">
+                        <input
+                            id="e-qslrdate"
+                            type="date"
+                            class="control h-11 font-mono"
+                            bind:value={draft.qslRcvdDate}
+                        />
+                    </Field>
+                </div>
                 <div class="flex justify-between text-[13px] text-muted">
                     <span>LoTW sent / rcvd</span>
                     <span class="font-mono"
                         >{qso.fields.LOTW_QSL_SENT || '—'} / {qso.fields.LOTW_QSL_RCVD || '—'}</span
+                    >
+                </div>
+                <div class="flex justify-between text-[13px] text-muted">
+                    <span>eQSL sent / rcvd</span>
+                    <span class="font-mono"
+                        >{qso.fields.EQSL_QSL_SENT || '—'} / {qso.fields.EQSL_QSL_RCVD || '—'}</span
                     >
                 </div>
             </fieldset>
@@ -361,24 +406,54 @@
                 />
             </Field>
 
-            {#if others.length > 0}
-                <details class="rounded-lg border border-border bg-surface p-3">
-                    <summary class="cursor-pointer text-[13px]"
-                        >Other ADIF fields · {others.length}</summary
+            <fieldset class="m-0 flex flex-col gap-2.5 rounded-lg border border-border p-3">
+                <legend class="px-1.5 eyebrow">Other ADIF fields</legend>
+                {#each draft.extra as extra, i (i)}
+                    <div
+                        class="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-2"
                     >
-                    <div class="mt-2 flex flex-col gap-1 text-[13px]">
-                        {#each others as [name, value] (name)}
-                            <span class="break-all"
-                                ><span class="font-mono text-[11px] text-muted">{name}</span>
-                                {value}</span
-                            >
-                        {/each}
+                        <label for={`e-extra-name-${i}`} class="sr-only">ADIF field</label>
+                        <input
+                            id={`e-extra-name-${i}`}
+                            list="e-adif-fields"
+                            placeholder="ADIF field"
+                            autocomplete="off"
+                            autocapitalize="characters"
+                            spellcheck="false"
+                            class="control h-10 w-full px-2 font-mono text-xs uppercase"
+                            bind:value={extra.name}
+                        />
+                        <label for={`e-extra-value-${i}`} class="sr-only">Value</label>
+                        <input
+                            id={`e-extra-value-${i}`}
+                            class="control h-10"
+                            bind:value={extra.value}
+                        />
+                        <button
+                            type="button"
+                            aria-label="Remove this field"
+                            class="inline-flex size-10 items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                            onclick={() => draft?.extra.splice(i, 1)}
+                            ><Icon name="close" size={16} /></button
+                        >
                     </div>
-                </details>
-            {/if}
+                {:else}
+                    <span class="text-xs text-muted">None.</span>
+                {/each}
+                <div>
+                    <Button onclick={() => draft?.extra.push({ name: '', value: '' })}
+                        >+ Add ADIF field</Button
+                    >
+                </div>
+                <datalist id="e-adif-fields">
+                    {#each EXTRA_FIELD_NAMES as name (name)}
+                        <option value={name}></option>
+                    {/each}
+                </datalist>
+            </fieldset>
 
-            {#if absent.length > 0}
-                <p class="text-xs text-error-text">Needed before saving: {absent.join(', ')}.</p>
+            {#if problem}
+                <p class="text-xs text-error-text">{problem}</p>
             {/if}
             <button type="submit" class="hidden">Save</button>
             {#if qso.deleted_at === null}

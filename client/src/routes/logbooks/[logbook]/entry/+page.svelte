@@ -14,7 +14,7 @@
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
     import { EXTRA_FIELD_NAMES, entryFields, entryProblem, type Entry } from '#lib/entry/record.ts';
     import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
-    import { bandOf, representativeFreq } from '#lib/qso/bands.ts';
+    import { bandOf } from '#lib/qso/bands.ts';
     import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
     import {
         compareNewestFirst,
@@ -24,7 +24,8 @@
         utcClock,
         utcFields
     } from '#lib/qso/format.ts';
-    import { defaultRst, followsBand, sidebandFor } from '#lib/qso/modes.ts';
+    import { defaultRst } from '#lib/qso/modes.ts';
+    import { withBand, withFreq, withMode } from '#lib/qso/tuning.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
@@ -187,25 +188,15 @@
     });
 
     function setFreq(value: string) {
-        entry.freq = value;
-        const band = bandOf(value);
-        if (band) setBand(band.name);
-    }
-
-    function setBand(band: string) {
-        entry.band = band;
-        if (followsBand(entry.mode, entry.submode)) entry.submode = sidebandFor(band);
+        entry = withFreq(entry, value);
     }
 
     function selectBand(band: string) {
-        entry.freq = representativeFreq(band) ?? entry.freq;
-        setBand(band);
+        entry = withBand(entry, band);
     }
 
-    function setMode(mode: string, submode: string, previous: string) {
-        if (entry.rstSent === defaultRst(previous)) entry.rstSent = defaultRst(mode);
-        if (entry.rstRcvd === defaultRst(previous)) entry.rstRcvd = defaultRst(mode);
-        if (mode === 'SSB' && submode !== '') entry.submode = sidebandFor(entry.band);
+    function setMode(mode: string, submode: string) {
+        entry = withMode(entry, mode, submode);
     }
 
     function clear() {
@@ -430,12 +421,7 @@
                         class="h-11 rounded-lg text-[15px]"
                         mode={entry.mode}
                         submode={entry.submode}
-                        onchange={(mode, submode) => {
-                            const previous = entry.mode;
-                            entry.mode = mode;
-                            entry.submode = submode;
-                            setMode(mode, submode, previous);
-                        }}
+                        onchange={setMode}
                     />
                 </div>
 
