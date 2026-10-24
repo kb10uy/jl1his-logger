@@ -7,18 +7,21 @@
     "scripts": {
         "wasm": "wasm-pack build ../query --target web --release --out-dir ../client/src/lib/query/wasm --out-name query --no-pack -- --features wasm",
         "vosk": "node scripts/vosk-worker.js",
+        "messages": "paraglide-js compile --project ./project.inlang --silent",
         "models": "bash scripts/setup-vosk.sh",
         "icons": "bash scripts/icons.sh",
         "dev": "pnpm run wasm && pnpm run vosk && vite dev",
         "build": "pnpm run wasm && pnpm run vosk && vite build",
         "preview": "vite preview",
         "prepare": "svelte-kit sync || echo ''",
-        "check": "pnpm run wasm && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+        "check": "pnpm run wasm && pnpm run messages && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "lint": "prettier --check .",
         "format": "prettier --write .",
-        "test": "pnpm run wasm && vitest --run"
+        "test": "pnpm run wasm && pnpm run messages && vitest --run"
     },
     "devDependencies": {
+        "@inlang/paraglide-js": "^2.26.0",
+        "@inlang/plugin-message-format": "^4.4.5",
         "@sveltejs/adapter-static": "^4.0.0",
         "@sveltejs/kit": "^3.1.0",
         "@sveltejs/vite-plugin-svelte": "^7.3.1",

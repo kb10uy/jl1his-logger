@@ -3,56 +3,82 @@
     import { page } from '$app/state';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
+    import { m } from '#lib/paraglide/messages.js';
     import { session } from '#lib/state/session.svelte.ts';
 
     let { logbookId, children }: { logbookId: string | null; children: Snippet } = $props();
 
     const sections = $derived(
         [
-            { label: 'Account', scope: 'you', href: '/settings/account' },
-            { label: 'API tokens', scope: 'you', href: '/settings/tokens' },
-            { label: 'Voice entry', scope: 'this device', href: '/settings/voice' },
+            {
+                label: m.settings_account(),
+                scope: m.settings_scope_you(),
+                href: '/settings/account'
+            },
+            { label: m.settings_tokens(), scope: m.settings_scope_you(), href: '/settings/tokens' },
+            {
+                label: m.settings_voice(),
+                scope: m.settings_scope_device(),
+                href: '/settings/voice'
+            },
+            {
+                label: m.settings_language(),
+                scope: m.settings_scope_device(),
+                href: '/settings/language'
+            },
             logbookId === null
                 ? undefined
                 : {
-                      label: 'Logbook',
-                      scope: `${session.logbook(logbookId)?.name ?? ''} Logbook`,
+                      label: m.settings_logbook(),
+                      scope: m.settings_scope_logbook({
+                          name: session.logbook(logbookId)?.name ?? ''
+                      }),
                       href: `/logbooks/${logbookId}/settings`
                   },
             logbookId === null
                 ? undefined
                 : {
-                      label: 'Members',
-                      scope: `${session.logbook(logbookId)?.name ?? ''} Logbook`,
+                      label: m.settings_members(),
+                      scope: m.settings_scope_logbook({
+                          name: session.logbook(logbookId)?.name ?? ''
+                      }),
                       href: `/logbooks/${logbookId}/members`
                   },
-            { label: 'Reference data', scope: 'instance', href: '/settings/reference' }
+            {
+                label: m.settings_reference(),
+                scope: m.settings_scope_instance(),
+                href: '/settings/reference'
+            }
         ].filter((s) => s !== undefined)
     );
     const current = $derived(sections.find((s) => page.url.pathname === s.href));
 </script>
 
-<PageTitle title={current === undefined ? 'Settings' : `${current.label} - Settings`} />
+<PageTitle
+    title={current === undefined
+        ? m.settings_title()
+        : m.settings_section_title({ section: current.label })}
+/>
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <header class="flex items-center gap-2">
         {#if logbookId !== null}
             <a
                 href={current ? '/settings' : `/logbooks/${logbookId}/more`}
-                aria-label={current ? 'Back to Settings' : 'Back to More'}
+                aria-label={current ? m.settings_back() : m.settings_back_more()}
                 class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
                 ><Icon name="back" size={22} /></a
             >
         {/if}
         <h1 class="text-xl font-semibold">
-            <span class={current && 'max-md:hidden'}>Settings</span>
+            <span class={current && 'max-md:hidden'}>{m.settings_title()}</span>
             {#if current}<span class="md:hidden">{current.label}</span>{/if}
         </h1>
     </header>
 
     <div class="flex items-start gap-6">
         <nav
-            aria-label="Settings sections"
+            aria-label={m.settings_sections()}
             class={[
                 'flex shrink-0 flex-col gap-0.5 max-md:w-full md:w-[220px]',
                 current && 'max-md:hidden',

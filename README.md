@@ -27,7 +27,7 @@ repository is going to hold.
   QSOs with it (name, grid, QTH).
 - Serves a SvelteKit PWA on the same origin: log list and search, single-QSO
   editing, live QSO entry, push-to-talk voice entry, Station Location editing,
-  ADIF import and export, and bulk QSL changes.
+  ADIF import and export, and bulk QSL changes, in English or Japanese.
 - Offers a Wavelog API v2 compatible layer under `/wl2` so clients written for
   Wavelog keep working.
 

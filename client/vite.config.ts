@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
@@ -7,6 +8,7 @@ const apiServer = process.env.API_SERVER ?? 'http://127.0.0.1:8080';
 
 export default defineConfig({
     plugins: [
+        paraglideVitePlugin({ project: './project.inlang' }),
         tailwindcss(),
         sveltekit({
             compilerOptions: {
