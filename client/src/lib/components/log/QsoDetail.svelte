@@ -108,7 +108,7 @@
             >{entity?.name ?? f.COUNTRY ?? (entity === undefined ? '…' : '—')}</span
         >
     </div>
-    <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 text-[13px]">
+    <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 text-[13px] wrap-anywhere">
         <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">Date / UTC</dt>
             <dd class="m-0 font-mono">{isoDate(f.QSO_DATE)} {hhmmss(f.TIME_ON)}</dd>
@@ -214,7 +214,7 @@
     {#if f.NOTES}
         <div class="flex flex-col gap-1.5 text-xs text-muted">
             <span>Notes</span>
-            <p class="m-0 text-[13px] text-text">{f.NOTES}</p>
+            <p class="m-0 text-[13px] whitespace-pre-line text-text">{f.NOTES}</p>
         </div>
     {/if}
     {#if others.length > 0}
@@ -222,7 +222,7 @@
             <summary class="cursor-pointer">Other ADIF fields · {others.length}</summary>
             <div class="mt-2 flex flex-col gap-1">
                 {#each others as [name, value] (name)}
-                    <span class="break-all"
+                    <span class="break-all whitespace-pre-line"
                         ><span class="font-mono text-[11px] text-muted">{name}</span>
                         {value}</span
                     >

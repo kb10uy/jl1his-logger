@@ -393,7 +393,7 @@
         role="status"
         aria-live="polite"
         class={[
-            'flex items-center justify-center gap-2 px-6 py-4 text-[13px] text-muted',
+            'sticky left-0 flex items-center justify-center gap-2 px-6 py-4 text-[13px] text-muted',
             n > 0 && desktop.current && 'pb-24'
         ]}
     >
