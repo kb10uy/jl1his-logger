@@ -42,7 +42,7 @@ export function draftFields(
         SUBMODE: draft.submode,
         RST_SENT: draft.rstSent,
         RST_RCVD: draft.rstRcvd,
-        ...(area === null ? {} : { [area.name]: draft.jcx ?? '' }),
+        ...(area === null ? {} : { [area.name]: draft.area ?? '' }),
         ...qslRequestFields(draft.qsl),
         NAME: draft.name ?? '',
         QTH: draft.qth ?? ''

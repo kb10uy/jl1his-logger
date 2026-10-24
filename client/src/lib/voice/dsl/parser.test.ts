@@ -166,24 +166,27 @@ describe('frequency', () => {
     });
 });
 
-describe('JCX', () => {
+describe('area', () => {
     it('keeps the code as a string with leading zeros', () => {
-        expect(single('jcx one zero zero one zero one')).toEqual({ kind: 'jcx', value: '100101' });
-        expect(single('j c x zero one zero zero eight')).toEqual({ kind: 'jcx', value: '01008' });
-        expect(single('jay see ex one zero zero one')).toEqual({ kind: 'jcx', value: '1001' });
+        expect(single('area one zero zero one zero one')).toEqual({
+            kind: 'area',
+            value: '100101'
+        });
+        expect(single('area zero one zero zero eight')).toEqual({ kind: 'area', value: '01008' });
     });
 
-    it('accepts JCC/JCG keywords and letter suffixes', () => {
-        expect(single('jcg one zero zero zero one alpha')).toEqual({
-            kind: 'jcx',
+    it('accepts letters, so states and counties can be said too', () => {
+        expect(single('area one zero zero zero one alpha')).toEqual({
+            kind: 'area',
             value: '10001A'
         });
-        expect(single('jcc one zero zero one')).toEqual({ kind: 'jcx', value: '1001' });
+        expect(single('area charlie alpha')).toEqual({ kind: 'area', value: 'CA' });
     });
 
-    it('rejects invalid codes', () => {
-        expect(error('jcx one two')).toMatch(/not a valid JCC\/JCG/);
-        expect(error('jcx')).toMatch(/not a valid JCC\/JCG/);
+    it('rejects an empty or overlong code and the old JCC words', () => {
+        expect(error('area')).toMatch(/area code is empty/);
+        expect(error(`area ${'one '.repeat(17).trim()}`)).toMatch(/too long/);
+        expect(error('jcc one zero zero one')).toMatch(/jcc/);
     });
 });
 
@@ -339,7 +342,7 @@ describe('Japanese readings', () => {
             { kind: 'rstReceived', value: '59' },
             { kind: 'qsl', value: 'oneWay' }
         ]);
-        expect(single('Ｊ Ｃ Ｘ ワン ゼロ ゼロ ワン')).toEqual({ kind: 'jcx', value: '1001' });
+        expect(single('エリア ワン ゼロ ゼロ ワン')).toEqual({ kind: 'area', value: '1001' });
         expect(single('Ｊ Ａ ワン Ｎ Ｘ フォックス トロット')).toEqual({
             kind: 'callsign',
             value: 'JA1NXF'

@@ -32,7 +32,7 @@ type Slot =
     | 'callsignKeyword'
     | 'rstKeyword'
     | 'frequencyKeyword'
-    | 'jcxKeyword'
+    | 'areaKeyword'
     | 'qslKeyword'
     | 'modeKeyword'
     | 'exchangeKeyword'
@@ -69,7 +69,7 @@ const ENGLISH: Readonly<Record<Slot, readonly Sequence[]>> = {
     callsignKeyword: keyword('callsign'),
     rstKeyword: keyword('rstSent', 'rstReceived'),
     frequencyKeyword: keyword('frequency'),
-    jcxKeyword: keyword('jcx'),
+    areaKeyword: keyword('area'),
     qslKeyword: keyword('qsl'),
     modeKeyword: keyword('mode'),
     exchangeKeyword: keyword('exchangeReceived'),
@@ -112,7 +112,7 @@ const KEYWORDS: readonly Slot[] = [
     'callsignKeyword',
     'rstKeyword',
     'frequencyKeyword',
-    'jcxKeyword',
+    'areaKeyword',
     'qslKeyword',
     'modeKeyword',
     'exchangeKeyword'
@@ -146,7 +146,7 @@ const TRANSITIONS: Readonly<Record<Slot, readonly Next[]>> = {
     callsignKeyword: ['letter', 'number', 'unknown'],
     rstKeyword: ['number', 'unknown'],
     frequencyKeyword: ['number', 'point', 'unknown'],
-    jcxKeyword: ['number', 'unknown'],
+    areaKeyword: ['letter', 'number', 'unknown'],
     qslKeyword: ['qslValue', 'unknown'],
     qslValue: [...NEXT_COMMAND, 'end'],
     modeKeyword: ['mode', 'letter', 'number', 'unknown'],

@@ -59,7 +59,7 @@ describe('draftFields', () => {
         const spoken = {
             ...draft,
             qsl: 'requested' as const,
-            jcx: '100110',
+            area: '100110',
             name: 'Taro',
             qth: 'Minato'
         };

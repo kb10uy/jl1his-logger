@@ -41,7 +41,7 @@ describe('tokenize', () => {
     });
 
     it('keeps keywords and mode words intact', () => {
-        expect(tokenize('JCX 100101')).toEqual(['jcx', '1', '0', '0', '1', '0', '1']);
+        expect(tokenize('area 100101')).toEqual(['area', '1', '0', '0', '1', '0', '1']);
         expect(tokenize('mode FT8')).toEqual(['mode', 'ft8']);
     });
 
@@ -57,7 +57,7 @@ describe('tokenize', () => {
             'six'
         ]);
         expect(tokenize('エイ ティーン')).toEqual(['eighteen']);
-        expect(tokenize('Ｊ Ｃ Ｃ')).toEqual(['jcc']);
+        expect(tokenize('エリア')).toEqual(['area']);
         expect(tokenize('ＮＯＶＥＭＢＥＲ ＦＯＲＴＹ Ｘ－ｒａｙ')).toEqual([
             'november',
             'forty',
@@ -73,8 +73,7 @@ describe('tokenize', () => {
         expect(tokenize('ｾﾞﾛ　ﾜﾝ')).toEqual(['zero', 'one']);
         expect(tokenize('ＪＬ１ＨＩＳ')).toEqual(tokenize('jl1his'));
         expect(tokenize('Ｊ Ａ ワン ズール')).toEqual(['j', 'a', 'one', 'zulu']);
-        expect(tokenize('モード ＦＭ ＪＣＧ')).toEqual(['mode', 'fm', 'jcg']);
-        expect(tokenize('Ｊ Ｃ Ｘ')).toEqual(['j', 'c', 'x']);
+        expect(tokenize('モード ＦＭ Ｊ Ｃ Ｇ')).toEqual(['mode', 'fm', 'j', 'c', 'g']);
     });
 
     it('keeps katakana it does not know, so the parser rejects it', () => {

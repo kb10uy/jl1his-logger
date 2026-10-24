@@ -17,7 +17,7 @@ export interface Draft extends Carry {
     call?: string;
     rstSent: string;
     rstRcvd: string;
-    jcx?: string;
+    area?: string;
     qsl: QslStatus;
     received?: string;
     name?: string;
@@ -93,8 +93,8 @@ export function describeUpdate(update: SpokenUpdate, after: Draft): string {
             return `RST received → ${update.value}`;
         case 'frequency':
             return `Frequency ${formatFrequencyPattern(update.value)} → ${after.freq} MHz`;
-        case 'jcx':
-            return `JCC/JCG → ${update.value}`;
+        case 'area':
+            return `Area → ${update.value}`;
         case 'qsl':
             return { none: 'No QSL', requested: 'QSL requested', oneWay: 'QSL one way' }[
                 update.value
@@ -120,8 +120,8 @@ export function applyUpdate(draft: Draft, update: SpokenUpdate, now: Date = new 
                 next,
                 resolveFrequency(update.value, { anchorHz: anchorHz(next) })
             );
-        case 'jcx':
-            return { ...next, jcx: update.value };
+        case 'area':
+            return { ...next, area: update.value };
         case 'qsl':
             return { ...next, qsl: update.value };
         case 'mode':

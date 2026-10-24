@@ -112,9 +112,6 @@ export const FREE_TEXT_ONLY_WORDS: ReadonlySet<string> = new Set([
     'ate',
     'fourty',
     'rcvd',
-    'jay',
-    'see',
-    'ex',
     'nr'
 ]);
 
@@ -125,7 +122,7 @@ export const COMMAND_KEYWORDS = {
     rstSent: [['sent'], ['send'], ['sending']],
     rstReceived: [['received'], ['receive'], ['receiving'], ['rcvd']],
     frequency: [['frequency'], ['frequencies'], ['freq']],
-    jcx: [['jcx'], ['j', 'c', 'x'], ['jay', 'see', 'ex'], ['jcc'], ['jcg']],
+    area: [['area']],
     qsl: [['card'], ['qsl'], ['q', 's', 'l']],
     mode: [['mode']],
     exchangeReceived: [['number'], ['nr']]
@@ -138,7 +135,7 @@ export const COMMAND_LABELS: Readonly<Record<CommandKind, string>> = {
     rstSent: 'SENT',
     rstReceived: 'RCVD',
     frequency: 'FREQ',
-    jcx: 'JCC/JCG',
+    area: 'AREA',
     qsl: 'QSL',
     mode: 'MODE',
     exchangeReceived: 'NR'
@@ -273,8 +270,7 @@ export const JAPANESE_READINGS: Readonly<Record<string, string>> = {
     sent: '送信',
     received: '受信',
     frequency: '周波数',
-    jcc: 'Ｊ Ｃ Ｃ',
-    jcg: 'ＪＣＧ',
+    area: 'エリア',
     card: 'カード',
     requested: 'リクエスト',
     'one way': 'ワンウェイ',

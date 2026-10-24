@@ -83,10 +83,10 @@
     const duplicate = $derived(queued?.fields ?? duplicates[0]?.fields);
     const extras = $derived(
         [
-            draft.jcx
+            draft.area
                 ? logbook.area
-                    ? `${logbook.area.label} ${draft.jcx}`
-                    : `JCC/JCG ${draft.jcx} · not recorded: this Logbook has no area field`
+                    ? `${logbook.area.label} ${draft.area}`
+                    : `Area ${draft.area} · not recorded: this Logbook has no area field`
                 : '',
             QSL_TEXT[draft.qsl],
             draft.name ?? '',

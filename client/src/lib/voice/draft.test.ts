@@ -46,11 +46,11 @@ describe('Draft', () => {
         expect(draft.startedAt).toBe(now.toISOString());
         draft = applyUpdate(
             draft,
-            { kind: 'jcx', value: '100101' },
+            { kind: 'area', value: '100101' },
             new Date(now.getTime() + 60_000)
         );
         expect(draft.startedAt).toBe(now.toISOString());
-        expect(draft.jcx).toBe('100101');
+        expect(draft.area).toBe('100101');
     });
 
     it('overwrites a field when it is spoken again', () => {

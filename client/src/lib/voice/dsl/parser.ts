@@ -23,7 +23,7 @@ export type SpokenUpdate =
     | { kind: 'rstSent'; value: string }
     | { kind: 'rstReceived'; value: string }
     | { kind: 'frequency'; value: FrequencyPattern }
-    | { kind: 'jcx'; value: string }
+    | { kind: 'area'; value: string }
     | { kind: 'qsl'; value: QslStatus }
     | { kind: 'mode'; value: QsoMode }
     | { kind: 'exchangeReceived'; value: string };
@@ -116,11 +116,13 @@ function parseFrequency(tokens: readonly string[]): FrequencyPattern {
     return { integerDigits: integer.digits, fractionDigits };
 }
 
-function parseJcx(tokens: readonly string[]): string {
-    const jcx = readSpelled(tokens, false);
-    if (!/^\d{4,6}[A-Z]{0,2}$/.test(jcx))
-        throw new DslError(`"${jcx}" is not a valid JCC/JCG code`);
-    return jcx;
+const AREA_MAX_LENGTH = 16;
+
+function parseArea(tokens: readonly string[]): string {
+    if (tokens.length === 0) throw new DslError('area code is empty');
+    const area = readSpelled(tokens, false);
+    if (area.length > AREA_MAX_LENGTH) throw new DslError('area code is too long');
+    return area;
 }
 
 function parseQsl(tokens: readonly string[]): QslStatus {
@@ -160,8 +162,8 @@ function parseSegment(kind: CommandKind, tokens: readonly string[]): SpokenUpdat
             return { kind: 'rstReceived', value: parseRst(tokens) };
         case 'frequency':
             return { kind: 'frequency', value: parseFrequency(tokens) };
-        case 'jcx':
-            return { kind: 'jcx', value: parseJcx(tokens) };
+        case 'area':
+            return { kind: 'area', value: parseArea(tokens) };
         case 'qsl':
             return { kind: 'qsl', value: parseQsl(tokens) };
         case 'mode':
