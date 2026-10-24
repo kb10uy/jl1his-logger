@@ -7,6 +7,7 @@
     import type { StreamStatus } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { session } from '#lib/state/session.svelte.ts';
+    import { loadCollapsed, saveCollapsed } from '#lib/shell/settings.ts';
 
     let {
         logbookId,
@@ -119,6 +120,20 @@
         status === 'live' && outbox.items.length === 0 ? 'bg-ok' : 'bg-warn'
     );
 
+    let collapsed = $state(loadCollapsed());
+
+    function toggle() {
+        collapsed = !collapsed;
+        saveCollapsed(collapsed);
+    }
+
+    const who = $derived(`${session.me?.callsign ?? ''}${logbook ? ` · ${logbook.role}` : ''}`);
+    const linkClass = (active: boolean) => [
+        'flex h-10 items-center gap-2.5 rounded-md no-underline',
+        collapsed ? 'justify-center' : 'px-3',
+        active ? 'bg-surface-2 font-semibold text-accent' : 'text-text hover:bg-surface-2/60'
+    ];
+
     async function signOut() {
         await session.signOut();
         goto('/login');
@@ -128,41 +143,102 @@
 <div class="flex min-h-dvh bg-bg text-text">
     <nav
         aria-label="Main"
-        class="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface px-3 py-4 md:flex"
+        class={[
+            'sticky top-0 hidden h-dvh shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-surface py-4 md:flex',
+            collapsed ? 'w-[60px] px-2' : 'w-[232px] px-3'
+        ]}
     >
-        <div class="flex items-center gap-2 px-3 pt-1 pb-3.5">
+        <div class={['flex items-center gap-2 pt-1 pb-3.5', collapsed ? 'flex-col' : 'pr-0 pl-3']}>
             <img src="/logo.svg" alt="" class="size-6" />
-            <span class="text-[15px] font-bold">JL1HIS Logger</span>
+            {#if !collapsed}
+                <span class="flex-1 text-[15px] font-bold">JL1HIS Logger</span>
+            {/if}
+            <button
+                type="button"
+                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                class="inline-flex size-8 items-center justify-center rounded-md text-muted hover:bg-surface-2/60 hover:text-text"
+                onclick={toggle}><Icon name={collapsed ? 'expand' : 'collapse'} /></button
+            >
         </div>
         {#each items as item (item.href)}
             <a
                 href={item.href}
                 aria-current={current(item.href) ? 'page' : undefined}
-                class={[
-                    'flex h-10 items-center gap-2.5 rounded-md px-3 no-underline',
-                    current(item.href)
-                        ? 'bg-surface-2 font-semibold text-accent'
-                        : 'text-text hover:bg-surface-2/60'
-                ]}
+                aria-label={collapsed ? item.label : undefined}
+                title={collapsed ? item.label : undefined}
+                class={linkClass(current(item.href))}
             >
-                <Icon name={item.icon} />{item.label}
+                <Icon name={item.icon} />{#if !collapsed}{item.label}{/if}
             </a>
         {/each}
         <a
             href="/settings/account"
             aria-current={onSettings ? 'page' : undefined}
-            class={[
-                'flex h-10 items-center gap-2.5 rounded-md px-3 no-underline',
-                onSettings
-                    ? 'bg-surface-2 font-semibold text-accent'
-                    : 'text-text hover:bg-surface-2/60'
-            ]}
+            aria-label={collapsed ? 'Settings' : undefined}
+            title={collapsed ? 'Settings' : undefined}
+            class={linkClass(onSettings)}
         >
-            <Icon name="settings" />Settings
+            <Icon name="settings" />{#if !collapsed}Settings{/if}
         </a>
         <div class="flex-1"></div>
-        <div class="flex flex-col gap-1.5 border-t border-border p-3 text-xs text-muted">
-            <DropdownMenu.Root>
+        {#if collapsed}
+            <div class="flex flex-col items-center gap-3 border-t border-border pt-3 text-muted">
+                {@render logbookMenu()}
+                {#if status !== undefined}
+                    <span
+                        role="img"
+                        aria-label={statusText}
+                        title={statusText}
+                        class={['size-2 rounded-full', statusColor]}
+                    ></span>
+                {/if}
+                <span
+                    title={who}
+                    class="font-mono text-xs font-semibold text-text [writing-mode:vertical-rl]"
+                    >{session.me?.callsign}</span
+                >
+                <button
+                    type="button"
+                    aria-label="Sign out"
+                    title="Sign out"
+                    class="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-text"
+                    onclick={signOut}><Icon name="signout" size={16} /></button
+                >
+            </div>
+        {:else}
+            <div class="flex flex-col gap-1.5 border-t border-border p-3 text-xs text-muted">
+                {@render logbookMenu()}
+                {#if status !== undefined}
+                    <span class="flex items-center gap-2"
+                        ><span class={['size-2 rounded-full', statusColor]}
+                        ></span>{statusText}</span
+                    >
+                {/if}
+                <span class="flex items-center justify-between gap-2">
+                    <span>{who}</span>
+                    <button
+                        type="button"
+                        aria-label="Sign out"
+                        title="Sign out"
+                        class="inline-flex size-7 items-center justify-center rounded-md text-muted hover:text-text"
+                        onclick={signOut}><Icon name="signout" size={16} /></button
+                    >
+                </span>
+            </div>
+        {/if}
+    </nav>
+
+    {#snippet logbookMenu()}
+        <DropdownMenu.Root>
+            {#if collapsed}
+                <DropdownMenu.Trigger
+                    aria-label={`Logbook: ${logbook?.name ?? 'none'}`}
+                    title={logbook?.name ?? 'Logbook'}
+                    class="inline-flex size-9 items-center justify-center rounded-md border border-border bg-bg text-text"
+                    ><Icon name="logbook" /></DropdownMenu.Trigger
+                >
+            {:else}
                 <DropdownMenu.Trigger
                     class="mb-1 flex h-8 items-center justify-between rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
                 >
@@ -173,42 +249,27 @@
                         >Logbook <Icon name="chevron" size={12} /></span
                     >
                 </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                    <DropdownMenu.Content
-                        side="top"
-                        align="start"
-                        sideOffset={4}
-                        class="z-40 flex min-w-[200px] flex-col rounded-lg border border-border bg-surface p-1 shadow-lg shadow-shadow"
-                    >
-                        {#each session.logbooks as l (l.id)}
-                            <DropdownMenu.Item
-                                onSelect={() => switchTo(l.id)}
-                                class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
-                            >
-                                <span class="font-mono font-semibold">{l.name}</span>
-                                <span class="text-xs text-muted">{l.role}</span>
-                            </DropdownMenu.Item>
-                        {/each}
-                    </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-            {#if status !== undefined}
-                <span class="flex items-center gap-2"
-                    ><span class={['size-2 rounded-full', statusColor]}></span>{statusText}</span
-                >
             {/if}
-            <span class="flex items-center justify-between gap-2">
-                <span>{session.me?.callsign}{logbook ? ` · ${logbook.role}` : ''}</span>
-                <button
-                    type="button"
-                    aria-label="Sign out"
-                    title="Sign out"
-                    class="inline-flex size-7 items-center justify-center rounded-md text-muted hover:text-text"
-                    onclick={signOut}><Icon name="signout" size={16} /></button
+            <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                    side={collapsed ? 'right' : 'top'}
+                    align={collapsed ? 'end' : 'start'}
+                    sideOffset={collapsed ? 16 : 4}
+                    class="z-40 flex min-w-[200px] flex-col rounded-lg border border-border bg-surface p-1 shadow-lg shadow-shadow"
                 >
-            </span>
-        </div>
-    </nav>
+                    {#each session.logbooks as l (l.id)}
+                        <DropdownMenu.Item
+                            onSelect={() => switchTo(l.id)}
+                            class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
+                        >
+                            <span class="font-mono font-semibold">{l.name}</span>
+                            <span class="text-xs text-muted">{l.role}</span>
+                        </DropdownMenu.Item>
+                    {/each}
+                </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+    {/snippet}
 
     <div class="flex min-w-0 flex-1 flex-col pb-[84px] md:pb-0">
         {@render children()}

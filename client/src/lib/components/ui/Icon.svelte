@@ -1,12 +1,15 @@
 <script lang="ts" module>
     import AlertTriangle from '@tabler/icons-svelte-runes/icons/alert-triangle';
     import Antenna from '@tabler/icons-svelte-runes/icons/antenna';
+    import Book2 from '@tabler/icons-svelte-runes/icons/book-2';
     import Check from '@tabler/icons-svelte-runes/icons/check';
     import ChevronDown from '@tabler/icons-svelte-runes/icons/chevron-down';
     import ChevronLeft from '@tabler/icons-svelte-runes/icons/chevron-left';
     import Columns3 from '@tabler/icons-svelte-runes/icons/columns-3';
     import Dots from '@tabler/icons-svelte-runes/icons/dots';
     import GripVertical from '@tabler/icons-svelte-runes/icons/grip-vertical';
+    import LayoutSidebarLeftCollapse from '@tabler/icons-svelte-runes/icons/layout-sidebar-left-collapse';
+    import LayoutSidebarLeftExpand from '@tabler/icons-svelte-runes/icons/layout-sidebar-left-expand';
     import List from '@tabler/icons-svelte-runes/icons/list';
     import Loader2 from '@tabler/icons-svelte-runes/icons/loader-2';
     import Logout from '@tabler/icons-svelte-runes/icons/logout';
@@ -42,7 +45,10 @@
         offline: WifiOff,
         spinner: Loader2,
         check: Check,
-        signout: Logout
+        signout: Logout,
+        logbook: Book2,
+        collapse: LayoutSidebarLeftCollapse,
+        expand: LayoutSidebarLeftExpand
     } as const;
 
     export type IconName = keyof typeof ICONS;
