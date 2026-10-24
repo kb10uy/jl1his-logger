@@ -13,6 +13,8 @@ const entry: Entry = {
     received: '',
     name: '',
     qth: 'Tokyo',
+    cnty: '',
+    qsl: 'none',
     comment: '',
     txPwr: '',
     notes: '',
@@ -33,6 +35,14 @@ describe('entry records', () => {
             RST_RCVD: '57',
             QTH: 'Tokyo'
         });
+    });
+
+    it('records JCC / JCG and the QSL request', () => {
+        expect(
+            entryFields({ ...entry, cnty: ' 100101 ', qsl: 'requested' }, defaultContest(), at)
+        ).toMatchObject({ CNTY: '100101', QSL_SENT: 'R' });
+        const oneWay = entryFields({ ...entry, qsl: 'oneWay' }, defaultContest(), at);
+        expect([oneWay.QSL_SENT, oneWay.QSL_RCVD]).toEqual(['N', 'R']);
     });
 
     it('records both exchanges in a contest', () => {
@@ -72,7 +82,8 @@ describe('entry records', () => {
     });
 
     it.each([
-        [{ txPwr: '10W' }, 'TX power is a number of watts.'],
+        [{ txPwr: '10W' }, 'TX power is watts above zero, with at most six decimal places.'],
+        [{ txPwr: '0' }, 'TX power is watts above zero, with at most six decimal places.'],
         [{ extra: [{ name: 'SOTA', value: 'x' }] }, 'SOTA is not an ADIF QSO field.'],
         [{ extra: [{ name: 'call', value: 'x' }] }, 'CALL has its own field.'],
         [{ extra: [{ name: 'VE_PROV', value: 'x' }] }, 'VE_PROV is not an ADIF QSO field.'],

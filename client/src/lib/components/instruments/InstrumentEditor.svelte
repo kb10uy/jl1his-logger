@@ -8,6 +8,7 @@
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import {
+        FIELD_NAMES,
         draftOf,
         instrumentInput,
         instrumentProblem,
@@ -166,6 +167,7 @@
         {#each draft.extra as field, i (i)}
             <input
                 aria-label="Field name"
+                list="in-adif-fields"
                 placeholder="FIELD_NAME"
                 class="control h-10 font-mono text-xs uppercase"
                 autocomplete="off"
@@ -195,6 +197,11 @@
                 onclick={() => (draft.extra = [...draft.extra, { name: '', value: '' }])}
                 >+ Add ADIF field</Button
             >
+            <datalist id="in-adif-fields">
+                {#each FIELD_NAMES as name (name)}
+                    <option value={name}></option>
+                {/each}
+            </datalist>
         </div>
     </div>
 

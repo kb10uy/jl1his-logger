@@ -25,6 +25,7 @@
         utcFields
     } from '#lib/qso/format.ts';
     import { defaultRst } from '#lib/qso/modes.ts';
+    import { QSL_REQUESTS } from '#lib/qso/qsl.ts';
     import { withBand, withFreq, withMode } from '#lib/qso/tuning.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
@@ -48,6 +49,8 @@
         received: '',
         name: '',
         qth: '',
+        cnty: '',
+        qsl: 'none',
         comment: '',
         txPwr: '',
         notes: '',
@@ -204,6 +207,8 @@
         entry.received = '';
         entry.name = '';
         entry.qth = '';
+        entry.cnty = '';
+        entry.qsl = 'none';
         entry.comment = '';
         entry.notes = '';
         entry.extra = [];
@@ -562,6 +567,32 @@
                             class="control h-11 rounded-lg px-3 text-base"
                             bind:value={entry.qth}
                         />
+                    </div>
+                    <div
+                        class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
+                    >
+                        <label for="cnty" class="text-xs text-muted">JCC / JCG</label>
+                        <input
+                            id="cnty"
+                            inputmode="numeric"
+                            placeholder={lookup?.previous.fields.CNTY ?? 'optional'}
+                            class="control h-11 rounded-lg px-3 font-mono text-base"
+                            bind:value={entry.cnty}
+                        />
+                    </div>
+                    <div
+                        class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
+                    >
+                        <label for="qsl" class="text-xs text-muted">QSL</label>
+                        <select
+                            id="qsl"
+                            class="control h-11 rounded-lg text-base"
+                            bind:value={entry.qsl}
+                        >
+                            {#each QSL_REQUESTS as [value, label] (value)}
+                                <option {value}>{label}</option>
+                            {/each}
+                        </select>
                     </div>
                 </div>
 

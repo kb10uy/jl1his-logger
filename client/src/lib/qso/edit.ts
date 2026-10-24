@@ -1,5 +1,5 @@
 import type { Fields } from '#lib/api/types.ts';
-import { ADIF_QSO_FIELDS } from './adif-fields.ts';
+import { ADIF_QSO_FIELDS, isAdifQsoField } from './adif-fields.ts';
 import { adifDate, adifTime, hhmmss, isoDate } from './format.ts';
 import { isPower, POWER_RULE } from './power.ts';
 
@@ -57,8 +57,6 @@ export const EDITED = [
     'QSLRDATE'
 ];
 
-const KNOWN = new Set(ADIF_QSO_FIELDS);
-
 export function isStationField(name: string): boolean {
     return name === 'STATION_CALLSIGN' || name === 'OPERATOR' || name.startsWith('MY_');
 }
@@ -70,7 +68,7 @@ export const EXTRA_FIELD_NAMES = ADIF_QSO_FIELDS.filter(
 export function extraFieldProblem(name: string): string | undefined {
     if (EDITED.includes(name)) return `${name} has its own field.`;
     if (isStationField(name)) return `${name} comes from the Station.`;
-    if (!KNOWN.has(name) && !name.startsWith('APP_')) return `${name} is not an ADIF QSO field.`;
+    if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
     return undefined;
 }
 

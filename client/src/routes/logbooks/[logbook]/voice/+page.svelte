@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import type { Qso, Warning } from '#lib/api/types.ts';
+    import type { Lookup, Qso, Warning } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
@@ -55,6 +55,7 @@
     let now = $state(new Date());
     let recent = $state<Qso[]>([]);
     let duplicates = $state<Qso[]>([]);
+    let lookup = $state<Lookup | undefined>(undefined);
     let warnings = $state<Warning[]>([]);
     let correcting = $state(false);
     let command = $state('');
@@ -127,6 +128,22 @@
             .then((page) => (recent = page.qsos))
             .catch(() => undefined);
         return () => controller.abort();
+    });
+
+    $effect(() => {
+        const call = draft.call;
+        lookup = undefined;
+        if (call === undefined) return;
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+            api.lookup(logbookId, call, controller.signal)
+                .then((found) => (lookup = found))
+                .catch(() => undefined);
+        }, 250);
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
     });
 
     $effect(() => {
@@ -379,6 +396,28 @@
                             draft.call === undefined && 'text-muted'
                         ]}>{draft.call ?? '—'}</span
                     >
+                    {#if lookup && lookup.call === draft.call}
+                        <span></span>
+                        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
+                            <span class="text-muted">
+                                {[
+                                    lookup.entity?.name,
+                                    lookup.entity?.dxcc ? `DXCC ${lookup.entity.dxcc}` : undefined,
+                                    lookup.entity ? `CQ ${lookup.entity.cq_zone}` : undefined,
+                                    lookup.entity ? `ITU ${lookup.entity.itu_zone}` : undefined,
+                                    lookup.previous.fields.NAME,
+                                    lookup.previous.fields.QTH
+                                ]
+                                    .filter((s) => s)
+                                    .join(' · ')}
+                            </span>
+                            {#if lookup.previous.count > 0}
+                                <span class="rounded-full bg-info-bg px-2 py-px text-xs text-info"
+                                    >worked before · {lookup.previous.count}</span
+                                >
+                            {/if}
+                        </div>
+                    {/if}
                     <span class="text-xs text-muted">Band / Mode</span>
                     <span class="flex flex-col gap-0.5">
                         <span class="flex flex-wrap gap-x-2 font-mono text-lg">

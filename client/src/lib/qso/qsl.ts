@@ -1,4 +1,25 @@
+import type { Fields } from '#lib/api/types.ts';
+
 export type QslTone = 'ok' | 'warn' | 'none';
+
+export type QslRequest = 'none' | 'requested' | 'oneWay';
+
+export const QSL_REQUESTS: [QslRequest, string][] = [
+    ['none', 'No QSL'],
+    ['requested', 'QSL requested'],
+    ['oneWay', 'QSL one way']
+];
+
+export function qslRequestFields(request: QslRequest): Fields {
+    switch (request) {
+        case 'none':
+            return {};
+        case 'requested':
+            return { QSL_SENT: 'R' };
+        case 'oneWay':
+            return { QSL_SENT: 'N', QSL_RCVD: 'R' };
+    }
+}
 
 export const QSL_SENT_VALUES: [string, string][] = [
     ['N', 'No'],

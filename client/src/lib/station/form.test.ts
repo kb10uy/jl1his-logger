@@ -65,7 +65,7 @@ describe('station drafts', () => {
             { extra: [{ name: 'STATION_CALLSIGN', value: 'X' }] },
             'STATION_CALLSIGN cannot be a Station default.'
         ],
-        [{ extra: [{ name: 'MY RIG', value: 'X' }] }, 'MY RIG is not an ADIF field name.'],
+        [{ extra: [{ name: 'MY RIG', value: 'X' }] }, 'MY RIG is not an ADIF QSO field.'],
         [{ extra: [{ name: 'my_rig', value: 'X' }] }, 'MY_RIG belongs to an Instrument.'],
         [{ extra: [{ name: 'tx_pwr', value: '5' }] }, 'TX_PWR belongs to an Instrument.'],
         [

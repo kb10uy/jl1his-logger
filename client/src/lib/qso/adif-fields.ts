@@ -179,3 +179,9 @@ export const ADIF_QSO_FIELDS: readonly string[] = [
     'WEB',
     'WWFF_REF'
 ];
+
+const KNOWN = new Set(ADIF_QSO_FIELDS);
+
+export function isAdifQsoField(name: string): boolean {
+    return KNOWN.has(name) || /^APP_[A-Z0-9_]+$/.test(name);
+}

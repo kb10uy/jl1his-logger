@@ -75,7 +75,7 @@ describe('instrument drafts', () => {
             { extra: [{ name: 'my_rig', value: 'X' }] },
             'MY_RIG cannot be another field of an Instrument.'
         ],
-        [{ extra: [{ name: 'MY RIG', value: 'X' }] }, 'MY RIG is not an ADIF field name.'],
+        [{ extra: [{ name: 'MY RIG', value: 'X' }] }, 'MY RIG is not an ADIF QSO field.'],
         [
             {
                 extra: [

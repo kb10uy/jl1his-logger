@@ -1,4 +1,5 @@
 import type { Fields, Instrument, InstrumentInput } from '#lib/api/types.ts';
+import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 import { isPower, POWER_RULE } from '#lib/qso/power.ts';
 
 const RESERVED = new Set([
@@ -12,6 +13,8 @@ const RESERVED = new Set([
     'MY_ANTENNA',
     'TX_PWR'
 ]);
+
+export const FIELD_NAMES = ADIF_QSO_FIELDS.filter((name) => !RESERVED.has(name));
 
 export interface InstrumentDraft {
     name: string;
@@ -56,7 +59,7 @@ export function instrumentProblem(draft: InstrumentDraft): string | undefined {
     for (const { name } of draft.extra) {
         const key = name.trim().toUpperCase();
         if (key === '') continue;
-        if (!/^[A-Z][A-Z0-9_]*$/.test(key)) return `${name} is not an ADIF field name.`;
+        if (!isAdifQsoField(key)) return `${name} is not an ADIF QSO field.`;
         if (RESERVED.has(key)) return `${key} cannot be another field of an Instrument.`;
         if (names.has(key)) return `${key} is listed twice.`;
         names.add(key);

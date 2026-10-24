@@ -1,4 +1,5 @@
 import type { Fields, Station, StationInput } from '#lib/api/types.ts';
+import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export const MAIN_FIELDS = [
     { name: 'MY_GRIDSQUARE', label: 'Grid locator' },
@@ -21,6 +22,10 @@ export const EXTRA_FIELDS = [
 const RESERVED = new Set(['CALL', 'QSO_DATE', 'TIME_ON', 'BAND', 'MODE', 'STATION_CALLSIGN']);
 const EQUIPMENT = new Set(['MY_RIG', 'MY_ANTENNA', 'TX_PWR']);
 const MAIN = new Set<string>([...MAIN_FIELDS.map((f) => f.name), 'MY_POTA_REF']);
+
+export const FIELD_NAMES = ADIF_QSO_FIELDS.filter(
+    (name) => !RESERVED.has(name) && !EQUIPMENT.has(name) && !MAIN.has(name)
+);
 
 export interface StationDraft {
     name: string;
@@ -86,7 +91,7 @@ export function stationProblem(draft: StationDraft): string | undefined {
     for (const { name } of draft.extra) {
         const key = name.trim().toUpperCase();
         if (key === '') continue;
-        if (!/^[A-Z][A-Z0-9_]*$/.test(key)) return `${name} is not an ADIF field name.`;
+        if (!isAdifQsoField(key)) return `${name} is not an ADIF QSO field.`;
         if (RESERVED.has(key)) return `${key} cannot be a Station default.`;
         if (EQUIPMENT.has(key)) return `${key} belongs to an Instrument.`;
         if (MAIN.has(key) || names.has(key)) return `${key} is listed twice.`;

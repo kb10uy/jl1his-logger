@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import type { Batch, ExportKind, MergeReport } from '#lib/api/types.ts';
+    import type { Batch, ExportKind, LengthUnit, MergeReport } from '#lib/api/types.ts';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import BatchTable from '#lib/components/transfer/BatchTable.svelte';
     import RecordList from '#lib/components/transfer/RecordList.svelte';
@@ -23,6 +23,7 @@
         fileName,
         formatOf,
         outcomeText,
+        recordOnly,
         rejectCount
     } from '#lib/transfer/transfer.ts';
 
@@ -42,6 +43,7 @@
     let tab = $state<'send' | 'receive'>('send');
     let kind = $state<SendKind>('qsl_card');
     let q = $state(PRESETS.qsl_card);
+    let exportLength = $state<LengthUnit>('codepoints');
     let creating = $state(false);
     let batches = $state<Batch[]>([]);
     let callsigns = $state<Record<string, string>>({});
@@ -51,6 +53,7 @@
     let source = $state<Source>('lotw');
     let file = $state<File | undefined>(undefined);
     let stationId = $state('');
+    let importLength = $state<LengthUnit>('codepoints');
     let report = $state<MergeReport | undefined>(undefined);
     let reportError = $state<string | undefined>(undefined);
     let previewing = $state(false);
@@ -59,11 +62,16 @@
 
     const matches = new Matches(logbookId, () => q);
     const fields = $derived(SENT_FIELDS[kind] ?? ['', '']);
+    const format = $derived(file ? formatOf(file.name) : 'adi');
+    const lengths: { value: LengthUnit; label: string }[] = [
+        { value: 'codepoints', label: 'Codepoints' },
+        { value: 'bytes', label: 'Bytes' }
+    ];
     const rejects = $derived(report ? rejectCount(report) : 0);
 
     onMount(() => {
         api.batches(logbookId)
-            .then((found) => (batches = found))
+            .then((found) => (batches = found.filter((b) => !recordOnly(b.kind))))
             .catch((e) => toasts.error((e as Error).message));
         api.members(logbookId)
             .then((found) => {
@@ -80,7 +88,11 @@
     async function create() {
         creating = true;
         try {
-            const result = await api.createExport(logbookId, { kind, q: q.trim() || undefined });
+            const result = await api.createExport(logbookId, {
+                kind,
+                q: q.trim() || undefined,
+                length: exportLength
+            });
             if (result.batch === null || result.adif === null) {
                 toasts.show('No QSO matches, so no batch was created.');
                 return;
@@ -124,7 +136,12 @@
             const result = await api.importAdif(
                 logbookId,
                 source,
-                { station_id: stationId || undefined, format: formatOf(file.name), apply },
+                {
+                    station_id: stationId || undefined,
+                    format,
+                    length: format === 'adi' ? importLength : undefined,
+                    apply
+                },
                 file
             );
             report = result;
@@ -145,6 +162,7 @@
     $effect(() => {
         void source;
         void stationId;
+        void importLength;
         if (file === undefined) return;
         untrack(() => {
             merged = undefined;
@@ -154,6 +172,23 @@
 </script>
 
 <PageTitle title="QSL Management" />
+
+{#snippet lengthChoice(name: string, value: LengthUnit, set: (v: LengthUnit) => void)}
+    <div role="radiogroup" aria-label="Lengths" class="flex gap-4 text-[13px]">
+        {#each lengths as l (l.value)}
+            <label class="flex cursor-pointer items-center gap-1.5">
+                <input
+                    type="radio"
+                    {name}
+                    class="accent-info"
+                    checked={value === l.value}
+                    onchange={() => set(l.value)}
+                />
+                {l.label}
+            </label>
+        {/each}
+    </div>
+{/snippet}
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <header class="flex flex-wrap items-center gap-3">
@@ -214,6 +249,10 @@
                         bind:value={q}
                     />
                 </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-xs text-muted">Lengths</span>
+                    {@render lengthChoice('qsl-len', exportLength, (v) => (exportLength = v))}
+                </div>
                 {#if matches.error}
                     <Notice tone="error">{matches.error}</Notice>
                 {/if}
@@ -270,6 +309,11 @@
                         {/each}
                     </select>
                 </div>
+                {#if format === 'adi'}
+                    <div class="flex h-10 items-center">
+                        {@render lengthChoice('rcv-len', importLength, (v) => (importLength = v))}
+                    </div>
+                {/if}
                 <div class="flex-1"></div>
                 <Button disabled={file === undefined || previewing} onclick={() => run(false)}
                     >{previewing ? 'Reading…' : 'Preview again'}</Button

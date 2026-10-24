@@ -6,6 +6,7 @@ import {
     type ContestSettings
 } from '#lib/qso/contest.ts';
 import { qsoTime, utcFields } from '#lib/qso/format.ts';
+import { qslRequestFields } from '#lib/qso/qsl.ts';
 import { FREE_TEXT_MAX_LENGTH, type Draft } from './draft.ts';
 
 const DUPLICATE_WINDOW_SECONDS = 15 * 60;
@@ -26,9 +27,6 @@ export function draftProblem(draft: Draft, contest: ContestSettings): string | u
     return undefined;
 }
 
-const QSL_SENT = { none: '', requested: 'R', oneWay: 'N' } as const;
-const QSL_RCVD = { none: '', requested: '', oneWay: 'R' } as const;
-
 export function draftFields(draft: Draft, contest: ContestSettings, at: Date): Fields {
     const fields: Fields = {
         CALL: draft.call ?? '',
@@ -40,8 +38,7 @@ export function draftFields(draft: Draft, contest: ContestSettings, at: Date): F
         RST_SENT: draft.rstSent,
         RST_RCVD: draft.rstRcvd,
         CNTY: draft.jcx ?? '',
-        QSL_SENT: QSL_SENT[draft.qsl],
-        QSL_RCVD: QSL_RCVD[draft.qsl],
+        ...qslRequestFields(draft.qsl),
         NAME: draft.name ?? '',
         QTH: draft.qth ?? ''
     };

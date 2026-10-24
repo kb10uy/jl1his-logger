@@ -31,6 +31,48 @@
     const join = (...values: (string | undefined)[]) =>
         values.filter((v) => v !== undefined && v.trim() !== '').join(' · ') || '—';
     const pair = (a: string | undefined, b: string | undefined) => `${a || '—'} / ${b || '—'}`;
+
+    const SHOWN = new Set([
+        'CALL',
+        'COUNTRY',
+        'QSO_DATE',
+        'TIME_ON',
+        'BAND',
+        'MODE',
+        'SUBMODE',
+        'FREQ',
+        'RST_SENT',
+        'RST_RCVD',
+        'STATION_CALLSIGN',
+        'MY_RIG',
+        'MY_ANTENNA',
+        'TX_PWR',
+        'MY_POTA_REF',
+        'NAME',
+        'QTH',
+        'CNTY',
+        'STATE',
+        'GRIDSQUARE',
+        'DXCC',
+        'CQZ',
+        'ITUZ',
+        'CONTEST_ID',
+        'STX_STRING',
+        'SRX_STRING',
+        'QSL_SENT',
+        'QSL_SENT_VIA',
+        'QSLSDATE',
+        'QSL_RCVD',
+        'QSL_RCVD_VIA',
+        'QSLRDATE',
+        'LOTW_QSL_SENT',
+        'LOTW_QSL_RCVD',
+        'EQSL_QSL_SENT',
+        'EQSL_QSL_RCVD',
+        'COMMENT',
+        'NOTES'
+    ]);
+    const others = $derived(Object.entries(f).filter(([name]) => !SHOWN.has(name)));
 </script>
 
 <aside
@@ -93,7 +135,15 @@
         </div>
         <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">Instrument</dt>
-            <dd class="m-0">{join(logbook.instrumentName(qso.instrument_id), f.MY_RIG)}</dd>
+            <dd class="m-0">
+                {join(logbook.instrumentName(qso.instrument_id), f.MY_RIG, f.MY_ANTENNA)}
+            </dd>
+        </div>
+        <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-muted">TX power</dt>
+            <dd class={['m-0 font-mono', !f.TX_PWR && 'text-muted']}>
+                {f.TX_PWR ? `${f.TX_PWR} W` : '—'}
+            </dd>
         </div>
         <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">My park</dt>
@@ -102,6 +152,10 @@
         <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">Name / QTH</dt>
             <dd class="m-0">{join(f.NAME, f.QTH)}</dd>
+        </div>
+        <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-muted">JCC/JCG · State · Grid</dt>
+            <dd class="m-0 font-mono">{join(f.CNTY, f.STATE, f.GRIDSQUARE)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
             <dt class="text-xs text-muted">DXCC / CQ / ITU</dt>
@@ -133,6 +187,10 @@
             <QslBadge value={f.QSL_RCVD} label={qslLabel(f.QSL_RCVD, false)} />
         </div>
         <div class="flex items-center justify-between text-muted">
+            <span>Via / date</span>
+            <span class="font-mono">{f.QSL_RCVD_VIA || '—'} · {isoDate(f.QSLRDATE) || '—'}</span>
+        </div>
+        <div class="flex items-center justify-between text-muted">
             <span>LoTW sent / rcvd</span>
             <span class="font-mono">{pair(f.LOTW_QSL_SENT, f.LOTW_QSL_RCVD)}</span>
         </div>
@@ -145,6 +203,25 @@
         <span>Comment</span>
         <p class="m-0 text-[13px] text-text">{f.COMMENT || '—'}</p>
     </div>
+    {#if f.NOTES}
+        <div class="flex flex-col gap-1.5 text-xs text-muted">
+            <span>Notes</span>
+            <p class="m-0 text-[13px] text-text">{f.NOTES}</p>
+        </div>
+    {/if}
+    {#if others.length > 0}
+        <details class="rounded-lg border border-border bg-bg p-3 text-[13px]">
+            <summary class="cursor-pointer">Other ADIF fields · {others.length}</summary>
+            <div class="mt-2 flex flex-col gap-1">
+                {#each others as [name, value] (name)}
+                    <span class="break-all"
+                        ><span class="font-mono text-[11px] text-muted">{name}</span>
+                        {value}</span
+                    >
+                {/each}
+            </div>
+        </details>
+    {/if}
     <div class="flex-1"></div>
     <span class="font-mono text-[11px] text-muted"
         >{qso.id} · rev {qso.revision} · {qso.updated_by_callsign ?? ''}</span

@@ -1,4 +1,4 @@
-import { ADIF_QSO_FIELDS } from '#lib/qso/adif-fields.ts';
+import { isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export interface Column {
     id: string;
@@ -20,6 +20,7 @@ export const BUILT_IN_COLUMNS: readonly Column[] = [
     { id: 'contest', label: 'Contest' },
     { id: 'number', label: 'Number S / R' },
     { id: 'station', label: 'Station' },
+    { id: 'instrument', label: 'Instrument' },
     { id: 'park', label: 'Park' }
 ];
 
@@ -36,8 +37,6 @@ export const DEFAULT_COLUMNS: readonly string[] = [
 ];
 
 const ADIF_PREFIX = 'adif.';
-const KNOWN = new Set(ADIF_QSO_FIELDS);
-
 export const adifColumnId = (name: string) => `${ADIF_PREFIX}${name}`;
 
 export function adifFieldOf(id: string): string | undefined {
@@ -46,8 +45,7 @@ export function adifFieldOf(id: string): string | undefined {
 
 export function adifColumnProblem(name: string): string | undefined {
     if (name === '') return 'Enter an ADIF field name.';
-    if (!KNOWN.has(name) && !/^APP_[A-Z0-9_]+$/.test(name))
-        return `${name} is not an ADIF QSO field.`;
+    if (!isAdifQsoField(name)) return `${name} is not an ADIF QSO field.`;
     return undefined;
 }
 

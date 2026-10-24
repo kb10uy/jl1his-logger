@@ -375,6 +375,10 @@
         >
     {:else if id === 'station'}
         <td class="px-3 text-muted">{stationOf(qso)}</td>
+    {:else if id === 'instrument'}
+        <td class="px-3 text-muted"
+            >{logbook.instrumentName(qso.instrument_id) ?? f.MY_RIG ?? ''}</td
+        >
     {:else if id === 'park'}
         <td class="px-3 font-mono text-info">{parks(f).join(', ')}</td>
     {:else}

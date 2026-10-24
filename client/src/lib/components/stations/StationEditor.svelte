@@ -10,6 +10,7 @@
     import { count } from '#lib/qso/format.ts';
     import {
         EXTRA_FIELDS,
+        FIELD_NAMES,
         MAIN_FIELDS,
         draftOf,
         sameInput,
@@ -294,6 +295,7 @@
             {:else}
                 <input
                     aria-label="Field name"
+                    list="st-adif-fields"
                     placeholder="FIELD_NAME"
                     class="control h-10 font-mono text-xs uppercase"
                     autocomplete="off"
@@ -332,6 +334,11 @@
                     {/each}
                     <option value="*">Another ADIF field…</option>
                 </select>
+                <datalist id="st-adif-fields">
+                    {#each FIELD_NAMES as name (name)}
+                        <option value={name}></option>
+                    {/each}
+                </datalist>
             </div>
         {/if}
     </fieldset>
