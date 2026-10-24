@@ -252,12 +252,13 @@
                 >
             {:else}
                 <DropdownMenu.Trigger
-                    class="mb-1 flex h-8 items-center justify-between rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
+                    class="mb-1 flex h-8 items-center justify-between gap-2 rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
                 >
-                    <span class="truncate font-mono font-semibold"
+                    <span class="min-w-0 truncate font-mono font-semibold"
                         >{logbook?.name ?? m.nav_logbook()}</span
                     >
-                    <span class="flex items-center gap-1 text-xs text-muted"
+                    <span
+                        class="flex shrink-0 items-center gap-1 text-xs whitespace-nowrap text-muted"
                         >{m.nav_logbook()} <Icon name="chevron" size={12} /></span
                     >
                 </DropdownMenu.Trigger>

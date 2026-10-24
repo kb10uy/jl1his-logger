@@ -605,8 +605,8 @@
     <header
         class="sticky top-0 z-20 flex flex-col gap-2.5 border-b border-border bg-surface px-4 pt-4 pb-2.5"
     >
-        <div class="flex items-center justify-between">
-            <div class="flex flex-col">
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 flex-col">
                 <h1 class="text-xl font-semibold">{m.nav_logbook()}</h1>
                 <span class="text-xs text-muted"
                     >{logbook.logbook.name} · {m.common_qso_count({
@@ -614,7 +614,7 @@
                     })}</span
                 >
             </div>
-            <span class="flex items-center gap-1.5 text-xs text-muted">
+            <span class="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted">
                 <span
                     class={['size-2 rounded-full', logbook.status === 'live' ? 'bg-ok' : 'bg-warn']}
                 ></span>
