@@ -263,7 +263,7 @@
             <input
                 id="st-park"
                 placeholder="Add park, US-0001…"
-                class="control h-8 w-48 font-mono uppercase placeholder:normal-case"
+                class="control h-8 w-52 font-mono uppercase placeholder:normal-case"
                 autocomplete="off"
                 spellcheck="false"
                 bind:value={parkText}
