@@ -7,9 +7,9 @@ export interface AreaDraft {
 }
 
 export const AREA_PRESETS: readonly AreaField[] = [
-    { name: 'CNTY', label: 'JCC / JCG' },
     { name: 'CNTY', label: 'County' },
     { name: 'STATE', label: 'State' },
+    { name: 'CNTY', label: 'JCC / JCG' },
     { name: 'IOTA', label: 'IOTA' },
     { name: 'SOTA_REF', label: 'SOTA' },
     { name: 'POTA_REF', label: 'POTA' }

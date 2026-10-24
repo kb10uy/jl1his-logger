@@ -62,7 +62,7 @@
             <input
                 id="area-name"
                 list="area-fields"
-                placeholder="none"
+                placeholder="—"
                 autocomplete="off"
                 autocapitalize="characters"
                 spellcheck="false"
@@ -74,7 +74,7 @@
             </label>
             <input
                 id="area-label"
-                placeholder="JCC / JCG"
+                placeholder="County"
                 autocomplete="off"
                 class="control h-10 w-full md:w-60"
                 bind:value={draft.label}

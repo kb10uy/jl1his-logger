@@ -4,8 +4,8 @@ import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 export const MAIN_FIELDS = [
     { name: 'MY_GRIDSQUARE', label: 'Grid locator' },
     { name: 'MY_CITY', label: 'City' },
-    { name: 'MY_STATE', label: 'Prefecture / state' },
-    { name: 'MY_CNTY', label: 'JCC / JCG' },
+    { name: 'MY_STATE', label: 'State' },
+    { name: 'MY_CNTY', label: 'County' },
     { name: 'MY_DXCC', label: 'DXCC entity' }
 ] as const;
 

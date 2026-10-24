@@ -533,7 +533,7 @@
                                 required
                                 autocomplete="off"
                                 spellcheck="false"
-                                placeholder="1001H"
+                                placeholder="001"
                                 class={[
                                     'control h-11 w-[140px] rounded-lg font-mono text-xl uppercase',
                                     entry.received.trim() === '' && 'border-2 border-info'
@@ -612,7 +612,7 @@
                     <label for="comment" class="text-xs text-muted">Comment</label>
                     <input
                         id="comment"
-                        placeholder="P2P JP-0345…"
+                        placeholder="P2P US-0001…"
                         class="control h-11 rounded-lg px-3 text-base"
                         bind:value={entry.comment}
                     />

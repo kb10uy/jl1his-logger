@@ -18,6 +18,7 @@
         stationInput,
         stationProblem
     } from '#lib/station/form.ts';
+    import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { subdivisionsOf } from '#lib/state/reference.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
@@ -49,6 +50,8 @@
     const original = $derived(stationInput(draftOf(station)));
     const changed = $derived(station === undefined || !sameInput(input, original));
     const problem = $derived(stationProblem(draft));
+    const logbook = useLogbook();
+    const countyLabel = $derived(logbook.area?.name === 'CNTY' ? logbook.area.label : 'County');
     const dxcc = $derived(Number(draft.main.MY_DXCC?.trim() || 'NaN'));
     const label = (name: string) =>
         [...MAIN_FIELDS, ...EXTRA_FIELDS].find((f) => f.name === name.trim().toUpperCase())?.label;
@@ -224,7 +227,7 @@
         />
         {@render labelFor('st-MY_CITY', 'City', 'MY_CITY')}
         <input id="st-MY_CITY" class="control h-10" bind:value={draft.main.MY_CITY} />
-        {@render labelFor('st-MY_STATE', 'Prefecture / state', 'MY_STATE')}
+        {@render labelFor('st-MY_STATE', 'State', 'MY_STATE')}
         {#if stateChoices}
             <select id="st-MY_STATE" class="control h-10" bind:value={draft.main.MY_STATE}>
                 <option value="">—</option>
@@ -239,13 +242,8 @@
                 bind:value={draft.main.MY_STATE}
             />
         {/if}
-        {@render labelFor('st-MY_CNTY', 'JCC / JCG', 'MY_CNTY')}
-        <input
-            id="st-MY_CNTY"
-            class="control h-10 font-mono"
-            inputmode="numeric"
-            bind:value={draft.main.MY_CNTY}
-        />
+        {@render labelFor('st-MY_CNTY', countyLabel, 'MY_CNTY')}
+        <input id="st-MY_CNTY" class="control h-10 font-mono" bind:value={draft.main.MY_CNTY} />
         {@render labelFor('st-park', 'POTA parks', 'MY_POTA_REF')}
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
             {#each draft.parks as park (park)}
@@ -264,8 +262,8 @@
             {/each}
             <input
                 id="st-park"
-                placeholder="Add park, JP-…"
-                class="control h-8 w-36 font-mono uppercase"
+                placeholder="Add park, US-0001…"
+                class="control h-8 w-48 font-mono uppercase placeholder:normal-case"
                 autocomplete="off"
                 spellcheck="false"
                 bind:value={parkText}
@@ -286,7 +284,7 @@
                 class="control h-10 w-28 font-mono"
                 bind:value={draft.main.MY_DXCC}
             />
-            <span class="text-xs text-muted">Prefecture / state choices follow this</span>
+            <span class="text-xs text-muted">State choices follow this</span>
         </div>
 
         {#each draft.extra as field, i (i)}

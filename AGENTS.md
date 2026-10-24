@@ -108,7 +108,8 @@ or another shared crate.
   subdivisions of one DXCC entity from the native API for `STATE` and
   `MY_STATE` choices. Updating it never rewrites DXCC or zones already
   recorded on QSOs.
-- **JCX codes are strings** (leading zeros matter).
+- **County and area codes are strings** (leading zeros matter, as in JCC /
+  JCG numbers).
 - **One SQLite database**, WAL and `busy_timeout` set, short write
   transactions. Schema changes are migrations under `server/migrations/`;
   never edit an applied one.

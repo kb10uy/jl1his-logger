@@ -189,7 +189,7 @@ export const SYNTAX: [string, string][] = [
     ['pwr:<=5', 'TX_PWR in watts, same'],
     ['station:"JL1HIS/1"', 'quote values with spaces'],
     ['instrument:IC-705', 'Instrument name or MY_RIG'],
-    ['park:JP-0012', 'any MY_POTA_REF'],
+    ['park:US-0001', 'any MY_POTA_REF'],
     ['no:freq has:park', 'missing / present'],
     ['adif.GRIDSQUARE:PM95', 'any other ADIF field'],
     ['dxcc:339,291', 'DXCC entity code'],
