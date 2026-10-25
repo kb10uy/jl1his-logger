@@ -338,7 +338,7 @@
                 <label for="st-add" class="sr-only">{m.stations_add_field()}</label>
                 <select
                     id="st-add"
-                    class="control h-10"
+                    class="control h-10 w-full"
                     value=""
                     onchange={(e) => {
                         addField(e.currentTarget.value);

@@ -17,7 +17,6 @@
     "stations_new": "新しい運用地",
     "stations_list": "運用地一覧",
     "stations_no_active": "使用中の運用地はまだありません。",
-    "stations_archived": "アーカイブ済み",
     "stations_choose": "運用地を選ぶと、その値を表示します。",
     "stations_choose_or_create": "運用地を選ぶと、その値を表示します。新しく作成することもできます。",
     "stations_owners_create": "運用地を作成できるのは、このログブックのオーナーだけです。",
@@ -116,5 +115,28 @@
     "stations_instrument_rewrite_lead": "範囲内にあるこの設備の QSO に、上で保存したすべての値を書き込みます。ほかのフィールドはそのままです。",
     "stations_instrument_rewrite_confirm_description": "{qsos} に、この設備の現在の値を書き込みます。ここからは元に戻せません。",
     "stations_instrument_problem_name": "設備には名前が必要です。",
-    "stations_instrument_problem_reserved": "{key} は設備のほかのフィールドにはできません。"
+    "stations_instrument_problem_reserved": "{key} は設備のほかのフィールドにはできません。",
+    "stations_filter_label": "絞り込み",
+    "stations_filter_placeholder": "名前・コール・グリッド・公園",
+    "stations_instrument_filter_placeholder": "名前・リグ・アンテナ・出力",
+    "stations_filter_count": [
+        {
+            "declarations": [
+                "input shown",
+                "input total",
+                "local a = shown: number",
+                "local b = total: number"
+            ],
+            "selectors": [],
+            "match": { "": "{b} 件中 {a} 件" }
+        }
+    ],
+    "stations_filter_none": "「{query}」に当てはまる使用中の項目はありません。",
+    "stations_archived_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "アーカイブ済み ({n})" }
+        }
+    ]
 }

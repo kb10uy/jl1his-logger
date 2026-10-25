@@ -17,7 +17,6 @@
     "stations_new": "New Station",
     "stations_list": "Station list",
     "stations_no_active": "No active Station yet.",
-    "stations_archived": "Archived",
     "stations_choose": "Choose a Station to see its values.",
     "stations_choose_or_create": "Choose a Station to see its values, or create one.",
     "stations_owners_create": "Only owners of this Logbook create Stations.",
@@ -133,5 +132,28 @@
     "stations_instrument_rewrite_lead": "Sets every saved value above on this Instrument's QSOs in the range. Other fields stay.",
     "stations_instrument_rewrite_confirm_description": "This sets the Instrument's current values on {qsos}. It cannot be undone from here.",
     "stations_instrument_problem_name": "An Instrument needs a name.",
-    "stations_instrument_problem_reserved": "{key} cannot be another field of an Instrument."
+    "stations_instrument_problem_reserved": "{key} cannot be another field of an Instrument.",
+    "stations_filter_label": "Filter",
+    "stations_filter_placeholder": "Name, call, grid or park",
+    "stations_instrument_filter_placeholder": "Name, rig, antenna or power",
+    "stations_filter_count": [
+        {
+            "declarations": [
+                "input shown",
+                "input total",
+                "local a = shown: number",
+                "local b = total: number"
+            ],
+            "selectors": [],
+            "match": { "": "{a} of {b} match" }
+        }
+    ],
+    "stations_filter_none": "Nothing active matches “{query}”.",
+    "stations_archived_count": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Archived ({n})" }
+        }
+    ]
 }

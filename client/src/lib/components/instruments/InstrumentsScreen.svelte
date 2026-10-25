@@ -1,7 +1,8 @@
 <script lang="ts">
-    import { goto } from '$app/navigation';
+    import { afterNavigate, goto } from '$app/navigation';
     import type { Instrument } from '#lib/api/types.ts';
     import PageTitle from '#lib/components/PageTitle.svelte';
+    import PickList from '#lib/components/PickList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { m } from '#lib/paraglide/messages.js';
@@ -19,13 +20,21 @@
         selected === undefined || selected === 'new' ? undefined : logbook.instrument(selected)
     );
 
+    let fromList = $state(false);
+    afterNavigate(({ from }) => {
+        fromList = from?.url.pathname === root;
+    });
+
+    function back(e: MouseEvent) {
+        if (!fromList) return;
+        e.preventDefault();
+        history.back();
+    }
+
     async function saved(instrument: Instrument) {
         await logbook.loadInstruments();
         if (selected !== instrument.id) goto(`${root}/${instrument.id}`);
     }
-
-    const summary = (instrument: Instrument) =>
-        [instrument.my_rig, instrument.my_antenna].filter((v) => v !== null).join(' · ');
 </script>
 
 <PageTitle
@@ -33,29 +42,6 @@
         ? m.nav_instruments()
         : m.stations_instrument_page_title({ name: current.name })}
 />
-
-{#snippet card(instrument: Instrument)}
-    <a
-        href={`${root}/${instrument.id}`}
-        aria-current={instrument.id === selected ? 'page' : undefined}
-        class={[
-            'flex flex-col gap-1.5 rounded-lg border px-3.5 py-3 text-text no-underline',
-            instrument.id === selected
-                ? 'border-accent bg-warn-surface shadow-[inset_3px_0_0_var(--accent)]'
-                : 'border-border bg-surface'
-        ]}
-    >
-        <span class="flex items-baseline justify-between gap-2">
-            <span class="truncate font-semibold">{instrument.name}</span>
-            {#if instrument.tx_pwr !== null}
-                <span class="font-mono text-xs text-muted">{instrument.tx_pwr} W</span>
-            {/if}
-        </span>
-        {#if summary(instrument) !== ''}
-            <span class="truncate text-[13px] text-muted">{summary(instrument)}</span>
-        {/if}
-    </a>
-{/snippet}
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <header
@@ -82,6 +68,7 @@
         <header class="flex items-center gap-2 md:hidden">
             <a
                 href={root}
+                onclick={back}
                 aria-label={m.stations_instrument_back()}
                 class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text"
                 ><Icon name="back" size={22} /></a
@@ -94,40 +81,25 @@
         </header>
     {/if}
 
-    <div class="flex flex-wrap items-start gap-4">
-        <section
-            aria-label={m.stations_instrument_list()}
-            class={[
-                'flex min-w-0 flex-[1_1_280px] flex-col gap-2 md:max-w-[340px]',
-                selected !== undefined && 'max-md:hidden'
+    <div class="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
+        <PickList
+            label={m.stations_instrument_list()}
+            items={logbook.instruments}
+            {selected}
+            href={(instrument) => `${root}/${instrument.id}`}
+            detail={(instrument) => (instrument.tx_pwr === null ? '' : `${instrument.tx_pwr} W`)}
+            search={(instrument) => [
+                instrument.name,
+                instrument.my_rig,
+                instrument.my_antenna,
+                instrument.tx_pwr
             ]}
-        >
-            {#each logbook.activeInstruments as instrument (instrument.id)}
-                {@render card(instrument)}
-            {:else}
-                <p class="text-[13px] text-muted">{m.stations_instrument_no_active()}</p>
-            {/each}
-            {#if archived.length > 0}
-                <h2 class="mt-3 eyebrow">{m.stations_archived()}</h2>
-                {#each archived as instrument (instrument.id)}
-                    <a
-                        href={`${root}/${instrument.id}`}
-                        aria-current={instrument.id === selected ? 'page' : undefined}
-                        class={[
-                            'flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-[13px] text-muted no-underline',
-                            instrument.id === selected ? 'border-accent' : 'border-border'
-                        ]}
-                    >
-                        <span class="truncate text-text">{instrument.name}</span>
-                        {#if instrument.my_rig !== null}
-                            · <span class="truncate">{instrument.my_rig}</span>
-                        {/if}
-                    </a>
-                {/each}
-            {/if}
-        </section>
+            placeholder={m.stations_instrument_filter_placeholder()}
+            empty={m.stations_instrument_no_active()}
+            class={selected !== undefined ? 'max-md:hidden' : ''}
+        />
 
-        <div class="flex min-w-0 flex-[999_1_480px] flex-col gap-4">
+        <div class="flex min-w-0 flex-col gap-4">
             {#if selected === undefined}
                 <p class="hidden rounded-lg border border-border p-6 text-muted md:block">
                     {m.stations_instrument_choose()}
