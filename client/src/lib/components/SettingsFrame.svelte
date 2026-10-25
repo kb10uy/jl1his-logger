@@ -1,11 +1,14 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
     import { page } from '$app/state';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
-    import Icon from '#lib/components/ui/Icon.svelte';
     import { m } from '#lib/paraglide/messages.js';
+    import { session } from '#lib/state/session.svelte.ts';
 
     let { logbookId, children }: { logbookId: string | null; children: Snippet } = $props();
+
+    const logbook = $derived(logbookId === null ? undefined : session.logbook(logbookId));
 
     const sections = $derived(
         [
@@ -55,22 +58,19 @@
         : m.settings_section_title({ section: current.label })}
 />
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-    <header class="flex items-center gap-2">
-        {#if logbookId !== null}
-            <a
-                href={current ? '/settings' : `/logbooks/${logbookId}/more`}
-                aria-label={current ? m.settings_back() : m.settings_back_more()}
-                class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
-                ><Icon name="back" size={22} /></a
-            >
-        {/if}
-        <h1 class="text-xl font-semibold">
-            <span class={current && 'max-md:hidden'}>{m.settings_title()}</span>
-            {#if current}<span class="md:hidden">{current.label}</span>{/if}
-        </h1>
-    </header>
+<PageHeader
+    title={current?.label ?? m.settings_title()}
+    subtitle={current
+        ? `${m.settings_title()} · ${(current.href.startsWith('/logbooks/') && logbook?.name) || current.scope}`
+        : session.me?.callsign}
+    back={logbookId === null
+        ? undefined
+        : current
+          ? { href: '/settings', label: m.settings_back() }
+          : { href: `/logbooks/${logbookId}/more`, label: m.settings_back_more() }}
+/>
 
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <div class="flex items-start gap-6">
         <nav
             aria-label={m.settings_sections()}

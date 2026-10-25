@@ -18,13 +18,6 @@
     "log_loading_older": "古い QSO を読み込み中…",
     "log_no_match": "この検索条件に一致する QSO はありません。",
     "log_all_loaded": "これですべてです。",
-    "log_entered": [
-        {
-            "declarations": ["input name", "input count", "local n = count: number"],
-            "selectors": [],
-            "match": { "": "{name} · {n} 件の QSO を記録済み" }
-        }
-    ],
     "log_export_adif": "ADIF をエクスポート",
     "log_new_qso": "新規 QSO",
     "log_check_all_loaded": "読み込み済みの QSO をすべてチェック",

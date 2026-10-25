@@ -16,6 +16,7 @@
     import Mail from '@tabler/icons-svelte-runes/icons/mail';
     import MapPin from '@tabler/icons-svelte-runes/icons/map-pin';
     import Microphone from '@tabler/icons-svelte-runes/icons/microphone';
+    import Plus from '@tabler/icons-svelte-runes/icons/plus';
     import Radio from '@tabler/icons-svelte-runes/icons/radio';
     import Search from '@tabler/icons-svelte-runes/icons/search';
     import Settings from '@tabler/icons-svelte-runes/icons/settings';
@@ -45,6 +46,7 @@
         offline: WifiOff,
         spinner: Loader2,
         check: Check,
+        plus: Plus,
         signout: Logout,
         logbook: Book2,
         collapse: LayoutSidebarLeftCollapse,

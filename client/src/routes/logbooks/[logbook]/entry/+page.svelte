@@ -5,6 +5,7 @@
     import BandSelect from '#lib/components/BandSelect.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
@@ -275,61 +276,48 @@
     }}
 />
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-    <header
-        class="flex flex-wrap items-center gap-2 max-md:sticky max-md:top-0 max-md:z-20 max-md:-mx-4 max-md:-mt-4 max-md:border-b max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-3 md:gap-3"
-    >
-        <h1 class="text-xl font-semibold">{m.nav_live_entry()}</h1>
-        <div class="flex-1"></div>
-        <label for="station" class="text-xs text-muted max-md:sr-only">{m.field_station()}</label>
-        <select
-            id="station"
-            class="control max-w-full bg-surface max-md:order-3 max-md:min-w-[60%] max-md:flex-1 max-md:bg-bg"
-            value={stationId}
-            onchange={(e) => (settings.stationId = e.currentTarget.value)}
-        >
-            {#each logbook.activeStations as station (station.id)}
-                <option value={station.id}>{stationLabel(station)}</option>
-            {/each}
-        </select>
-        <label for="instrument" class="text-xs text-muted max-md:sr-only"
-            >{m.field_instrument()}</label
-        >
-        <InstrumentSelect
-            id="instrument"
-            class="max-w-full bg-surface max-md:order-3 max-md:flex-1 max-md:bg-bg"
-            value={instrumentId}
-            instruments={logbook.activeInstruments}
-            onchange={(id) => {
-                settings.instrumentId = id;
-                entry.txPwr = '';
-            }}
-        />
-        <div
-            class="flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 font-mono max-md:border-0 max-md:bg-transparent max-md:px-0"
-        >
-            <span class="text-xs text-muted">{m.field_utc()}</span>
-            <span class={['text-base font-semibold tabular', locked && 'text-warn']}
-                >{clock.time}</span
-            >
-            <span class="text-xs text-muted max-md:hidden">{clock.date}</span>
-        </div>
+<PageHeader title={m.nav_live_entry()} subtitle={logbook.logbook.name}>
+    {#snippet actions()}
         <Button
             variant="toggle"
-            size="md"
-            class="max-md:hidden"
-            pressed={locked !== undefined}
-            onclick={() => (locked = locked ? undefined : new Date())}>{m.entry_lock_time()}</Button
-        >
-        <Button
-            variant="toggle"
-            class="max-md:order-4"
             pressed={settings.contest.enabled}
             onclick={() => (settings.contest.enabled = !settings.contest.enabled)}
             >{m.field_contest()}</Button
         >
-    </header>
+    {/snippet}
+    {#snippet toolbar()}
+        <div class="flex items-center gap-2 md:gap-3">
+            <label for="station" class="shrink-0 text-xs text-muted max-md:sr-only"
+                >{m.field_station()}</label
+            >
+            <select
+                id="station"
+                class="control max-w-full min-w-0 bg-bg max-md:flex-[3_1_0]"
+                value={stationId}
+                onchange={(e) => (settings.stationId = e.currentTarget.value)}
+            >
+                {#each logbook.activeStations as station (station.id)}
+                    <option value={station.id}>{stationLabel(station)}</option>
+                {/each}
+            </select>
+            <label for="instrument" class="shrink-0 text-xs text-muted max-md:sr-only"
+                >{m.field_instrument()}</label
+            >
+            <InstrumentSelect
+                id="instrument"
+                class="max-w-full min-w-0 bg-bg max-md:flex-[2_1_0]"
+                value={instrumentId}
+                instruments={logbook.activeInstruments}
+                onchange={(id) => {
+                    settings.instrumentId = id;
+                    entry.txPwr = '';
+                }}
+            />
+        </div>
+    {/snippet}
+</PageHeader>
 
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     {#if logbook.activeStations.length === 0}
         <Notice>{m.entry_no_station()}</Notice>
     {/if}
@@ -399,6 +387,27 @@
                 onsubmit={log}
                 bind:this={form}
             >
+                <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
+                    <span class="text-xs text-muted">{m.field_date_utc()}</span>
+                    <div class="flex items-center gap-3 font-mono tabular">
+                        <span class="text-[15px] text-muted">{clock.date}</span>
+                        <span class={['text-lg font-semibold', locked && 'text-warn']}
+                            >{clock.time}</span
+                        >
+                        <div class="flex-1"></div>
+                        <Button
+                            variant="toggle"
+                            size="sm"
+                            class="font-sans"
+                            pressed={locked !== undefined}
+                            onclick={() => (locked = locked ? undefined : new Date())}
+                            >{m.entry_lock_time()}</Button
+                        >
+                    </div>
+                </div>
+
+                <div class="h-px bg-border"></div>
+
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
                     <label for="freq" class="text-xs text-muted">{m.entry_freq_band()}</label>
                     <div

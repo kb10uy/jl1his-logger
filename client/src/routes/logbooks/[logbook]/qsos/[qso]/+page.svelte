@@ -7,6 +7,7 @@
     import BandSelect from '#lib/components/BandSelect.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -43,6 +44,8 @@
     let saving = $state(false);
     let confirmDelete = $state(false);
     let entity = $state<Entity | null | undefined>(undefined);
+
+    const updated = $derived(qso?.updated_at.replace('T', ' ').slice(0, 16) ?? '');
 
     $effect(() => {
         const id = qsoId;
@@ -147,39 +150,27 @@
 
 <PageTitle title={m.entry_editor_title()} />
 
-<header
-    class="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-surface px-2 py-2 md:px-6 md:py-3"
+<PageHeader
+    title={m.entry_editor_title()}
+    subtitle={qso
+        ? qso.updated_by_callsign
+            ? m.entry_editor_revision_by({
+                  revision: qso.revision,
+                  updated,
+                  callsign: qso.updated_by_callsign
+              })
+            : m.entry_editor_revision({ revision: qso.revision, updated })
+        : logbook.logbook.name}
+    back={{ label: m.common_back(), onclick: back, always: true }}
 >
-    <button
-        type="button"
-        aria-label={m.common_back()}
-        class="inline-flex size-11 items-center justify-center rounded-lg text-text"
-        onclick={back}
-    >
-        <Icon name="back" size={22} />
-    </button>
-    <div class="flex min-w-0 flex-1 flex-col">
-        <h1 class="text-lg font-semibold">{m.entry_editor_title()}</h1>
-        {#if qso}
-            {@const updated = qso.updated_at.replace('T', ' ').slice(0, 16)}
-            <span class="truncate text-xs text-muted"
-                >{qso.updated_by_callsign
-                    ? m.entry_editor_revision_by({
-                          revision: qso.revision,
-                          updated,
-                          callsign: qso.updated_by_callsign
-                      })
-                    : m.entry_editor_revision({ revision: qso.revision, updated })}</span
-            >
-        {/if}
-    </div>
-    <Button
-        variant="primary"
-        size="lg"
-        disabled={saving || problem !== undefined || qso?.deleted_at !== null}
-        onclick={save}>{saving ? m.common_saving() : m.common_save()}</Button
-    >
-</header>
+    {#snippet actions()}
+        <Button
+            variant="primary"
+            disabled={saving || problem !== undefined || qso?.deleted_at !== null}
+            onclick={save}>{saving ? m.common_saving() : m.common_save()}</Button
+        >
+    {/snippet}
+</PageHeader>
 
 <main class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:px-6">
     {#if loadError}

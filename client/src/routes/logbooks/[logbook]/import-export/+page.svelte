@@ -2,6 +2,7 @@
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
     import type { Batch, LengthUnit, NewReport } from '#lib/api/types.ts';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import BatchTable from '#lib/components/transfer/BatchTable.svelte';
     import RecordList from '#lib/components/transfer/RecordList.svelte';
@@ -162,37 +163,37 @@
     </div>
 {/snippet}
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-    <header class="flex flex-wrap items-center gap-3">
-        <a
-            href={`/logbooks/${logbookId}/more`}
-            aria-label={m.settings_back_more()}
-            class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
-            ><Icon name="back" size={22} /></a
+<PageHeader
+    title={m.nav_import_export()}
+    subtitle={logbook.logbook.name}
+    back={{ href: `/logbooks/${logbookId}/more`, label: m.settings_back_more() }}
+    toolbarClass="md:hidden"
+>
+    {#snippet toolbar()}
+        <div
+            role="tablist"
+            aria-label={m.transfer_direction()}
+            class="grid grid-cols-2 gap-1.5 md:hidden"
         >
-        <h1 class="text-xl font-semibold">{m.nav_import_export()}</h1>
-    </header>
-    <div
-        role="tablist"
-        aria-label={m.transfer_direction()}
-        class="grid grid-cols-2 gap-1.5 md:hidden"
-    >
-        {#each [['import', m.transfer_import()], ['export', m.transfer_export()]] as [id, label] (id)}
-            <button
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                class={[
-                    'h-10 rounded-md border text-[13px]',
-                    tab === id
-                        ? 'border-accent bg-warn-bg font-semibold text-accent'
-                        : 'border-border bg-surface'
-                ]}
-                onclick={() => (tab = id as 'import' | 'export')}>{label}</button
-            >
-        {/each}
-    </div>
+            {#each [['import', m.transfer_import()], ['export', m.transfer_export()]] as [id, label] (id)}
+                <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === id}
+                    class={[
+                        'h-10 rounded-md border text-[13px]',
+                        tab === id
+                            ? 'border-accent bg-warn-bg font-semibold text-accent'
+                            : 'border-border bg-bg'
+                    ]}
+                    onclick={() => (tab = id as 'import' | 'export')}>{label}</button
+                >
+            {/each}
+        </div>
+    {/snippet}
+</PageHeader>
 
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <div class="flex flex-wrap items-start gap-4">
         <section
             aria-label={m.transfer_import()}

@@ -1,5 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
     import Slotted from '#lib/components/ui/Slotted.svelte';
@@ -39,20 +40,23 @@
 
 <PageTitle title={m.nav_more()} />
 
-<header class="flex flex-col gap-2.5 border-b border-border bg-surface px-4 pt-4 pb-3">
-    <h1 class="text-xl font-semibold">{m.nav_more()}</h1>
-    <label for="more-logbook" class="text-xs text-muted">{m.more_logbook()}</label>
-    <select
-        id="more-logbook"
-        class="control h-11"
-        value={logbook.logbook.id}
-        onchange={(e) => goto(`/logbooks/${e.currentTarget.value}/more`)}
-    >
-        {#each session.logbooks as l (l.id)}
-            <option value={l.id}>{l.name} · {roleLabel(l.role)}</option>
-        {/each}
-    </select>
-</header>
+<PageHeader title={m.nav_more()} subtitle={logbook.logbook.name}>
+    {#snippet toolbar()}
+        <div class="flex flex-col gap-1">
+            <label for="more-logbook" class="text-xs text-muted">{m.more_logbook()}</label>
+            <select
+                id="more-logbook"
+                class="control h-11 bg-bg"
+                value={logbook.logbook.id}
+                onchange={(e) => goto(`/logbooks/${e.currentTarget.value}/more`)}
+            >
+                {#each session.logbooks as l (l.id)}
+                    <option value={l.id}>{l.name} · {roleLabel(l.role)}</option>
+                {/each}
+            </select>
+        </div>
+    {/snippet}
+</PageHeader>
 
 <main class="flex flex-col gap-4 p-4">
     <div class="flex flex-col overflow-hidden rounded-lg border border-border bg-surface">

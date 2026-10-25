@@ -1,6 +1,8 @@
 <script lang="ts">
+    import { MediaQuery } from 'svelte/reactivity';
     import { afterNavigate, goto } from '$app/navigation';
     import type { Station } from '#lib/api/types.ts';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import PickList from '#lib/components/PickList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -20,6 +22,9 @@
     const current = $derived(
         selected === undefined || selected === 'new' ? undefined : logbook.station(selected)
     );
+
+    const desktop = new MediaQuery('min-width: 768px');
+    const detail = $derived(selected !== undefined && !desktop.current);
 
     let fromList = $state(false);
     afterNavigate(({ from }) => {
@@ -42,44 +47,32 @@
     title={current === undefined ? m.nav_stations() : m.stations_page_title({ name: current.name })}
 />
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-    <header
-        class={['flex flex-wrap items-center gap-3', selected !== undefined && 'max-md:hidden']}
-    >
-        <a
-            href={`/logbooks/${logbookId}/more`}
-            aria-label={m.settings_back_more()}
-            class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text md:hidden"
-            ><Icon name="back" size={22} /></a
-        >
-        <h1 class="text-xl font-semibold">{m.nav_stations()}</h1>
-        <span class="text-[13px] text-muted"
-            >{m.stations_counts({
-                active: logbook.activeStations.length,
-                archived: archived.length
-            })}</span
-        >
-        <div class="flex-1"></div>
-        {#if canEdit}
-            <Button variant="primary" href={`${root}/new`}>{m.stations_new()}</Button>
-        {/if}
-    </header>
-
-    {#if selected !== undefined}
-        <header class="flex items-center gap-2 md:hidden">
-            <a
-                href={root}
-                onclick={back}
-                aria-label={m.stations_back()}
-                class="-ml-2 inline-flex size-10 items-center justify-center rounded-lg text-text"
-                ><Icon name="back" size={22} /></a
+<PageHeader
+    title={detail
+        ? selected === 'new'
+            ? m.stations_new()
+            : (current?.name ?? m.field_station())
+        : m.nav_stations()}
+    subtitle={detail
+        ? `${logbook.logbook.name} · ${m.nav_stations()}`
+        : `${logbook.logbook.name} · ${m.stations_counts({
+              active: logbook.activeStations.length,
+              archived: archived.length
+          })}`}
+    back={detail
+        ? { href: root, onclick: back, label: m.stations_back() }
+        : { href: `/logbooks/${logbookId}/more`, label: m.settings_back_more() }}
+>
+    {#snippet actions()}
+        {#if canEdit && (selected === undefined || desktop.current)}
+            <Button variant="primary" href={`${root}/new`} class="max-md:w-9 max-md:px-0"
+                ><Icon name="plus" /><span class="max-md:sr-only">{m.stations_new()}</span></Button
             >
-            <h1 class="truncate text-lg font-semibold">
-                {selected === 'new' ? m.stations_new() : (current?.name ?? m.field_station())}
-            </h1>
-        </header>
-    {/if}
+        {/if}
+    {/snippet}
+</PageHeader>
 
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
     <div class="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
         <PickList
             label={m.stations_list()}

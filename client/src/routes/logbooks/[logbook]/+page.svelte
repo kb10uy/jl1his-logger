@@ -6,6 +6,7 @@
     import * as api from '#lib/api/api.ts';
     import { ApiError } from '#lib/api/client.ts';
     import type { Fields, Qso, Target } from '#lib/api/types.ts';
+    import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import BulkEdit from '#lib/components/log/BulkEdit.svelte';
     import ColumnsPanel from '#lib/components/log/ColumnsPanel.svelte';
@@ -29,6 +30,9 @@
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
     const desktop = new MediaQuery('min-width: 768px');
+    const subtitle = $derived(
+        `${logbook.logbook.name} · ${m.common_qso_count({ count: logbook.logbook.last_seq })}`
+    );
 
     let ready = $state(false);
     let rows = $state<Row[]>([]);
@@ -408,33 +412,27 @@
 {/snippet}
 
 {#if desktop.current}
-    <main class="flex h-dvh min-w-0 flex-col">
-        <header class="flex flex-col gap-2.5 border-b border-border px-6 pt-4 pb-3">
-            <div class="flex flex-wrap items-center gap-3">
-                <h1 class="text-xl font-semibold">{m.nav_logbook()}</h1>
-                <span class="text-[13px] text-muted"
-                    >{m.log_entered({
-                        name: logbook.logbook.name,
-                        count: logbook.logbook.last_seq
-                    })}</span
-                >
-                <div class="flex-[1_1_40px]"></div>
+    <div class="flex h-dvh min-w-0 flex-col">
+        <PageHeader title={m.nav_logbook()} {subtitle}>
+            {#snippet actions()}
                 <ColumnsPanel {columns} onchange={changeColumns} />
                 <Button href={`/logbooks/${logbookId}/import-export`}>{m.log_export_adif()}</Button>
                 <Button variant="primary" href={`/logbooks/${logbookId}/entry`}
                     >{m.log_new_qso()}</Button
                 >
-            </div>
-            <QueryBar
-                query={q}
-                {ready}
-                {serverError}
-                onsearch={(query) => replaceUrl({ q: query })}
-                aside={counts}
-            />
-        </header>
+            {/snippet}
+            {#snippet toolbar()}
+                <QueryBar
+                    query={q}
+                    {ready}
+                    {serverError}
+                    onsearch={(query) => replaceUrl({ q: query })}
+                    aside={counts}
+                />
+            {/snippet}
+        </PageHeader>
 
-        <div class="relative flex min-h-0 flex-1">
+        <main class="relative flex min-h-0 flex-1">
             <div bind:this={scroller} class="min-w-0 flex-1 overflow-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead class="sticky top-0 z-[1] bg-bg">
@@ -599,39 +597,25 @@
                     onclose={() => replaceUrl({ qso: null })}
                 />
             {/if}
-        </div>
-    </main>
+        </main>
+    </div>
 {:else}
-    <header
-        class="sticky top-0 z-20 flex flex-col gap-2.5 border-b border-border bg-surface px-4 pt-4 pb-2.5"
-    >
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex min-w-0 flex-col">
-                <h1 class="text-xl font-semibold">{m.nav_logbook()}</h1>
-                <span class="text-xs text-muted"
-                    >{logbook.logbook.name} · {m.common_qso_count({
-                        count: logbook.logbook.last_seq
-                    })}</span
-                >
+    <PageHeader title={m.nav_logbook()} {subtitle}>
+        {#snippet toolbar()}
+            <div class="flex flex-col gap-2.5">
+                <QueryBar
+                    query={q}
+                    {ready}
+                    {serverError}
+                    compact
+                    onsearch={(query) => replaceUrl({ q: query })}
+                />
+                <div class="flex items-center justify-between">
+                    {@render counts()}
+                </div>
             </div>
-            <span class="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted">
-                <span
-                    class={['size-2 rounded-full', logbook.status === 'live' ? 'bg-ok' : 'bg-warn']}
-                ></span>
-                {logbook.status === 'live' ? m.log_synced() : m.shell_offline()}
-            </span>
-        </div>
-        <QueryBar
-            query={q}
-            {ready}
-            {serverError}
-            compact
-            onsearch={(query) => replaceUrl({ q: query })}
-        />
-        <div class="flex items-center justify-between">
-            {@render counts()}
-        </div>
-    </header>
+        {/snippet}
+    </PageHeader>
     <main class="flex flex-col">
         {#each groups as group (group.key)}
             <div class="flex items-center justify-between px-4 pt-2.5 pb-1 text-xs text-muted">
