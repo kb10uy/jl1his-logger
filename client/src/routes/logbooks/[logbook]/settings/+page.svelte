@@ -45,7 +45,7 @@
 <SettingsFrame {logbookId}>
     <form
         aria-label={m.settings_area_field()}
-        class="flex max-w-2xl flex-col gap-4 rounded-lg border border-border bg-surface p-4"
+        class="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4"
         onsubmit={save}
     >
         <div class="flex flex-col gap-1">

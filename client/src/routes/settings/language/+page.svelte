@@ -5,8 +5,8 @@
     const chosen = storedLocale();
 </script>
 
-<section aria-label={m.settings_language()} class="flex max-w-2xl flex-col gap-4">
-    <div class="flex flex-col gap-1">
+<section aria-label={m.settings_language()} class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
         <label for="display-language" class="text-xs text-muted">{m.language_label()}</label>
         <select
             id="display-language"

@@ -11,8 +11,8 @@
     }
 </script>
 
-<section aria-label={m.settings_voice()} class="flex max-w-2xl flex-col gap-4">
-    <div class="flex flex-col gap-1">
+<section aria-label={m.settings_voice()} class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
         <label for="voice-language" class="text-xs text-muted">{m.voice_speech_language()}</label>
         <select
             id="voice-language"

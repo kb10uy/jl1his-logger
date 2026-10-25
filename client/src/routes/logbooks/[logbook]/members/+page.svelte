@@ -102,7 +102,7 @@
 </script>
 
 <SettingsFrame {logbookId}>
-    <section aria-label={m.settings_members()} class="flex max-w-2xl flex-col gap-4">
+    <section aria-label={m.settings_members()} class="flex flex-col gap-4">
         {#if canEdit}
             <form
                 class="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"

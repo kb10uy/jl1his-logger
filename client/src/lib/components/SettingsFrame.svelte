@@ -88,7 +88,7 @@
                     class={[
                         'flex flex-col gap-0.5 px-3 py-2 no-underline max-md:min-h-14 max-md:justify-center max-md:border-b max-md:border-surface-2 max-md:last:border-b-0 md:rounded-md',
                         section === current
-                            ? 'bg-surface-2 font-semibold text-accent shadow-[inset_3px_0_0_var(--accent)]'
+                            ? 'bg-surface-2 font-semibold text-accent'
                             : 'text-text hover:bg-surface-2/60'
                     ]}
                 >
@@ -97,7 +97,7 @@
                 </a>
             {/each}
         </nav>
-        <div class={['flex min-w-0 flex-1 flex-col gap-4', !current && 'max-md:hidden']}>
+        <div class={['flex max-w-3xl min-w-0 flex-1 flex-col gap-4', !current && 'max-md:hidden']}>
             {@render children()}
         </div>
     </div>

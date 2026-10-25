@@ -24,7 +24,7 @@
     });
 </script>
 
-<section aria-label={m.settings_reference()} class="flex max-w-2xl flex-col gap-3">
+<section aria-label={m.settings_reference()} class="flex flex-col gap-3">
     {#if error}
         <Notice tone="error">{error}</Notice>
     {/if}

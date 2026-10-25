@@ -61,7 +61,7 @@
     }
 </script>
 
-<section aria-label={m.settings_account()} class="flex max-w-2xl flex-col gap-4">
+<section aria-label={m.settings_account()} class="flex flex-col gap-4">
     <div
         class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3.5"
     >
