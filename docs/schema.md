@@ -1,13 +1,11 @@
-# Database Schema (Draft)
+# Database Schema
 
 The SQLite schema behind the decisions in [decisions.md](decisions.md). The
-source of truth is `server/migrations/`; this page explains the choices the SQL
-cannot. Applied migrations are never edited; every change is a new migration.
-`0002_constrain_kinds.sql` adds the export and reference kind constraints while
-preserving existing batches, their QSO revisions and reference versions.
-`0003_reference_dxcc.sql` adds the `dxcc` reference kind.
-sqlx applies pending migrations when the server starts and records each one
-with its checksum in `_sqlx_migrations`; see "Migrations and Deployment" in
+source of truth is `server/migrations/`; this page describes the schema they
+build up to and explains the choices the SQL cannot. Applied migrations are
+never edited; every change is a new migration, which also carries existing rows
+over. sqlx applies pending migrations when the server starts and records each
+one with its checksum in `_sqlx_migrations`; see "Migrations and Deployment" in
 decisions.md.
 
 ## Conventions
@@ -41,10 +39,9 @@ decisions.md.
 
 ### `settings`
 
-Instance-wide key / value settings edited by an admin. Nothing in the first
-version needs one yet; the table exists so that the admin UI and the CLI
-have one place for them. Only an admin writes them; the server reads them
-without an access.
+Instance-wide key / value settings edited by an admin. No feature reads one
+yet; the table exists so that the CLI has one place for them. Only an admin
+writes them; the server reads them without an access.
 
 ### `users`, `passkeys`, `registration_tokens`, `sessions`
 
@@ -63,9 +60,9 @@ without an access.
   issuing one deletes the user's unused ones. `setup` can issue one only for
   an admin without passkeys.
 - `sessions` is the `__Host-` cookie session, looked up by the hash of the
-  cookie value; `id` names it to the user. It lasts 30 days; at most once a
-  day a use sets `last_used_at` and pushes `expires_at` to 30 days from now,
-  never past 90 days after `created_at`. `user_agent` is the browser it was
+  cookie value; `id` names it to the user and never reveals the cookie. It
+  lasts 30 days; at most once a day a use sets `last_used_at` and pushes
+  `expires_at` to 30 days from now, never past 90 days after `created_at`. `user_agent` is the browser it was
   created from, truncated. Expired rows are deleted when a session is
   created.
 - Disabling a user deletes their `sessions`, `api_tokens` and unused
@@ -85,6 +82,9 @@ counters:
   and a client whose stored generation differs discards its cursor and
   resyncs. It is stored once per Logbook rather than on every row; the API
   still presents it with each row, which is what decisions.md describes.
+- `area_field` and `area_label` are the Logbook's area code field: the ADIF
+  field name, upper-cased, and the label the screens show for it. Both are
+  `NULL` when the Logbook has none.
 
 ### `memberships`
 
@@ -104,9 +104,9 @@ A Station Location of a Logbook.
   web UI edits them as form fields; the server does not need columns for
   them because nothing searches Stations by them. `MY_RIG`, `MY_ANTENNA`
   and `TX_PWR` are never among them; they belong to `instruments`.
-- `wavelog_id` is the integer ID the Station had in Wavelog, unique within
-  the Logbook, so that `/wl2` clients keep their `station_id` setting.
-  `NULL` for Stations created here.
+- `wavelog_id` is the integer ID `/wl2` clients address the Station by
+  (Wavelog's `station_id`), unique within the Logbook, or `NULL` for a
+  Station `/wl2` does not show.
 - `archived_at` hides the Station from entry and from `/wl2` `GET station`
   (`active = false`). QSOs keep pointing at archived Stations.
 
@@ -251,8 +251,7 @@ row changes, and the web UI reads this table to show the versions.
   needed, this becomes a reference data set.
 - **Bands and modes**: compiled into the server, shared with the client's
   tables.
-- **Import staging**: the CLI import previews and applies in one process.
-  If the web UI needs a preview that survives across requests, a staging
-  table or a file is added then.
+- **Import staging**: an import previews and applies within one CLI run or
+  one request; the web UI sends the file again to apply what it previewed.
 - **Change history**: none, by decision. Triggers that stack the previous
   JSON of a row can be added later without changing this shape.

@@ -1,12 +1,12 @@
 # Design Decisions
 
-The outcome of the design review as of 2026-10-24: the direction for jl1his-logger, a QSO log of record of our own that replaces Wavelog.
+The design of jl1his-logger, the QSO log of record for JL1HIS, and the reasons behind it, as implemented on 2026-10-25. A change that departs from a decision here, or settles something left open, updates this file in the same change.
 
 ## Background
 
-- Today Wavelog is the single source of truth for contacts. QSOs are recorded through its API and web UI, then exported as ADIF and fed to eQSL, contest summary sheets, QSL card generation and POTA.
-- Wavelog does far more than this use needs, and its web UI is unsatisfying.
-- Only four Wavelog API resources are needed: `qso`, `station`, `lookup` and `catalog`.
+- The log is the single source of truth for contacts. QSOs are entered in the web UI or sent by logging clients through an API, then exported as ADIF and fed to eQSL, LoTW, contest summary sheets, QSL card generation and POTA.
+- The application does only what this use needs, with a web UI built for entering and checking QSOs.
+- Logging clients written for Wavelog API v2 keep working through a compatibility layer that serves the four resources they use: `qso`, `station`, `lookup` and `catalog`.
 
 ## Structure
 
@@ -20,13 +20,13 @@ The outcome of the design review as of 2026-10-24: the direction for jl1his-logg
 
 - QSO store, Station Location, Instrument, Logbook, User, Membership, API tokens.
 - Write API (create, update, delete), read API (filters and ADIF output), differential fetch, SSE.
-- ADIF import (the first migration, and merging QSL fields into existing QSOs).
+- ADIF import (loading existing logs, and merging QSL fields into existing QSOs).
 - Confirmation state (paper QSL, eQSL and LoTW held separately).
 - Reference data: cty.dat, frequencies and bands, modes and submodes, subdivisions, POTA parks.
 - lookup: entity information from cty.dat and previous contacts in the own log (name / grid / QTH).
 - Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry, Station Location and Instrument editing, ADIF import and export, bulk QSL state changes.
 
-## Dropped
+## Out of Scope
 
 Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, awards, satellites, themes, organization hierarchies and fine-grained permissions.
 
@@ -65,7 +65,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - The `_INTL` fields are not used. ADIF can write them only in ADX, so `MY_RIG` and `MY_ANTENNA` carry text outside ASCII as the other fields already do.
 - When a QSO is created, the given fields win, then the Instrument's values, then the Station's, then the default `OPERATOR`; each fills only what is still absent. `instrument_id` is held on the QSO next to `station_id` for classification and search, and is `NULL` without an Instrument.
 - Editing an Instrument does not change past QSOs, and changing a QSO's Instrument does not bake its values in again. Past rows are corrected with an explicit rewrite that states the number of affected rows (see Bulk Changes).
-- A Logbook may name an area code field: the ADIF field that holds the regional code of the other station, with the label the screens show for it (`area_field` and `area_label` on the Logbook; `CNTY` labelled "JCC / JCG" in Japan, `CNTY` labelled "County" in the US, `STATE`, or none). Owners set it with `PUT /api/logbooks/{id}/settings` (`{ "area_field": { "name", "label" } | null }`). The name is any ADIF QSO field or `APP_*` field except the core fields, `STATION_CALLSIGN`, `OPERATOR` and `MY_*`; the client also keeps the fields that have their own place on the screens out of it. Changing the field moves no recorded values. Nothing is Japan-specific by default: a new Logbook has no area code field, and JCC / JCG is a setting.
+- A Logbook may name an area code field: the ADIF field that holds the regional code of the other station, with the label the screens show for it (`area_field` and `area_label` on the Logbook; `CNTY` labelled "JCC / JCG" in Japan, `CNTY` labelled "County" in the US, `STATE`, or none). Owners set it with `PUT /api/logbooks/{id}/settings` (`{ "area_field": { "name", "label" } | null }`). The name is any ADIF QSO field or `APP_*` field except the required fields (`CALL`, `QSO_DATE`, `TIME_ON`, `BAND`, `MODE`), `STATION_CALLSIGN`, `OPERATOR` and `MY_*`; the client also keeps the fields that have their own place on the screens out of it. Changing the field moves no recorded values. Nothing is Japan-specific by default: a new Logbook has no area code field, and JCC / JCG is a setting.
 - Instruments are archived rather than deleted. As for Stations, archiving only takes an Instrument out of the client's choices.
 - The CLI lists, creates, edits and archives the Instruments of a Logbook, as it does Stations.
 
@@ -137,7 +137,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Search
 
 - The client keeps no copy of the Logbook. The log list sends its query to the server and reads the matches newest first, with keyset paging on `(qso_time, id)`, loading the next page as the end of the list comes into view. The first page carries the total number of matches. Deleted rows are excluded.
-- The query is one text syntax, shared by the web UI, the native API (`q` on the QSO search, open to API tokens from the start), the CLI and the filters of export batches. It is a list of terms separated by spaces, all of which must hold. A comma-separated value matches any of its parts, and a value containing spaces is quoted:
+- The query is one text syntax, shared by the web UI, the native API (`q` on the QSO search, open to API tokens from the start) and the filters of export batches; the CLI is to take it as well (see Remaining Work). It is a list of terms separated by spaces, all of which must hold. A comma-separated value matches any of its parts, and a value containing spaces is quoted:
 
   | Term | Holds when |
   | --- | --- |
@@ -182,7 +182,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - Mounted under the path prefix `/wl2`. Setting a client's base URL to `https://host/wl2` makes `/wl2/index.php/api/v2/...` reach it. `/wl2/api/v2/lookup` is also exposed as an alias.
 - Branching on the Host subdomain is possible with axum but not adopted.
 - A compatibility token is fixed to one Logbook when issued. It can be issued with the `wl2_` prefix, by which some clients choose API v2.
-- Each Station keeps its old Wavelog integer ID as a mapping, so existing clients keep their `station_id` setting unchanged.
+- A Station may carry a Wavelog integer ID, unique within its Logbook, by which `/wl2` clients address it, so a client keeps the `station_id` it is configured with.
 - Instruments have no place in `/wl2`: a QSO logged there has none, and the `power` of the `station` list is always `null`, since a Station has no `TX_PWR`. A client that needs an Instrument uses the native API, where creating and replacing a QSO take an optional `instrument_id`.
 - Only a subset is matched: `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`, `format=adif`, `400 validation_error` with `details.duplicate` on duplicates, `lookup?detail=basic`, and the `contest` and `subdivisions` topics of `catalog`.
 - The compatibility `since_id` is fixed to the insertion `seq`. Differential sync of edits and deletions belongs to the native API.
@@ -194,7 +194,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - A field name is what the ADIF specification allows: ASCII letters, digits and underscores, starting with a letter, read ignoring case and stored upper-cased. `EOR` and `EOH` are not field names. A record with another name (a `USERDEF` name with spaces, say) is refused, on entry and in an import.
 - A field value is at most 2048 bytes and a QSO has at most 1024 fields outside the columns; the names of passkeys, tokens, Stations and Logbooks are at most 2048 bytes. The bounds are checked where a `Qso` is built and again when it is checked before a write, so nothing larger is stored. A filter lists at most 100 values.
 - Reading uses adif-reader (github.com/kb10uy/adif-reader).
-- The writer moves into adif-reader as a `write` module of the same crate once the migration rehearsal has settled the export output, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
+- The writer moves into adif-reader as a `write` module of the same crate once the export output has been checked against real QSL card, contest and POTA submissions, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
 - Apart from the query crate (see Structure), no shared crate is split out; for now everything stays within this repository.
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
@@ -278,9 +278,9 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 
 ### Reference Data
 
-- Updates are done with CLI subcommands (fetch, verify, switch versions). The web UI only shows the version.
+- Updates are done with CLI subcommands, which check a local file and switch to its version. The web UI only shows the versions.
 - `reference install <kind> <file>` installs a file the admin has downloaded or written: it parses and checks the file, puts it where the configuration points (through a staging file and a rename), and records the version with the file's SHA-256 in `reference_versions`. Validation and database update errors preserve the previously installed file and version; if committing fails after replacement, the CLI restores the previous file (or removes the new file on a first installation). The server fetches nothing over the network. The version of `cty.dat` comes from its `=VER` entry unless one is given; the others default to the UTC date of the installation.
-- The kinds are `cty` (AD1C `cty.dat`), `dxcc`, `subdivisions` and `parks`. `cty.dat` carries no ADIF DXCC entity codes, so `dxcc` is a TOML table from the primary prefixes `cty.dat` declares (`JA`, `JD/o`) to the codes. It was generated once and committed as `assets/dxcc.toml` for `reference install dxcc`; the generator is not kept. Wavelog's `dxcc_entities` is filled at run time and ships empty, so the source was the `dxcc_master` table of its `install.sql`: each `cty.dat` entity took the code whose current prefix or name matched, checked against the names of the ADIF 3.1.8 DXCC Entity Code enumeration, and the two it did not match (`PY0S`, `PY0T`) were set by hand. All 340 current entities have a code, each used once, none deleted. `subdivisions` (`[339]` tables of codes and names) and `parks` (`JP-0001 = { name_en, name_ja }`) are TOML as well.
+- The kinds are `cty` (AD1C `cty.dat`), `dxcc`, `subdivisions` and `parks`. `cty.dat` carries no ADIF DXCC entity codes, so `dxcc` is a TOML table from the primary prefixes `cty.dat` declares (`JA`, `JD/o`) to the codes. It was generated once and committed as `assets/dxcc.toml` for `reference install dxcc`; the generator is not kept. Each `cty.dat` entity took the code whose current prefix or name matched in a table of DXCC entities, checked against the names of the ADIF 3.1.8 DXCC Entity Code enumeration, and the two it did not match (`PY0S`, `PY0T`) were set by hand. All 340 current entities have a code, each used once, none deleted. `subdivisions` (`[339]` tables of codes and names) and `parks` (`JP-0001 = { name_en, name_ja }`) are TOML as well.
 - The server reads a data set when it is first needed and keeps it until the version or checksum recorded for its kind changes, so an installation by the CLI takes effect without a restart. A file that no longer matches its recorded checksum is an error rather than being served. A kind that was never installed is simply absent: lookup answers without the entity, and the subdivision catalog is `404`.
 - DXCC and zones already recorded on existing QSOs are not changed automatically by a reference data update.
 - The native API serves the subdivisions of one DXCC entity from the installed `subdivisions` data, so that the client offers `STATE` and `MY_STATE` as a choice (prefectures for 339): `GET /api/reference/subdivisions/{dxcc}` answers `[{code, name}]` ordered by code, to any signed-in user as the versions are. An entity without subdivisions is an empty list and the kind not installed is `404`; in both cases the client falls back to free text. The lookup is shared with the `subdivisions` topic of the `/wl2` catalog.
@@ -305,9 +305,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response.
 - The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Offline Entry).
 
-## Implementation Order (Draft)
+## Remaining Work
 
-1. Contracts and fixtures: IDs and resends, settling the own station information, Japanese text and lengths in ADIF, QSL values, compatibility responses, the permission table.
-2. Core and CLI: Logbook / Membership / Station / QSO, setup, import preview and apply, export, backup.
-3. Read compatibility and the web UI: station / lookup / catalog / ADIF, log list and editing, Live entry and voice entry, SSE, bulk QSL changes.
-4. Migration rehearsal and cutover: export Wavelog's ADIF per Station and import it, then compare the exported ADIF for QSL cards, contest logs and POTA.
+- The CLI takes the text query of Search: `export write` still takes only the structured filters.
+- The exported ADIF for QSL cards, contest logs and POTA is checked against real submissions; then the writer moves into adif-reader (see ADIF Input and Output).

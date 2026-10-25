@@ -2,12 +2,11 @@
 
 ## Overview
 
-jl1his-logger is the QSO log of record for JL1HIS, replacing Wavelog: one Rust
-server, one SQLite database and a same-origin SvelteKit PWA. The design is
-recorded in `docs/decisions.md`; it is the authority on IDs,
-synchronization, storage, permissions, ADIF handling and the Wavelog
-compatibility layer, and this file only summarizes it. `README.md` is the
-product overview.
+jl1his-logger is the QSO log of record for JL1HIS: one Rust server, one SQLite
+database and a same-origin SvelteKit PWA. The design is recorded in
+`docs/decisions.md`; it is the authority on IDs, synchronization, storage,
+permissions, ADIF handling and the Wavelog API v2 compatibility layer, and
+this file only summarizes it. `README.md` is the product overview.
 
 The repository contains:
 
@@ -21,8 +20,12 @@ The repository contains:
   Instrument editing, ADIF import and export, bulk QSL changes.
 - `query/`: the query syntax of the log list as a Rust crate (parsing and
   matching a row), used by the server and compiled to WASM for the client.
-- `assets/`: example files, such as `config.example.toml`.
-- `docs/`: development documentation.
+- `assets/`: `config.example.toml` and `dxcc.toml`, the `dxcc` reference
+  table.
+- `docs/`: development documentation: `decisions.md` (the design record),
+  `operations.md` (building, configuration, the CLI, backups, the container),
+  `api.md` (the native API), `wl2.md` (the `/wl2` layer) and `schema.md` (the
+  database).
 - `fixtures/`: expected files shared by the `server/` and `client/` tests,
   such as ADIF exports.
 
@@ -69,15 +72,16 @@ or another shared crate.
   `QSL_RCVD in {Y, V}`.
 - **ADIF lengths are codepoints by default**, with bytes as an export option.
   Reading goes through `adif-reader` (github.com/kb10uy/adif-reader); the
-  writer moves there as a `write` module once the migration rehearsal has
-  settled the export output; until then it is `server/src/domain/adif.rs`.
+  writer moves there as a `write` module once the export output has been
+  checked against real submissions; until then it is
+  `server/src/domain/adif.rs`.
 - **Exports are batches**: record the UUIDs and `revision`s, and apply the
   external result to those rows only.
 - **The server searches; the client keeps no copy of the Logbook.** The log
   list sends one text query syntax (`call:JA1*`, `band:40m,20m`, `-mode:FT8`,
   `date:2026-10-01..`, `no:freq`, `adif.TX_PWR:10`, bare words) and pages
-  newest first on `(qso_time, id)`. The native API, the CLI and export filters
-  take the same syntax. An invalid term is `400`, never dropped. The syntax
+  newest first on `(qso_time, id)`. The native API and export filters take the
+  same syntax; the CLI does not yet. An invalid term is `400`, never dropped. The syntax
   is one implementation, the `query/` crate: the server turns its terms into
   SQL, and the client runs it as WASM for the chips and to re-test SSE rows.
 - **SSE, not WebSocket.** Event `id` is `updated_seq`; reconnection uses
@@ -101,8 +105,8 @@ or another shared crate.
   `lookup?detail=basic`, and the `contest` and `subdivisions` catalog topics.
   `/wl2/api/v2/lookup` is an alias. Compatibility tokens are fixed to one
   Logbook, optionally prefixed `wl2_`. Compatibility `since_id`
-  is the insertion `seq`. Stations keep a mapping to their old Wavelog
-  integer IDs. No Host-based routing.
+  is the insertion `seq`. A Station may carry the Wavelog integer ID `/wl2`
+  clients address it by. No Host-based routing.
 - **Reference data** (`cty.dat`, bands, modes, subdivisions, POTA parks) is
   updated by CLI subcommands; the web UI shows versions and gets the
   subdivisions of one DXCC entity from the native API for `STATE` and
@@ -178,8 +182,10 @@ or another shared crate.
 ## Documentation
 
 - Write documentation under `docs/` in English or Japanese.
-- When a change settles something listed under "Open Questions" in `docs/decisions.md`,
-  or departs from a decision there, update that file in the same change.
+- When a change departs from a decision in `docs/decisions.md`, or settles
+  something listed under "Remaining Work" there, update that file in the same
+  change.
+- Mention Wavelog only where it concerns the `/wl2` compatibility layer.
 - When a change alters behavior, APIs, architecture or anything else
   documented, update the relevant documentation in the same change.
 
