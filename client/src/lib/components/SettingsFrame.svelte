@@ -4,7 +4,6 @@
     import PageTitle from '#lib/components/PageTitle.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { m } from '#lib/paraglide/messages.js';
-    import { session } from '#lib/state/session.svelte.ts';
 
     let { logbookId, children }: { logbookId: string | null; children: Snippet } = $props();
 
@@ -30,18 +29,14 @@
                 ? undefined
                 : {
                       label: m.settings_logbook(),
-                      scope: m.settings_scope_logbook({
-                          name: session.logbook(logbookId)?.name ?? ''
-                      }),
+                      scope: m.settings_scope_logbook(),
                       href: `/logbooks/${logbookId}/settings`
                   },
             logbookId === null
                 ? undefined
                 : {
                       label: m.settings_members(),
-                      scope: m.settings_scope_logbook({
-                          name: session.logbook(logbookId)?.name ?? ''
-                      }),
+                      scope: m.settings_scope_logbook(),
                       href: `/logbooks/${logbookId}/members`
                   },
             {
