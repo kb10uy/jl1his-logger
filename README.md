@@ -143,7 +143,9 @@ jl1his-logger restore backups/jl1his-logger-20261022T000000Z.db --yes
 ### Container
 
 The `Dockerfile` builds one image holding the server and the built client,
-speech models included (`--build-arg VOSK_MODELS=false` leaves them out). It
+speech models included (`--build-arg VOSK_MODELS=false` leaves them out;
+`--build-arg GIT_COMMIT=$(git rev-parse HEAD)` records the commit the server
+reports, since `.git` is not part of the build context). It
 serves on port 8080 and works in the volume at `/data`, which holds
 `config.toml` next to the database, reference data, snapshots and backups. The
 listen address and the web app come from the image's `serve` arguments, so the

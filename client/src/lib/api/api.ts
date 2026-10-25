@@ -23,6 +23,7 @@ import type {
     Qso,
     ReferenceVersion,
     Saved,
+    ServerVersion,
     Station,
     StationInput,
     Subdivision,
@@ -91,6 +92,8 @@ export async function addPasskey(name: string): Promise<Passkey> {
 
 export const deletePasskey = (id: string) =>
     request<void>('DELETE', `/api/passkeys/${encodeURIComponent(id)}`);
+
+export const version = () => request<ServerVersion>('GET', '/api/version');
 
 export const references = () => request<ReferenceVersion[]>('GET', '/api/reference');
 

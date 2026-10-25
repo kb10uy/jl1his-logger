@@ -171,6 +171,11 @@ export interface Token {
     last_used_at: string | null;
 }
 
+export interface ServerVersion {
+    version: string;
+    commit: string | null;
+}
+
 export type ReferenceKind = 'cty' | 'dxcc' | 'subdivisions' | 'parks';
 
 export interface ReferenceVersion {

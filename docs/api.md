@@ -28,7 +28,7 @@ caller's Membership is checked before the request itself, so a caller outside
 the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
 and carry the security headers listed in [decisions.md](decisions.md).
 
-It covers sign-in, reference versions, API tokens, Logbooks, Members,
+It covers sign-in, the server version, reference versions, API tokens, Logbooks, Members,
 Stations, Instruments, QSOs with their event stream, bulk QSL changes, export batches and
 ADIF import. The Wavelog API v2 compatibility layer under `/wl2` is described
 in [wl2.md](wl2.md).
@@ -68,6 +68,12 @@ cookie only.
 | --- | --- | --- |
 | `GET /api/sessions?user_id=` | | The live sessions of the signed-in user, or of `user_id` for an admin |
 | `DELETE /api/sessions/{id}` | | `204`; the session's user or an admin |
+
+## Server Version
+
+`GET /api/version` returns `{version, commit}`: the server's package version
+and the Git commit it was built from, or `null` when the build did not know it.
+It takes the session cookie only.
 
 ## Reference Data
 

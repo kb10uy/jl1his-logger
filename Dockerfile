@@ -29,6 +29,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     pnpm run build
 
 FROM rust AS server
+ARG GIT_COMMIT=
 WORKDIR /src/server
 COPY query /src/query
 COPY server/Cargo.toml server/Cargo.lock server/build.rs ./

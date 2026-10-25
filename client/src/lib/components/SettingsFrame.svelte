@@ -43,9 +43,9 @@
                       href: `/logbooks/${logbookId}/members`
                   },
             {
-                label: m.settings_reference(),
+                label: m.settings_server(),
                 scope: m.settings_scope_instance(),
-                href: '/settings/reference'
+                href: '/settings/server'
             }
         ].filter((s) => s !== undefined)
     );

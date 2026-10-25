@@ -101,6 +101,7 @@ impl AppState {
 pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
     let api = Router::new()
         .route("/api/health", get(health))
+        .route("/api/version", get(version))
         .route("/api/me", get(auth::me))
         .route("/api/auth/login/start", post(auth::login_start))
         .route("/api/auth/login/finish", post(auth::login_finish))
@@ -265,6 +266,10 @@ async fn health(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
+async fn version(_: auth::SignedIn) -> Response {
+    Json(json!({ "version": env!("CARGO_PKG_VERSION"), "commit": option_env!("JL1HIS_COMMIT") })).into_response()
+}
+
 async fn api_not_found() -> Response {
     ApiError::new(StatusCode::NOT_FOUND, "not found").into_response()
 }
@@ -321,6 +326,18 @@ mod tests {
         let (_dir, router) = app(false).await;
         let (status, _, body) = get(router, "/api/health").await;
         assert_eq!((status, body.as_str()), (StatusCode::OK, r#"{"status":"ok"}"#));
+    }
+
+    #[tokio::test]
+    async fn reports_the_version_to_signed_in_users() {
+        let h = Harness::new().await;
+        let session = h.session(&h.world.operator).await;
+        let (status, body) = h.send("GET", "/api/version", Auth::Session(&session), None).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(body["commit"], json!(option_env!("JL1HIS_COMMIT")));
+        let (status, _) = h.send("GET", "/api/version", Auth::Anonymous, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
 
     #[rstest]
