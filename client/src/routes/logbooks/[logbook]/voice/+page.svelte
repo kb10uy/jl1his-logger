@@ -1,31 +1,24 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
-    import * as api from '#lib/api/api.ts';
-    import type { Lookup, Qso, Warning } from '#lib/api/types.ts';
+    import type { Warning } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
-    import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
+    import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
+    import ContestBar from '#lib/components/entry/ContestBar.svelte';
+    import EntryEquipment from '#lib/components/entry/EntryEquipment.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import PttButton from '#lib/components/voice/PttButton.svelte';
-    import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
     import { m } from '#lib/paraglide/messages.js';
-    import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
-    import {
-        compareNewestFirst,
-        hhmm,
-        isoDate,
-        stationLabel,
-        utcClock,
-        utcFields
-    } from '#lib/qso/format.ts';
+    import { expandExchange } from '#lib/qso/contest.ts';
+    import { hhmm, isoDate, utcClock, utcFields } from '#lib/qso/format.ts';
+    import { EntrySession } from '#lib/state/entry.svelte.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
-    import { outbox } from '#lib/state/outbox.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
     import {
         FREE_TEXT_MAX_LENGTH,
@@ -38,7 +31,6 @@
     import { LANGUAGE_LABELS } from '#lib/voice/settings.ts';
     import { VoiceState, type LogResult } from '#lib/voice/voice.svelte.ts';
 
-    const RECENT = 20;
     const QSL_TEXT = {
         none: () => '',
         requested: m.voice_qsl_requested,
@@ -53,7 +45,27 @@
 
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
-    const settings = $state(loadEntry(logbookId));
+    const session: EntrySession = new EntrySession(logbook, {
+        get call(): string | undefined {
+            return draft.call;
+        },
+        get freq(): string {
+            return draft.freq;
+        },
+        get band(): string {
+            return draft.band;
+        },
+        get mode(): string {
+            return draft.mode;
+        },
+        get submode(): string {
+            return draft.submode;
+        },
+        get at(): Date {
+            return now;
+        }
+    });
+    const settings = session.settings;
     const voice = new VoiceState(
         untrack(() => ({
             freq: settings.freq,
@@ -65,28 +77,22 @@
     );
 
     let now = $state(new Date());
-    let recent = $state<Qso[]>([]);
-    let duplicates = $state<Qso[]>([]);
-    let lookup = $state<Lookup | undefined>(undefined);
     let warnings = $state<Warning[]>([]);
     let correcting = $state(false);
     let command = $state('');
-    let logging = $state(false);
 
     const draft = $derived(voice.draft);
-    const stationId = $derived(
-        logbook.activeStations.some((s) => s.id === settings.stationId)
-            ? settings.stationId
-            : (logbook.activeStations[0]?.id ?? '')
-    );
+    const stationId = $derived(session.stationId);
     const station = $derived(logbook.station(stationId));
-    const instrumentId = $derived(logbook.activeInstrumentId(settings.instrumentId));
+    const lookup = $derived(session.lookup);
+    const duplicates = $derived(session.duplicates);
+    const recent = $derived(session.recent);
     const clock = $derived(utcClock(now));
     const problem = $derived(draftProblem(draft, settings.contest));
     const sent = $derived(
         expandExchange(settings.contest.exchangeTemplate, settings.contest.nextSerial)
     );
-    const unsent = $derived(outbox.items.filter((i) => i.stationId === stationId));
+    const unsent = $derived(session.unsent);
     const queued = $derived(
         draft.call === undefined
             ? undefined
@@ -122,80 +128,10 @@
 
     onMount(() => {
         const tick = setInterval(() => (now = new Date()), 1000);
-        const off = logbook.onQso((qso) => {
-            if (qso.station_id !== stationId) return;
-            const others = recent.filter((r) => r.id !== qso.id);
-            recent =
-                qso.deleted_at === null
-                    ? [...others, qso].sort(compareNewestFirst).slice(0, RECENT)
-                    : others;
-        });
         const stop = voice.start();
         return () => {
             clearInterval(tick);
-            off();
             stop();
-        };
-    });
-
-    $effect(() => {
-        saveEntry(logbookId, {
-            stationId: settings.stationId,
-            instrumentId: settings.instrumentId,
-            freq: draft.freq,
-            band: draft.band,
-            mode: draft.mode,
-            submode: draft.submode,
-            contest: { ...settings.contest }
-        });
-    });
-
-    $effect(() => {
-        const id = stationId;
-        if (id === '') return;
-        const controller = new AbortController();
-        api.searchQsos(logbookId, { station_id: id, limit: RECENT }, controller.signal)
-            .then((page) => (recent = page.qsos))
-            .catch(() => undefined);
-        return () => controller.abort();
-    });
-
-    $effect(() => {
-        const call = draft.call;
-        lookup = undefined;
-        if (call === undefined) return;
-        const controller = new AbortController();
-        const timer = setTimeout(() => {
-            api.lookup(logbookId, call, controller.signal)
-                .then((found) => (lookup = found))
-                .catch(() => undefined);
-        }, 250);
-        return () => {
-            clearTimeout(timer);
-            controller.abort();
-        };
-    });
-
-    $effect(() => {
-        const call = draft.call;
-        const band = draft.band;
-        const mode = draft.mode;
-        duplicates = [];
-        if (call === undefined) return;
-        const at = utcFields(untrack(() => now));
-        const controller = new AbortController();
-        const timer = setTimeout(() => {
-            api.duplicates(
-                logbookId,
-                { call, band, mode, qso_date: at.QSO_DATE, time_on: at.TIME_ON },
-                controller.signal
-            )
-                .then((found) => (duplicates = found.qsos))
-                .catch(() => undefined);
-        }, 300);
-        return () => {
-            clearTimeout(timer);
-            controller.abort();
         };
     });
 
@@ -207,33 +143,21 @@
             toasts.error(reason);
             return { ok: false, reason };
         }
-        if (logging) return { ok: false, reason: m.voice_still_logging() };
-        logging = true;
-        try {
-            const fields = draftFields(current, settings.contest, new Date(), logbook.area);
-            const result = await outbox.log(logbookId, stationId, instrumentId || null, fields);
-            if (settings.contest.enabled && usesSerial(settings.contest.exchangeTemplate)) {
-                settings.contest.nextSerial += 1;
-            }
-            voice.next();
-            correcting = false;
-            if ('saved' in result) {
-                warnings = result.saved.warnings;
-                const qso = result.saved.qso;
-                recent = [...recent.filter((r) => r.id !== qso.id), qso]
-                    .sort(compareNewestFirst)
-                    .slice(0, RECENT);
-                toasts.show(m.voice_logged({ call: fields.CALL }));
-            } else {
-                warnings = [];
-                toasts.error(
-                    m.voice_kept_on_device({ call: fields.CALL, error: result.error.message })
-                );
-            }
-            return { ok: true, call: fields.CALL };
-        } finally {
-            logging = false;
+        if (session.logging) return { ok: false, reason: m.voice_still_logging() };
+        const fields = draftFields(current, settings.contest, new Date(), logbook.area);
+        const result = await session.log(fields);
+        voice.next();
+        correcting = false;
+        if ('saved' in result) {
+            warnings = result.saved.warnings;
+            toasts.show(m.voice_logged({ call: fields.CALL }));
+        } else {
+            warnings = [];
+            toasts.error(
+                m.voice_kept_on_device({ call: fields.CALL, error: result.error.message })
+            );
         }
+        return { ok: true, call: fields.CALL };
     }
 
     function discard() {
@@ -243,15 +167,7 @@
     }
 
     async function sendNow() {
-        const { saved, failed } = await outbox.sendAll();
-        if (saved.length > 0) {
-            recent = [
-                ...recent.filter((r) => !saved.some((s) => s.qso.id === r.id)),
-                ...saved.map((s) => s.qso)
-            ]
-                .sort(compareNewestFirst)
-                .slice(0, RECENT);
-        }
+        const { saved, failed } = await session.sendUnsent();
         toasts.show(
             failed > 0
                 ? m.voice_sent_some_unsent({ saved: saved.length, failed })
@@ -316,98 +232,18 @@
         >
     {/snippet}
     {#snippet toolbar()}
-        <div class="flex items-center gap-2 md:gap-3">
-            <label for="voice-station" class="shrink-0 text-xs text-muted max-md:sr-only"
-                >{m.field_station()}</label
-            >
-            <select
-                id="voice-station"
-                class="control max-w-full min-w-0 bg-bg max-md:flex-[3_1_0]"
-                value={stationId}
-                onchange={(e) => (settings.stationId = e.currentTarget.value)}
-            >
-                {#each logbook.activeStations as s (s.id)}
-                    <option value={s.id}>{stationLabel(s)}</option>
-                {/each}
-            </select>
-            <label for="voice-instrument" class="shrink-0 text-xs text-muted max-md:sr-only"
-                >{m.field_instrument()}</label
-            >
-            <InstrumentSelect
-                id="voice-instrument"
-                class="max-w-full min-w-0 bg-bg max-md:flex-[2_1_0]"
-                value={instrumentId}
-                instruments={logbook.activeInstruments}
-                onchange={(id) => (settings.instrumentId = id)}
-            />
-        </div>
+        <EntryEquipment {session} />
     {/snippet}
 </PageHeader>
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-    {#if logbook.activeStations.length === 0}
+    <LogbookLoadError />
+    {#if logbook.noActiveStation}
         <Notice>{m.voice_no_active_station()}</Notice>
     {/if}
 
     {#if settings.contest.enabled}
-        <section
-            aria-label={m.field_contest()}
-            class="flex flex-wrap items-end gap-x-5 gap-y-3 rounded-lg border border-info-strong bg-selected px-4 py-3"
-        >
-            <div class="flex flex-col gap-1">
-                <label for="voice-contest-id" class="text-xs text-muted">CONTEST_ID</label>
-                <input
-                    id="voice-contest-id"
-                    placeholder={m.voice_optional()}
-                    autocomplete="off"
-                    spellcheck="false"
-                    class="control w-[180px] font-mono uppercase"
-                    bind:value={settings.contest.contestId}
-                />
-            </div>
-            <div class="flex flex-col gap-1">
-                <label for="voice-contest-sent" class="text-xs text-muted"
-                    >{m.voice_sent_number()}</label
-                >
-                <input
-                    id="voice-contest-sent"
-                    placeholder={'{serial}'}
-                    autocomplete="off"
-                    spellcheck="false"
-                    class="control w-40 font-mono"
-                    bind:value={settings.contest.exchangeTemplate}
-                />
-            </div>
-            <div class="flex flex-col gap-1">
-                <label for="voice-contest-next" class="text-xs text-muted"
-                    >{m.voice_next_serial()}</label
-                >
-                <input
-                    id="voice-contest-next"
-                    type="number"
-                    min="1"
-                    step="1"
-                    class="control w-24 text-right font-mono"
-                    bind:value={settings.contest.nextSerial}
-                />
-            </div>
-            <label class="flex h-9 cursor-pointer items-center gap-2 text-[13px]">
-                <input
-                    type="checkbox"
-                    class="size-4 accent-info"
-                    bind:checked={settings.contest.includeRst}
-                />
-                {m.voice_rst_in_front()}
-            </label>
-            <div class="flex-1"></div>
-            <div class="flex flex-col items-end gap-1">
-                <span class="text-xs text-muted">{m.voice_next_stx()}</span>
-                <strong class="flex h-9 items-center font-mono text-lg font-semibold"
-                    >{(settings.contest.includeRst ? draft.rstSent : '') + sent ||
-                        m.voice_nothing()}</strong
-                >
-            </div>
-        </section>
+        <ContestBar bind:contest={settings.contest} rstSent={draft.rstSent} />
     {/if}
 
     <div class="flex flex-wrap items-start gap-4">
@@ -653,7 +489,7 @@
                         variant="primary"
                         size="xl"
                         class="font-bold max-md:flex-1"
-                        disabled={problem !== undefined || stationId === '' || logging}
+                        disabled={problem !== undefined || stationId === '' || session.logging}
                         onclick={() => void logDraft()}>{m.voice_log_qso()}</Button
                     >
                 </div>

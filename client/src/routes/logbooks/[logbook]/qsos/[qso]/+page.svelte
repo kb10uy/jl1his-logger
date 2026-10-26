@@ -49,9 +49,21 @@
 
     $effect(() => {
         const id = qsoId;
+        let live = true;
+        qso = undefined;
+        draft = undefined;
+        loadError = undefined;
+        warnings = [];
         api.getQso(logbookId, id)
-            .then((found) => reset(found))
-            .catch((e) => (loadError = e instanceof Error ? e.message : String(e)));
+            .then((found) => {
+                if (live) reset(found);
+            })
+            .catch((e) => {
+                if (live) loadError = e instanceof Error ? e.message : String(e);
+            });
+        return () => {
+            live = false;
+        };
     });
 
     $effect(() => {

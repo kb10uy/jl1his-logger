@@ -234,7 +234,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Delivery and Sync
 
 - Use SSE. Do not use WebSocket.
-- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a restart a client that keeps a copy of the Logbook passes its stored cursor as `?after=`.
+- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a restart a client that keeps a copy of the Logbook passes its stored cursor as `?after=`. When the browser gives up on a stream (a `401`, `404` or `503`), the web client opens a new one after its last `updated_seq` with `?after=`, waiting 2 seconds and doubling the wait up to a minute until a `hello` arrives.
 - Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
 - A client that keeps a copy syncs initially by taking the maximum `updated_seq` at start as H, fetching everything, then reading `after H`. Rows that arrive twice are upserts and therefore harmless.
 - The web client keeps no copy (see Search) and no cursor across reloads. It opens the stream, which starts at the latest `updated_seq`, then runs its query. An event updates a loaded row in place by its ID. A row that stops matching stays where it is, marked, until the query runs again. A new row that matches is inserted in order without moving the scroll position. A new row outside the query is only counted, in a small "N new outside this query" next to the list. A changed cursor generation reruns the query.
@@ -264,7 +264,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Offline Entry
 
 - The client keeps no copy of the Logbook, so offline there is no log list, no lookup and no duplicate warning.
-- Entry keeps only its own QSOs. Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue with the reason, which the screen shows; the user sends the queue explicitly or discards an entry, and nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send.
+- Entry keeps only its own QSOs. Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue with the reason. The screen shows the queued QSOs of the chosen Station, and the user sends those explicitly or discards one; nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send.
 - The service worker caches the app shell, so the PWA starts offline; it never caches `/api` or `/wl2`.
 
 ### Live and Voice Entry

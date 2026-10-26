@@ -13,6 +13,7 @@
     "common_archive": "Archive",
     "common_back": "Back",
     "common_try_again": "Try again",
+    "common_load_failed": "Could not load Stations and Instruments: {error}",
     "common_loading": "Loading…",
     "common_none": "None",
     "common_copy": "Copy",

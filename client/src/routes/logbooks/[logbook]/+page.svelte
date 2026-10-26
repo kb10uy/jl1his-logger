@@ -52,6 +52,7 @@
     let sentinel = $state<HTMLElement>();
     let columns = $state(loadColumns());
     let run = 0;
+    let held: Qso[] = [];
 
     const q = $derived(page.url.searchParams.get('q') ?? '');
     const openId = $derived(page.url.searchParams.get('qso'));
@@ -66,14 +67,13 @@
     const shown = $derived(columns.map(column).filter((c): c is Column => c !== undefined));
 
     onMount(() => {
-        loadQuery().then(() => (ready = true));
+        loadQuery().then(() => {
+            ready = true;
+            release();
+        });
         const offQso = logbook.onQso((qso) => {
-            const matches = logbook.matches(qso, compiled) ?? false;
-            const applied = applyEvent(rows, qso, matches, next === null);
-            if (applied.kind === 'outside') outside += 1;
-            if ('rows' in applied) rows = applied.rows;
-            if (applied.kind === 'inserted' && qso.revision === 1 && total !== undefined)
-                total += 1;
+            if (!ready || loading) held.push(qso);
+            else receive(qso);
         });
         const offReset = logbook.onReset(() => search(q));
         return () => {
@@ -112,6 +112,21 @@
         return () => observer.disconnect();
     });
 
+    function receive(qso: Qso) {
+        const matches = logbook.matches(qso, compiled) ?? false;
+        const applied = applyEvent(rows, qso, matches, next === null);
+        if (applied.kind === 'outside') outside += 1;
+        if ('rows' in applied) rows = applied.rows;
+        if (applied.kind === 'inserted' && qso.revision === 1 && total !== undefined) total += 1;
+    }
+
+    function release() {
+        if (!ready || loading) return;
+        const queued = held;
+        held = [];
+        queued.forEach(receive);
+    }
+
     function replaceUrl(change: { q?: string; qso?: string | null }) {
         const url = new URL(page.url.href);
         if (change.q !== undefined) {
@@ -142,7 +157,10 @@
             if (mine !== run) return;
             serverError = e instanceof Error ? e.message : String(e);
         } finally {
-            if (mine === run) loading = false;
+            if (mine === run) {
+                loading = false;
+                release();
+            }
         }
     }
 
@@ -164,7 +182,10 @@
         } catch (e) {
             toasts.error(e instanceof Error ? e.message : String(e));
         } finally {
-            if (mine === run) loading = false;
+            if (mine === run) {
+                loading = false;
+                release();
+            }
         }
     }
 
@@ -272,24 +293,25 @@
 
     async function deleteChecked() {
         busy = true;
-        let deleted = 0;
+        const deleted = new Set<string>();
         let failed = 0;
         for (const target of targetsOfChecked()) {
             try {
                 await api.deleteQso(logbookId, target.id, target.revision);
-                deleted += 1;
+                deleted.add(target.id);
             } catch (e) {
                 failed += 1;
                 if (!(e instanceof ApiError) || e.retryable) break;
             }
         }
-        const gone = new Set(Object.keys(checked));
-        rows = rows.filter((r) => !gone.has(r.qso.id) || r.stale);
-        if (total !== undefined) total -= deleted;
-        clearChecked();
+        rows = rows.filter((r) => !deleted.has(r.qso.id));
+        if (total !== undefined) total -= deleted.size;
+        const left = Object.entries(checked).filter(([id]) => !deleted.has(id));
+        if (left.length === 0) clearChecked();
+        else checked = Object.fromEntries(left);
         busy = false;
         toasts.show(
-            `${m.log_deleted({ count: deleted })}${failed > 0 ? m.log_delete_failed({ count: failed }) : ''}`
+            `${m.log_deleted({ count: deleted.size })}${failed > 0 ? m.log_delete_failed({ count: failed }) : ''}`
         );
     }
 

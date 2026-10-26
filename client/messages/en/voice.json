@@ -2,10 +2,6 @@
     "$schema": "https://inlang.com/schema/inlang-message-format",
     "voice_no_active_station": "This Logbook has no active Station. An owner adds one under Stations.",
     "voice_optional": "optional",
-    "voice_sent_number": "Sent number",
-    "voice_next_serial": "Next serial",
-    "voice_rst_in_front": "RST in front",
-    "voice_next_stx": "Next STX_STRING",
     "voice_nothing": "(nothing)",
     "voice_parsed_qso": "Parsed QSO",
     "voice_worked_before": [

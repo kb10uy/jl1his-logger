@@ -2,10 +2,6 @@
     "$schema": "https://inlang.com/schema/inlang-message-format",
     "voice_no_active_station": "このログブックには有効な運用地がありません。オーナーが「運用地」から追加します。",
     "voice_optional": "任意",
-    "voice_sent_number": "送信ナンバー",
-    "voice_next_serial": "次のシリアル",
-    "voice_rst_in_front": "RST を前に付ける",
-    "voice_next_stx": "次の STX_STRING",
     "voice_nothing": "（なし）",
     "voice_parsed_qso": "認識した QSO",
     "voice_worked_before": [

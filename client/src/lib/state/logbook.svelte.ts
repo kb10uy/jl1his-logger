@@ -5,14 +5,21 @@ import type { Area, Hello, Instrument, Logbook, Qso, QsoEvent, Station } from '#
 
 export type StreamStatus = 'connecting' | 'live' | 'offline';
 
+const RETRY_MIN = 2000;
+const RETRY_MAX = 60000;
+
 export class LogbookState {
     logbook = $state<Logbook>() as Logbook;
     stations = $state<Station[]>([]);
     instruments = $state<Instrument[]>([]);
+    loaded = $state(false);
+    loadError = $state<string | undefined>(undefined);
     status = $state<StreamStatus>('connecting');
     lastUpdatedSeq = $state(0);
     private generation: string | undefined;
     private source: EventSource | undefined;
+    private retry: ReturnType<typeof setTimeout> | undefined;
+    private delay = RETRY_MIN;
     private listeners = new Set<(qso: Qso) => void>();
     private resetListeners = new Set<() => void>();
 
@@ -60,6 +67,22 @@ export class LogbookState {
         this.instruments = await api.instruments(this.logbook.id);
     }
 
+    async load() {
+        const results = await Promise.allSettled([this.loadStations(), this.loadInstruments()]);
+        const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        this.loadError =
+            failed === undefined
+                ? undefined
+                : failed.reason instanceof Error
+                  ? failed.reason.message
+                  : String(failed.reason);
+        this.loaded = true;
+    }
+
+    get noActiveStation(): boolean {
+        return this.loaded && this.loadError === undefined && this.activeStations.length === 0;
+    }
+
     matches(qso: Qso, query: RowMatcher | undefined): boolean | undefined {
         return query?.matches(
             qso.fields,
@@ -69,9 +92,12 @@ export class LogbookState {
     }
 
     start() {
-        this.loadStations().catch(() => undefined);
-        this.loadInstruments().catch(() => undefined);
-        const source = new EventSource(api.eventsUrl(this.logbook.id));
+        void this.load();
+        this.connect(undefined);
+    }
+
+    private connect(after: number | undefined) {
+        const source = new EventSource(api.eventsUrl(this.logbook.id, after));
         this.source = source;
         source.addEventListener('hello', (event) => {
             const hello = JSON.parse((event as MessageEvent<string>).data) as Hello;
@@ -80,6 +106,7 @@ export class LogbookState {
             this.generation = hello.cursor_generation;
             this.lastUpdatedSeq = hello.last_updated_seq;
             this.status = 'live';
+            this.delay = RETRY_MIN;
             if (changed) this.resetListeners.forEach((listener) => listener());
         });
         source.addEventListener('qso', (event) => {
@@ -92,11 +119,25 @@ export class LogbookState {
             this.status = 'live';
         });
         source.addEventListener('error', () => {
-            this.status = source.readyState === EventSource.CLOSED ? 'offline' : 'connecting';
+            if (source.readyState !== EventSource.CLOSED) {
+                this.status = 'connecting';
+                return;
+            }
+            this.status = 'offline';
+            this.reconnect();
         });
     }
 
+    private reconnect() {
+        clearTimeout(this.retry);
+        const after = this.generation === undefined ? undefined : this.lastUpdatedSeq;
+        this.retry = setTimeout(() => this.connect(after), this.delay);
+        this.delay = Math.min(this.delay * 2, RETRY_MAX);
+    }
+
     stop() {
+        clearTimeout(this.retry);
+        this.retry = undefined;
         this.source?.close();
         this.source = undefined;
     }

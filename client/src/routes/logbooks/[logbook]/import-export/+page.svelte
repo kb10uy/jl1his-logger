@@ -14,6 +14,7 @@
     import Slotted from '#lib/components/ui/Slotted.svelte';
     import Stat from '#lib/components/ui/Stat.svelte';
     import { download } from '#lib/download.ts';
+    import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
@@ -37,6 +38,7 @@
     let previewing = $state(false);
     let importing = $state(false);
     let imported = $state<NewReport | undefined>(undefined);
+    let attempt = 0;
 
     let kind = $state<'adif' | 'pota'>('adif');
     let q = $state('');
@@ -69,7 +71,10 @@
 
     async function run(apply: boolean) {
         if (file === undefined || station === '') return;
+        const mine = ++attempt;
+        previewing = false;
         if (file.size > MAX_IMPORT) {
+            report = undefined;
             reportError = m.transfer_file_too_large();
             return;
         }
@@ -89,18 +94,23 @@
                 },
                 file
             );
-            report = result;
-            imported = apply ? result : undefined;
             if (apply) {
                 toasts.show(m.transfer_imported({ count: result.created }));
                 matches.refresh();
             }
+            if (mine !== attempt) return;
+            report = result;
+            imported = apply ? result : undefined;
         } catch (e) {
-            report = undefined;
-            reportError = (e as Error).message;
+            if (mine === attempt) {
+                report = undefined;
+                reportError = (e as Error).message;
+            } else if (apply) {
+                toasts.error((e as Error).message);
+            }
         } finally {
-            previewing = false;
-            importing = false;
+            if (apply) importing = false;
+            if (mine === attempt) previewing = false;
         }
     }
 
@@ -229,7 +239,8 @@
                     {@render lengthChoice('imp-len', importLength, (v) => (importLength = v))}
                 {/if}
             </div>
-            {#if logbook.activeStations.length === 0}
+            <LogbookLoadError />
+            {#if logbook.noActiveStation}
                 <Notice>{m.transfer_station_required()}</Notice>
             {/if}
 
