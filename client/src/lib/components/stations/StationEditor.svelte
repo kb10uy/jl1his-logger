@@ -3,6 +3,7 @@
     import * as api from '#lib/api/api.ts';
     import { ApiError } from '#lib/api/client.ts';
     import type { Station, Subdivision } from '#lib/api/types.ts';
+    import FavoriteButton from '#lib/components/FavoriteButton.svelte';
     import RewritePanel from '#lib/components/RewritePanel.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
@@ -117,6 +118,15 @@
         }
     }
 
+    async function setFavorite(favorite: boolean) {
+        if (station === undefined) return;
+        try {
+            onsaved(await api.favoriteStation(logbookId, station.id, favorite));
+        } catch (e) {
+            toasts.error(message(e));
+        }
+    }
+
     async function setArchived(archived: boolean) {
         if (station === undefined) return;
         try {
@@ -151,6 +161,9 @@
             <span class="text-xs text-muted"
                 >{m.stations_archived_on({ date: station.archived_at.slice(0, 10) })}</span
             >
+        {/if}
+        {#if station}
+            <FavoriteButton favorite={station.favorite} onchange={setFavorite} />
         {/if}
         {#if station && canEdit}
             {#if station.archived_at}

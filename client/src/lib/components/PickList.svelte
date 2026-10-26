@@ -1,4 +1,7 @@
-<script lang="ts" generics="T extends { id: string; name: string; archived_at: string | null }">
+<script
+    lang="ts"
+    generics="T extends { id: string; name: string; archived_at: string | null; favorite: boolean }"
+>
     import { goto } from '$app/navigation';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { matchesFilter } from '#lib/filter.ts';
@@ -60,6 +63,10 @@
         ]}
     >
         <span class="min-w-0 flex-1 truncate">{item.name}</span>
+        {#if item.favorite}
+            <Icon name="starred" size={14} class="shrink-0 text-warn" />
+            <span class="sr-only">{m.favorite()}</span>
+        {/if}
         <span class="shrink-0 font-mono text-[13px] font-normal text-muted md:text-xs"
             >{detail(item)}</span
         >

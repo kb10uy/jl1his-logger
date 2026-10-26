@@ -34,6 +34,7 @@ export interface Station {
     archived_at: string | null;
     created_at: string;
     updated_at: string;
+    favorite: boolean;
 }
 
 export interface Instrument {
@@ -46,6 +47,7 @@ export interface Instrument {
     archived_at: string | null;
     created_at: string;
     updated_at: string;
+    favorite: boolean;
 }
 
 export interface Qso {
