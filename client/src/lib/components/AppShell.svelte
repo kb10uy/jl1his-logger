@@ -93,7 +93,9 @@
     const current = (href: string) =>
         page.url.pathname === href || (href !== root && page.url.pathname.startsWith(`${href}/`));
     const onSettings = $derived(
-        page.url.pathname.startsWith('/settings') || page.url.pathname === `${root}/members`
+        page.url.pathname.startsWith('/settings') ||
+            page.url.pathname === `${root}/settings` ||
+            page.url.pathname === `${root}/members`
     );
     const onMore = $derived(
         root !== null &&
