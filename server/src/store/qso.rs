@@ -8,7 +8,10 @@ use jl1his_query as text;
 use sqlx::{AssertSqlSafe, Connection, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
-    domain::qso::{Checked, Columns, InvalidQsoId, Qso, QsoId, Warning},
+    domain::{
+        callsign,
+        qso::{Checked, Columns, InvalidQsoId, Qso, QsoId, Warning},
+    },
     store::{
         Fault, StoreError, WriteTx,
         access::LogbookAccess,
@@ -221,8 +224,58 @@ pub struct InsertionPage {
     pub total: u64,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Order {
+    #[default]
+    Newest,
+    Oldest,
+    CallAscending,
+    CallDescending,
+}
+
+impl Order {
+    pub fn by_call(self) -> bool {
+        matches!(self, Order::CallAscending | Order::CallDescending)
+    }
+
+    fn sql(self) -> &'static str {
+        match self {
+            Order::Newest => "qso_time DESC, id DESC",
+            Order::Oldest => "qso_time, id",
+            Order::CallAscending => "call_base, qso_time DESC, id DESC",
+            Order::CallDescending => "call_base DESC, qso_time DESC, id DESC",
+        }
+    }
+
+    fn after(self, cursor: &Cursor) -> Result<(&'static str, Vec<Bind>), StoreError> {
+        let time = [Bind::Int(cursor.qso_time), Bind::Text(cursor.id.clone())];
+        let call = |clause| match &cursor.call_base {
+            Some(call) => Ok((
+                clause,
+                [Bind::Text(call.clone()), Bind::Text(call.clone())]
+                    .into_iter()
+                    .chain(time.clone())
+                    .collect(),
+            )),
+            None => Err(StoreError::Invalid(
+                "a cursor of a callsign order needs a callsign".into(),
+            )),
+        };
+        match (self, &cursor.call_base) {
+            (Order::Newest | Order::Oldest, Some(_)) => {
+                Err(StoreError::Invalid("a cursor of a time order has no callsign".into()))
+            }
+            (Order::Newest, None) => Ok(("(qso_time, id) < (?, ?)", time.into())),
+            (Order::Oldest, None) => Ok(("(qso_time, id) > (?, ?)", time.into())),
+            (Order::CallAscending, _) => call("(call_base > ? OR (call_base = ? AND (qso_time, id) < (?, ?)))"),
+            (Order::CallDescending, _) => call("(call_base < ? OR (call_base = ? AND (qso_time, id) < (?, ?)))"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cursor {
+    pub call_base: Option<String>,
     pub qso_time: i64,
     pub id: String,
 }
@@ -547,6 +600,7 @@ pub async fn search(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
     filter: &Filter,
+    order: Order,
     after: Option<&Cursor>,
     limit: u32,
 ) -> Result<Page, StoreError> {
@@ -554,7 +608,7 @@ pub async fn search(
     if limit == 0 {
         return Err(StoreError::Invalid("a page needs at least one row".into()));
     }
-    page(conn, access, filter, after, limit).await
+    page(conn, access, filter, order, after, limit).await
 }
 
 pub async fn search_all(
@@ -567,7 +621,7 @@ pub async fn search_all(
     let mut rows = vec![];
     let mut after = None;
     loop {
-        let page = page(&mut tx, access, filter, after.as_ref(), PAGE).await?;
+        let page = page(&mut tx, access, filter, Order::Newest, after.as_ref(), PAGE).await?;
         rows.extend(page.rows);
         match page.next {
             Some(next) => after = Some(next),
@@ -620,21 +674,21 @@ async fn page(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
     filter: &Filter,
+    order: Order,
     after: Option<&Cursor>,
     limit: u32,
 ) -> Result<Page, StoreError> {
     let mut conditions = Conditions::of(access, filter)?;
     if let Some(after) = after {
-        conditions.push(
-            "(qso_time, id) < (?, ?)",
-            [Bind::Int(after.qso_time), Bind::Text(after.id.clone())],
-        );
+        let (clause, binds) = order.after(after)?;
+        conditions.push(clause, binds);
     }
 
     let sql = format!(
-        "{} WHERE {} ORDER BY qso_time DESC, id DESC LIMIT ?",
+        "{} WHERE {} ORDER BY {} LIMIT ?",
         *SELECT,
-        conditions.sql()
+        conditions.sql(),
+        order.sql()
     );
     let mut rows = conditions
         .bind(sqlx::query(AssertSqlSafe(sql)))
@@ -649,6 +703,9 @@ async fn page(
             rows.truncate(limit as usize);
             let last = rows.last().expect("a full page has a last row");
             Some(Cursor {
+                call_base: order
+                    .by_call()
+                    .then(|| callsign::base(last.qso.get("CALL").unwrap_or_default())),
                 qso_time: last.qso.qso_time()?,
                 id: last.id.to_string(),
             })
@@ -684,7 +741,7 @@ pub async fn previous(
 
     let mut after = None;
     while previous.count > 0 {
-        let page = page(conn, access, &filter, after.as_ref(), PAGE).await?;
+        let page = page(conn, access, &filter, Order::Newest, after.as_ref(), PAGE).await?;
         for row in page.rows {
             for name in PREVIOUS_FIELDS {
                 if !previous.fields.contains_key(name)
@@ -1116,12 +1173,14 @@ mod tests {
         let (access, _, ids) = four_qsos(&world).await;
         let mut conn = world.db.acquire().await.unwrap();
         let all = Filter::default();
-        let first = search(&mut conn, &access, &all, None, 2).await.unwrap();
+        let first = search(&mut conn, &access, &all, Order::Newest, None, 2).await.unwrap();
         assert_eq!(found(&first), [ids[2], ids[1]]);
-        let second = search(&mut conn, &access, &all, first.next.as_ref(), 2).await.unwrap();
+        let second = search(&mut conn, &access, &all, Order::Newest, first.next.as_ref(), 2)
+            .await
+            .unwrap();
         assert_eq!((found(&second), second.next), (vec![ids[0]], None));
         assert!(matches!(
-            search(&mut conn, &access, &all, None, 0).await,
+            search(&mut conn, &access, &all, Order::Newest, None, 0).await,
             Err(StoreError::Invalid(_))
         ));
 
@@ -1130,6 +1189,50 @@ mod tests {
             everything.iter().map(|r| r.id).collect::<Vec<_>>(),
             [ids[2], ids[1], ids[0]]
         );
+    }
+
+    #[rstest]
+    #[case::newest(Order::Newest, [2, 1, 0])]
+    #[case::oldest(Order::Oldest, [0, 1, 2])]
+    #[case::call_ascending(Order::CallAscending, [1, 0, 2])]
+    #[case::call_descending(Order::CallDescending, [2, 1, 0])]
+    #[tokio::test]
+    async fn pages_through_each_order_one_row_at_a_time(#[case] order: Order, #[case] expected: [usize; 3]) {
+        let world = World::new().await;
+        let (access, _, ids) = four_qsos(&world).await;
+        let mut conn = world.db.acquire().await.unwrap();
+        let mut rows = vec![];
+        let mut after = None;
+        loop {
+            let page = search(&mut conn, &access, &Filter::default(), order, after.as_ref(), 1)
+                .await
+                .unwrap();
+            rows.extend(found(&page));
+            match page.next {
+                Some(next) => after = Some(next),
+                None => break,
+            }
+        }
+        assert_eq!(rows, expected.map(|i| ids[i]));
+    }
+
+    #[rstest]
+    #[case::time_order_with_a_call(Order::Newest, Some("JA1AAA"))]
+    #[case::call_order_without_one(Order::CallAscending, None)]
+    #[tokio::test]
+    async fn refuses_a_cursor_of_another_order(#[case] order: Order, #[case] call_base: Option<&str>) {
+        let world = World::new().await;
+        let (access, _, _) = four_qsos(&world).await;
+        let mut conn = world.db.acquire().await.unwrap();
+        let cursor = Cursor {
+            call_base: call_base.map(str::to_owned),
+            qso_time: 0,
+            id: String::new(),
+        };
+        assert!(matches!(
+            search(&mut conn, &access, &Filter::default(), order, Some(&cursor), 1).await,
+            Err(StoreError::Invalid(_))
+        ));
     }
 
     #[tokio::test]

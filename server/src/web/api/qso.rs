@@ -16,7 +16,7 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
-        qso::{self, CallMatch, Created, Cursor, Filter, QsoInput, StoredQso},
+        qso::{self, CallMatch, Created, Cursor, Filter, Order, QsoInput, StoredQso},
     },
     web::{
         AppState,
@@ -148,6 +148,7 @@ pub struct SearchQuery {
     qsl_sent: Option<String>,
     contest_id: Option<String>,
     q: Option<String>,
+    sort: Option<String>,
     cursor: Option<String>,
     limit: Option<u32>,
 }
@@ -323,17 +324,26 @@ pub async fn search(
     Query(mut query): Query<SearchQuery>,
 ) -> Result<Json<PageBody>, ApiError> {
     let limit = limit(query.limit, DEFAULT_SEARCH_LIMIT)?;
-    let after = query.cursor.take().as_deref().map(parse_cursor).transpose()?;
+    let order = order(query.sort.take().as_deref())?;
+    let after = query
+        .cursor
+        .take()
+        .as_deref()
+        .map(|cursor| parse_cursor(cursor, order))
+        .transpose()?;
     let filter = search_filter(query)?;
     let mut conn = state.db.acquire().await?;
-    let page = qso::search(&mut conn, &member.access, &filter, after.as_ref(), limit).await?;
+    let page = qso::search(&mut conn, &member.access, &filter, order, after.as_ref(), limit).await?;
     let total = match after {
         Some(_) => None,
         None => Some(qso::count(&mut conn, &member.access, &filter).await?),
     };
     Ok(Json(PageBody {
         qsos: page.rows.into_iter().map(QsoBody::from).collect(),
-        next: page.next.map(|c| format!("{}_{}", c.qso_time, c.id)),
+        next: page.next.map(|c| match c.call_base {
+            Some(call) => format!("{}_{}_{call}", c.qso_time, c.id),
+            None => format!("{}_{}", c.qso_time, c.id),
+        }),
         total,
     }))
 }
@@ -343,8 +353,8 @@ pub async fn targets(
     member: Member,
     Query(mut query): Query<SearchQuery>,
 ) -> Result<Json<TargetsBody>, ApiError> {
-    if query.cursor.take().is_some() || query.limit.take().is_some() {
-        return Err(ApiError::bad_request("targets take no cursor or limit"));
+    if query.cursor.take().is_some() || query.limit.take().is_some() || query.sort.take().is_some() {
+        return Err(ApiError::bad_request("targets take no sort, cursor or limit"));
     }
     let filter = search_filter(query)?;
     let mut conn = state.db.acquire().await?;
@@ -416,16 +426,31 @@ fn limit(limit: Option<u32>, default: u32) -> Result<u32, ApiError> {
     }
 }
 
-fn parse_cursor(cursor: &str) -> Result<Cursor, ApiError> {
-    cursor
-        .split_once('_')
+fn order(sort: Option<&str>) -> Result<Order, ApiError> {
+    match sort.unwrap_or("-time") {
+        "-time" => Ok(Order::Newest),
+        "time" => Ok(Order::Oldest),
+        "call" => Ok(Order::CallAscending),
+        "-call" => Ok(Order::CallDescending),
+        other => Err(ApiError::bad_request(format!(
+            "{other:?} is not a sort order; give -time, time, call or -call"
+        ))),
+    }
+}
+
+fn parse_cursor(cursor: &str, order: Order) -> Result<Cursor, ApiError> {
+    let mut parts = cursor.splitn(3, '_');
+    let (time, id, call) = (parts.next(), parts.next(), parts.next());
+    time.zip(id)
+        .filter(|_| call.is_some() == order.by_call())
         .and_then(|(time, id)| {
             Some(Cursor {
+                call_base: call.map(str::to_owned),
                 qso_time: time.parse().ok()?,
                 id: id.to_owned(),
             })
         })
-        .ok_or_else(|| ApiError::bad_request(format!("{cursor:?} is not a cursor")))
+        .ok_or_else(|| ApiError::bad_request(format!("{cursor:?} is not a cursor of this sort order")))
 }
 
 #[cfg(test)]
@@ -878,6 +903,29 @@ mod tests {
         assert!(second.get("total").is_none(), "{second}");
     }
 
+    #[rstest]
+    #[case::newest("", [2, 1, 0])]
+    #[case::oldest("&sort=time", [0, 1, 2])]
+    #[case::call("&sort=call", [2, 1, 0])]
+    #[case::call_descending("&sort=-call", [1, 0, 2])]
+    #[tokio::test]
+    async fn pages_through_each_sort_order(#[case] sort: &str, #[case] expected: [usize; 3]) {
+        let h = Harness::new().await;
+        let (cookie, qsos) = three(&h).await;
+        let mut found = vec![];
+        let mut uri = h.path(&format!("/qsos?limit=1{sort}"));
+        loop {
+            let (status, page) = h.send("GET", &uri, Auth::Session(&cookie), None).await;
+            assert_eq!(status, StatusCode::OK, "{page}");
+            found.extend(page["qsos"].as_array().unwrap().iter().cloned());
+            match page["next"].as_str() {
+                Some(next) => uri = h.path(&format!("/qsos?limit=1{sort}&cursor={next}")),
+                None => break,
+            }
+        }
+        assert_eq!(found, expected.map(|i| qsos[i].clone()));
+    }
+
     #[tokio::test]
     async fn lists_the_targets_of_a_query() {
         let h = Harness::new().await;
@@ -955,6 +1003,9 @@ mod tests {
     #[case("call=A&call_base=A")]
     #[case("from=20261022")]
     #[case("cursor=nope")]
+    #[case("sort=band")]
+    #[case("sort=call&cursor=0_x")]
+    #[case("cursor=0_x_JA1XYZ")]
     #[case("limit=0")]
     #[case("limit=many")]
     #[tokio::test]

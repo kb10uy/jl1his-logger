@@ -12,7 +12,13 @@ export type Applied =
     | { kind: 'outside' }
     | { kind: 'ignored' };
 
-export function applyEvent(rows: Row[], qso: Qso, matches: boolean, complete: boolean): Applied {
+export function applyEvent(
+    rows: Row[],
+    qso: Qso,
+    matches: boolean,
+    complete: boolean,
+    compare: (a: Qso, b: Qso) => number = compareNewestFirst
+): Applied {
     const at = rows.findIndex((r) => r.qso.id === qso.id);
     const live = qso.deleted_at === null;
     if (at >= 0) {
@@ -24,7 +30,7 @@ export function applyEvent(rows: Row[], qso: Qso, matches: boolean, complete: bo
     if (!live) return { kind: 'ignored' };
     if (!matches) return qso.revision === 1 ? { kind: 'outside' } : { kind: 'ignored' };
     const row = { qso, stale: false };
-    const before = rows.findIndex((r) => compareNewestFirst(row.qso, r.qso) < 0);
+    const before = rows.findIndex((r) => compare(row.qso, r.qso) < 0);
     if (before < 0) {
         return complete ? { kind: 'inserted', rows: [...rows, row] } : { kind: 'ignored' };
     }

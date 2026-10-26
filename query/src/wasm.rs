@@ -65,6 +65,11 @@ impl Record for Row {
     }
 }
 
+#[wasm_bindgen(js_name = callBase)]
+pub fn call_base(call: &str) -> String {
+    crate::call_base(call)
+}
+
 #[wasm_bindgen]
 pub struct Matcher(Query);
 

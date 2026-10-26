@@ -326,8 +326,17 @@ cursor and starts from 0.
 
 ### Search
 
-`GET /qsos` returns live QSOs, newest first by QSO time, at most `limit`
-(default 100, maximum 1000). Each filter is optional:
+`GET /qsos` returns live QSOs in the order of `sort`, at most `limit`
+(default 100, maximum 1000). `sort` is one of:
+
+| `sort` | Order |
+| --- | --- |
+| `-time` (default) | Newest first by QSO time |
+| `time` | Oldest first by QSO time |
+| `call` | By the call without prefixes and suffixes, A to Z, newest first within a call |
+| `-call` | The same, Z to A, still newest first within a call |
+
+Each filter is optional:
 
 | Parameter | Matches |
 | --- | --- |
@@ -341,7 +350,8 @@ cursor and starts from 0.
 | `q` | The text query of decisions.md, "Search" (`call:JA1* -mode:FT8 date:2026-10-01..`) |
 
 All the filters given must hold. `next` is an opaque cursor for the following
-page, passed back as `cursor`, or `null` on the last page. The first page, the
+page, passed back as `cursor` with the same `sort`, or `null` on the last page.
+A cursor of another sort order is `400`. The first page, the
 one without a `cursor`, also carries `total`, the number of matches.
 
 A `q` that cannot be read is `400` and names the term:
@@ -366,7 +376,7 @@ in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
 `unknown_field`, `bad_field_name`, `bad_date` and `bad_number`, and
 `too_many_values` adds `count` and `max`.
 
-`GET /targets` takes the same filters, without `cursor` and `limit`, and returns
+`GET /targets` takes the same filters, without `sort`, `cursor` and `limit`, and returns
 the ID and revision of every match, newest first. Checking every match in the
 log list uses it, and a bulk QSL change takes the result as it is.
 

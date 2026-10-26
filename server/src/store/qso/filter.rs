@@ -9,6 +9,7 @@ use crate::{
 
 const MAX_LIST: usize = 100;
 
+#[derive(Clone)]
 pub(super) enum Bind {
     Text(String),
     Int(i64),
@@ -239,7 +240,7 @@ mod tests {
     use rstest::rstest;
 
     use super::super::{
-        CallMatch, Filter, StoredQso, TimeRange, count, delete, get, search, search_all, targets,
+        CallMatch, Filter, Order, StoredQso, TimeRange, count, delete, get, search, search_all, targets,
         tests::{create_one, entry, found, four_qsos},
     };
     use crate::{
@@ -277,7 +278,9 @@ mod tests {
         let world = World::new().await;
         let (access, station, ids) = four_qsos(&world).await;
         let mut conn = world.db.acquire().await.unwrap();
-        let page = search(&mut conn, &access, &filter(&station), None, 10).await.unwrap();
+        let page = search(&mut conn, &access, &filter(&station), Order::Newest, None, 10)
+            .await
+            .unwrap();
         let expected: Vec<QsoId> = expected.iter().map(|i| ids[*i]).collect();
         assert_eq!(found(&page), expected);
     }
