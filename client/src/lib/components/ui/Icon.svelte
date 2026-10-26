@@ -20,6 +20,8 @@
     import Radio from '@tabler/icons-svelte-runes/icons/radio';
     import Search from '@tabler/icons-svelte-runes/icons/search';
     import Settings from '@tabler/icons-svelte-runes/icons/settings';
+    import Star from '@tabler/icons-svelte-runes/icons/star';
+    import StarFilled from '@tabler/icons-svelte-runes/icons/star-filled';
     import TransferVertical from '@tabler/icons-svelte-runes/icons/transfer-vertical';
     import Users from '@tabler/icons-svelte-runes/icons/users';
     import WifiOff from '@tabler/icons-svelte-runes/icons/wifi-off';
@@ -50,7 +52,9 @@
         signout: Logout,
         logbook: Book2,
         collapse: LayoutSidebarLeftCollapse,
-        expand: LayoutSidebarLeftExpand
+        expand: LayoutSidebarLeftExpand,
+        star: Star,
+        starred: StarFilled
     } as const;
 
     export type IconName = keyof typeof ICONS;

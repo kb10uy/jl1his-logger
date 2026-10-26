@@ -124,6 +124,14 @@ independent of the Station.
 - `archived_at` hides the Instrument from entry. QSOs keep pointing at
   archived Instruments.
 
+### `station_favorites`, `instrument_favorites`
+
+The Stations and Instruments a member has marked as favorites: one row per
+user and Station or Instrument, with the Logbook. Composite foreign keys tie
+each row to the user's Membership and to a Station or Instrument of the same
+Logbook, both `ON DELETE CASCADE`, so removing a Membership removes its
+favorites. Marking a favorite does not touch the Station or Instrument row.
+
 ### `qsos`
 
 One row per QSO, including deleted ones.

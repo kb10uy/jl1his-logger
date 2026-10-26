@@ -84,6 +84,18 @@ pub enum InstrumentCommand {
         #[command(flatten)]
         logbook: LogbookArg,
     },
+    #[command(about = "Marks a Instrument as your favorite, listed first")]
+    Favorite {
+        instrument: String,
+        #[command(flatten)]
+        logbook: LogbookArg,
+    },
+    #[command(about = "Takes a Instrument out of your favorites")]
+    Unfavorite {
+        instrument: String,
+        #[command(flatten)]
+        logbook: LogbookArg,
+    },
     #[command(about = "Rewrites the past QSOs of an Instrument with its current values (owner)")]
     Rewrite {
         instrument: String,
@@ -104,6 +116,8 @@ impl InstrumentCommand {
             | InstrumentCommand::Update { logbook, .. }
             | InstrumentCommand::Archive { logbook, .. }
             | InstrumentCommand::Unarchive { logbook, .. }
+            | InstrumentCommand::Favorite { logbook, .. }
+            | InstrumentCommand::Unfavorite { logbook, .. }
             | InstrumentCommand::Rewrite { logbook, .. } => logbook,
         }
     }
@@ -111,7 +125,8 @@ impl InstrumentCommand {
 
 fn print_instrument(instrument: &Instrument) {
     let archived = instrument.archived_at.as_ref().map(|_| "archived").unwrap_or("");
-    println!("{}\t{}\t{archived}", instrument.id, instrument.name);
+    let favorite = if instrument.favorite { "favorite" } else { "" };
+    println!("{}\t{}\t{archived}\t{favorite}", instrument.id, instrument.name);
     for (name, value) in instrument.defaults() {
         println!("\t{name}={value}");
     }
@@ -160,6 +175,8 @@ pub async fn run(context: &Context<'_>, command: InstrumentCommand) -> CliResult
         }
         InstrumentCommand::Archive { instrument: key, .. } => set_archived(context, &access, &key, true).await?,
         InstrumentCommand::Unarchive { instrument: key, .. } => set_archived(context, &access, &key, false).await?,
+        InstrumentCommand::Favorite { instrument: key, .. } => set_favorite(context, &access, &key, true).await?,
+        InstrumentCommand::Unfavorite { instrument: key, .. } => set_favorite(context, &access, &key, false).await?,
         InstrumentCommand::Rewrite {
             instrument: key,
             days,
@@ -198,11 +215,21 @@ async fn set_archived(context: &Context<'_>, access: &LogbookAccess, key: &str, 
     Ok(())
 }
 
+async fn set_favorite(context: &Context<'_>, access: &LogbookAccess, key: &str, favorite: bool) -> CliResult<()> {
+    let target = context.instrument(access, key).await?;
+    let mut tx = WriteTx::begin(context.db).await?;
+    let changed = instrument::set_favorite(&mut tx, access, &target.id, favorite).await?;
+    tx.commit().await?;
+    print_instrument(&changed);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, path::Path};
 
     use super::*;
+    use crate::{config::Config, store::testing::World};
 
     #[test]
     fn applies_instrument_fields_onto_an_input() {
@@ -235,5 +262,32 @@ mod tests {
             input.fields,
             BTreeMap::from([("MY_SIG_INFO".to_owned(), "JP-0001".to_owned())])
         );
+    }
+
+    #[tokio::test]
+    async fn marks_a_favorite_for_the_acting_user() {
+        let world = World::new().await;
+        world.instrument("IC-705").await;
+        let qrp = world.instrument("IC-905").await;
+        let config = Config::default();
+        let context = Context {
+            db: &world.db,
+            database: Path::new("unused.db"),
+            config: &config,
+            actor: Some("JA1OPR"),
+        };
+        let command = InstrumentCommand::Favorite {
+            instrument: "ic-905".into(),
+            logbook: LogbookArg { logbook: None },
+        };
+        run(&context, command).await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        for (user, first) in [(&world.operator, "IC-905"), (&world.owner, "IC-705")] {
+            let listed = instrument::list(&mut conn, &world.access(user).await).await.unwrap();
+            assert_eq!(listed[0].name, first);
+        }
+        let operator = world.access(&world.operator).await;
+        assert!(instrument::get(&mut conn, &operator, &qrp.id).await.unwrap().favorite);
     }
 }

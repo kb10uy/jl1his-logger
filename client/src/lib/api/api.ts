@@ -135,6 +135,8 @@ export const updateStation = (logbook: string, id: string, input: StationInput) 
 
 export const archiveStation = (logbook: string, id: string, archived: boolean) =>
     request<Station>(archived ? 'POST' : 'DELETE', `${station(logbook, id)}/archive`);
+export const favoriteStation = (logbook: string, id: string, favorite: boolean) =>
+    request<Station>(favorite ? 'POST' : 'DELETE', `${station(logbook, id)}/favorite`);
 
 export interface Range {
     from?: string;
@@ -163,6 +165,8 @@ export const updateInstrument = (logbook: string, id: string, input: InstrumentI
 
 export const archiveInstrument = (logbook: string, id: string, archived: boolean) =>
     request<Instrument>(archived ? 'POST' : 'DELETE', `${instrument(logbook, id)}/archive`);
+export const favoriteInstrument = (logbook: string, id: string, favorite: boolean) =>
+    request<Instrument>(favorite ? 'POST' : 'DELETE', `${instrument(logbook, id)}/favorite`);
 
 export const previewInstrumentRewrite = (logbook: string, id: string, range: Range) =>
     request<{ count: number }>('GET', `${instrument(logbook, id)}/rewrite${query({ ...range })}`);

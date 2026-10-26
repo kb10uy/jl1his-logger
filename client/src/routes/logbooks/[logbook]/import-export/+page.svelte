@@ -16,9 +16,9 @@
     import { download } from '#lib/download.ts';
     import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
+    import StationSelect from '#lib/components/StationSelect.svelte';
     import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
-    import { stationLabel } from '#lib/qso/format.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { Matches } from '#lib/state/matches.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
@@ -216,15 +216,13 @@
             <FileDrop bind:file />
             <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
                 <label for="imp-station" class="text-xs text-muted">{m.field_station()}</label>
-                <select
+                <StationSelect
                     id="imp-station"
-                    class="control h-10"
-                    bind:value={() => station, (v) => (stationId = v)}
-                >
-                    {#each logbook.activeStations as s (s.id)}
-                        <option value={s.id}>{stationLabel(s)}</option>
-                    {/each}
-                </select>
+                    class="h-10"
+                    value={station}
+                    stations={logbook.activeStations}
+                    onchange={(id) => (stationId = id)}
+                />
                 <label for="imp-instrument" class="text-xs text-muted">{m.field_instrument()}</label
                 >
                 <InstrumentSelect

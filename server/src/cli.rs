@@ -55,7 +55,10 @@ pub enum Command {
     Logbook(logbook::LogbookCommand),
     #[command(subcommand, about = "Lists the members of a Logbook, or manages them (owner)")]
     Member(logbook::MemberCommand),
-    #[command(subcommand, about = "Manages the Stations of a Logbook (owner)")]
+    #[command(
+        subcommand,
+        about = "Manages the Stations of a Logbook (owner); marks your favorites"
+    )]
     Station(station::StationCommand),
     #[command(subcommand, about = "Manages the Instruments of a Logbook")]
     Instrument(instrument::InstrumentCommand),

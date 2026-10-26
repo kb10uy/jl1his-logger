@@ -1,6 +1,7 @@
 <script lang="ts">
     import { MediaQuery } from 'svelte/reactivity';
     import { afterNavigate, goto } from '$app/navigation';
+    import * as api from '#lib/api/api.ts';
     import type { Instrument } from '#lib/api/types.ts';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
@@ -10,6 +11,7 @@
     import Icon from '#lib/components/ui/Icon.svelte';
     import { m } from '#lib/paraglide/messages.js';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
+    import { toasts } from '#lib/state/toast.svelte.ts';
     import InstrumentEditor from './InstrumentEditor.svelte';
 
     let { selected }: { selected: string | undefined } = $props();
@@ -35,6 +37,15 @@
         if (!fromList) return;
         e.preventDefault();
         history.back();
+    }
+
+    async function favorite(instrument: Instrument, favorite: boolean) {
+        try {
+            await api.favoriteInstrument(logbookId, instrument.id, favorite);
+            await logbook.loadInstruments();
+        } catch (e) {
+            toasts.error(e instanceof Error ? e.message : String(e));
+        }
     }
 
     async function saved(instrument: Instrument) {
@@ -83,6 +94,7 @@
             label={m.stations_instrument_list()}
             items={logbook.instruments}
             {selected}
+            onfavorite={favorite}
             href={(instrument) => `${root}/${instrument.id}`}
             detail={(instrument) => (instrument.tx_pwr === null ? '' : `${instrument.tx_pwr} W`)}
             search={(instrument) => [
