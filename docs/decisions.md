@@ -264,7 +264,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Offline Entry
 
 - The client keeps no copy of the Logbook, so offline there is no log list, no lookup and no duplicate warning.
-- Entry keeps only its own QSOs. Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue with the reason, which the screen shows; the user sends the queue explicitly or discards an entry, and nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send.
+- Entry keeps only its own QSOs. Live entry and voice entry write each QSO to their shared queue in IndexedDB and send it at once. A QSO that could not be sent stays in the queue with the reason. The screen shows the queued QSOs of the chosen Station, and the user sends those explicitly or discards one; nothing retries in the background. Resending is safe because `POST` is idempotent on the UUID, and duplicate warnings come back in the `warnings` of the send.
 - The service worker caches the app shell, so the PWA starts offline; it never caches `/api` or `/wl2`.
 
 ### Live and Voice Entry
