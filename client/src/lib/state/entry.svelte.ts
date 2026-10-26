@@ -60,6 +60,7 @@ export class EntrySession {
 
         $effect(() => {
             const station = this.stationId;
+            this.recent = [];
             if (station === '') return;
             const controller = new AbortController();
             api.searchQsos(
