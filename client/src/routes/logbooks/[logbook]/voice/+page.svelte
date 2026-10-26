@@ -4,6 +4,7 @@
     import type { Lookup, Qso, Warning } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
+    import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import PageHeader from '#lib/components/PageHeader.svelte';
@@ -345,7 +346,8 @@
 </PageHeader>
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
-    {#if logbook.activeStations.length === 0}
+    <LogbookLoadError />
+    {#if logbook.noActiveStation}
         <Notice>{m.voice_no_active_station()}</Notice>
     {/if}
 

@@ -14,6 +14,7 @@
     import Slotted from '#lib/components/ui/Slotted.svelte';
     import Stat from '#lib/components/ui/Stat.svelte';
     import { download } from '#lib/download.ts';
+    import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
@@ -229,7 +230,8 @@
                     {@render lengthChoice('imp-len', importLength, (v) => (importLength = v))}
                 {/if}
             </div>
-            {#if logbook.activeStations.length === 0}
+            <LogbookLoadError />
+            {#if logbook.noActiveStation}
                 <Notice>{m.transfer_station_required()}</Notice>
             {/if}
 

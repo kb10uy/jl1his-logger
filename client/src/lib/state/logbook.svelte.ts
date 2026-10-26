@@ -9,6 +9,8 @@ export class LogbookState {
     logbook = $state<Logbook>() as Logbook;
     stations = $state<Station[]>([]);
     instruments = $state<Instrument[]>([]);
+    loaded = $state(false);
+    loadError = $state<string | undefined>(undefined);
     status = $state<StreamStatus>('connecting');
     lastUpdatedSeq = $state(0);
     private generation: string | undefined;
@@ -60,6 +62,22 @@ export class LogbookState {
         this.instruments = await api.instruments(this.logbook.id);
     }
 
+    async load() {
+        const results = await Promise.allSettled([this.loadStations(), this.loadInstruments()]);
+        const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        this.loadError =
+            failed === undefined
+                ? undefined
+                : failed.reason instanceof Error
+                  ? failed.reason.message
+                  : String(failed.reason);
+        this.loaded = true;
+    }
+
+    get noActiveStation(): boolean {
+        return this.loaded && this.loadError === undefined && this.activeStations.length === 0;
+    }
+
     matches(qso: Qso, query: RowMatcher | undefined): boolean | undefined {
         return query?.matches(
             qso.fields,
@@ -69,8 +87,7 @@ export class LogbookState {
     }
 
     start() {
-        this.loadStations().catch(() => undefined);
-        this.loadInstruments().catch(() => undefined);
+        void this.load();
         const source = new EventSource(api.eventsUrl(this.logbook.id));
         this.source = source;
         source.addEventListener('hello', (event) => {

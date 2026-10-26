@@ -4,6 +4,7 @@
     import type { Instrument } from '#lib/api/types.ts';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
+    import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import PickList from '#lib/components/PickList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
@@ -76,6 +77,7 @@
 </PageHeader>
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+    <LogbookLoadError />
     <div class="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
         <PickList
             label={m.stations_instrument_list()}
@@ -101,9 +103,7 @@
                 </p>
             {:else if selected !== 'new' && current === undefined}
                 <p class="text-muted">
-                    {logbook.instruments.length === 0
-                        ? m.common_loading()
-                        : m.stations_instrument_not_found()}
+                    {logbook.loaded ? m.stations_instrument_not_found() : m.common_loading()}
                 </p>
             {:else}
                 {#key selected}
