@@ -3,9 +3,9 @@
 version = 4
 
 [[package]]
-name = "adif-reader"
-version = "0.1.1"
-source = "git+https://github.com/kb10uy/adif-reader#b4a4491abf8b211d25154eb7ceb4c72eea98b1a9"
+name = "adif-manip"
+version = "0.2.0"
+source = "git+https://github.com/kb10uy/adif-manip#67b447060ca0b955f0ef820c351744bf72dcf9dd"
 dependencies = [
  "regex",
  "roxmltree",
@@ -1588,7 +1588,7 @@ dependencies = [
 name = "jl1his-logger"
 version = "0.2.0"
 dependencies = [
- "adif-reader",
+ "adif-manip",
  "axum",
  "axum-extra",
  "base64 0.22.1",

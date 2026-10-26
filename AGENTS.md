@@ -71,10 +71,8 @@ or another shared crate.
   booleans. `qsl_required` is `QSL_SENT in {R, Q}`; received is
   `QSL_RCVD in {Y, V}`.
 - **ADIF lengths are codepoints by default**, with bytes as an export option.
-  Reading goes through `adif-reader` (github.com/kb10uy/adif-reader); the
-  writer moves there as a `write` module once the export output has been
-  checked against real submissions; until then it is
-  `server/src/domain/adif.rs`.
+  Reading and writing go through `adif-manip` (github.com/kb10uy/adif-manip);
+  `server/src/domain/adif.rs` maps a QSO to and from its fields.
 - **Exports are batches**: record the UUIDs and `revision`s, and apply the
   external result to those rows only.
 - **The server searches; the client keeps no copy of the Logbook.** The log
