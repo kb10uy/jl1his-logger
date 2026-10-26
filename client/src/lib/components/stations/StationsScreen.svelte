@@ -1,6 +1,7 @@
 <script lang="ts">
     import { MediaQuery } from 'svelte/reactivity';
     import { afterNavigate, goto } from '$app/navigation';
+    import * as api from '#lib/api/api.ts';
     import type { Station } from '#lib/api/types.ts';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
@@ -11,6 +12,7 @@
     import { m } from '#lib/paraglide/messages.js';
     import { parks } from '#lib/qso/format.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
+    import { toasts } from '#lib/state/toast.svelte.ts';
     import StationEditor from './StationEditor.svelte';
 
     let { selected }: { selected: string | undefined } = $props();
@@ -36,6 +38,15 @@
         if (!fromList) return;
         e.preventDefault();
         history.back();
+    }
+
+    async function favorite(station: Station, favorite: boolean) {
+        try {
+            await api.favoriteStation(logbookId, station.id, favorite);
+            await logbook.loadStations();
+        } catch (e) {
+            toasts.error(e instanceof Error ? e.message : String(e));
+        }
     }
 
     async function saved(station: Station) {
@@ -80,6 +91,7 @@
             label={m.stations_list()}
             items={logbook.stations}
             {selected}
+            onfavorite={favorite}
             href={(station) => `${root}/${station.id}`}
             detail={(station) => station.callsign}
             search={(station) => [

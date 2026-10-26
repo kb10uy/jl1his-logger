@@ -16,6 +16,7 @@
         search,
         placeholder,
         empty,
+        onfavorite,
         class: className = ''
     }: {
         label: string;
@@ -26,6 +27,7 @@
         search: (item: T) => (string | null)[];
         placeholder: string;
         empty: string;
+        onfavorite: (item: T, favorite: boolean) => void;
         class?: string;
     } = $props();
 
@@ -50,27 +52,45 @@
 </script>
 
 {#snippet row(item: T)}
-    <a
-        href={href(item)}
-        aria-current={item.id === selected ? 'page' : undefined}
+    <div
         class={[
-            'flex h-14 items-center gap-2 border-b border-surface-2 px-3 text-[15px] no-underline md:h-9 md:text-[13px]',
+            'flex border-b border-surface-2',
             item.id === selected
-                ? 'bg-surface-2 font-semibold text-accent shadow-[inset_3px_0_0_var(--accent)]'
-                : item.archived_at === null
-                  ? 'text-text hover:bg-surface-2/60'
-                  : 'text-muted hover:bg-surface-2/60'
+                ? 'bg-surface-2 shadow-[inset_3px_0_0_var(--accent)]'
+                : 'hover:bg-surface-2/60'
         ]}
     >
-        <span class="min-w-0 flex-1 truncate">{item.name}</span>
-        {#if item.favorite}
-            <Icon name="starred" size={14} class="shrink-0 text-warn" />
-            <span class="sr-only">{m.favorite()}</span>
-        {/if}
-        <span class="shrink-0 font-mono text-[13px] font-normal text-muted md:text-xs"
-            >{detail(item)}</span
+        <button
+            type="button"
+            aria-pressed={item.favorite}
+            aria-label={m.favorite_item({ name: item.name })}
+            onclick={() => onfavorite(item, !item.favorite)}
+            class="flex w-11 shrink-0 items-center justify-center md:w-8"
         >
-    </a>
+            <Icon
+                name={item.favorite ? 'starred' : 'star'}
+                size={16}
+                class={item.favorite ? 'text-warn' : 'text-muted'}
+            />
+        </button>
+        <a
+            href={href(item)}
+            aria-current={item.id === selected ? 'page' : undefined}
+            class={[
+                'flex h-14 min-w-0 flex-1 items-center gap-2 pr-3 text-[15px] no-underline md:h-9 md:text-[13px]',
+                item.id === selected
+                    ? 'font-semibold text-accent'
+                    : item.archived_at === null
+                      ? 'text-text'
+                      : 'text-muted'
+            ]}
+        >
+            <span class="min-w-0 flex-1 truncate">{item.name}</span>
+            <span class="shrink-0 font-mono text-[13px] font-normal text-muted md:text-xs"
+                >{detail(item)}</span
+            >
+        </a>
+    </div>
 {/snippet}
 
 <section

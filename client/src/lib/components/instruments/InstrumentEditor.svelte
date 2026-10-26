@@ -2,7 +2,6 @@
     import { untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
     import type { Instrument } from '#lib/api/types.ts';
-    import FavoriteButton from '#lib/components/FavoriteButton.svelte';
     import RewritePanel from '#lib/components/RewritePanel.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
@@ -65,15 +64,6 @@
         }
     }
 
-    async function setFavorite(favorite: boolean) {
-        if (instrument === undefined) return;
-        try {
-            onsaved(await api.favoriteInstrument(logbookId, instrument.id, favorite));
-        } catch (e) {
-            toasts.error(message(e));
-        }
-    }
-
     async function setArchived(archived: boolean) {
         if (instrument === undefined) return;
         try {
@@ -110,7 +100,6 @@
             >
         {/if}
         {#if instrument}
-            <FavoriteButton favorite={instrument.favorite} onchange={setFavorite} />
             {#if instrument.archived_at}
                 <Button size="sm" onclick={() => setArchived(false)}>{m.stations_restore()}</Button>
             {:else}
