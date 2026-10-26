@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "adif-manip"
 version = "0.2.0"
-source = "git+https://github.com/kb10uy/adif-manip#67b447060ca0b955f0ef820c351744bf72dcf9dd"
+source = "git+https://github.com/kb10uy/adif-manip#b1c90c59a075ef76153375117d9d9a6db9731efd"
 dependencies = [
  "regex",
  "roxmltree",
