@@ -167,7 +167,7 @@ columns, never written by clients, never exported.
 
 | Column | Definition |
 | --- | --- |
-| `call_base` | `call` uppercased with portable prefixes and suffixes removed (`JL1HIS/1`, `JL1HIS/P` and `JA1XYZ/QRP` give `JL1HIS` and `JA1XYZ`). The home callsign is the longest slash-separated segment, the first one on a tie (`KH6/W1AW` gives `W1AW`, `VP2E/W1AW` gives `VP2E`). Previous-contact lookup, plain callsign search and duplicate candidates use it. |
+| `call_base` | `call` uppercased with portable prefixes and suffixes removed (`JL1HIS/1`, `JL1HIS/P` and `JA1XYZ/QRP` give `JL1HIS` and `JA1XYZ`). The home callsign is the longest slash-separated segment, the first one on a tie (`KH6/W1AW` gives `W1AW`, `VP2E/W1AW` gives `VP2E`). Previous-contact lookup, plain callsign search, the callsign sort order and duplicate candidates use it. |
 | `qso_time` | `qso_date` + `time_on` as Unix seconds in UTC. `time_on` with four digits counts as `:00`. Sorting, time range filters and duplicate detection use it. |
 | `freq_hz` | `freq` (MHz, decimal string) as integer Hz, or `NULL`. |
 
