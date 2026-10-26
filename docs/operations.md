@@ -46,7 +46,8 @@ next to it. `assets/config.example.toml` lists every setting with its default.
 | `server.auto_migrate` | Apply pending migrations when `serve` starts (default `true`). With `false`, pending migrations stop the server until `migrate` runs |
 | `database.path` | The SQLite database (default `jl1his-logger.db`) |
 | `reference.*` | Where reference data is installed (default under `reference/`) |
-| `adif.length` | Length counting for exported ADI, `codepoints` (default) or `bytes` |
+| `adif.length` | Length counting for exported ADI, `codepoints` (default), `bytes` or `utf16`; an import that is not told a unit tries it first |
+| `adif.fallback_encoding` | How an import reads a file that is not UTF-8: `shift_jis` (default), `windows-1252`, `ascii` or `utf-8` |
 
 ## Migrations
 
@@ -98,8 +99,10 @@ jl1his-logger --as JL1HIS import log.adi --source new --station Home          # 
 jl1his-logger --as JL1HIS import log.adi --source new --station Home --apply
 jl1his-logger --as JL1HIS import portable.adi --source new --station Home --instrument "IC-705 QRP" --apply
 jl1his-logger --as JL1HIS import lotwreport.adi --source lotw --apply --rejects rejects.adi
+jl1his-logger --as JL1HIS import hamlog.adi --source new --station Home --encoding shift_jis
 jl1his-logger --as JL1HIS export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
 jl1his-logger --as JL1HIS export write qsl-card --qsl-sent R,Q -o cards.adi
+jl1his-logger --as JL1HIS export write lotw --encoding ascii --unencodable replace -o lotw.adi
 jl1his-logger --as JL1HIS export apply <batch>                                # mark them sent
 jl1his-logger --as JL1HIS token issue logger --logbook JL1HIS
 jl1his-logger --as JL1HIS settings list                                       # instance settings (admin)

@@ -3,6 +3,7 @@ import { query, request } from './client.ts';
 import type {
     Area,
     Batch,
+    Encoding,
     Exported,
     ExportKind,
     Fields,
@@ -28,6 +29,7 @@ import type {
     StationInput,
     Subdivision,
     Target,
+    Unencodable,
     Token,
     TokenKind
 } from './types.ts';
@@ -254,6 +256,8 @@ export interface ExportRequest {
     q?: string;
     park?: string;
     length?: LengthUnit;
+    encoding?: Encoding;
+    unencodable?: Unencodable;
 }
 
 export const createExport = (logbook: string, req: ExportRequest) =>
@@ -269,6 +273,7 @@ export interface ImportRequest {
     instrument_id?: string;
     format: 'adi' | 'adx';
     length?: LengthUnit;
+    encoding?: Encoding;
     apply: boolean;
 }
 

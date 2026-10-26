@@ -6,11 +6,11 @@ use std::{
 use clap::{Args, ValueEnum};
 
 use crate::{
-    cli::{CliResult, Context, LengthArg, LogbookArg},
+    cli::{CliResult, Context, EncodingArg, LengthArg, LogbookArg},
     domain::{
-        adif::{self, LengthUnit},
+        adif::{self, Encoding, LengthUnit, Lengths},
         confirmation::Source,
-        qso::{Qso, QsoError, Warning},
+        qso::{Qso, Warning},
     },
     store::{
         export,
@@ -57,9 +57,15 @@ pub struct ImportArgs {
     #[arg(
         long,
         value_enum,
-        help = "How the .adi file counts lengths [default: from the configuration]"
+        help = "How the .adi file counts lengths [default: detected for each value]"
     )]
     length: Option<LengthArg>,
+    #[arg(
+        long,
+        value_enum,
+        help = "Encoding of the file [default: UTF-8 if it is valid, else the configured fallback]"
+    )]
+    encoding: Option<EncodingArg>,
     #[arg(long, help = "Write the changes; without it the import only previews")]
     apply: bool,
     #[arg(
@@ -72,7 +78,16 @@ pub struct ImportArgs {
 
 pub async fn run(context: &Context<'_>, args: &ImportArgs) -> CliResult<()> {
     let unit = context.length(args.length);
-    let records = read(&args.file, unit)?;
+    let lengths = match args.length {
+        Some(length) => Lengths::Fixed(length.into()),
+        None => Lengths::Detect {
+            default: context.config.adif.length,
+        },
+    };
+    let fallback = context.config.adif.fallback_encoding;
+    let (read, encoding) = read(&args.file, args.encoding.map(Encoding::from), lengths, fallback)?;
+    print_reading(encoding, &read.lengths);
+    let records = read.records;
     let access = context.logbook_access(&args.logbook).await?;
     let rejects = match args.source.confirmation() {
         None => {
@@ -115,16 +130,33 @@ pub async fn run(context: &Context<'_>, args: &ImportArgs) -> CliResult<()> {
     Ok(())
 }
 
-fn read(path: &Path, unit: LengthUnit) -> CliResult<Vec<Result<Qso, QsoError>>> {
-    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+fn read(
+    path: &Path,
+    encoding: Option<Encoding>,
+    lengths: Lengths,
+    fallback: Encoding,
+) -> CliResult<(adif::Read, Encoding)> {
+    let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let (text, encoding) = adif::decode(&bytes, encoding, fallback)
+        .map_err(|e| format!("{}: the file is not {}", path.display(), e.name()))?;
     let adx = path
         .extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("adx"));
-    let records = match adx {
+    let read = match adx {
         true => adif::read_adx(&text),
-        false => adif::read_adi(&text, unit),
+        false => adif::read_adi(&text, encoding, lengths),
     };
-    Ok(records.map_err(|e| format!("{}: {e}", path.display()))?)
+    Ok((read.map_err(|e| format!("{}: {e}", path.display()))?, encoding))
+}
+
+fn print_reading(encoding: Encoding, lengths: &[LengthUnit]) {
+    if encoding != Encoding::Utf8 {
+        println!("Read the file as {}.", encoding.name());
+    }
+    if !lengths.is_empty() {
+        let names: Vec<_> = lengths.iter().map(|unit| unit.name()).collect();
+        println!("Non-ASCII values count their lengths in {}.", names.join(" and "));
+    }
 }
 
 pub(super) fn write_adif(path: &Path, records: &[Qso], unit: LengthUnit) -> CliResult<()> {
@@ -208,6 +240,8 @@ mod tests {
 
     use super::*;
 
+    const FIXED: Lengths = Lengths::Fixed(LengthUnit::Codepoints);
+
     #[rstest]
     #[case(SourceArg::New, None)]
     #[case(SourceArg::Lotw, Some(Source::Lotw))]
@@ -227,7 +261,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(name);
         fs::write(&path, text).unwrap();
-        let records = read(&path, LengthUnit::Codepoints).unwrap();
+        let (read, _) = read(&path, None, FIXED, Encoding::ShiftJis).unwrap();
+        let records = read.records;
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].as_ref().unwrap().get("CALL"), Some("JA1XYZ"));
     }
@@ -238,8 +273,23 @@ mod tests {
         let path = dir.path().join("out.adi");
         let qso = Qso::from_fields([("CALL", "JA1XYZ"), ("NAME", "太郎")]).unwrap();
         write_adif(&path, std::slice::from_ref(&qso), LengthUnit::Codepoints).unwrap();
-        let records = read(&path, LengthUnit::Codepoints).unwrap();
-        assert_eq!(records, [Ok(qso)]);
-        assert!(read(&dir.path().join("missing.adi"), LengthUnit::Codepoints).is_err());
+        let (read_back, encoding) = read(&path, None, FIXED, Encoding::ShiftJis).unwrap();
+        assert_eq!((read_back.records, encoding), (vec![Ok(qso)], Encoding::Utf8));
+        assert!(read(&dir.path().join("missing.adi"), None, FIXED, Encoding::ShiftJis).is_err());
+    }
+
+    #[test]
+    fn reads_a_shift_jis_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hamlog.adi");
+        fs::write(&path, Encoding::ShiftJis.encode("<CALL:6>JA1XYZ <NAME:4>太郎 <EOR>")).unwrap();
+        let detect = Lengths::Detect {
+            default: LengthUnit::Codepoints,
+        };
+        let (read_back, encoding) = read(&path, None, detect, Encoding::ShiftJis).unwrap();
+        assert_eq!(encoding, Encoding::ShiftJis);
+        assert_eq!(read_back.lengths, [LengthUnit::Bytes]);
+        assert_eq!(read_back.records[0].as_ref().unwrap().get("NAME"), Some("太郎"));
+        assert!(read(&path, Some(Encoding::Utf8), detect, Encoding::ShiftJis).is_err());
     }
 }

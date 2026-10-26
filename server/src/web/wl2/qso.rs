@@ -230,7 +230,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::{
-            adif::{LengthUnit, read_adi},
+            adif::{Encoding, LengthUnit, Lengths, read_adi},
             reference::tests::CTY,
         },
         store::{logbook::station::StationInput, reference::ReferenceKind},
@@ -372,8 +372,9 @@ mod tests {
         let Some(adif) = body["data"]["adif"].as_str() else {
             return vec![];
         };
-        read_adi(adif, LengthUnit::Codepoints)
+        read_adi(adif, Encoding::Utf8, Lengths::Fixed(LengthUnit::Codepoints))
             .unwrap()
+            .records
             .into_iter()
             .map(|qso| qso.unwrap().get("CALL").unwrap().to_owned())
             .collect()

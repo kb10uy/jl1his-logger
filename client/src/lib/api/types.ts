@@ -193,7 +193,11 @@ export interface Subdivision {
 
 export type ExportKind = 'adif' | 'pota' | 'eqsl' | 'lotw' | 'qsl_card';
 
-export type LengthUnit = 'codepoints' | 'bytes';
+export type LengthUnit = 'codepoints' | 'bytes' | 'utf16';
+
+export type Encoding = 'utf-8' | 'shift_jis' | 'windows-1252' | 'ascii';
+
+export type Unencodable = 'error' | 'replace' | 'entity' | 'omit';
 
 export interface Batch {
     id: string;
@@ -208,6 +212,7 @@ export interface Exported {
     batch: Batch | null;
     records: number;
     adif: string | null;
+    file: string | null;
 }
 
 export type ImportSource = 'new' | 'lotw' | 'eqsl' | 'card';
@@ -224,6 +229,8 @@ export interface Invalid {
 
 export interface NewReport {
     applied: boolean;
+    encoding: Encoding;
+    lengths: LengthUnit[];
     read: number;
     created: number;
     existing: number;
@@ -236,6 +243,8 @@ export interface NewReport {
 
 export interface MergeReport {
     applied: boolean;
+    encoding: Encoding;
+    lengths: LengthUnit[];
     read: number;
     not_confirmations: number;
     merged: number;

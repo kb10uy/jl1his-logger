@@ -4,10 +4,14 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
+use base64::{Engine, prelude::BASE64_STANDARD};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    domain::{adif::LengthUnit, qso::QsoId},
+    domain::{
+        adif::{Encoding, LengthUnit, Output, Unencodable},
+        qso::QsoId,
+    },
     store::{
         WriteTx,
         export::{self, ExportBatch, ExportKind},
@@ -128,6 +132,10 @@ pub struct ExportRequest {
     q: Option<String>,
     park: Option<String>,
     length: Option<LengthUnit>,
+    #[serde(default)]
+    encoding: Encoding,
+    #[serde(default)]
+    unencodable: Unencodable,
 }
 
 #[derive(Debug, Serialize)]
@@ -135,6 +143,7 @@ pub struct ExportBody {
     batch: Option<BatchBody>,
     records: usize,
     adif: Option<String>,
+    file: Option<String>,
 }
 
 fn targets(requests: Vec<TargetRequest>) -> Result<Vec<Target>, ApiError> {
@@ -198,7 +207,15 @@ pub async fn create(
         query: text(req.q.as_deref())?,
         ..Filter::default()
     };
-    let unit = req.length.unwrap_or(state.config.adif.length);
+    let unit = req
+        .encoding
+        .export_unit(req.length, state.config.adif.length)
+        .ok_or_else(|| ApiError::bad_request(format!("lengths in {} are counted in bytes", req.encoding.name())))?;
+    let output = Output {
+        unit,
+        encoding: req.encoding,
+        unencodable: req.unencodable,
+    };
     let mut conn = state.db.acquire().await?;
     let selection = export::select(&mut conn, &member.access, req.kind, &filter, req.park.as_deref()).await?;
     drop(conn);
@@ -209,9 +226,19 @@ pub async fn create(
                 batch: None,
                 records: 0,
                 adif: None,
+                file: None,
             }),
         ));
     }
+    let adif = export::encoded(&selection.records, output).map_err(|e| {
+        ApiError::bad_request(e.to_string())
+            .with("code", "unencodable".into())
+            .with("record", e.record.into())
+            .with("field", e.field.clone().into())
+            .with("character", e.character.to_string().into())
+    })?;
+    let file = matches!(req.encoding, Encoding::ShiftJis | Encoding::Windows1252)
+        .then(|| BASE64_STANDARD.encode(req.encoding.encode(&adif)));
     let mut tx = WriteTx::begin(&state.db).await?;
     let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets).await?;
     tx.commit().await?;
@@ -220,7 +247,8 @@ pub async fn create(
         Json(ExportBody {
             batch: Some(batch.into()),
             records: selection.records.len(),
-            adif: Some(export::document(&selection.records, unit)),
+            adif: Some(adif),
+            file,
         }),
     ))
 }
@@ -358,7 +386,52 @@ mod tests {
 
         let (status, nothing) = h.send("POST", &exports, Auth::Session(&cookie), Some(request)).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(nothing, json!({ "batch": null, "records": 0, "adif": null }));
+        assert_eq!(
+            nothing,
+            json!({ "batch": null, "records": 0, "adif": null, "file": null })
+        );
+    }
+
+    #[tokio::test]
+    async fn exports_in_another_encoding() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        create_qso(&h, &cookie, "JA1XYZ", "0100").await;
+        let exports = h.path("/exports");
+        let export = |body: Value| h.send("POST", &exports, Auth::Session(&cookie), Some(body));
+
+        let (status, exported) = export(json!({ "kind": "adif", "encoding": "shift_jis" })).await;
+        assert_eq!(status, StatusCode::CREATED, "{exported}");
+        let adif = exported["adif"].as_str().unwrap();
+        assert!(adif.contains("<NAME:4>太郎 "), "{adif}");
+        let file = BASE64_STANDARD.decode(exported["file"].as_str().unwrap()).unwrap();
+        assert_eq!(file, Encoding::ShiftJis.encode(adif).into_owned());
+
+        let (status, refused) = export(json!({ "kind": "adif", "encoding": "ascii" })).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            (
+                &refused["code"],
+                &refused["record"],
+                &refused["field"],
+                &refused["character"]
+            ),
+            (&json!("unencodable"), &json!(1), &json!("NAME"), &json!("太"))
+        );
+        let (status, entities) = export(json!({ "kind": "adif", "encoding": "ascii", "unencodable": "entity" })).await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert!(
+            entities["adif"]
+                .as_str()
+                .unwrap()
+                .contains("<NAME:16>&#22826;&#37070; ")
+        );
+        assert_eq!(entities["file"], Value::Null);
+
+        let (status, _) = export(json!({ "kind": "adif", "encoding": "shift_jis", "length": "codepoints" })).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (_, list) = h.send("GET", &exports, Auth::Session(&cookie), None).await;
+        assert_eq!(list.as_array().unwrap().len(), 2);
     }
 
     #[tokio::test]

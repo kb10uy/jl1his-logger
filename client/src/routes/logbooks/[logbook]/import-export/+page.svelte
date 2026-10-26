@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import type { Batch, LengthUnit, NewReport } from '#lib/api/types.ts';
+    import type { Batch, Encoding, LengthUnit, NewReport, Unencodable } from '#lib/api/types.ts';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import BatchTable from '#lib/components/transfer/BatchTable.svelte';
@@ -13,7 +13,7 @@
     import Segmented from '#lib/components/ui/Segmented.svelte';
     import Slotted from '#lib/components/ui/Slotted.svelte';
     import Stat from '#lib/components/ui/Stat.svelte';
-    import { download } from '#lib/download.ts';
+    import { download, fromBase64 } from '#lib/download.ts';
     import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import StationSelect from '#lib/components/StationSelect.svelte';
@@ -22,7 +22,14 @@
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { Matches } from '#lib/state/matches.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
-    import { MAX_IMPORT, fileName, formatOf } from '#lib/transfer/transfer.ts';
+    import {
+        ENCODING_NAMES,
+        LENGTH_LABELS,
+        MAX_IMPORT,
+        fileName,
+        formatOf,
+        readingNote
+    } from '#lib/transfer/transfer.ts';
 
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
@@ -32,7 +39,8 @@
     let file = $state<File | undefined>(undefined);
     let stationId = $state('');
     let instrumentId = $state('');
-    let importLength = $state<LengthUnit>('codepoints');
+    let importLength = $state<LengthUnit | 'auto'>('auto');
+    let importEncoding = $state<Encoding | 'auto'>('auto');
     let report = $state<NewReport | undefined>(undefined);
     let reportError = $state<string | undefined>(undefined);
     let previewing = $state(false);
@@ -44,6 +52,8 @@
     let q = $state('');
     let park = $state('');
     let exportLength = $state<LengthUnit>('codepoints');
+    let exportEncoding = $state<Encoding>('utf-8');
+    let exportUnencodable = $state<Unencodable>('error');
     let exporting = $state(false);
     let batches = $state<Batch[]>([]);
     let callsigns = $state<Record<string, string>>({});
@@ -89,7 +99,9 @@
                     station_id: station,
                     instrument_id: instrument || undefined,
                     format,
-                    length: format === 'adi' ? importLength : undefined,
+                    length: format === 'adi' && importLength !== 'auto' ? importLength : undefined,
+                    encoding:
+                        format === 'adi' && importEncoding !== 'auto' ? importEncoding : undefined,
                     apply
                 },
                 file
@@ -118,6 +130,7 @@
         void station;
         void instrument;
         void importLength;
+        void importEncoding;
         if (file === undefined) return;
         untrack(() => {
             imported = undefined;
@@ -132,13 +145,18 @@
                 kind,
                 q: q.trim() || undefined,
                 park: kind === 'pota' && park.trim() !== '' ? park.trim().toUpperCase() : undefined,
-                length: exportLength
+                length: exportEncoding === 'utf-8' ? exportLength : undefined,
+                encoding: exportEncoding,
+                unencodable: exportEncoding === 'utf-8' ? undefined : exportUnencodable
             });
             if (result.batch === null || result.adif === null) {
                 toasts.show(m.transfer_export_nothing());
                 return;
             }
-            download(fileName(logbook.logbook.name, kind, new Date()), result.adif);
+            download(
+                fileName(logbook.logbook.name, kind, new Date()),
+                result.file === null ? result.adif : fromBase64(result.file)
+            );
             batches = [result.batch, ...batches];
             toasts.show(m.transfer_exported({ count: result.records }));
         } catch (e) {
@@ -148,17 +166,31 @@
         }
     }
 
-    const lengths: { value: LengthUnit; label: string }[] = [
-        { value: 'codepoints', label: m.transfer_length_codepoints() },
-        { value: 'bytes', label: m.transfer_length_bytes() }
+    const units: LengthUnit[] = ['codepoints', 'bytes', 'utf16'];
+    const lengths = units.map((value) => ({ value, label: LENGTH_LABELS[value]() }));
+    const encodings = Object.entries(ENCODING_NAMES) as [Encoding, string][];
+    const unencodables: { value: Unencodable; label: string }[] = [
+        { value: 'error', label: m.transfer_unencodable_error() },
+        { value: 'replace', label: m.transfer_unencodable_replace() },
+        { value: 'entity', label: m.transfer_unencodable_entity() },
+        { value: 'omit', label: m.transfer_unencodable_omit() }
     ];
 </script>
 
 <PageTitle title={m.nav_import_export()} />
 
-{#snippet lengthChoice(name: string, value: LengthUnit, set: (v: LengthUnit) => void)}
-    <div role="radiogroup" aria-label={m.transfer_lengths()} class="flex gap-4 text-[13px]">
-        {#each lengths as l (l.value)}
+{#snippet lengthChoice<T extends string>(
+    name: string,
+    options: { value: T; label: string }[],
+    value: T,
+    set: (v: T) => void
+)}
+    <div
+        role="radiogroup"
+        aria-label={m.transfer_lengths()}
+        class="flex flex-wrap gap-x-4 gap-y-1 text-[13px]"
+    >
+        {#each options as l (l.value)}
             <label class="flex cursor-pointer items-center gap-1.5">
                 <input
                     type="radio"
@@ -233,8 +265,28 @@
                     onchange={(id) => (instrumentId = id)}
                 />
                 {#if format === 'adi'}
+                    <label for="imp-encoding" class="text-xs text-muted"
+                        >{m.transfer_encoding()}</label
+                    >
+                    <select
+                        id="imp-encoding"
+                        class="control h-10"
+                        value={importEncoding}
+                        onchange={(e) =>
+                            (importEncoding = e.currentTarget.value as Encoding | 'auto')}
+                    >
+                        <option value="auto">{m.transfer_encoding_auto()}</option>
+                        {#each encodings as [value, name] (value)}
+                            <option {value}>{name}</option>
+                        {/each}
+                    </select>
                     <span class="text-xs text-muted">{m.transfer_lengths()}</span>
-                    {@render lengthChoice('imp-len', importLength, (v) => (importLength = v))}
+                    {@render lengthChoice<LengthUnit | 'auto'>(
+                        'imp-len',
+                        [{ value: 'auto', label: m.transfer_length_auto() }, ...lengths],
+                        importLength,
+                        (v) => (importLength = v)
+                    )}
                 {/if}
             </div>
             <LogbookLoadError />
@@ -248,7 +300,9 @@
             {#if report}
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-muted"
-                        >{imported ? m.transfer_imported_label() : m.transfer_preview_note()}</span
+                        >{imported ? m.transfer_imported_label() : m.transfer_preview_note()} · {readingNote(
+                            report
+                        )}</span
                     >
                     <div class="flex-1"></div>
                     <Button size="sm" disabled={previewing} onclick={() => run(false)}
@@ -397,8 +451,36 @@
                             bind:value={park}
                         />
                     {/if}
-                    <span class="text-xs text-muted">{m.transfer_lengths()}</span>
-                    {@render lengthChoice('exp-len', exportLength, (v) => (exportLength = v))}
+                    <label for="exp-encoding" class="text-xs text-muted"
+                        >{m.transfer_encoding()}</label
+                    >
+                    <select id="exp-encoding" class="control h-10" bind:value={exportEncoding}>
+                        {#each encodings as [value, name] (value)}
+                            <option {value}>{name}</option>
+                        {/each}
+                    </select>
+                    {#if exportEncoding === 'utf-8'}
+                        <span class="text-xs text-muted">{m.transfer_lengths()}</span>
+                        {@render lengthChoice<LengthUnit>(
+                            'exp-len',
+                            lengths,
+                            exportLength,
+                            (v) => (exportLength = v)
+                        )}
+                    {:else}
+                        <label for="exp-unencodable" class="text-xs text-muted"
+                            >{m.transfer_unencodable()}</label
+                        >
+                        <select
+                            id="exp-unencodable"
+                            class="control h-10"
+                            bind:value={exportUnencodable}
+                        >
+                            {#each unencodables as u (u.value)}
+                                <option value={u.value}>{u.label}</option>
+                            {/each}
+                        </select>
+                    {/if}
                 </div>
                 {#if matches.error}
                     <Notice tone="error">{matches.error}</Notice>
