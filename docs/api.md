@@ -158,18 +158,20 @@ owner is `409`.
 ## Stations
 
 A Station is `{id, wavelog_id, name, callsign, fields, archived_at,
-created_at, updated_at}`. `fields` holds the `MY_*` and other defaults baked
+created_at, updated_at, favorite}`. `fields` holds the `MY_*` and other defaults baked
 into new QSOs; `wavelog_id` is the integer ID `/wl2` clients address the Station by, or `null`. Paths
 are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `GET /stations` | | The Stations, archived ones last, by name |
+| `GET /stations` | | The Stations: your favorites first, then the others by name, archived ones last |
 | `GET /stations/{id}` | | One Station |
 | `POST /stations` | `{name, callsign, wavelog_id?, fields}` | `201` with the Station; owners only |
 | `PUT /stations/{id}` | `{name, callsign, wavelog_id?, fields}` | The Station; owners only |
 | `POST /stations/{id}/archive` | | The archived Station; owners only |
 | `DELETE /stations/{id}/archive` | | The Station, no longer archived; owners only |
+| `POST /stations/{id}/favorite` | | The Station, now one of your favorites |
+| `DELETE /stations/{id}/favorite` | | The Station, no longer one of your favorites |
 | `GET /stations/{id}/rewrite?from=&until=` | | `{count}` of past QSOs a rewrite would change; owners only |
 | `POST /stations/{id}/rewrite` | `{from?, until?, count}` | `{count}` rewritten; owners only |
 
@@ -185,22 +187,29 @@ optional) and sets `STATION_CALLSIGN` and every field of the Station, leaving
 other fields alone. Its `count` must equal what a preview returns now, or it is
 `409` and nothing changes.
 
+`favorite` is whether the Station is a favorite of the caller: the signed-in
+user, or the user an API token belongs to. Any member marks and unmarks
+favorites, including operators and archived Stations; doing it twice changes
+nothing and leaves `updated_at` alone.
+
 ## Instruments
 
 An Instrument is `{id, name, my_rig, my_antenna, tx_pwr, fields, archived_at,
-created_at, updated_at}`: the equipment baked into new QSOs as `MY_RIG`,
+created_at, updated_at, favorite}`: the equipment baked into new QSOs as `MY_RIG`,
 `MY_ANTENNA` and `TX_PWR`, each `null` when unset, with `fields` holding other
 defaults that win over the Station's. Any member manages them; only owners
 rewrite their past QSOs. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `GET /instruments` | | The Instruments, archived ones last, by name |
+| `GET /instruments` | | The Instruments: your favorites first, then the others by name, archived ones last |
 | `GET /instruments/{id}` | | One Instrument |
 | `POST /instruments` | `{name, my_rig?, my_antenna?, tx_pwr?, fields}` | `201` with the Instrument |
 | `PUT /instruments/{id}` | `{name, my_rig?, my_antenna?, tx_pwr?, fields}` | The Instrument |
 | `POST /instruments/{id}/archive` | | The archived Instrument |
 | `DELETE /instruments/{id}/archive` | | The Instrument, no longer archived |
+| `POST /instruments/{id}/favorite` | | The Instrument, now one of your favorites |
+| `DELETE /instruments/{id}/favorite` | | The Instrument, no longer one of your favorites |
 | `GET /instruments/{id}/rewrite?from=&until=` | | `{count}` of past QSOs a rewrite would change; owners only |
 | `POST /instruments/{id}/rewrite` | `{from?, until?, count}` | `{count}` rewritten; owners only |
 
@@ -215,6 +224,8 @@ Editing an Instrument never changes past QSOs. A rewrite works as a Station's
 does over the QSOs whose `instrument_id` is the Instrument: it sets `MY_RIG`,
 `MY_ANTENNA` and `TX_PWR` where the Instrument has them, and every field of
 its `fields`, leaving the others alone.
+
+`favorite` works as for Stations.
 
 ## QSOs
 

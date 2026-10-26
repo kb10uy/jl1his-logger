@@ -17,7 +17,9 @@ const NOT_DEFAULTS: &[&str] = &["CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE", "
 
 const EQUIPMENT: &[&str] = &["MY_RIG", "MY_ANTENNA", "TX_PWR"];
 
-const SELECT: &str = "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at FROM stations";
+const SELECT: &str = "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at, \
+                      EXISTS (SELECT 1 FROM station_favorites f WHERE f.user_id = ? AND f.station_id = stations.id) \
+                      AS favorite FROM stations";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StationInput {
@@ -37,6 +39,7 @@ pub struct Station {
     pub archived_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub favorite: bool,
 }
 
 impl Station {
@@ -52,6 +55,7 @@ impl Station {
             archived_at: row.try_get("archived_at")?,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
+            favorite: row.try_get("favorite")?,
         })
     }
 }
@@ -197,6 +201,31 @@ pub async fn set_archived(
     fetch(tx, owner, id).await
 }
 
+pub async fn set_favorite(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    id: &str,
+    favorite: bool,
+) -> Result<Station, StoreError> {
+    access.revalidate(tx).await?;
+    fetch(tx, access, id).await?;
+    let query = match favorite {
+        true => sqlx::query(
+            "INSERT INTO station_favorites (logbook_id, user_id, station_id, created_at) VALUES (?, ?, ?, ?) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(access.logbook_id())
+        .bind(access.user_id())
+        .bind(id)
+        .bind(now()),
+        false => sqlx::query("DELETE FROM station_favorites WHERE user_id = ? AND station_id = ?")
+            .bind(access.user_id())
+            .bind(id),
+    };
+    query.execute(&mut **tx).await?;
+    fetch(tx, access, id).await
+}
+
 pub async fn preview_rewrite(
     conn: &mut SqliteConnection,
     owner: &OwnerAccess<'_>,
@@ -251,6 +280,7 @@ pub(crate) async fn fetch(
     id: &str,
 ) -> Result<Station, StoreError> {
     let row = sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE logbook_id = ? AND id = ?")))
+        .bind(access.user_id())
         .bind(access.logbook_id())
         .bind(id)
         .fetch_optional(conn)
@@ -262,8 +292,9 @@ pub(crate) async fn fetch(
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Station>, StoreError> {
     access.revalidate(conn).await?;
     sqlx::query(AssertSqlSafe(format!(
-        "{SELECT} WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id"
+        "{SELECT} WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, favorite DESC, name, id"
     )))
+    .bind(access.user_id())
     .bind(access.logbook_id())
     .fetch_all(conn)
     .await?
@@ -279,7 +310,10 @@ mod tests {
     use super::*;
     use crate::{
         domain::qso::QsoId,
-        store::testing::{World, contact, station_input as input},
+        store::{
+            logbook::membership,
+            testing::{World, contact, station_input as input},
+        },
     };
 
     #[tokio::test]
@@ -440,5 +474,85 @@ mod tests {
             .map(|s| s.name)
             .collect();
         assert_eq!(names, ["Bravo", "Charlie", "Alpha"]);
+    }
+
+    #[tokio::test]
+    async fn lists_the_favorites_of_each_member_first() {
+        let world = World::new().await;
+        let alpha = world.station("Alpha").await;
+        let charlie = world.station("Charlie").await;
+        world.station("Bravo").await;
+        let owner = world.access(&world.owner).await;
+        let operator = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let favorite = set_favorite(&mut tx, &operator, &charlie.id, true).await.unwrap();
+        assert!(favorite.favorite);
+        assert!(
+            set_favorite(&mut tx, &operator, &charlie.id, true)
+                .await
+                .unwrap()
+                .favorite
+        );
+        assert_eq!(favorite.updated_at, charlie.updated_at);
+        set_favorite(&mut tx, &operator, &alpha.id, true).await.unwrap();
+        set_archived(&mut tx, &owner.owner().unwrap(), &alpha.id, true)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let listed = |stations: Vec<Station>| -> Vec<(String, bool)> {
+            stations.into_iter().map(|s| (s.name, s.favorite)).collect()
+        };
+        assert_eq!(
+            listed(list(&mut conn, &operator).await.unwrap()),
+            [
+                ("Charlie".to_owned(), true),
+                ("Bravo".to_owned(), false),
+                ("Alpha".to_owned(), true)
+            ]
+        );
+        assert_eq!(
+            listed(list(&mut conn, &owner).await.unwrap()),
+            [
+                ("Bravo".to_owned(), false),
+                ("Charlie".to_owned(), false),
+                ("Alpha".to_owned(), false)
+            ]
+        );
+        drop(conn);
+
+        let (_, other) = world.other_logbook().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let removed = set_favorite(&mut tx, &operator, &charlie.id, false).await.unwrap();
+        assert!(!removed.favorite);
+        assert!(
+            !set_favorite(&mut tx, &operator, &charlie.id, false)
+                .await
+                .unwrap()
+                .favorite
+        );
+        assert!(matches!(
+            set_favorite(&mut tx, &other, &charlie.id, true).await,
+            Err(StoreError::NotFound("Station"))
+        ));
+    }
+
+    #[tokio::test]
+    async fn forgets_the_favorites_of_a_removed_member() {
+        let world = World::new().await;
+        let station = world.station("Home").await;
+        let operator = world.access(&world.operator).await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        set_favorite(&mut tx, &operator, &station.id, true).await.unwrap();
+        let owner = world.access(&world.owner).await;
+        membership::remove(&mut tx, &owner.owner().unwrap(), &world.operator.id)
+            .await
+            .unwrap();
+        let left: i64 = sqlx::query_scalar("SELECT count(*) FROM station_favorites")
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        assert_eq!(left, 0);
     }
 }

@@ -80,6 +80,18 @@ pub enum StationCommand {
         #[command(flatten)]
         logbook: LogbookArg,
     },
+    #[command(about = "Marks a Station as your favorite, listed first")]
+    Favorite {
+        station: String,
+        #[command(flatten)]
+        logbook: LogbookArg,
+    },
+    #[command(about = "Takes a Station out of your favorites")]
+    Unfavorite {
+        station: String,
+        #[command(flatten)]
+        logbook: LogbookArg,
+    },
     #[command(about = "Rewrites the past QSOs of a Station with its current values")]
     Rewrite {
         station: String,
@@ -100,6 +112,8 @@ impl StationCommand {
             | StationCommand::Update { logbook, .. }
             | StationCommand::Archive { logbook, .. }
             | StationCommand::Unarchive { logbook, .. }
+            | StationCommand::Favorite { logbook, .. }
+            | StationCommand::Unfavorite { logbook, .. }
             | StationCommand::Rewrite { logbook, .. } => logbook,
         }
     }
@@ -108,8 +122,9 @@ impl StationCommand {
 fn print_station(station: &Station) {
     let wavelog = station.wavelog_id.map(|id| format!("wavelog {id}")).unwrap_or_default();
     let archived = station.archived_at.as_ref().map(|_| "archived").unwrap_or("");
+    let favorite = if station.favorite { "favorite" } else { "" };
     println!(
-        "{}\t{}\t{}\t{wavelog}\t{archived}",
+        "{}\t{}\t{}\t{wavelog}\t{archived}\t{favorite}",
         station.id, station.name, station.callsign
     );
     for (name, value) in &station.fields {
@@ -161,6 +176,8 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
         }
         StationCommand::Archive { station: key, .. } => set_archived(context, &access, &key, true).await?,
         StationCommand::Unarchive { station: key, .. } => set_archived(context, &access, &key, false).await?,
+        StationCommand::Favorite { station: key, .. } => set_favorite(context, &access, &key, true).await?,
+        StationCommand::Unfavorite { station: key, .. } => set_favorite(context, &access, &key, false).await?,
         StationCommand::Rewrite {
             station: key,
             days,
@@ -194,6 +211,15 @@ async fn set_archived(context: &Context<'_>, access: &LogbookAccess, key: &str, 
     let target = context.station(access, Some(key)).await?;
     let mut tx = WriteTx::begin(context.db).await?;
     let changed = station::set_archived(&mut tx, &access.owner()?, &target.id, archived).await?;
+    tx.commit().await?;
+    print_station(&changed);
+    Ok(())
+}
+
+async fn set_favorite(context: &Context<'_>, access: &LogbookAccess, key: &str, favorite: bool) -> CliResult<()> {
+    let target = context.station(access, Some(key)).await?;
+    let mut tx = WriteTx::begin(context.db).await?;
+    let changed = station::set_favorite(&mut tx, access, &target.id, favorite).await?;
     tx.commit().await?;
     print_station(&changed);
     Ok(())

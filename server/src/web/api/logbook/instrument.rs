@@ -31,6 +31,7 @@ pub struct InstrumentBody {
     archived_at: Option<String>,
     created_at: String,
     updated_at: String,
+    favorite: bool,
 }
 
 impl From<Instrument> for InstrumentBody {
@@ -45,6 +46,7 @@ impl From<Instrument> for InstrumentBody {
             archived_at: instrument.archived_at,
             created_at: instrument.created_at,
             updated_at: instrument.updated_at,
+            favorite: instrument.favorite,
         }
     }
 }
@@ -137,6 +139,34 @@ async fn set_archived(
     Ok(Json(instrument.into()))
 }
 
+pub async fn favorite(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Path(item): Path<Item>,
+) -> Result<Json<InstrumentBody>, ApiError> {
+    set_favorite(&state, &member, &item.id, true).await
+}
+
+pub async fn unfavorite(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Path(item): Path<Item>,
+) -> Result<Json<InstrumentBody>, ApiError> {
+    set_favorite(&state, &member, &item.id, false).await
+}
+
+async fn set_favorite(
+    state: &AppState,
+    member: &Member,
+    id: &str,
+    favorite: bool,
+) -> Result<Json<InstrumentBody>, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let instrument = instrument::set_favorite(&mut tx, &member.access, id, favorite).await?;
+    tx.commit().await?;
+    Ok(Json(instrument.into()))
+}
+
 pub async fn preview_rewrite(
     State(state): State<Arc<AppState>>,
     member: Member,
@@ -171,6 +201,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::qso::QsoId,
+        store::account::token::TokenKind,
         web::testing::{Auth, Harness},
     };
 
@@ -287,5 +318,32 @@ mod tests {
 
     fn rig_body(name: &str) -> Value {
         json!({ "name": name, "my_rig": name, "tx_pwr": "0.5" })
+    }
+
+    #[tokio::test]
+    async fn members_mark_their_own_favorite_instruments() {
+        let h = Harness::new().await;
+        let instruments = h.path("/instruments");
+        let first = h.world.instrument("Alpha").await;
+        let owner = h.session(&h.world.owner).await;
+        let operator = h.session(&h.world.operator).await;
+        let outsider = h.session(&h.world.outsider).await;
+        let token = h
+            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
+            .await;
+        let favorite = format!("{instruments}/{}/favorite", first.id);
+
+        let (status, _) = h.send("POST", &favorite, Auth::Session(&outsider), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let (status, marked) = h.send("POST", &favorite, Auth::Session(&operator), None).await;
+        assert_eq!((status, &marked["favorite"]), (StatusCode::OK, &json!(true)));
+
+        let (_, listed) = h.send("GET", &instruments, Auth::Bearer(&token), None).await;
+        assert_eq!(listed[0], marked);
+        let (_, listed) = h.send("GET", &instruments, Auth::Session(&owner), None).await;
+        assert_eq!(listed[0]["favorite"], false);
+
+        let (status, unmarked) = h.send("DELETE", &favorite, Auth::Bearer(&token), None).await;
+        assert_eq!((status, &unmarked["favorite"]), (StatusCode::OK, &json!(false)));
     }
 }

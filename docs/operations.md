@@ -78,8 +78,8 @@ only one. `jl1his-logger help <command>` lists the options of each.
 | `user` | Adds, lists, invites, disables and enables users and changes their instance role (admin) |
 | `logbook` | Creates, lists and deletes Logbooks, and makes a user an owner as a recorded rescue |
 | `member` | Lists the members of a Logbook; sets and removes them (owner) |
-| `station` | Manages the Stations of a Logbook and rewrites their past QSOs (owner) |
-| `instrument` | Manages the Instruments of a Logbook; rewriting their past QSOs is for owners |
+| `station` | Manages the Stations of a Logbook and rewrites their past QSOs (owner); marks your favorites |
+| `instrument` | Manages the Instruments of a Logbook and marks your favorites; rewriting their past QSOs is for owners |
 | `token` | Issues, lists and revokes your API tokens |
 | `import` | Imports new QSOs or merges QSL confirmations from an ADIF file |
 | `export` | Writes ADIF as an export batch, lists batches and applies their results |
@@ -93,6 +93,7 @@ jl1his-logger --as JL1HIS member set JA1OPR operator --logbook JL1HIS
 jl1his-logger --as JL1HIS member list --logbook JL1HIS
 jl1his-logger --as JL1HIS station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95
 jl1his-logger --as JL1HIS instrument add "IC-705 QRP" --rig IC-705 --antenna EFHW --power 5
+jl1his-logger --as JL1HIS instrument favorite "IC-705 QRP"                   # listed first for JL1HIS
 jl1his-logger --as JL1HIS import log.adi --source new --station Home          # preview
 jl1his-logger --as JL1HIS import log.adi --source new --station Home --apply
 jl1his-logger --as JL1HIS import portable.adi --source new --station Home --instrument "IC-705 QRP" --apply

@@ -25,7 +25,9 @@ const NOT_DEFAULTS: &[&str] = &[
     "TX_PWR",
 ];
 
-const SELECT: &str = "SELECT id, name, my_rig, my_antenna, tx_pwr, fields, archived_at, created_at, updated_at \
+const SELECT: &str = "SELECT id, name, my_rig, my_antenna, tx_pwr, fields, archived_at, created_at, updated_at, \
+                      EXISTS (SELECT 1 FROM instrument_favorites f \
+                      WHERE f.user_id = ? AND f.instrument_id = instruments.id) AS favorite \
                       FROM instruments";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -48,6 +50,7 @@ pub struct Instrument {
     pub archived_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub favorite: bool,
 }
 
 impl Instrument {
@@ -65,6 +68,7 @@ impl Instrument {
             archived_at: row.try_get("archived_at")?,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
+            favorite: row.try_get("favorite")?,
         })
     }
 
@@ -196,6 +200,31 @@ pub async fn set_archived(
     fetch(tx, access, id).await
 }
 
+pub async fn set_favorite(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    id: &str,
+    favorite: bool,
+) -> Result<Instrument, StoreError> {
+    access.revalidate(tx).await?;
+    fetch(tx, access, id).await?;
+    let query = match favorite {
+        true => sqlx::query(
+            "INSERT INTO instrument_favorites (logbook_id, user_id, instrument_id, created_at) VALUES (?, ?, ?, ?) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(access.logbook_id())
+        .bind(access.user_id())
+        .bind(id)
+        .bind(now()),
+        false => sqlx::query("DELETE FROM instrument_favorites WHERE user_id = ? AND instrument_id = ?")
+            .bind(access.user_id())
+            .bind(id),
+    };
+    query.execute(&mut **tx).await?;
+    fetch(tx, access, id).await
+}
+
 pub async fn preview_rewrite(
     conn: &mut SqliteConnection,
     owner: &OwnerAccess<'_>,
@@ -250,6 +279,7 @@ pub(crate) async fn fetch(
     id: &str,
 ) -> Result<Instrument, StoreError> {
     let row = sqlx::query(AssertSqlSafe(format!("{SELECT} WHERE logbook_id = ? AND id = ?")))
+        .bind(access.user_id())
         .bind(access.logbook_id())
         .bind(id)
         .fetch_optional(conn)
@@ -261,8 +291,9 @@ pub(crate) async fn fetch(
 pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<Instrument>, StoreError> {
     access.revalidate(conn).await?;
     sqlx::query(AssertSqlSafe(format!(
-        "{SELECT} WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, name, id"
+        "{SELECT} WHERE logbook_id = ? ORDER BY archived_at IS NOT NULL, favorite DESC, name, id"
     )))
+    .bind(access.user_id())
     .bind(access.logbook_id())
     .fetch_all(conn)
     .await?
@@ -378,5 +409,54 @@ mod tests {
             .map(|i| i.name)
             .collect();
         assert_eq!(names, ["IC-705", "IC-905", "FT-817"]);
+    }
+
+    #[tokio::test]
+    async fn lists_the_favorites_of_each_member_first() {
+        let world = World::new().await;
+        let old = world.instrument("FT-817").await;
+        world.instrument("IC-705").await;
+        let qrp = world.instrument("IC-905").await;
+        let owner = world.access(&world.owner).await;
+        let operator = world.access(&world.operator).await;
+        let (_, other) = world.other_logbook().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let favorite = set_favorite(&mut tx, &owner, &qrp.id, true).await.unwrap();
+        assert!(favorite.favorite);
+        assert!(set_favorite(&mut tx, &owner, &qrp.id, true).await.unwrap().favorite);
+        assert_eq!(favorite.updated_at, qrp.updated_at);
+        set_favorite(&mut tx, &owner, &old.id, true).await.unwrap();
+        set_archived(&mut tx, &owner, &old.id, true).await.unwrap();
+        assert!(matches!(
+            set_favorite(&mut tx, &other, &qrp.id, true).await,
+            Err(StoreError::NotFound("Instrument"))
+        ));
+        tx.commit().await.unwrap();
+
+        let mut conn = world.db.acquire().await.unwrap();
+        let listed = |instruments: Vec<Instrument>| -> Vec<(String, bool)> {
+            instruments.into_iter().map(|i| (i.name, i.favorite)).collect()
+        };
+        assert_eq!(
+            listed(list(&mut conn, &owner).await.unwrap()),
+            [
+                ("IC-905".to_owned(), true),
+                ("IC-705".to_owned(), false),
+                ("FT-817".to_owned(), true)
+            ]
+        );
+        assert_eq!(
+            listed(list(&mut conn, &operator).await.unwrap()),
+            [
+                ("IC-705".to_owned(), false),
+                ("IC-905".to_owned(), false),
+                ("FT-817".to_owned(), false)
+            ]
+        );
+        drop(conn);
+
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        assert!(!set_favorite(&mut tx, &owner, &qrp.id, false).await.unwrap().favorite);
+        assert!(!set_favorite(&mut tx, &owner, &qrp.id, false).await.unwrap().favorite);
     }
 }

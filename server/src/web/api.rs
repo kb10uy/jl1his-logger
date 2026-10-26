@@ -56,6 +56,10 @@ pub(super) fn router() -> Router<Arc<AppState>> {
             post(logbook::station::archive).delete(logbook::station::unarchive),
         )
         .route(
+            "/api/logbooks/{logbook_id}/stations/{id}/favorite",
+            post(logbook::station::favorite).delete(logbook::station::unfavorite),
+        )
+        .route(
             "/api/logbooks/{logbook_id}/stations/{id}/rewrite",
             get(logbook::station::preview_rewrite).post(logbook::station::rewrite),
         )
@@ -70,6 +74,10 @@ pub(super) fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/logbooks/{logbook_id}/instruments/{id}/archive",
             post(logbook::instrument::archive).delete(logbook::instrument::unarchive),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/instruments/{id}/favorite",
+            post(logbook::instrument::favorite).delete(logbook::instrument::unfavorite),
         )
         .route(
             "/api/logbooks/{logbook_id}/instruments/{id}/rewrite",
