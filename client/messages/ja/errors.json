@@ -56,6 +56,8 @@
     "error_passkey_unknown": "このパスキーはここに登録されていないか、ユーザーが無効になっています。",
     "error_registration_link_invalid": "登録リンクが無効か、使用済みか、期限切れです。管理者に新しいリンクを依頼してください。",
     "error_not_utf8": "ファイルが UTF-8 ではありません。",
+    "error_not_encoding": "ファイルを {encoding} として読めません。",
+    "error_unencodable": "{record} 件目の {field} にある「{character}」は、選んだ文字コードで表せません。",
     "error_not_adif": "ファイルが ADIF ではありません: {detail}",
     "error_query_unclosed_quote": "{term}: 引用符が閉じていません。",
     "error_query_empty": "{term}: 条件が空です。",

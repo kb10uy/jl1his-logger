@@ -23,7 +23,8 @@ it in the user's language; `error` stays English. The codes are `not_found`
 `qso_deleted`, `qso_changed`, `id_taken` and `revision_conflict` (`id`),
 `rewrite_count_changed` (`count`, `expected`), `too_many_values` (`count`,
 `max`), `batch_empty`, `batch_applied` (`id`), `batch_nothing_to_apply`
-(`kind`), `not_utf8`, `not_adif` (`detail`) and the query codes below. Under `/api/logbooks/{logbook_id}` the
+(`kind`), `not_utf8`, `not_encoding` (`encoding`), `not_adif` (`detail`),
+`unencodable` (`record`, `field`, `character`) and the query codes below. Under `/api/logbooks/{logbook_id}` the
 caller's Membership is checked before the request itself, so a caller outside
 the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
 and carry the security headers listed in [decisions.md](decisions.md).
@@ -431,7 +432,7 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, q?, park?, length?}` | `201 {batch, records, adif}` |
+| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk QSL changes |
@@ -439,11 +440,18 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 A batch is `{id, kind, created_by, created_at, applied_at, qso_count}`. `kind`
 is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. The filters match as in
 Search, with `qsl_sent` a list; `park` keeps one park of a `pota` export and is
-`400` for other kinds. `length` is `codepoints` or `bytes`, by default the
-server's `[adif] length`. `adif` is the whole file, oldest QSO first; a `pota`
-export has one record per park of a QSO, with `MY_SIG` and `MY_SIG_INFO` set.
-When nothing matches, the response is `200` with `batch` and `adif` null and
-no batch is recorded.
+`400` for other kinds. `encoding` is `utf-8` (default), `shift_jis`,
+`windows-1252` or `ascii`. For `utf-8`, `length` is `codepoints`, `bytes` or
+`utf16`, by default the server's `[adif] length`; for the others lengths are
+the encoding's bytes and another `length` is `400`. `unencodable` says what to
+do with a character the encoding cannot represent: `error` (default) is `400
+unencodable` with the record number, the field and the character; `replace`
+writes `?`, `entity` writes `&#NNN;` and `omit` leaves the field out. `adif` is
+the whole file as text, oldest QSO first; `file` is its bytes in base64 for
+`shift_jis` and `windows-1252`, and null otherwise. A `pota` export has one
+record per park of a QSO, with `MY_SIG` and `MY_SIG_INFO` set. When nothing
+matches, the response is `200` with `batch`, `adif` and `file` null and no
+batch is recorded.
 
 Applying an `eqsl`, `lotw` or `qsl_card` batch sets `EQSL_QSL_SENT`,
 `LOTW_QSL_SENT` or `QSL_SENT` to `Y` and its sent date to the UTC day, on the
@@ -452,8 +460,8 @@ rows still at their recorded revisions. A batch is applied once; again is
 
 ## ADIF Import
 
-`POST /api/logbooks/{logbook_id}/imports?source=&station_id=&instrument_id=&format=&length=&apply=`
-takes the file itself as the body, up to 64 MiB of UTF-8. It works as the CLI
+`POST /api/logbooks/{logbook_id}/imports?source=&station_id=&instrument_id=&format=&length=&encoding=&apply=`
+takes the file itself as the body, up to 64 MiB. It works as the CLI
 `import` does (see `decisions.md`, "ADIF Import"):
 
 | Parameter | Meaning |
@@ -462,7 +470,8 @@ takes the file itself as the body, up to 64 MiB of UTF-8. It works as the CLI
 | `station_id` | The Station of new QSOs, required for `new`; for a merge, matches only its QSOs |
 | `instrument_id` | The Instrument of new QSOs, baked in where a record has no value; `400` for a merge |
 | `format` | `adi` (default) or `adx` |
-| `length` | How an `.adi` file counts lengths, `codepoints` or `bytes`; by default the server's `[adif] length` |
+| `length` | How an `.adi` file counts lengths, `codepoints`, `bytes` (of the file's encoding) or `utf16`; without it each non-ASCII value is read in the unit that reaches the next tag, trying the server's `[adif] length` first (bytes first for a file that is not UTF-8) |
+| `encoding` | `utf-8`, `shift_jis`, `windows-1252` or `ascii`; without it the file is read as UTF-8 if it is valid UTF-8, else as the server's `[adif] fallback_encoding`. A file that is not valid in it is `400 not_utf8` or `400 not_encoding` |
 | `apply` | `true` writes; without it the import only previews and writes nothing |
 
 New QSOs get IDs derived from their records, so rerunning an import creates
@@ -470,9 +479,13 @@ only the records it has not created before. A file that cannot be read at all is
 `400`; a record that cannot be read or checked is reported and skipped.
 
 The response for `new` is
-`{applied, read, created, existing, duplicates, outside_band, modes, invalid, rejects}`,
+`{applied, encoding, lengths, read, created, existing, duplicates, outside_band, modes, invalid, rejects}`,
 and for a merge
-`{applied, read, not_confirmations, merged, already, unmatched, ambiguous, invalid, skipped, differences, rejects}`:
+`{applied, encoding, lengths, read, not_confirmations, merged, already, unmatched, ambiguous, invalid, skipped, differences, rejects}`:
+
+- `encoding` is the encoding the file was read in, and `lengths` the units the
+  non-ASCII values of an `.adi` file were read in, such as `["bytes"]`; it is
+  empty for ADX and for a file in ASCII.
 
 - `duplicates` and `ambiguous` are `[{record, ids}]`, `outside_band` is
   `[{record, freq, band}]`, `modes` is `[{record, kind, ...}]` with the mode
@@ -484,7 +497,8 @@ and for a merge
   `STATE`, `CNTY`, `GRIDSQUARE` or `IOTA` differ from the confirmation; they are
   never applied.
 - `rejects` is an ADIF file of the invalid, unmatched and ambiguous records, or
-  null when there are none.
+  null when there are none. It is UTF-8, with lengths in the `length` asked
+  for, else in the server's `[adif] length`.
 
 ## Event Stream
 

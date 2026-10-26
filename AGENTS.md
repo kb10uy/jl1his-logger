@@ -70,7 +70,10 @@ or another shared crate.
   `QSLSDATE`, `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`), with no parallel
   booleans. `qsl_required` is `QSL_SENT in {R, Q}`; received is
   `QSL_RCVD in {Y, V}`.
-- **ADIF lengths are codepoints by default**, with bytes as an export option.
+- **ADIF lengths are codepoints by default**, with bytes or UTF-16 units as
+  export options. Imports detect the unit for each value and read a file that
+  is not UTF-8 as the fallback encoding (Shift_JIS by default); exports can be
+  written in Shift_JIS, Windows-1252 or ASCII, with lengths in its bytes.
   Reading and writing go through `adif-manip` (github.com/kb10uy/adif-manip);
   `server/src/domain/adif.rs` maps a QSO to and from its fields.
 - **Exports are batches**: record the UUIDs and `revision`s, and apply the

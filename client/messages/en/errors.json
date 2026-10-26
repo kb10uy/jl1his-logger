@@ -61,6 +61,8 @@
     "error_passkey_unknown": "This passkey is not registered here, or its user is disabled.",
     "error_registration_link_invalid": "The registration link is invalid, used or expired. Ask an admin for a new one.",
     "error_not_utf8": "The file is not UTF-8.",
+    "error_not_encoding": "The file is not valid {encoding}.",
+    "error_unencodable": "Record {record}: {field} has “{character}”, which the chosen encoding cannot represent.",
     "error_not_adif": "The file is not ADIF: {detail}",
     "error_query_unclosed_quote": "{term}: a quote is not closed.",
     "error_query_empty": "{term}: the term is empty.",

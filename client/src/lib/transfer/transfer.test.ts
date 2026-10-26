@@ -5,6 +5,7 @@ import {
     fileName,
     formatOf,
     outcomeText,
+    readingNote,
     recordOnly,
     rejectCount
 } from './transfer.ts';
@@ -39,6 +40,13 @@ describe('transfer helpers', () => {
         } as MergeReport;
         expect(rejectCount(merge)).toBe(4);
         expect(rejectCount({ invalid: [{ record: 1, error: 'x' }] } as NewReport)).toBe(1);
+    });
+
+    it('notes how a file was read', () => {
+        expect(readingNote({ encoding: 'utf-8', lengths: [] })).toBe('Read as UTF-8');
+        expect(readingNote({ encoding: 'shift_jis', lengths: ['bytes', 'utf16'] })).toBe(
+            'Read as Shift_JIS · non-ASCII lengths in Bytes, UTF-16 units'
+        );
     });
 
     it('lists differences, largest first', () => {

@@ -1,4 +1,11 @@
-import type { ExportKind, MergeReport, NewReport, Outcome } from '#lib/api/types.ts';
+import type {
+    Encoding,
+    ExportKind,
+    LengthUnit,
+    MergeReport,
+    NewReport,
+    Outcome
+} from '#lib/api/types.ts';
 import { m } from '#lib/paraglide/messages.js';
 
 export const MAX_IMPORT = 64 * 1024 * 1024;
@@ -10,6 +17,26 @@ export const KIND_LABELS: Record<ExportKind, () => string> = {
     eqsl: () => 'eQSL',
     lotw: () => 'LoTW'
 };
+
+export const ENCODING_NAMES: Record<Encoding, string> = {
+    'utf-8': 'UTF-8',
+    shift_jis: 'Shift_JIS',
+    'windows-1252': 'Windows-1252',
+    ascii: 'ASCII'
+};
+
+export const LENGTH_LABELS: Record<LengthUnit, () => string> = {
+    codepoints: () => m.transfer_length_codepoints(),
+    bytes: () => m.transfer_length_bytes(),
+    utf16: () => m.transfer_length_utf16()
+};
+
+export function readingNote(report: Pick<NewReport, 'encoding' | 'lengths'>): string {
+    const encoding = m.transfer_read_encoding({ encoding: ENCODING_NAMES[report.encoding] });
+    if (report.lengths.length === 0) return encoding;
+    const units = report.lengths.map((unit) => LENGTH_LABELS[unit]()).join(', ');
+    return `${encoding} · ${m.transfer_read_lengths({ units })}`;
+}
 
 export const SENT_FIELDS: Partial<Record<ExportKind, [string, string]>> = {
     qsl_card: ['QSL_SENT', 'QSLSDATE'],
