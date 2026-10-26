@@ -200,8 +200,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - Lengths are codepoints by default; bytes can be chosen as an export option.
 - A field name is what the ADIF specification allows: ASCII letters, digits and underscores, starting with a letter, read ignoring case and stored upper-cased. `EOR` and `EOH` are not field names. A record with another name (a `USERDEF` name with spaces, say) is refused, on entry and in an import.
 - A field value is at most 2048 bytes and a QSO has at most 1024 fields outside the columns; the names of passkeys, tokens, Stations and Logbooks are at most 2048 bytes. The bounds are checked where a `Qso` is built and again when it is checked before a write, so nothing larger is stored. A filter lists at most 100 values.
-- Reading uses adif-reader (github.com/kb10uy/adif-reader).
-- The writer moves into adif-reader as a `write` module of the same crate once the export output has been checked against real QSL card, contest and POTA submissions, so that fixes before then touch one repository. Until then it lives in `server/src/domain/adif.rs`, and its expected output is in `fixtures/adif/` for the client tests to share. Whether the crate is renamed is decided at the move.
+- Reading and writing use adif-manip (github.com/kb10uy/adif-manip), renamed from adif-reader when the writer moved in as its `write` module, after the export output had been checked against real QSL card, contest and POTA submissions. `server/src/domain/adif.rs` maps a `Qso` to and from its fields and writes the header; the expected output stays in `fixtures/adif/` for the client tests to share.
 - Apart from the query crate (see Structure), no shared crate is split out; for now everything stays within this repository.
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
@@ -315,4 +314,3 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ## Remaining Work
 
 - The CLI takes the text query of Search: `export write` still takes only the structured filters.
-- The exported ADIF for QSL cards, contest logs and POTA is checked against real submissions; then the writer moves into adif-reader (see ADIF Input and Output).

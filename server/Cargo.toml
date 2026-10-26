@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [dependencies]
-adif-reader = { git = "https://github.com/kb10uy/adif-reader", version = "0.1.1" }
+adif-manip = { git = "https://github.com/kb10uy/adif-manip", version = "0.2.0" }
 axum = "0.8.9"
 axum-extra = { version = "0.12.6", features = ["cookie"] }
 callfind = { git = "https://github.com/kb10uy/callfind", version = "0.1.0" }
