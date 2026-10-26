@@ -52,6 +52,7 @@
     let sentinel = $state<HTMLElement>();
     let columns = $state(loadColumns());
     let run = 0;
+    let held: Qso[] = [];
 
     const q = $derived(page.url.searchParams.get('q') ?? '');
     const openId = $derived(page.url.searchParams.get('qso'));
@@ -66,14 +67,13 @@
     const shown = $derived(columns.map(column).filter((c): c is Column => c !== undefined));
 
     onMount(() => {
-        loadQuery().then(() => (ready = true));
+        loadQuery().then(() => {
+            ready = true;
+            release();
+        });
         const offQso = logbook.onQso((qso) => {
-            const matches = logbook.matches(qso, compiled) ?? false;
-            const applied = applyEvent(rows, qso, matches, next === null);
-            if (applied.kind === 'outside') outside += 1;
-            if ('rows' in applied) rows = applied.rows;
-            if (applied.kind === 'inserted' && qso.revision === 1 && total !== undefined)
-                total += 1;
+            if (!ready || loading) held.push(qso);
+            else receive(qso);
         });
         const offReset = logbook.onReset(() => search(q));
         return () => {
@@ -112,6 +112,21 @@
         return () => observer.disconnect();
     });
 
+    function receive(qso: Qso) {
+        const matches = logbook.matches(qso, compiled) ?? false;
+        const applied = applyEvent(rows, qso, matches, next === null);
+        if (applied.kind === 'outside') outside += 1;
+        if ('rows' in applied) rows = applied.rows;
+        if (applied.kind === 'inserted' && qso.revision === 1 && total !== undefined) total += 1;
+    }
+
+    function release() {
+        if (!ready || loading) return;
+        const queued = held;
+        held = [];
+        queued.forEach(receive);
+    }
+
     function replaceUrl(change: { q?: string; qso?: string | null }) {
         const url = new URL(page.url.href);
         if (change.q !== undefined) {
@@ -142,7 +157,10 @@
             if (mine !== run) return;
             serverError = e instanceof Error ? e.message : String(e);
         } finally {
-            if (mine === run) loading = false;
+            if (mine === run) {
+                loading = false;
+                release();
+            }
         }
     }
 
@@ -164,7 +182,10 @@
         } catch (e) {
             toasts.error(e instanceof Error ? e.message : String(e));
         } finally {
-            if (mine === run) loading = false;
+            if (mine === run) {
+                loading = false;
+                release();
+            }
         }
     }
 
