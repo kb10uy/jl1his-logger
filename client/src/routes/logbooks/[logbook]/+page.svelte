@@ -272,24 +272,25 @@
 
     async function deleteChecked() {
         busy = true;
-        let deleted = 0;
+        const deleted = new Set<string>();
         let failed = 0;
         for (const target of targetsOfChecked()) {
             try {
                 await api.deleteQso(logbookId, target.id, target.revision);
-                deleted += 1;
+                deleted.add(target.id);
             } catch (e) {
                 failed += 1;
                 if (!(e instanceof ApiError) || e.retryable) break;
             }
         }
-        const gone = new Set(Object.keys(checked));
-        rows = rows.filter((r) => !gone.has(r.qso.id) || r.stale);
-        if (total !== undefined) total -= deleted;
-        clearChecked();
+        rows = rows.filter((r) => !deleted.has(r.qso.id));
+        if (total !== undefined) total -= deleted.size;
+        const left = Object.entries(checked).filter(([id]) => !deleted.has(id));
+        if (left.length === 0) clearChecked();
+        else checked = Object.fromEntries(left);
         busy = false;
         toasts.show(
-            `${m.log_deleted({ count: deleted })}${failed > 0 ? m.log_delete_failed({ count: failed }) : ''}`
+            `${m.log_deleted({ count: deleted.size })}${failed > 0 ? m.log_delete_failed({ count: failed }) : ''}`
         );
     }
 
