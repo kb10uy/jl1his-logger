@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use clap::{Args, Subcommand, ValueEnum};
 
 use crate::{
-    cli::{CliResult, Context, DayRange, LengthArg, LogbookArg, import::write_adif},
+    cli::{CliResult, Context, DayRange, EncodingArg, LengthArg, LogbookArg, UnencodableArg},
+    domain::adif::{Encoding, LengthUnit, Output, Unencodable},
     store::{
         WriteTx,
         export::{self, ExportKind},
@@ -58,8 +59,20 @@ pub struct WriteArgs {
     contest_id: Option<String>,
     #[arg(long, help = "Only this park, for a pota export")]
     park: Option<String>,
-    #[arg(long, value_enum, help = "How lengths are counted [default: from the configuration]")]
+    #[arg(
+        long,
+        value_enum,
+        help = "How lengths are counted; bytes for an encoding other than UTF-8 [default: from the configuration]"
+    )]
     length: Option<LengthArg>,
+    #[arg(long, value_enum, help = "Encoding of the file [default: utf-8]")]
+    encoding: Option<EncodingArg>,
+    #[arg(
+        long,
+        value_enum,
+        help = "What to do with characters the encoding cannot represent [default: error]"
+    )]
+    unencodable: Option<UnencodableArg>,
 }
 
 #[derive(Subcommand)]
@@ -137,10 +150,20 @@ async fn write(context: &Context<'_>, args: &WriteArgs) -> CliResult<()> {
         println!("No QSOs to export.");
         return Ok(());
     }
+    let encoding = args.encoding.map(Encoding::from).unwrap_or_default();
+    let unit = encoding
+        .export_unit(args.length.map(LengthUnit::from), context.config.adif.length)
+        .ok_or_else(|| format!("lengths in {} are counted in bytes", encoding.name()))?;
+    let output = Output {
+        unit,
+        encoding,
+        unencodable: args.unencodable.map(Unencodable::from).unwrap_or_default(),
+    };
+    let text = export::encoded(&selection.records, output).map_err(|e| e.to_string())?;
     let mut tx = WriteTx::begin(context.db).await?;
     let batch = export::create(&mut tx, &access, kind, &selection.targets).await?;
     tx.commit().await?;
-    write_adif(&args.output, &selection.records, context.length(args.length))?;
+    fs::write(&args.output, encoding.encode(&text)).map_err(|e| format!("{}: {e}", args.output.display()))?;
     println!(
         "Wrote {} records for {} QSOs to {}",
         selection.records.len(),

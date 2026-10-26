@@ -20,7 +20,10 @@ use url::Url;
 use crate::{
     config::Config,
     db::{self, Db, Migrated},
-    domain::{adif::LengthUnit, qso::parse_date},
+    domain::{
+        adif::{Encoding, LengthUnit, Unencodable},
+        qso::parse_date,
+    },
     store::{
         WriteTx,
         access::{self, AdminAccess, LogbookAccess, Principal},
@@ -251,6 +254,7 @@ fn pick<'a, T>(
 enum LengthArg {
     Codepoints,
     Bytes,
+    Utf16,
 }
 
 impl From<LengthArg> for LengthUnit {
@@ -258,6 +262,48 @@ impl From<LengthArg> for LengthUnit {
         match arg {
             LengthArg::Codepoints => LengthUnit::Codepoints,
             LengthArg::Bytes => LengthUnit::Bytes,
+            LengthArg::Utf16 => LengthUnit::Utf16,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum EncodingArg {
+    #[value(name = "utf-8")]
+    Utf8,
+    #[value(name = "shift_jis")]
+    ShiftJis,
+    #[value(name = "windows-1252")]
+    Windows1252,
+    Ascii,
+}
+
+impl From<EncodingArg> for Encoding {
+    fn from(arg: EncodingArg) -> Encoding {
+        match arg {
+            EncodingArg::Utf8 => Encoding::Utf8,
+            EncodingArg::ShiftJis => Encoding::ShiftJis,
+            EncodingArg::Windows1252 => Encoding::Windows1252,
+            EncodingArg::Ascii => Encoding::Ascii,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum UnencodableArg {
+    Error,
+    Replace,
+    Entity,
+    Omit,
+}
+
+impl From<UnencodableArg> for Unencodable {
+    fn from(arg: UnencodableArg) -> Unencodable {
+        match arg {
+            UnencodableArg::Error => Unencodable::Error,
+            UnencodableArg::Replace => Unencodable::Replace,
+            UnencodableArg::Entity => Unencodable::Entity,
+            UnencodableArg::Omit => Unencodable::Omit,
         }
     }
 }

@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Deserializer, de::Error as _};
 use url::{Host, Url};
 
-use crate::domain::adif::LengthUnit;
+use crate::domain::adif::{Encoding, LengthUnit};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -72,10 +72,20 @@ impl Default for ReferenceConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AdifConfig {
     pub length: LengthUnit,
+    pub fallback_encoding: Encoding,
+}
+
+impl Default for AdifConfig {
+    fn default() -> Self {
+        Self {
+            length: LengthUnit::default(),
+            fallback_encoding: Encoding::ShiftJis,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -189,6 +199,7 @@ mod tests {
     fn missing_sections_take_defaults() {
         let config: Config = toml::from_str("[adif]\nlength = \"bytes\"\n").unwrap();
         assert_eq!(config.adif.length, LengthUnit::Bytes);
+        assert_eq!(config.adif.fallback_encoding, Encoding::ShiftJis);
         assert_eq!(config.reference, ReferenceConfig::default());
     }
 
@@ -196,6 +207,7 @@ mod tests {
     #[case::unknown_key("[adif]\nlenght = \"bytes\"\n")]
     #[case::unknown_section("[referance]\n")]
     #[case::unknown_unit("[adif]\nlength = \"octets\"\n")]
+    #[case::unknown_encoding("[adif]\nfallback_encoding = \"euc-jp\"\n")]
     fn rejects_mistakes(#[case] text: &str) {
         assert!(toml::from_str::<Config>(text).is_err());
     }

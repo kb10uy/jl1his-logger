@@ -6,9 +6,10 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [dependencies]
-adif-manip = { git = "https://github.com/kb10uy/adif-manip", version = "0.2.0" }
+adif-manip = { git = "https://github.com/kb10uy/adif-manip", version = "0.3.0" }
 axum = "0.8.9"
 axum-extra = { version = "0.12.6", features = ["cookie"] }
+base64 = "0.22.1"
 callfind = { git = "https://github.com/kb10uy/callfind", version = "0.1.0" }
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
 clap = { version = "4.6.7", features = ["derive"] }
@@ -34,7 +35,6 @@ uuid = { version = "1.28.0", features = ["v7"] }
 webauthn-rs = { version = "=0.6.1-dev", features = ["conditional-ui"] }
 
 [dev-dependencies]
-base64 = "0.22.1"
 http-body-util = "0.1.5"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 rstest = "0.28.0"

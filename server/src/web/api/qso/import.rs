@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     domain::{
-        adif::{self, LengthUnit},
+        adif::{self, Encoding, LengthUnit, Lengths},
         confirmation::Source,
         qso::{Qso, Warning},
     },
@@ -51,6 +51,7 @@ pub struct ImportQuery {
     #[serde(default)]
     format: FormatRequest,
     length: Option<LengthUnit>,
+    encoding: Option<Encoding>,
     #[serde(default)]
     apply: bool,
 }
@@ -86,6 +87,8 @@ pub struct Invalid {
 pub enum ImportBody {
     New {
         applied: bool,
+        encoding: Encoding,
+        lengths: Vec<LengthUnit>,
         read: usize,
         created: usize,
         existing: usize,
@@ -97,6 +100,8 @@ pub enum ImportBody {
     },
     Merge {
         applied: bool,
+        encoding: Encoding,
+        lengths: Vec<LengthUnit>,
         read: usize,
         not_confirmations: usize,
         merged: usize,
@@ -128,10 +133,18 @@ fn rejects(records: &[Qso], unit: LengthUnit) -> Option<String> {
     (!records.is_empty()).then(|| export::document(records, unit))
 }
 
+struct Reading {
+    encoding: Encoding,
+    lengths: Vec<LengthUnit>,
+    unit: LengthUnit,
+}
+
 impl ImportBody {
-    fn new(report: NewReport, applied: bool, unit: LengthUnit) -> ImportBody {
+    fn new(report: NewReport, applied: bool, reading: Reading) -> ImportBody {
         ImportBody::New {
             applied,
+            encoding: reading.encoding,
+            lengths: reading.lengths,
             read: report.read,
             created: report.created,
             existing: report.existing,
@@ -147,13 +160,15 @@ impl ImportBody {
                 .map(|(record, warning)| ModeWarning { record, warning })
                 .collect(),
             invalid: invalid(report.invalid),
-            rejects: rejects(&report.rejects, unit),
+            rejects: rejects(&report.rejects, reading.unit),
         }
     }
 
-    fn merge(report: MergeReport, applied: bool, unit: LengthUnit) -> ImportBody {
+    fn merge(report: MergeReport, applied: bool, reading: Reading) -> ImportBody {
         ImportBody::Merge {
             applied,
+            encoding: reading.encoding,
+            lengths: reading.lengths,
             read: report.read,
             not_confirmations: report.not_confirmations,
             merged: report.merged,
@@ -163,7 +178,7 @@ impl ImportBody {
             invalid: invalid(report.invalid),
             skipped: report.skipped.into_iter().map(SkippedBody::from).collect(),
             differences: report.differences,
-            rejects: rejects(&report.rejects, unit),
+            rejects: rejects(&report.rejects, reading.unit),
         }
     }
 }
@@ -175,18 +190,33 @@ pub async fn import(
     body: Bytes,
 ) -> Result<Json<ImportBody>, ApiError> {
     let access = member.access;
-    let unit = query.length.unwrap_or(state.config.adif.length);
-    let text = std::str::from_utf8(&body)
-        .map_err(|_| ApiError::bad_request("the file is not UTF-8").with("code", "not_utf8".into()))?;
-    let records = match query.format {
-        FormatRequest::Adi => adif::read_adi(text, unit),
-        FormatRequest::Adx => adif::read_adx(text),
+    let default = state.config.adif.length;
+    let (text, encoding) =
+        adif::decode(&body, query.encoding, state.config.adif.fallback_encoding).map_err(|e| match e {
+            Encoding::Utf8 => ApiError::bad_request("the file is not UTF-8").with("code", "not_utf8".into()),
+            e => ApiError::bad_request(format!("the file is not {}", e.name()))
+                .with("code", "not_encoding".into())
+                .with("encoding", e.name().into()),
+        })?;
+    let lengths = match query.length {
+        Some(unit) => Lengths::Fixed(unit),
+        None => Lengths::Detect { default },
+    };
+    let read = match query.format {
+        FormatRequest::Adi => adif::read_adi(&text, encoding, lengths),
+        FormatRequest::Adx => adif::read_adx(&text),
     }
     .map_err(|e| {
         ApiError::bad_request(format!("the file is not ADIF: {e}"))
             .with("code", "not_adif".into())
             .with("detail", e.to_string().into())
     })?;
+    let records = read.records;
+    let reading = Reading {
+        encoding,
+        lengths: read.lengths,
+        unit: query.length.unwrap_or(default),
+    };
 
     let station = match &query.station_id {
         Some(id) => {
@@ -207,7 +237,7 @@ pub async fn import(
                 None => None,
             };
             let report = import_new(&state.db, &access, &station, instrument.as_ref(), records, query.apply).await?;
-            return Ok(Json(ImportBody::new(report, query.apply, unit)));
+            return Ok(Json(ImportBody::new(report, query.apply, reading)));
         }
         _ if query.instrument_id.is_some() => {
             return Err(ApiError::bad_request("an instrument_id is only for new QSOs"));
@@ -226,7 +256,7 @@ pub async fn import(
         &today(),
     )
     .await?;
-    Ok(Json(ImportBody::merge(report, query.apply, unit)))
+    Ok(Json(ImportBody::merge(report, query.apply, reading)))
 }
 
 #[cfg(test)]
@@ -234,7 +264,10 @@ mod tests {
     use axum::http::StatusCode;
     use serde_json::{Value, json};
 
-    use crate::web::testing::{Auth, Harness};
+    use crate::{
+        domain::adif::Encoding,
+        web::testing::{Auth, Harness},
+    };
 
     const NEW: &str = "header\n<EOH>\n\
         <CALL:6>JA1AAA <QSO_DATE:8>20261022 <TIME_ON:4>0101 <BAND:3>40m <MODE:2>CW <NAME:2>太郎 <EOR>\n\
@@ -351,6 +384,45 @@ mod tests {
                 { "record": 1, "kind": "unknown_mode", "mode": "FT9" },
                 { "record": 2, "kind": "submode_of_another_mode", "mode": "FT8", "submode": "FT4", "expected": "MFSK" },
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn reads_a_shift_jis_file_and_reports_how() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let bytes = Encoding::ShiftJis
+            .encode("<CALL:6>JA1AAA <QSO_DATE:8>20261022 <TIME_ON:4>0101 <BAND:3>40m <MODE:2>CW <NAME:4>太郎 <EOR>\n");
+        let station = format!("source=new&station_id={}", h.station.id);
+
+        let (status, preview) = h
+            .send_bytes(&imports(&h, &station), Auth::Session(&cookie), &bytes)
+            .await;
+        assert_eq!(status, StatusCode::OK, "{preview}");
+        assert_eq!(
+            (&preview["encoding"], &preview["lengths"], &preview["created"]),
+            (&json!("shift_jis"), &json!(["bytes"]), &json!(1))
+        );
+
+        let (_, utf8) = h.send_text(&imports(&h, &station), Auth::Session(&cookie), NEW).await;
+        assert_eq!(
+            (&utf8["encoding"], &utf8["lengths"]),
+            (&json!("utf-8"), &json!(["codepoints"]))
+        );
+
+        let utf8_only = format!("{station}&encoding=utf-8");
+        let (status, refused) = h
+            .send_bytes(&imports(&h, &utf8_only), Auth::Session(&cookie), &bytes)
+            .await;
+        assert_eq!(
+            (status, &refused["code"]),
+            (StatusCode::BAD_REQUEST, &json!("not_utf8"))
+        );
+        let ascii = format!("{station}&encoding=ascii");
+        let (status, refused) = h.send_bytes(&imports(&h, &ascii), Auth::Session(&cookie), &bytes).await;
+        assert_eq!(
+            (status, &refused["code"], &refused["encoding"]),
+            (StatusCode::BAD_REQUEST, &json!("not_encoding"), &json!("ASCII"))
         );
     }
 

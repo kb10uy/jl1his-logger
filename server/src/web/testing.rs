@@ -205,8 +205,12 @@ impl Harness {
     }
 
     pub async fn send_text(&self, uri: &str, auth: Auth<'_>, text: &str) -> (StatusCode, Value) {
+        self.send_bytes(uri, auth, text.as_bytes()).await
+    }
+
+    pub async fn send_bytes(&self, uri: &str, auth: Auth<'_>, bytes: &[u8]) -> (StatusCode, Value) {
         let req = authorize(Request::post(uri), auth).header(header::CONTENT_TYPE, "text/plain");
-        let (status, _, body) = self.exchange(req.body(Body::from(text.to_owned())).unwrap()).await;
+        let (status, _, body) = self.exchange(req.body(Body::from(bytes.to_owned())).unwrap()).await;
         (status, body)
     }
 

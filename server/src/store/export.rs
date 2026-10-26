@@ -6,7 +6,7 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::{
-        adif::{self, LengthUnit},
+        adif::{self, LengthUnit, Output, UnencodableError},
         pota,
         qso::{InvalidQsoId, Qso},
     },
@@ -90,7 +90,11 @@ const SELECT: &str = "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied
      FROM export_batches b";
 
 pub fn document(records: &[Qso], unit: LengthUnit) -> String {
-    adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, unit)
+    encoded(records, Output::utf8(unit)).expect("UTF-8 represents every character")
+}
+
+pub fn encoded(records: &[Qso], output: Output) -> Result<String, UnencodableError> {
+    adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, output)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
