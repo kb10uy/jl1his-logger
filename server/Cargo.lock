@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "adif-manip"
 version = "0.3.0"
-source = "git+https://github.com/kb10uy/adif-manip#7a84a0cbd47decf3e96e735af95c884891b6d606"
+source = "git+https://github.com/kb10uy/adif-manip#eeef7445e0ff9012cad89a3da5663a489561bb2a"
 dependencies = [
  "encoding_rs",
  "regex",
