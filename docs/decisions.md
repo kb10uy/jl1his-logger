@@ -234,7 +234,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 ### Delivery and Sync
 
 - Use SSE. Do not use WebSocket.
-- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a restart a client that keeps a copy of the Logbook passes its stored cursor as `?after=`.
+- The event `id` is `updated_seq`. Reconnection uses `Last-Event-ID`; after a restart a client that keeps a copy of the Logbook passes its stored cursor as `?after=`. When the browser gives up on a stream (a `401`, `404` or `503`), the web client opens a new one after its last `updated_seq` with `?after=`, waiting 2 seconds and doubling the wait up to a minute until a `hello` arrives.
 - Differences are not narrowed by filters; the whole Logbook is streamed and the client re-evaluates its display conditions against the current rows.
 - A client that keeps a copy syncs initially by taking the maximum `updated_seq` at start as H, fetching everything, then reading `after H`. Rows that arrive twice are upserts and therefore harmless.
 - The web client keeps no copy (see Search) and no cursor across reloads. It opens the stream, which starts at the latest `updated_seq`, then runs its query. An event updates a loaded row in place by its ID. A row that stops matching stays where it is, marked, until the query runs again. A new row that matches is inserted in order without moving the scroll position. A new row outside the query is only counted, in a small "N new outside this query" next to the list. A changed cursor generation reruns the query.

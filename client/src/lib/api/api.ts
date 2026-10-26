@@ -286,4 +286,5 @@ export function importAdif(logbook: string, source: ImportSource, req: ImportReq
     });
 }
 
-export const eventsUrl = (logbook: string) => `${base(logbook)}/events`;
+export const eventsUrl = (logbook: string, after?: number) =>
+    `${base(logbook)}/events${query({ after })}`;
