@@ -6,7 +6,8 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::{Principal, UserAccess},
-        hash_token, new_id, random_token, timestamp, user,
+        account::user,
+        hash_token, new_id, random_token, timestamp,
     },
 };
 

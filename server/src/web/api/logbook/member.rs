@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::{
     store::access::{self, LogbookAccess},
-    web::{AppState, auth::Caller, error::ApiError},
+    web::{AppState, api::auth::Caller, error::ApiError},
 };
 
 #[derive(Debug, Deserialize)]

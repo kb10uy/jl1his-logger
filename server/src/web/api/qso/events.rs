@@ -13,8 +13,8 @@ use tokio::{
 };
 
 use crate::{
-    store::{StoreError, access::LogbookAccess, logbook, qso, session},
-    web::{AppState, error::ApiError, extract::Query, member::Member, qso::QsoBody},
+    store::{StoreError, access::LogbookAccess, account::session, logbook, qso},
+    web::{AppState, api::logbook::member::Member, api::qso::QsoBody, error::ApiError, extract::Query},
 };
 
 const POLL: Duration = Duration::from_secs(10);
@@ -196,7 +196,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        store::token::TokenKind,
+        store::account::token::TokenKind,
         web::{
             MAX_STREAMS,
             testing::{Auth, Harness, authorize},

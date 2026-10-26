@@ -1,3 +1,7 @@
+pub(super) mod instrument;
+pub(super) mod member;
+pub(super) mod station;
+
 use std::sync::Arc;
 
 use axum::{
@@ -10,11 +14,13 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::{self, LogbookRole},
-        logbook::{self, AreaField, Logbook},
-        membership::{self, Member as Membership},
-        user,
+        account::user,
+        logbook::{
+            self, AreaField, Logbook,
+            membership::{self, Member as Membership},
+        },
     },
-    web::{AppState, auth::Caller, error::ApiError, extract::Json, member::Member},
+    web::{AppState, api::auth::Caller, api::logbook::member::Member, error::ApiError, extract::Json},
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,7 +189,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        store::token::TokenKind,
+        store::account::token::TokenKind,
         web::testing::{Auth, Harness},
     };
 

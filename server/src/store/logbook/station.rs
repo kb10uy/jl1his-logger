@@ -7,9 +7,9 @@ use crate::{
     store::{
         Fault, StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
+        account::user::normalize_callsign,
         is_unique_violation, name as store_name, new_id, now,
         qso::{self, Holder, StoredQso, TimeRange},
-        user::normalize_callsign,
     },
 };
 

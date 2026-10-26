@@ -1,19 +1,12 @@
 pub mod access;
+pub mod account;
 pub mod export;
 pub mod import;
-pub mod instrument;
 pub mod logbook;
-pub mod membership;
-pub mod passkey;
 pub mod qsl;
 pub mod qso;
 pub mod reference;
-pub mod registration;
-pub mod session;
 pub mod settings;
-pub mod station;
-pub mod token;
-pub mod user;
 
 use std::{
     fmt,
@@ -174,11 +167,13 @@ pub(crate) mod testing {
     use super::{
         WriteTx,
         access::{self, AdminAccess, LogbookAccess, LogbookRole, Principal, UserAccess},
-        instrument::{self, Instrument, InstrumentInput},
-        logbook::{self, Logbook},
-        membership,
-        station::{self, Station, StationInput},
-        user::{self, Role, User},
+        account::user::{self, Role, User},
+        logbook::{
+            self, Logbook,
+            instrument::{self, Instrument, InstrumentInput},
+            membership,
+            station::{self, Station, StationInput},
+        },
     };
     use crate::{
         db::{self, Db},

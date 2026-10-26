@@ -9,9 +9,9 @@ use crate::{
     store::{qso, timestamp},
     web::{
         AppState,
+        api::logbook::member::Member,
         error::ApiError,
         extract::{Json, Query},
-        member::Member,
     },
 };
 
@@ -35,7 +35,7 @@ pub struct PreviousBody {
     fields: BTreeMap<&'static str, String>,
 }
 
-pub(super) fn call(value: Option<&str>) -> Option<String> {
+pub(in crate::web) fn call(value: Option<&str>) -> Option<String> {
     value.map(|c| c.trim().to_ascii_uppercase()).filter(|c| !c.is_empty())
 }
 
@@ -84,7 +84,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::{reference::ReferenceKind, station::StationInput, token::TokenKind},
+        store::{account::token::TokenKind, logbook::station::StationInput, reference::ReferenceKind},
         web::testing::{Auth, Harness},
     };
 

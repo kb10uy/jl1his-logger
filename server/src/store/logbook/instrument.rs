@@ -7,9 +7,9 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
+        logbook::station::defaults,
         name as store_name, new_id, now,
         qso::{self, Holder, StoredQso, TimeRange},
-        station::defaults,
     },
 };
 
