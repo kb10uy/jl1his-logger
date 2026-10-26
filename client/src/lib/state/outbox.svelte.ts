@@ -4,7 +4,7 @@ import { Outbox, type Outgoing, type Sent } from '#lib/entry/outbox.ts';
 import { uuidv7 } from '#lib/qso/uuid.ts';
 
 class OutboxState {
-    items = $state<Outgoing[]>([]);
+    items = $state.raw<Outgoing[]>([]);
     sending = $state(false);
     private outbox: Promise<Outbox> | undefined;
     private logbookId: string | undefined;
@@ -16,6 +16,12 @@ class OutboxState {
 
     async show(logbookId: string) {
         this.logbookId = logbookId;
+        await this.refresh();
+    }
+
+    private async refresh() {
+        const logbookId = this.logbookId;
+        if (logbookId === undefined) return;
         const items = await (await this.open()).list(logbookId);
         if (this.logbookId === logbookId) this.items = items;
     }
@@ -36,33 +42,33 @@ class OutboxState {
             createdAt: new Date().toISOString()
         };
         await outbox.put(item);
-        await this.show(logbookId);
+        await this.refresh();
         const sent = await outbox.send(item, api.createQso);
-        await this.show(logbookId);
+        await this.refresh();
         return sent;
     }
 
-    async sendAll(): Promise<{ saved: Saved[]; failed: number }> {
+    async send(items: Outgoing[]): Promise<{ saved: Saved[]; failed: number }> {
         const outbox = await this.open();
         const saved: Saved[] = [];
         let failed = 0;
         this.sending = true;
         try {
-            for (const item of this.items) {
+            for (const item of items) {
                 const sent = await outbox.send(item, api.createQso);
                 if ('saved' in sent) saved.push(sent.saved);
                 else failed += 1;
             }
         } finally {
             this.sending = false;
-            if (this.logbookId !== undefined) await this.show(this.logbookId);
+            await this.refresh();
         }
         return { saved, failed };
     }
 
     async discard(id: string) {
         await (await this.open()).remove(id);
-        if (this.logbookId !== undefined) await this.show(this.logbookId);
+        await this.refresh();
     }
 }
 

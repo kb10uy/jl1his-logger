@@ -1,9 +1,8 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import type { Fields, Lookup, Qso } from '#lib/api/types.ts';
+    import type { Fields, Qso } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
-    import InstrumentSelect from '#lib/components/InstrumentSelect.svelte';
     import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
     import PageHeader from '#lib/components/PageHeader.svelte';
@@ -11,35 +10,47 @@
     import Icon from '#lib/components/ui/Icon.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
+    import ContestBar from '#lib/components/entry/ContestBar.svelte';
+    import EntryEquipment from '#lib/components/entry/EntryEquipment.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
     import { entryFields, entryProblem, extraFieldNames, type Entry } from '#lib/entry/record.ts';
-    import { loadEntry, saveEntry } from '#lib/entry/settings.ts';
     import { bandOf } from '#lib/qso/bands.ts';
-    import { expandExchange, usesSerial } from '#lib/qso/contest.ts';
-    import {
-        compareNewestFirst,
-        hhmm,
-        isoDate,
-        stationLabel,
-        utcClock,
-        utcFields
-    } from '#lib/qso/format.ts';
+    import { expandExchange } from '#lib/qso/contest.ts';
+    import { hhmm, isoDate, utcClock, utcFields } from '#lib/qso/format.ts';
     import { defaultRst } from '#lib/qso/modes.ts';
     import { QSL_REQUESTS } from '#lib/qso/qsl.ts';
     import { withBand, withFreq, withMode } from '#lib/qso/tuning.ts';
     import { m } from '#lib/paraglide/messages.js';
+    import { EntrySession } from '#lib/state/entry.svelte.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
-    import { outbox } from '#lib/state/outbox.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
     import type { Warning } from '#lib/api/types.ts';
 
-    const RECENT = 20;
-
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
-    const settings = $state(loadEntry(logbookId));
+    const session: EntrySession = new EntrySession(logbook, {
+        get call(): string | undefined {
+            return call.length < 3 ? undefined : call;
+        },
+        get freq(): string {
+            return entry.freq;
+        },
+        get band(): string {
+            return entry.band;
+        },
+        get mode(): string {
+            return entry.mode;
+        },
+        get submode(): string {
+            return entry.submode;
+        },
+        get at(): Date {
+            return at;
+        }
+    });
+    const settings = session.settings;
 
     let entry = $state<Entry>({
         call: '',
@@ -61,21 +72,16 @@
     });
     let now = $state(new Date());
     let locked = $state<Date | undefined>(undefined);
-    let lookup = $state<Lookup | undefined>(undefined);
     let before = $state<Qso[]>([]);
-    let duplicates = $state<Qso[]>([]);
-    let recent = $state<Qso[]>([]);
     let warnings = $state<Warning[]>([]);
-    let logging = $state(false);
     let callInput = $state<HTMLInputElement>();
     let form = $state<HTMLFormElement>();
 
-    const stationId = $derived(
-        logbook.activeStations.some((s) => s.id === settings.stationId)
-            ? settings.stationId
-            : (logbook.activeStations[0]?.id ?? '')
-    );
-    const instrumentId = $derived(logbook.activeInstrumentId(settings.instrumentId));
+    const stationId = $derived(session.stationId);
+    const instrumentId = $derived(session.instrumentId);
+    const lookup = $derived(session.lookup);
+    const duplicates = $derived(session.duplicates);
+    const recent = $derived(session.recent);
     const instrumentPower = $derived(logbook.instrument(instrumentId)?.tx_pwr ?? '');
     const call = $derived(entry.call.trim().toUpperCase());
     const at = $derived(locked ?? now);
@@ -105,92 +111,24 @@
     const sentShown = $derived(
         (settings.contest.includeRst ? `${entry.rstSent} ` : '') + (sent || '—')
     );
-    const unsent = $derived(outbox.items.filter((i) => i.stationId === stationId));
+    const unsent = $derived(session.unsent);
 
     onMount(() => {
         const tick = setInterval(() => (now = new Date()), 1000);
-        const off = logbook.onQso((qso) => {
-            if (qso.station_id !== stationId) return;
-            const others = recent.filter((r) => r.id !== qso.id);
-            recent =
-                qso.deleted_at === null
-                    ? [...others, qso].sort(compareNewestFirst).slice(0, RECENT)
-                    : others;
-        });
         callInput?.focus();
-        return () => {
-            clearInterval(tick);
-            off();
-        };
-    });
-
-    $effect(() => {
-        saveEntry(logbookId, {
-            stationId: settings.stationId,
-            instrumentId: settings.instrumentId,
-            freq: entry.freq,
-            band: entry.band,
-            mode: entry.mode,
-            submode: entry.submode,
-            contest: { ...settings.contest }
-        });
-    });
-
-    $effect(() => {
-        const station = stationId;
-        if (station === '') return;
-        const controller = new AbortController();
-        api.searchQsos(logbookId, { station_id: station, limit: RECENT }, controller.signal)
-            .then((page) => (recent = page.qsos))
-            .catch(() => undefined);
-        return () => controller.abort();
+        return () => clearInterval(tick);
     });
 
     $effect(() => {
         const wanted = call;
-        lookup = undefined;
         before = [];
         if (wanted.length < 3) return;
         const controller = new AbortController();
         const timer = setTimeout(() => {
-            api.lookup(logbookId, wanted, controller.signal)
-                .then((found) => (lookup = found))
-                .catch(() => undefined);
             api.searchQsos(logbookId, { q: `base:"${wanted}"`, limit: 5 }, controller.signal)
                 .then((page) => (before = page.qsos))
                 .catch(() => undefined);
         }, 250);
-        return () => {
-            clearTimeout(timer);
-            controller.abort();
-        };
-    });
-
-    $effect(() => {
-        const candidate = {
-            call,
-            band: entry.band,
-            mode: entry.mode,
-            ...utcFields(untrack(() => at))
-        };
-        duplicates = [];
-        if (candidate.call.length < 3) return;
-        const controller = new AbortController();
-        const timer = setTimeout(() => {
-            api.duplicates(
-                logbookId,
-                {
-                    call: candidate.call,
-                    band: candidate.band,
-                    mode: candidate.mode,
-                    qso_date: candidate.QSO_DATE,
-                    time_on: candidate.TIME_ON
-                },
-                controller.signal
-            )
-                .then((found) => (duplicates = found.qsos))
-                .catch(() => undefined);
-        }, 300);
         return () => {
             clearTimeout(timer);
             controller.abort();
@@ -225,40 +163,20 @@
 
     async function log(event?: Event) {
         event?.preventDefault();
-        if (problem !== undefined || stationId === '' || logging) return;
-        logging = true;
+        if (problem !== undefined || stationId === '' || session.logging) return;
         const fields: Fields = entryFields(entry, settings.contest, at, area);
-        try {
-            const result = await outbox.log(logbookId, stationId, instrumentId || null, fields);
-            if (settings.contest.enabled && usesSerial(settings.contest.exchangeTemplate)) {
-                settings.contest.nextSerial += 1;
-            }
-            clear();
-            if ('saved' in result) {
-                warnings = result.saved.warnings;
-                const qso = result.saved.qso;
-                recent = [...recent.filter((r) => r.id !== qso.id), qso]
-                    .sort(compareNewestFirst)
-                    .slice(0, RECENT);
-                toasts.show(m.entry_logged({ call: qso.fields.CALL }));
-            } else {
-                toasts.error(m.entry_kept({ call: fields.CALL, error: result.error.message }));
-            }
-        } finally {
-            logging = false;
+        const result = await session.log(fields);
+        clear();
+        if ('saved' in result) {
+            warnings = result.saved.warnings;
+            toasts.show(m.entry_logged({ call: result.saved.qso.fields.CALL }));
+        } else {
+            toasts.error(m.entry_kept({ call: fields.CALL, error: result.error.message }));
         }
     }
 
     async function sendNow() {
-        const { saved, failed } = await outbox.sendAll();
-        if (saved.length > 0) {
-            recent = [
-                ...recent.filter((r) => !saved.some((s) => s.qso.id === r.id)),
-                ...saved.map((s) => s.qso)
-            ]
-                .sort(compareNewestFirst)
-                .slice(0, RECENT);
-        }
+        const { saved, failed } = await session.sendUnsent();
         toasts.show(
             failed > 0
                 ? m.entry_sent_some_unsent({ sent: saved.length, failed })
@@ -287,34 +205,7 @@
         >
     {/snippet}
     {#snippet toolbar()}
-        <div class="flex items-center gap-2 md:gap-3">
-            <label for="station" class="shrink-0 text-xs text-muted max-md:sr-only"
-                >{m.field_station()}</label
-            >
-            <select
-                id="station"
-                class="control max-w-full min-w-0 bg-bg max-md:flex-[3_1_0]"
-                value={stationId}
-                onchange={(e) => (settings.stationId = e.currentTarget.value)}
-            >
-                {#each logbook.activeStations as station (station.id)}
-                    <option value={station.id}>{stationLabel(station)}</option>
-                {/each}
-            </select>
-            <label for="instrument" class="shrink-0 text-xs text-muted max-md:sr-only"
-                >{m.field_instrument()}</label
-            >
-            <InstrumentSelect
-                id="instrument"
-                class="max-w-full min-w-0 bg-bg max-md:flex-[2_1_0]"
-                value={instrumentId}
-                instruments={logbook.activeInstruments}
-                onchange={(id) => {
-                    settings.instrumentId = id;
-                    entry.txPwr = '';
-                }}
-            />
-        </div>
+        <EntryEquipment {session} oninstrument={() => (entry.txPwr = '')} />
     {/snippet}
 </PageHeader>
 
@@ -325,60 +216,7 @@
     {/if}
 
     {#if settings.contest.enabled}
-        <section
-            aria-label={m.field_contest()}
-            class="flex flex-wrap items-end gap-x-5 gap-y-3 rounded-lg border border-info-strong bg-selected px-4 py-3"
-        >
-            <div class="flex flex-col gap-1">
-                <label for="contest-id" class="text-xs text-muted">CONTEST_ID</label>
-                <input
-                    id="contest-id"
-                    placeholder={m.entry_optional()}
-                    autocomplete="off"
-                    spellcheck="false"
-                    class="control w-[180px] font-mono uppercase"
-                    bind:value={settings.contest.contestId}
-                />
-            </div>
-            <div class="flex flex-col gap-1">
-                <label for="contest-sent" class="text-xs text-muted">{m.entry_sent_number()}</label>
-                <input
-                    id="contest-sent"
-                    placeholder={'{serial}'}
-                    autocomplete="off"
-                    spellcheck="false"
-                    class="control w-40 font-mono"
-                    bind:value={settings.contest.exchangeTemplate}
-                />
-            </div>
-            <div class="flex flex-col gap-1">
-                <label for="contest-next" class="text-xs text-muted">{m.entry_next_serial()}</label>
-                <input
-                    id="contest-next"
-                    type="number"
-                    min="1"
-                    step="1"
-                    class="control w-24 text-right font-mono"
-                    bind:value={settings.contest.nextSerial}
-                />
-            </div>
-            <label class="flex h-9 cursor-pointer items-center gap-2 text-[13px]">
-                <input
-                    type="checkbox"
-                    class="size-4 accent-info"
-                    bind:checked={settings.contest.includeRst}
-                />
-                {m.entry_rst_in_front()}
-            </label>
-            <div class="flex-1"></div>
-            <div class="flex flex-col items-end gap-1">
-                <span class="text-xs text-muted">{m.entry_next_stx()}</span>
-                <strong class="flex h-9 items-center font-mono text-lg font-semibold"
-                    >{(settings.contest.includeRst ? entry.rstSent : '') + sent ||
-                        m.entry_nothing()}</strong
-                >
-            </div>
-        </section>
+        <ContestBar bind:contest={settings.contest} rstSent={entry.rstSent} />
     {/if}
 
     <div class="flex flex-wrap items-start gap-4">
@@ -745,7 +583,7 @@
                         variant="primary"
                         size="xl"
                         class="font-bold max-md:h-12 max-md:flex-1"
-                        disabled={problem !== undefined || stationId === '' || logging}
+                        disabled={problem !== undefined || stationId === '' || session.logging}
                         >{m.entry_log_qso()}
                         <span class="font-mono text-xs font-medium opacity-80">↵</span></Button
                     >
