@@ -1,3 +1,8 @@
+pub(super) mod events;
+pub(super) mod export;
+pub(super) mod import;
+pub(in crate::web) mod lookup;
+
 use std::{collections::BTreeMap, sync::Arc};
 
 use axum::{
@@ -15,10 +20,10 @@ use crate::{
     },
     web::{
         AppState,
+        api::logbook::member::{Item, Member},
+        api::qso::export::TargetBody,
         error::ApiError,
-        export::TargetBody,
         extract::{Json, Query},
-        member::{Item, Member},
         query::{range, text},
     },
 };
@@ -431,7 +436,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::{reference::ReferenceKind, token::TokenKind},
+        store::{account::token::TokenKind, reference::ReferenceKind},
         web::testing::{Auth, Harness},
     };
 

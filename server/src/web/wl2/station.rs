@@ -4,7 +4,7 @@ use axum::{Json, extract::State};
 use serde_json::{Map, Number, Value, json};
 
 use crate::{
-    store::station::{self, Station},
+    store::logbook::station::{self, Station},
     web::{
         AppState,
         wl2::{Wl2Access, Wl2Error, data},
@@ -85,8 +85,8 @@ mod tests {
     use crate::{
         store::{
             WriteTx,
-            station::{self, StationInput},
-            token::TokenKind,
+            account::token::TokenKind,
+            logbook::station::{self, StationInput},
         },
         web::testing::{Auth, Harness},
     };

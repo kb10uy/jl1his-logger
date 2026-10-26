@@ -14,8 +14,8 @@ use crate::{
     },
     store::{
         WriteTx, export,
+        logbook::station,
         qso::{self, CallMatch, Confirmation, Created, Filter, InsertionQuery, QsoInput, TimeRange},
-        station,
     },
     web::{
         AppState,
@@ -233,7 +233,7 @@ mod tests {
             adif::{LengthUnit, read_adi},
             reference::tests::CTY,
         },
-        store::{reference::ReferenceKind, station::StationInput},
+        store::{logbook::station::StationInput, reference::ReferenceKind},
         web::{testing::Auth, wl2::tests::Fixture},
     };
 

@@ -13,10 +13,9 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
-        instrument::Instrument,
+        logbook::{instrument::Instrument, station::Station},
         qsl::{self, Skipped},
         qso::{self, CallMatch, Created, Filter, QsoInput, Target, TimeRange},
-        station::Station,
     },
 };
 

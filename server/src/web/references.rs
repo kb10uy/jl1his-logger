@@ -21,7 +21,7 @@ use crate::{
         StoreError,
         reference::{self as versions, ReferenceKind, ReferenceVersion, current},
     },
-    web::{AppState, auth::SignedIn, error::ApiError, extract::Json},
+    web::{AppState, api::auth::SignedIn, error::ApiError, extract::Json},
 };
 
 #[derive(Debug, Serialize)]

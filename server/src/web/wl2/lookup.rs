@@ -8,7 +8,7 @@ use crate::{
     store::qso,
     web::{
         AppState,
-        lookup::call,
+        api::qso::lookup::call,
         wl2::{Wl2Access, Wl2Error, Wl2Query, data, present, station_ids},
     },
 };
@@ -78,9 +78,9 @@ mod tests {
         },
         store::{
             WriteTx,
+            logbook::station::{self, StationInput},
             qso::{self, QsoInput},
             reference::ReferenceKind,
-            station::{self, StationInput},
         },
         web::wl2::tests::Fixture,
     };

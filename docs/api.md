@@ -1,4 +1,4 @@
-# Native API (Draft)
+# Native API
 
 The API the web client uses, under `/api` on `public_origin`. Bodies are JSON.
 An error is `{"status": "error", "error": "<message>"}` with the HTTP status:
@@ -28,7 +28,7 @@ caller's Membership is checked before the request itself, so a caller outside
 the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
 and carry the security headers listed in [decisions.md](decisions.md).
 
-It covers sign-in, the server version, reference versions, API tokens, Logbooks, Members,
+It covers sign-in, the server version and health, reference versions, API tokens, Logbooks, Members,
 Stations, Instruments, QSOs with their event stream, bulk QSL changes, export batches and
 ADIF import. The Wavelog API v2 compatibility layer under `/wl2` is described
 in [wl2.md](wl2.md).
@@ -69,11 +69,15 @@ cookie only.
 | `GET /api/sessions?user_id=` | | The live sessions of the signed-in user, or of `user_id` for an admin |
 | `DELETE /api/sessions/{id}` | | `204`; the session's user or an admin |
 
-## Server Version
+## Server Version and Health
 
 `GET /api/version` returns `{version, commit}`: the server's package version
 and the Git commit it was built from, or `null` when the build did not know it.
 It takes the session cookie only.
+
+`GET /api/health` needs no sign-in and answers `{"status": "ok"}` when the
+database can be read, or `503 {"status": "error"}`, for a reverse proxy or a
+container runtime to probe.
 
 ## Reference Data
 
@@ -119,13 +123,22 @@ that does not exist. A write reserved for owners is `403` for an operator.
 
 ## Logbooks
 
-A Logbook is `{id, name, role, cursor_generation, last_seq, last_updated_seq}`,
-where `role` is the caller's Membership, `owner` or `operator`.
+A Logbook is `{id, name, role, cursor_generation, last_seq, last_updated_seq,
+area_field}`, where `role` is the caller's Membership, `owner` or `operator`,
+and `area_field` is the Logbook's area code field, `{name, label}` such as
+`{"name": "CNTY", "label": "JCC / JCG"}`, or `null`.
 
-| Request | Response |
-| --- | --- |
-| `GET /api/logbooks` | The caller's Logbooks, by name |
-| `GET /api/logbooks/{logbook_id}` | One Logbook |
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /api/logbooks` | | The caller's Logbooks, by name |
+| `GET /api/logbooks/{logbook_id}` | | One Logbook |
+| `PUT /api/logbooks/{logbook_id}/settings` | `{area_field}`, `{name, label}` or `null` | The Logbook; owners only |
+
+The area code field's name is an ADIF field name, read ignoring case and
+stored upper-cased, and its label is required. `CALL`, `QSO_DATE`, `TIME_ON`,
+`BAND`, `MODE`, `STATION_CALLSIGN`, `OPERATOR` or a `MY_*` field is `400` with
+`area_field_not_allowed`. Changing
+the field moves no recorded values.
 
 ## Members
 
@@ -146,7 +159,7 @@ owner is `409`.
 
 A Station is `{id, wavelog_id, name, callsign, fields, archived_at,
 created_at, updated_at}`. `fields` holds the `MY_*` and other defaults baked
-into new QSOs; `wavelog_id` is the Station's old Wavelog ID for `/wl2`. Paths
+into new QSOs; `wavelog_id` is the integer ID `/wl2` clients address the Station by, or `null`. Paths
 are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |

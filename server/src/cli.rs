@@ -1,9 +1,14 @@
-mod admin;
 mod backup;
 mod export;
 mod import;
 mod instrument;
+mod logbook;
 mod reference;
+mod settings;
+mod setup;
+mod station;
+mod token;
+mod user;
 
 use std::{error::Error, path::Path};
 
@@ -17,12 +22,15 @@ use crate::{
     db::{self, Db, Migrated},
     domain::{adif::LengthUnit, qso::parse_date},
     store::{
-        access::{self, LogbookAccess, Principal},
-        instrument::Instrument,
-        logbook::{self, Logbook},
+        WriteTx,
+        access::{self, AdminAccess, LogbookAccess, Principal},
+        account::user::{self as users, User},
+        logbook::{
+            self as logbooks, Logbook,
+            instrument::Instrument,
+            station::{self as stations, Station},
+        },
         qso::TimeRange,
-        station::{self, Station},
-        user::{self, User},
     },
 };
 
@@ -40,25 +48,25 @@ pub enum Command {
     #[command(about = "Applies pending migrations after snapshotting the database")]
     Migrate,
     #[command(about = "Creates the first admin and prints a link to register a passkey")]
-    Setup(admin::SetupArgs),
+    Setup(setup::SetupArgs),
     #[command(subcommand, about = "Manages users (admin)")]
-    User(admin::UserCommand),
+    User(user::UserCommand),
     #[command(subcommand, about = "Manages Logbooks")]
-    Logbook(admin::LogbookCommand),
+    Logbook(logbook::LogbookCommand),
     #[command(subcommand, about = "Lists the members of a Logbook, or manages them (owner)")]
-    Member(admin::MemberCommand),
+    Member(logbook::MemberCommand),
     #[command(subcommand, about = "Manages the Stations of a Logbook (owner)")]
-    Station(admin::StationCommand),
+    Station(station::StationCommand),
     #[command(subcommand, about = "Manages the Instruments of a Logbook")]
     Instrument(instrument::InstrumentCommand),
     #[command(subcommand, about = "Manages your API tokens")]
-    Token(admin::TokenCommand),
+    Token(token::TokenCommand),
     #[command(about = "Imports new QSOs or merges QSL confirmations from an ADIF file")]
     Import(import::ImportArgs),
     #[command(subcommand, about = "Exports QSOs as ADIF and applies the results")]
     Export(export::ExportCommand),
     #[command(subcommand, about = "Reads and writes instance settings (admin)")]
-    Settings(admin::SettingsCommand),
+    Settings(settings::SettingsCommand),
     #[command(subcommand, about = "Lists and installs reference data")]
     Reference(reference::ReferenceCommand),
     #[command(about = "Writes a copy of the database while the server runs")]
@@ -93,17 +101,17 @@ pub async fn run(database: &Path, config: &Config, actor: Option<&str>, command:
             }
             Command::Setup(args) => {
                 context.migrate().await?;
-                admin::setup(&context, &args).await
+                setup::setup(&context, &args).await
             }
-            Command::User(command) => admin::user(&context, command).await,
-            Command::Logbook(command) => admin::logbook(&context, command).await,
-            Command::Member(command) => admin::member(&context, command).await,
-            Command::Station(command) => admin::station(&context, command).await,
+            Command::User(command) => user::user(&context, command).await,
+            Command::Logbook(command) => logbook::logbook(&context, command).await,
+            Command::Member(command) => logbook::member(&context, command).await,
+            Command::Station(command) => station::station(&context, command).await,
             Command::Instrument(command) => instrument::run(&context, command).await,
-            Command::Token(command) => admin::token(&context, command).await,
+            Command::Token(command) => token::token(&context, command).await,
             Command::Import(args) => import::run(&context, &args).await,
             Command::Export(command) => export::run(&context, command).await,
-            Command::Settings(command) => admin::settings(&context, command).await,
+            Command::Settings(command) => settings::settings(&context, command).await,
             Command::Reference(command) => reference::run(&context, command).await,
             Command::Backup(args) => backup::backup(&context, &args).await,
             Command::Restore(_) => unreachable!("restore runs without an open database"),
@@ -162,7 +170,7 @@ impl Context<'_> {
         let principal = self.principal().await?;
         let mut conn = self.db.acquire().await?;
         let user = access::user(&mut conn, &principal).await?;
-        let logbooks = logbook::list(&mut conn, &user)
+        let logbooks = logbooks::list(&mut conn, &user)
             .await?
             .into_iter()
             .map(|(logbook, _)| logbook)
@@ -179,13 +187,13 @@ impl Context<'_> {
 
     async fn station(&self, access: &LogbookAccess, key: Option<&str>) -> CliResult<Station> {
         let mut conn = self.db.acquire().await?;
-        let stations = station::list(&mut conn, access).await?;
+        let stations = stations::list(&mut conn, access).await?;
         Ok(pick(&stations, key, "Station", |s| &s.id, |s| &s.name)?.clone())
     }
 
     async fn instrument(&self, access: &LogbookAccess, key: &str) -> CliResult<Instrument> {
         let mut conn = self.db.acquire().await?;
-        let instruments = crate::store::instrument::list(&mut conn, access).await?;
+        let instruments = crate::store::logbook::instrument::list(&mut conn, access).await?;
         Ok(pick(&instruments, Some(key), "Instrument", |i| &i.id, |i| &i.name)?.clone())
     }
 
@@ -195,9 +203,15 @@ impl Context<'_> {
 }
 
 async fn find_user(conn: &mut SqliteConnection, callsign: &str) -> CliResult<User> {
-    Ok(user::find_by_callsign(conn, callsign)
+    Ok(users::find_by_callsign(conn, callsign)
         .await?
         .ok_or_else(|| format!("no user has the callsign {callsign}"))?)
+}
+
+async fn admin_tx(context: &Context<'_>, principal: &Principal) -> CliResult<(WriteTx, AdminAccess)> {
+    let mut tx = WriteTx::begin(context.db).await?;
+    let admin = access::admin(&mut tx, principal).await?;
+    Ok((tx, admin))
 }
 
 fn pick_logbook<'a>(logbooks: &'a [Logbook], key: Option<&str>) -> CliResult<&'a Logbook> {
@@ -247,6 +261,13 @@ impl From<LengthArg> for LengthUnit {
 
 fn parse_day(s: &str) -> Result<NaiveDate, String> {
     parse_date(&s.trim().replace('-', "")).ok_or_else(|| format!("{s:?} is not a date such as 2026-10-22"))
+}
+
+fn parse_field(s: &str) -> Result<(String, String), String> {
+    s.split_once('=')
+        .map(|(name, value)| (name.trim().to_owned(), value.to_owned()))
+        .filter(|(name, _)| !name.is_empty())
+        .ok_or_else(|| format!("{s:?} is not NAME=VALUE"))
 }
 
 fn registration_url(origin: &Url, token: &str) -> Url {
@@ -329,6 +350,20 @@ mod tests {
         assert_eq!(
             access.as_ref().map(|a| a.logbook_id()).map_err(|e| e.to_string()),
             expected.map(|()| world.logbook.id.as_str())
+        );
+    }
+
+    #[rstest]
+    #[case("MY_CITY=Minato", Ok(("MY_CITY", "Minato")))]
+    #[case(" my_rig =IC-705=x", Ok(("my_rig", "IC-705=x")))]
+    #[case("MY_RIG=", Ok(("MY_RIG", "")))]
+    #[case("=Minato", Err(()))]
+    #[case("MY_CITY", Err(()))]
+    fn reads_name_value_fields(#[case] text: &str, #[case] expected: Result<(&str, &str), ()>) {
+        let read = parse_field(text);
+        assert_eq!(
+            read.as_ref().map(|(n, v)| (n.as_str(), v.as_str())).map_err(|_| ()),
+            expected
         );
     }
 }

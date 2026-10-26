@@ -21,10 +21,10 @@ use crate::{
     store::{
         StoreError,
         access::{self, LogbookAccess},
-        station::{self as stations, Station},
-        token::{self, TokenKind},
+        account::token::{self, TokenKind},
+        logbook::station::{self as stations, Station},
     },
-    web::{AppState, auth::bearer, error, references::LoadError},
+    web::{AppState, api::auth::bearer, error, references::LoadError},
 };
 
 const API: &str = "/wl2/index.php/api/v2";
@@ -232,7 +232,7 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::{
-        store::{WriteTx, membership, reference::ReferenceKind, token::TokenKind},
+        store::{WriteTx, account::token::TokenKind, logbook::membership, reference::ReferenceKind},
         web::testing::{Auth, Harness},
     };
 

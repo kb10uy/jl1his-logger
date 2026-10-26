@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection};
 
-use crate::store::{StoreError, WriteTx, new_id, now, user::Role};
+use crate::store::{StoreError, WriteTx, account::user::Role, new_id, now};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Principal {
@@ -302,9 +302,10 @@ mod tests {
 
     use super::*;
     use crate::store::{
-        logbook, membership, station,
+        account::user::{self, Role},
+        logbook,
+        logbook::{membership, station},
         testing::{World, station_input},
-        user::{self, Role},
     };
 
     async fn add_token(world: &World, user_id: &str, scopes: &[&str]) -> Principal {

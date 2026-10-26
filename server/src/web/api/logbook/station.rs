@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     store::{
         WriteTx,
-        station::{self, Station, StationInput},
+        logbook::station::{self, Station, StationInput},
     },
     web::{
         AppState,
+        api::logbook::member::{Item, Member},
         error::ApiError,
         extract::{Json, Query},
-        member::{Item, Member},
         query::{Count, RangeQuery, RewriteRequest, range},
     },
 };

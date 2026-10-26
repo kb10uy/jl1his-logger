@@ -1,3 +1,7 @@
+pub mod instrument;
+pub mod membership;
+pub mod station;
+
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
@@ -5,7 +9,8 @@ use crate::{
     store::{
         Fault, StoreError, WriteTx,
         access::{self, AdminAccess, LogbookAccess, LogbookRole, OwnerAccess, Principal, UserAccess},
-        membership, name as store_name, new_id, now, user,
+        account::user,
+        name as store_name, new_id, now,
     },
 };
 

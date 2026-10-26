@@ -1,35 +1,22 @@
-mod auth;
+mod api;
 mod error;
-mod events;
-mod export;
 mod extract;
-mod import;
-mod instrument;
-mod logbook;
-mod lookup;
-mod member;
-mod qso;
 mod query;
 mod references;
 mod serve;
-mod session;
-mod station;
 #[cfg(test)]
 mod testing;
-mod token;
 mod wl2;
 
 use std::{path::Path, sync::Arc, time::Duration};
 
 use axum::{
-    Json, Router,
-    extract::{DefaultBodyLimit, Request, State},
+    Router,
+    extract::{Request, State},
     http::{HeaderName, HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{any, delete, get, post, put},
 };
-use serde_json::json;
 use tokio::sync::{Semaphore, watch};
 use tower_http::{
     services::{ServeDir, ServeFile},
@@ -40,7 +27,7 @@ use tower_http::{
 use url::Url;
 use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::WebauthnError};
 
-use self::{auth::Ceremonies, error::ApiError, references::References};
+use self::{api::auth::Ceremonies, error::ApiError, references::References};
 use crate::{config::Config, db::Db};
 
 pub use self::serve::serve;
@@ -99,88 +86,7 @@ impl AppState {
 }
 
 pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
-    let api = Router::new()
-        .route("/api/health", get(health))
-        .route("/api/version", get(version))
-        .route("/api/me", get(auth::me))
-        .route("/api/auth/login/start", post(auth::login_start))
-        .route("/api/auth/login/finish", post(auth::login_finish))
-        .route("/api/auth/logout", post(auth::logout))
-        .route("/api/auth/register/start", post(auth::link_start))
-        .route("/api/auth/register/finish", post(auth::link_finish))
-        .route("/api/passkeys", get(auth::list_passkeys))
-        .route("/api/passkeys/register/start", post(auth::add_start))
-        .route("/api/passkeys/register/finish", post(auth::add_finish))
-        .route("/api/passkeys/{id}", delete(auth::delete_passkey))
-        .route("/api/sessions", get(session::list))
-        .route("/api/sessions/{id}", delete(session::revoke))
-        .route("/api/reference", get(references::list))
-        .route("/api/reference/subdivisions/{dxcc}", get(references::subdivisions))
-        .route("/api/tokens", get(token::list).post(token::issue))
-        .route("/api/tokens/{id}", delete(token::revoke))
-        .route("/api/logbooks", get(logbook::list))
-        .route("/api/logbooks/{logbook_id}", get(logbook::get))
-        .route("/api/logbooks/{logbook_id}/settings", put(logbook::set_settings))
-        .route("/api/logbooks/{logbook_id}/members", get(logbook::members))
-        .route(
-            "/api/logbooks/{logbook_id}/members/{callsign}",
-            put(logbook::set_member).delete(logbook::remove_member),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/stations",
-            get(station::list).post(station::create),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/stations/{id}",
-            get(station::get).put(station::update),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/stations/{id}/archive",
-            post(station::archive).delete(station::unarchive),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/stations/{id}/rewrite",
-            get(station::preview_rewrite).post(station::rewrite),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/instruments",
-            get(instrument::list).post(instrument::create),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/instruments/{id}",
-            get(instrument::get).put(instrument::update),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/instruments/{id}/archive",
-            post(instrument::archive).delete(instrument::unarchive),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/instruments/{id}/rewrite",
-            get(instrument::preview_rewrite).post(instrument::rewrite),
-        )
-        .route("/api/logbooks/{logbook_id}/qsl", post(export::update_qsl))
-        .route(
-            "/api/logbooks/{logbook_id}/imports",
-            post(import::import).layer(DefaultBodyLimit::max(import::MAX_FILE)),
-        )
-        .route(
-            "/api/logbooks/{logbook_id}/exports",
-            get(export::list).post(export::create),
-        )
-        .route("/api/logbooks/{logbook_id}/exports/{id}", get(export::get))
-        .route("/api/logbooks/{logbook_id}/exports/{id}/apply", post(export::apply))
-        .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
-        .route("/api/logbooks/{logbook_id}/events", get(events::stream))
-        .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
-        .route("/api/logbooks/{logbook_id}/lookup", get(lookup::get))
-        .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))
-        .route("/api/logbooks/{logbook_id}/targets", get(qso::targets))
-        .route(
-            "/api/logbooks/{logbook_id}/qsos/{id}",
-            get(qso::get).put(qso::update).delete(qso::delete),
-        )
-        .route("/api", any(api_not_found))
-        .route("/api/{*rest}", any(api_not_found))
+    let api = api::router()
         .merge(wl2::router())
         .layer(middleware::from_fn_with_state(state.clone(), announce_writes))
         .layer(middleware::from_fn_with_state(state.clone(), same_origin_only))
@@ -256,29 +162,12 @@ async fn announce_writes(State(state): State<Arc<AppState>>, request: Request, n
     response
 }
 
-async fn health(State(state): State<Arc<AppState>>) -> Response {
-    match sqlx::query("SELECT 1").execute(&state.db).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
-        Err(e) => {
-            tracing::error!("health check failed: {e}");
-            (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "status": "error" }))).into_response()
-        }
-    }
-}
-
-async fn version(_: auth::SignedIn) -> Response {
-    Json(json!({ "version": env!("CARGO_PKG_VERSION"), "commit": option_env!("JL1HIS_COMMIT") })).into_response()
-}
-
-async fn api_not_found() -> Response {
-    ApiError::new(StatusCode::NOT_FOUND, "not found").into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, http::HeaderMap};
     use http_body_util::BodyExt;
     use rstest::rstest;
+    use serde_json::json;
     use tempfile::TempDir;
     use tower::ServiceExt;
 
@@ -287,8 +176,8 @@ mod tests {
         db,
         store::{
             WriteTx,
+            account::token::TokenKind,
             reference::{self, ReferenceKind},
-            token::TokenKind,
         },
         web::testing::{Auth, Harness, authorize},
     };

@@ -71,7 +71,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        store::{reference::ReferenceKind, token::TokenKind},
+        store::{account::token::TokenKind, reference::ReferenceKind},
         web::{
             testing::{Auth, Harness},
             wl2::tests::Fixture,

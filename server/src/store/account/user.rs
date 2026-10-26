@@ -226,7 +226,7 @@ mod tests {
     use sqlx::AssertSqlSafe;
 
     use super::*;
-    use crate::store::{registration, session, testing::World, token};
+    use crate::store::{account::registration, account::session, account::token, testing::World};
 
     #[tokio::test]
     async fn creates_the_initial_admin_only_once() {

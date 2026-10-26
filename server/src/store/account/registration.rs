@@ -4,10 +4,9 @@ use sqlx::SqliteConnection;
 use crate::store::{
     StoreError, WriteTx,
     access::AdminAccess,
-    hash_token,
-    passkey::{self, NewPasskey, Passkey},
-    random_token, timestamp,
-    user::{self, Role, User},
+    account::passkey::{self, NewPasskey, Passkey},
+    account::user::{self, Role, User},
+    hash_token, random_token, timestamp,
 };
 
 pub const DEFAULT_TTL: TimeDelta = TimeDelta::hours(24);
@@ -108,7 +107,7 @@ async fn insert(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::{passkey::tests::new_passkey, testing::World};
+    use crate::store::{account::passkey::tests::new_passkey, testing::World};
 
     #[tokio::test]
     async fn registers_a_passkey_once_per_link() {

@@ -1,11 +1,11 @@
 use clap::{Args, Subcommand};
 
 use crate::{
-    cli::{CliResult, Context, DayRange, LogbookArg, admin::parse_field},
+    cli::{CliResult, Context, DayRange, LogbookArg, parse_field},
     store::{
         WriteTx,
         access::LogbookAccess,
-        instrument::{self, Instrument, InstrumentInput},
+        logbook::instrument::{self, Instrument, InstrumentInput},
     },
 };
 

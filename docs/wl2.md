@@ -1,4 +1,4 @@
-# Wavelog API v2 Compatibility Layer (Draft)
+# Wavelog API v2 Compatibility Layer
 
 Clients written for Wavelog API v2 can talk to jl1his-logger through this
 layer. Their base URL becomes `public_origin/wl2`, so their requests arrive at

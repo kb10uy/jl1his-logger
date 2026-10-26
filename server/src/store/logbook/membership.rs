@@ -3,7 +3,8 @@ use sqlx::SqliteConnection;
 use crate::store::{
     Fault, StoreError, WriteTx,
     access::{LogbookAccess, LogbookRole, OwnerAccess},
-    now, user,
+    account::user,
+    now,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

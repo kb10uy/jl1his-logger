@@ -9,12 +9,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     store::{
-        WriteTx, hash_token,
-        session::{self, Session},
+        WriteTx,
+        account::session::{self, Session},
+        hash_token,
     },
     web::{
         AppState,
-        auth::{SESSION_COOKIE, SignedIn},
+        api::auth::{SESSION_COOKIE, SignedIn},
         error::ApiError,
         extract::{Json, Query},
     },
