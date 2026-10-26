@@ -1,4 +1,4 @@
-import init, { analyze as analyzeJson, Matcher } from './wasm/query.js';
+import init, { analyze as analyzeJson, callBase as callBaseOf, Matcher } from './wasm/query.js';
 import type { Fields } from '#lib/api/types.ts';
 
 export interface QueryToken {
@@ -21,6 +21,10 @@ export function loadQuery(): Promise<void> {
 
 export function analyze(query: string): QueryToken[] {
     return JSON.parse(analyzeJson(query)) as QueryToken[];
+}
+
+export function callBase(call: string): string {
+    return callBaseOf(call);
 }
 
 export interface RowMatcher {

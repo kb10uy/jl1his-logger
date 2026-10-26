@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import { MediaQuery } from 'svelte/reactivity';
+    import { DropdownMenu } from 'bits-ui';
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
     import * as api from '#lib/api/api.ts';
@@ -19,6 +20,15 @@
     import { adifFieldOf, column, type Column } from '#lib/log/columns.ts';
     import { applyEvent, replaceRows, undoOf, type Row } from '#lib/log/rows.ts';
     import { loadColumns, saveColumns } from '#lib/log/settings.ts';
+    import {
+        SORTS,
+        comparator,
+        directionOf,
+        isSortColumn,
+        parseSort,
+        toggled,
+        type Sort
+    } from '#lib/log/sort.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { adifDate, hhmm, isoDate, parks, rst, utcClock } from '#lib/qso/format.ts';
     import { loadQuery, matcher } from '#lib/query/index.ts';
@@ -55,6 +65,7 @@
     let held: Qso[] = [];
 
     const q = $derived(page.url.searchParams.get('q') ?? '');
+    const sort = $derived(parseSort(page.url.searchParams.get('sort')));
     const openId = $derived(page.url.searchParams.get('qso'));
     const compiled = $derived(ready ? matcher(q) : undefined);
     const checkedIds = $derived(Object.keys(checked));
@@ -75,7 +86,7 @@
             if (!ready || loading) held.push(qso);
             else receive(qso);
         });
-        const offReset = logbook.onReset(() => search(q));
+        const offReset = logbook.onReset(() => search(q, sort));
         return () => {
             offQso();
             offReset();
@@ -89,7 +100,8 @@
 
     $effect(() => {
         const query = q;
-        untrack(() => search(query));
+        const order = sort;
+        untrack(() => search(query, order));
     });
 
     $effect(() => {
@@ -114,7 +126,7 @@
 
     function receive(qso: Qso) {
         const matches = logbook.matches(qso, compiled) ?? false;
-        const applied = applyEvent(rows, qso, matches, next === null);
+        const applied = applyEvent(rows, qso, matches, next === null, comparator(sort));
         if (applied.kind === 'outside') outside += 1;
         if ('rows' in applied) rows = applied.rows;
         if (applied.kind === 'inserted' && qso.revision === 1 && total !== undefined) total += 1;
@@ -127,11 +139,15 @@
         queued.forEach(receive);
     }
 
-    function replaceUrl(change: { q?: string; qso?: string | null }) {
+    function replaceUrl(change: { q?: string; sort?: Sort; qso?: string | null }) {
         const url = new URL(page.url.href);
         if (change.q !== undefined) {
             if (change.q === '') url.searchParams.delete('q');
             else url.searchParams.set('q', change.q);
+        }
+        if (change.sort !== undefined) {
+            if (change.sort === SORTS[0]) url.searchParams.delete('sort');
+            else url.searchParams.set('sort', change.sort);
         }
         if (change.qso !== undefined) {
             if (change.qso === null) url.searchParams.delete('qso');
@@ -140,11 +156,11 @@
         goto(url, { replace: true, reset: false });
     }
 
-    async function search(query: string) {
+    async function search(query: string, order: Sort) {
         const mine = ++run;
         loading = true;
         try {
-            const found = await api.searchQsos(logbookId, { q: query, limit: PAGE });
+            const found = await api.searchQsos(logbookId, { q: query, sort: order, limit: PAGE });
             if (mine !== run) return;
             rows = found.qsos.map((qso) => ({ qso, stale: false }));
             next = found.next;
@@ -169,7 +185,12 @@
         const mine = run;
         loading = true;
         try {
-            const found = await api.searchQsos(logbookId, { q, cursor: next, limit: PAGE });
+            const found = await api.searchQsos(logbookId, {
+                q,
+                sort,
+                cursor: next,
+                limit: PAGE
+            });
             if (mine !== run) return;
             const known = new Set(rows.map((r) => r.qso.id));
             rows = [
@@ -343,17 +364,52 @@
     });
 
     const matchText = $derived(total === undefined ? '' : m.log_matching({ count: total }));
+
+    const sortLabels: Record<Sort, () => string> = {
+        '-time': m.log_sort_newest,
+        time: m.log_sort_oldest,
+        call: m.log_sort_call,
+        '-call': m.log_sort_call_descending
+    };
 </script>
 
 <PageTitle title={m.nav_logbook()} />
 
 {#snippet counts()}
     {#if outside > 0}
-        <button type="button" class="text-xs text-info" onclick={() => search(q)}
+        <button type="button" class="text-xs text-info" onclick={() => search(q, sort)}
             >{m.log_new_outside({ count: outside })}</button
         >
     {/if}
     <span class="text-[13px] text-muted">{matchText}</span>
+    <DropdownMenu.Root>
+        <DropdownMenu.Trigger
+            aria-label={`${m.log_sort()}: ${sortLabels[sort]()}`}
+            class="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-md px-2 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
+        >
+            {sortLabels[sort]()}
+            <Icon name="chevron" size={14} />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+            <DropdownMenu.Content
+                align="end"
+                sideOffset={4}
+                class="z-40 flex min-w-[180px] flex-col rounded-lg border border-border bg-surface p-1 shadow-lg shadow-shadow"
+            >
+                {#each SORTS as s (s)}
+                    <DropdownMenu.Item
+                        onSelect={() => replaceUrl({ sort: s })}
+                        class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
+                    >
+                        <span>{sortLabels[s]()}</span>
+                        {#if s === sort}
+                            <Icon name="check" size={14} class="text-info" />
+                        {/if}
+                    </DropdownMenu.Item>
+                {/each}
+            </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+    </DropdownMenu.Root>
 {/snippet}
 
 {#snippet qsl(sent: string | undefined, rcvd: string | undefined)}
@@ -424,7 +480,7 @@
     >
         {#if loading}
             <Icon name="spinner" size={14} strokeWidth={2.5} />
-            <span>{rows.length === 0 ? m.log_loading_qsos() : m.log_loading_older()}</span>
+            <span>{rows.length === 0 ? m.log_loading_qsos() : m.log_loading_more()}</span>
         {:else if loaded && rows.length === 0}
             <span>{m.log_no_match()}</span>
         {:else if loaded && next === null && rows.length > 0}
@@ -480,13 +536,41 @@
                                 </span>
                             </th>
                             {#each shown as c (c.id)}
+                                {@const direction = isSortColumn(c.id)
+                                    ? directionOf(c.id, sort)
+                                    : undefined}
                                 <th
                                     scope="col"
+                                    aria-sort={direction}
                                     class={[
                                         'border-b border-border px-3 py-2 font-medium whitespace-nowrap',
                                         c.right && 'text-right'
-                                    ]}>{c.label}</th
+                                    ]}
                                 >
+                                    {#if isSortColumn(c.id)}
+                                        {@const column = c.id}
+                                        <button
+                                            type="button"
+                                            class={[
+                                                'group/sort -mx-1 inline-flex items-center gap-1 rounded px-1 hover:text-text',
+                                                direction && 'text-text'
+                                            ]}
+                                            onclick={() =>
+                                                replaceUrl({ sort: toggled(column, sort) })}
+                                        >
+                                            {c.label}
+                                            <Icon
+                                                name={direction ?? 'sortable'}
+                                                size={14}
+                                                class={direction
+                                                    ? 'text-info'
+                                                    : 'opacity-40 group-hover/sort:opacity-100'}
+                                            />
+                                        </button>
+                                    {:else}
+                                        {c.label}
+                                    {/if}
+                                </th>
                             {/each}
                             <th aria-hidden="true" class="w-full border-b border-border"></th>
                         </tr>

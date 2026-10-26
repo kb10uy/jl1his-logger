@@ -1,6 +1,9 @@
 <script lang="ts" module>
     import AlertTriangle from '@tabler/icons-svelte-runes/icons/alert-triangle';
     import Antenna from '@tabler/icons-svelte-runes/icons/antenna';
+    import ArrowNarrowDown from '@tabler/icons-svelte-runes/icons/arrow-narrow-down';
+    import ArrowNarrowUp from '@tabler/icons-svelte-runes/icons/arrow-narrow-up';
+    import ArrowsSort from '@tabler/icons-svelte-runes/icons/arrows-sort';
     import Book2 from '@tabler/icons-svelte-runes/icons/book-2';
     import Check from '@tabler/icons-svelte-runes/icons/check';
     import ChevronDown from '@tabler/icons-svelte-runes/icons/chevron-down';
@@ -54,7 +57,10 @@
         collapse: LayoutSidebarLeftCollapse,
         expand: LayoutSidebarLeftExpand,
         star: Star,
-        starred: StarFilled
+        starred: StarFilled,
+        ascending: ArrowNarrowUp,
+        descending: ArrowNarrowDown,
+        sortable: ArrowsSort
     } as const;
 
     export type IconName = keyof typeof ICONS;
