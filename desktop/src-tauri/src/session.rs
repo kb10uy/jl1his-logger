@@ -25,6 +25,7 @@ pub enum Session {
     },
     SignedIn {
         url: String,
+        callsign: Option<String>,
         logbooks: Option<Vec<Logbook>>,
     },
 }
@@ -100,18 +101,27 @@ pub async fn session(paths: State<'_, Paths>) -> Result<Session, CommandError> {
             rejected: false,
         });
     };
-    let origin = parse_origin(&url)?;
-    match Api::new(origin, token).logbooks().await {
+    let api = Api::new(parse_origin(&url)?, token);
+    match api.logbooks().await {
         Ok(logbooks) => Ok(Session::SignedIn {
             url,
+            callsign: callsign(&api).await,
             logbooks: Some(logbooks),
         }),
         Err(ApiError::Unauthorized) => Ok(Session::SignedOut {
             url: Some(url),
             rejected: true,
         }),
-        Err(_) => Ok(Session::SignedIn { url, logbooks: None }),
+        Err(_) => Ok(Session::SignedIn {
+            url,
+            callsign: None,
+            logbooks: None,
+        }),
     }
+}
+
+async fn callsign(api: &Api) -> Option<String> {
+    api.me().await.ok().map(|me| me.callsign)
 }
 
 #[tauri::command]
@@ -119,7 +129,8 @@ pub async fn sign_in(paths: State<'_, Paths>, url: String, token: String) -> Res
     let origin = parse_origin(&url)?;
     let url = origin_text(&origin);
     let token = token.trim().to_owned();
-    let logbooks = Api::new(origin, token.clone()).logbooks().await.map_err(|e| match e {
+    let api = Api::new(origin, token.clone());
+    let logbooks = api.logbooks().await.map_err(|e| match e {
         ApiError::Unauthorized if token.starts_with("wl2_") => CommandError::Wl2Token,
         e => e.into(),
     })?;
@@ -135,6 +146,7 @@ pub async fn sign_in(paths: State<'_, Paths>, url: String, token: String) -> Res
     config.save(&paths.config)?;
     Ok(Session::SignedIn {
         url,
+        callsign: callsign(&api).await,
         logbooks: Some(logbooks),
     })
 }

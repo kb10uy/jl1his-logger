@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use url::Url;
 
@@ -12,6 +12,11 @@ pub struct Logbook {
     pub id: String,
     pub name: String,
     pub role: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Me {
+    pub callsign: String,
 }
 
 #[derive(Debug, Error)]
@@ -47,7 +52,15 @@ impl Api {
     }
 
     pub async fn logbooks(&self) -> Result<Vec<Logbook>, ApiError> {
-        let url = self.origin.join("/api/logbooks").expect("a fixed path joins");
+        self.get("/api/logbooks").await
+    }
+
+    pub async fn me(&self) -> Result<Me, ApiError> {
+        self.get("/api/me").await
+    }
+
+    async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
+        let url = self.origin.join(path).expect("a fixed path joins");
         let response = self
             .client
             .get(url)

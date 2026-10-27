@@ -6,7 +6,7 @@ export type Logbook = {
 
 export type Session =
     | { state: 'signedOut'; url: string | null; rejected: boolean }
-    | { state: 'signedIn'; url: string; logbooks: Logbook[] | null };
+    | { state: 'signedIn'; url: string; callsign: string | null; logbooks: Logbook[] | null };
 
 export type CommandError =
     | { kind: 'badUrl'; detail: string }

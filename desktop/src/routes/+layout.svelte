@@ -2,6 +2,7 @@
     import '@fontsource-variable/inter';
     import '../app.css';
     import { onMount } from 'svelte';
+    import { getCurrentWindow } from '@tauri-apps/api/window';
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
     import { m } from '#lib/paraglide/messages.js';
@@ -16,6 +17,18 @@
         session.load();
     });
 
+    const title = $derived(
+        session.current?.state === 'signedIn' && session.current.callsign
+            ? m.window_title({ callsign: session.current.callsign })
+            : m.app_name()
+    );
+
+    $effect(() => {
+        getCurrentWindow()
+            .setTitle(title)
+            .catch(() => undefined);
+    });
+
     $effect(() => {
         const current = session.current;
         if (current === undefined) return;
@@ -26,7 +39,7 @@
 </script>
 
 <svelte:head>
-    <title>{m.app_name()}</title>
+    <title>{title}</title>
 </svelte:head>
 
 {#if session.current}
