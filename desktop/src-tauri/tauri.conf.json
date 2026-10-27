@@ -1,0 +1,37 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "JL1HIS Logger",
+    "version": "../package.json",
+    "identifier": "org.kb10uy.jl1his-logger",
+    "build": {
+        "beforeDevCommand": "pnpm run dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "pnpm run build",
+        "frontendDist": "../build"
+    },
+    "app": {
+        "windows": [
+            {
+                "title": "JL1HIS Logger",
+                "width": 800,
+                "height": 400,
+                "minWidth": 800,
+                "minHeight": 400
+            }
+        ],
+        "security": {
+            "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ]
+    }
+}
