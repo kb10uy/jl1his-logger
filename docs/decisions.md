@@ -323,9 +323,15 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 
 - The desktop client is for entry: a small window, about 800 by 400 and often taller, that sits beside the operator's other radio programs.
 - It signs in with the server's URL and an API token the user creates in the web client, not with a passkey, which is bound to `public_origin`.
+- The URL is reduced to its origin, so a pasted address of any web client page works. It must be `https`, except on the loopback address or `localhost`, because the token travels with every request.
+- Signing in checks the token with `GET /api/logbooks` from the Rust side, which sends no `Origin` and so passes the server's origin check. A `401` refuses the token, worded as a Wavelog compatible token when it starts with `wl2_`; a token that reaches no Logbook is refused as well. `GET /api/me` takes the session cookie only, so the client does not know its user's callsign.
+- The token is kept in the operating system's credential store (Windows Credential Manager, the macOS Keychain, the Secret Service), keyed by the URL, never in a file. Signing out deletes it and keeps the URL to fill the sign-in form.
+- The settings are one TOML file, `config.toml` in the app's configuration directory (`%APPDATA%\org.kb10uy.jl1his-logger\` on Windows), read and written by the Rust side so it can also be edited by hand. `--config <path>` names another file. A debug build uses `config.dev.toml` and the credential service `org.kb10uy.jl1his-logger.dev`, so running `pnpm tauri dev` never touches an installed app's settings or token.
+- At start the client checks the saved token. A refused token returns to the sign-in form with the URL filled in; an unreachable server keeps it signed in, since entry must work offline.
+- The desktop client's text is localized like the web client's, with its own messages under `desktop/messages/`. It imports the web client's `client/src/theme.css`, so both share the tokens, fonts and base styles.
 - What it reads from the rig through rigctld (frequency, mode) fills its own form only. Nothing about the rig is sent to the server, which has no rig state.
 
 ## Remaining Work
 
 - The CLI takes the text query of Search: `export write` still takes only the structured filters.
-- The desktop client is a shell: its entry screen, API token sign-in, rigctld and logging from other programs on the local machine are still to be built.
+- The desktop client signs in and lists its Logbooks: its entry screen, rigctld and logging from other programs on the local machine are still to be built.

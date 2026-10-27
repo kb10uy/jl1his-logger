@@ -41,6 +41,14 @@ pnpm tauri dev                # Vite on port 1420 inside a Tauri window
 pnpm tauri build              # → desktop/src-tauri/target/release, with installers under bundle/
 ```
 
+It signs in with the server's URL and a Native API token issued in the web
+client under Settings › API tokens, or with `jl1his-logger token issue`. Its
+settings are `config.toml` in the app's configuration directory
+(`%APPDATA%\org.kb10uy.jl1his-logger\` on Windows; `config.dev.toml` for a
+debug build), or the file given as `--config <path>`
+(`pnpm tauri dev -- -- --config dev.toml`). The token is kept in the system's
+credential store, not in that file.
+
 It needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 of the platform: WebView2 on Windows, WebKitGTK and its development packages
 on Linux. The app icons in `desktop/src-tauri/icons` are generated from

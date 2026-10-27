@@ -183,6 +183,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run check
+      - run: pnpm test
       - run: pnpm run build
 
       - name: Check formatting
@@ -190,6 +191,9 @@ jobs:
         working-directory: desktop/src-tauri
       - name: Run Clippy
         run: cargo clippy --all-targets -- -D warnings
+        working-directory: desktop/src-tauri
+      - name: Run tests
+        run: cargo test
         working-directory: desktop/src-tauri
 
   licenses:
