@@ -24,9 +24,9 @@ describe('asCommandError', () => {
 
 describe('errorText', () => {
     it('words each error with its details', () => {
-        expect(errorText({ kind: 'server', status: 503, detail: 'Service Unavailable' })).toBe(
-            'The server answered 503: Service Unavailable'
-        );
+        expect(
+            errorText({ kind: 'server', status: 503, detail: 'Service Unavailable', body: null })
+        ).toBe('The server answered 503: Service Unavailable');
         expect(errorText({ kind: 'wl2Token' })).toBe(
             'This is a Wavelog compatible token. Issue a Native API token instead.'
         );

@@ -8,7 +8,7 @@ mod session;
 
 use tauri::Manager;
 
-use crate::session::Paths;
+use crate::session::{Connection, Paths};
 
 fn main() {
     tauri::Builder::default()
@@ -18,12 +18,14 @@ fn main() {
                 None => app.path().app_config_dir()?.join(config::FILE_NAME),
             };
             app.manage(Paths { config });
+            app.manage(Connection::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             session::session,
             session::sign_in,
-            session::sign_out
+            session::sign_out,
+            session::request
         ])
         .run(tauri::generate_context!())
         .expect("the Tauri application failed to run");

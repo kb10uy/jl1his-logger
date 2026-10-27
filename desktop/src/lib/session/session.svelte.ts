@@ -24,6 +24,12 @@ class SessionState {
         }
     }
 
+    reject() {
+        const current = this.current;
+        if (current?.state !== 'signedIn') return;
+        this.current = { state: 'signedOut', url: current.url, rejected: true };
+    }
+
     async signOut(): Promise<void> {
         try {
             this.current = await invoke<Session>('sign_out');

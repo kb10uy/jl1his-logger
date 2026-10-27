@@ -1,7 +1,10 @@
+import type { Area } from '#client/api/types.ts';
+
 export type Logbook = {
     id: string;
     name: string;
     role: string;
+    area_field: Area;
 };
 
 export type Session =
@@ -14,7 +17,7 @@ export type CommandError =
     | { kind: 'wl2Token' }
     | { kind: 'noLogbook' }
     | { kind: 'unreachable'; detail: string }
-    | { kind: 'server'; status: number; detail: string }
+    | { kind: 'server'; status: number; detail: string; body: Record<string, unknown> | null }
     | { kind: 'credentials'; detail: string }
     | { kind: 'config'; detail: string }
     | { kind: 'unexpected'; detail: string };

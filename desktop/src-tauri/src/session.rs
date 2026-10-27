@@ -1,12 +1,13 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Mutex};
 
 use serde::Serialize;
+use serde_json::Value;
 use tauri::State;
 use thiserror::Error;
 use url::Url;
 
 use crate::{
-    api::{Api, ApiError, Logbook},
+    api::{Api, ApiError, Logbook, Method},
     config::{Config, ConfigError, Server},
     credentials,
     origin::{OriginError, parse_origin},
@@ -14,6 +15,19 @@ use crate::{
 
 pub struct Paths {
     pub config: PathBuf,
+}
+
+#[derive(Default)]
+pub struct Connection(Mutex<Option<Api>>);
+
+impl Connection {
+    fn set(&self, api: Option<Api>) {
+        *self.0.lock().expect("the connection lock is never poisoned") = api;
+    }
+
+    fn get(&self) -> Option<Api> {
+        self.0.lock().expect("the connection lock is never poisoned").clone()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -44,11 +58,13 @@ pub enum CommandError {
     #[error("{detail}")]
     Unreachable { detail: String },
     #[error("the server answered {status}: {detail}")]
-    Server { status: u16, detail: String },
+    Server { status: u16, detail: String, body: Value },
     #[error("{detail}")]
     Credentials { detail: String },
     #[error("{detail}")]
     Config { detail: String },
+    #[error("{detail}")]
+    Unexpected { detail: String },
 }
 
 impl From<OriginError> for CommandError {
@@ -62,10 +78,12 @@ impl From<ApiError> for CommandError {
         match e {
             ApiError::Unauthorized => CommandError::Unauthorized,
             ApiError::Unreachable(detail) => CommandError::Unreachable { detail },
-            ApiError::Server { status, message } => CommandError::Server {
+            ApiError::Server { status, message, body } => CommandError::Server {
                 status,
                 detail: message,
+                body,
             },
+            e @ ApiError::NotApiPath(_) => CommandError::Unexpected { detail: e.to_string() },
         }
     }
 }
@@ -87,7 +105,8 @@ fn origin_text(origin: &Url) -> String {
 }
 
 #[tauri::command]
-pub async fn session(paths: State<'_, Paths>) -> Result<Session, CommandError> {
+pub async fn session(paths: State<'_, Paths>, connection: State<'_, Connection>) -> Result<Session, CommandError> {
+    connection.set(None);
     let config = Config::load(&paths.config)?;
     let Some(Server { url }) = config.server else {
         return Ok(Session::SignedOut {
@@ -102,22 +121,26 @@ pub async fn session(paths: State<'_, Paths>) -> Result<Session, CommandError> {
         });
     };
     let api = Api::new(parse_origin(&url)?, token);
-    match api.logbooks().await {
-        Ok(logbooks) => Ok(Session::SignedIn {
+    let session = match api.logbooks().await {
+        Ok(logbooks) => Session::SignedIn {
             url,
             callsign: callsign(&api).await,
             logbooks: Some(logbooks),
-        }),
-        Err(ApiError::Unauthorized) => Ok(Session::SignedOut {
-            url: Some(url),
-            rejected: true,
-        }),
-        Err(_) => Ok(Session::SignedIn {
+        },
+        Err(ApiError::Unauthorized) => {
+            return Ok(Session::SignedOut {
+                url: Some(url),
+                rejected: true,
+            });
+        }
+        Err(_) => Session::SignedIn {
             url,
             callsign: None,
             logbooks: None,
-        }),
-    }
+        },
+    };
+    connection.set(Some(api));
+    Ok(session)
 }
 
 async fn callsign(api: &Api) -> Option<String> {
@@ -125,7 +148,12 @@ async fn callsign(api: &Api) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn sign_in(paths: State<'_, Paths>, url: String, token: String) -> Result<Session, CommandError> {
+pub async fn sign_in(
+    paths: State<'_, Paths>,
+    connection: State<'_, Connection>,
+    url: String,
+    token: String,
+) -> Result<Session, CommandError> {
     let origin = parse_origin(&url)?;
     let url = origin_text(&origin);
     let token = token.trim().to_owned();
@@ -144,18 +172,32 @@ pub async fn sign_in(paths: State<'_, Paths>, url: String, token: String) -> Res
     }
     config.server = Some(Server { url: url.clone() });
     config.save(&paths.config)?;
-    Ok(Session::SignedIn {
+    let session = Session::SignedIn {
         url,
         callsign: callsign(&api).await,
         logbooks: Some(logbooks),
-    })
+    };
+    connection.set(Some(api));
+    Ok(session)
 }
 
 #[tauri::command]
-pub fn sign_out(paths: State<'_, Paths>) -> Result<Session, CommandError> {
+pub fn sign_out(paths: State<'_, Paths>, connection: State<'_, Connection>) -> Result<Session, CommandError> {
+    connection.set(None);
     let url = Config::load(&paths.config)?.server.map(|server| server.url);
     if let Some(url) = &url {
         credentials::forget(url)?;
     }
     Ok(Session::SignedOut { url, rejected: false })
+}
+
+#[tauri::command]
+pub async fn request(
+    connection: State<'_, Connection>,
+    method: Method,
+    path: String,
+    body: Option<Value>,
+) -> Result<Value, CommandError> {
+    let api = connection.get().ok_or(CommandError::Unauthorized)?;
+    Ok(api.request(method, &path, body.as_ref()).await?)
 }

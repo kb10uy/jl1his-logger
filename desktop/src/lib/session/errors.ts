@@ -9,7 +9,8 @@ const KINDS = new Set([
     'unreachable',
     'server',
     'credentials',
-    'config'
+    'config',
+    'unexpected'
 ]);
 
 export function asCommandError(e: unknown): CommandError {
