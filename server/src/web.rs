@@ -45,7 +45,7 @@ const SECURITY_HEADERS: [(HeaderName, &str); 5] = [
     ),
     (
         HeaderName::from_static("permissions-policy"),
-        "camera=(), geolocation=(), payment=()",
+        "camera=(), geolocation=(self), payment=()",
     ),
 ];
 
@@ -250,7 +250,7 @@ mod tests {
         );
         assert_eq!(
             header(&headers, "permissions-policy"),
-            Some("camera=(), geolocation=(), payment=()")
+            Some("camera=(), geolocation=(self), payment=()")
         );
         assert_eq!(header(&headers, "cache-control"), cache);
     }

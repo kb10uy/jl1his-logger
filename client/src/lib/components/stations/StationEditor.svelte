@@ -4,6 +4,7 @@
     import { ApiError } from '#lib/api/client.ts';
     import type { Station, Subdivision } from '#lib/api/types.ts';
     import RewritePanel from '#lib/components/RewritePanel.svelte';
+    import DxccField from '#lib/components/stations/DxccField.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
@@ -18,6 +19,7 @@
         stationInput,
         stationProblem
     } from '#lib/station/form.ts';
+    import { gridSquare } from '#lib/station/grid.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { subdivisionsOf } from '#lib/state/reference.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
@@ -36,6 +38,7 @@
 
     let draft = $state(draftOf(untrack(() => station)));
     let parkText = $state('');
+    let locating = $state(false);
     let saving = $state(false);
     let saveError = $state<string | undefined>(undefined);
     let subdivisions = $state<Subdivision[]>([]);
@@ -80,6 +83,37 @@
         const added = splitParks(parkText);
         draft.parks = [...draft.parks, ...added.filter((p) => !draft.parks.includes(p))];
         parkText = '';
+    }
+
+    function locate() {
+        if (!('geolocation' in navigator)) {
+            toasts.error(m.stations_grid_unsupported());
+            return;
+        }
+        locating = true;
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+                locating = false;
+                const grid = gridSquare(coords.latitude, coords.longitude);
+                if (grid === undefined) {
+                    toasts.error(m.stations_grid_unavailable());
+                    return;
+                }
+                draft.main.MY_GRIDSQUARE = grid;
+                toasts.show(m.stations_grid_located({ grid, meters: Math.round(coords.accuracy) }));
+            },
+            (e) => {
+                locating = false;
+                toasts.error(
+                    e.code === e.PERMISSION_DENIED
+                        ? m.stations_grid_denied()
+                        : e.code === e.TIMEOUT
+                          ? m.stations_grid_timeout()
+                          : m.stations_grid_unavailable()
+                );
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        );
     }
 
     function addField(name: string) {
@@ -188,16 +222,8 @@
 
         <div class="border-t border-border md:col-span-2"></div>
 
-        {@render labelFor('st-MY_GRIDSQUARE', m.stations_field_grid(), 'MY_GRIDSQUARE')}
-        <input
-            id="st-MY_GRIDSQUARE"
-            class="control h-10 font-mono"
-            autocomplete="off"
-            spellcheck="false"
-            bind:value={draft.main.MY_GRIDSQUARE}
-        />
-        {@render labelFor('st-MY_CITY', m.stations_field_city(), 'MY_CITY')}
-        <input id="st-MY_CITY" class="control h-10" bind:value={draft.main.MY_CITY} />
+        {@render labelFor('st-MY_DXCC', m.stations_field_dxcc(), 'MY_DXCC')}
+        <DxccField id="st-MY_DXCC" bind:value={draft.main.MY_DXCC} />
         {@render labelFor('st-MY_STATE', m.stations_field_state(), 'MY_STATE')}
         {#if stateChoices}
             <select id="st-MY_STATE" class="control h-10" bind:value={draft.main.MY_STATE}>
@@ -213,13 +239,38 @@
                 bind:value={draft.main.MY_STATE}
             />
         {/if}
+        {@render labelFor('st-MY_CITY', m.stations_field_city(), 'MY_CITY')}
+        <input id="st-MY_CITY" class="control h-10" bind:value={draft.main.MY_CITY} />
         {@render labelFor('st-MY_CNTY', countyLabel, 'MY_CNTY')}
         <input id="st-MY_CNTY" class="control h-10 font-mono" bind:value={draft.main.MY_CNTY} />
+        {@render labelFor('st-MY_GRIDSQUARE', m.stations_field_grid(), 'MY_GRIDSQUARE')}
+        <div class="flex min-w-0 gap-2">
+            <input
+                id="st-MY_GRIDSQUARE"
+                class="control h-10 flex-1 font-mono"
+                autocomplete="off"
+                spellcheck="false"
+                bind:value={draft.main.MY_GRIDSQUARE}
+            />
+            <button
+                type="button"
+                title={m.stations_grid_locate()}
+                aria-label={m.stations_grid_locate()}
+                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text disabled:cursor-not-allowed"
+                disabled={locating}
+                onclick={locate}
+            >
+                <Icon name={locating ? 'spinner' : 'locate'} size={16} />
+                <span class="hidden sm:inline">{m.stations_grid_locate()}</span>
+            </button>
+        </div>
         {@render labelFor('st-park', m.stations_pota_parks(), 'MY_POTA_REF')}
-        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div
+            class="flex control h-auto min-h-10 flex-wrap items-center gap-1.5 px-1.5 py-1 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-info"
+        >
             {#each draft.parks as park (park)}
                 <span
-                    class="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-surface-2 pr-1 pl-2.5 font-mono text-[13px]"
+                    class="inline-flex h-7 items-center gap-0.5 rounded border border-border bg-surface-2 pr-0.5 pl-2 font-mono text-[13px]"
                 >
                     {park}
                     <button
@@ -233,8 +284,8 @@
             {/each}
             <input
                 id="st-park"
-                placeholder={m.stations_park_placeholder()}
-                class="control h-8 w-52 font-mono uppercase placeholder:normal-case"
+                placeholder={draft.parks.length === 0 ? m.stations_park_placeholder() : ''}
+                class="h-7 min-w-36 flex-1 bg-transparent px-1 font-mono uppercase placeholder:normal-case focus-visible:outline-none"
                 autocomplete="off"
                 spellcheck="false"
                 bind:value={parkText}
@@ -242,20 +293,13 @@
                     if (e.key === 'Enter' || e.key === ',') {
                         e.preventDefault();
                         addParks();
+                    } else if (e.key === 'Backspace' && parkText === '' && draft.parks.length > 0) {
+                        e.preventDefault();
+                        draft.parks = draft.parks.slice(0, -1);
                     }
                 }}
                 onblur={addParks}
             />
-        </div>
-        {@render labelFor('st-MY_DXCC', m.stations_field_dxcc(), 'MY_DXCC')}
-        <div class="flex min-w-0 flex-wrap items-center gap-3">
-            <input
-                id="st-MY_DXCC"
-                inputmode="numeric"
-                class="control h-10 w-28 font-mono"
-                bind:value={draft.main.MY_DXCC}
-            />
-            <span class="text-xs text-muted">{m.stations_state_follows()}</span>
         </div>
 
         {#each draft.extra as field, i (i)}

@@ -3,11 +3,11 @@ import { m } from '#lib/paraglide/messages.js';
 import { ADIF_QSO_FIELDS, isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export const MAIN_FIELDS = [
-    { name: 'MY_GRIDSQUARE', label: m.stations_field_grid },
-    { name: 'MY_CITY', label: m.stations_field_city },
+    { name: 'MY_DXCC', label: m.stations_field_dxcc },
     { name: 'MY_STATE', label: m.stations_field_state },
+    { name: 'MY_CITY', label: m.stations_field_city },
     { name: 'MY_CNTY', label: m.stations_field_county },
-    { name: 'MY_DXCC', label: m.stations_field_dxcc }
+    { name: 'MY_GRIDSQUARE', label: m.stations_field_grid }
 ] as const;
 
 export const EXTRA_FIELDS = [

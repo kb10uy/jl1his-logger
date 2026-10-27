@@ -9,6 +9,7 @@
     import ChevronDown from '@tabler/icons-svelte-runes/icons/chevron-down';
     import ChevronLeft from '@tabler/icons-svelte-runes/icons/chevron-left';
     import Columns3 from '@tabler/icons-svelte-runes/icons/columns-3';
+    import CurrentLocation from '@tabler/icons-svelte-runes/icons/current-location';
     import Dots from '@tabler/icons-svelte-runes/icons/dots';
     import GripVertical from '@tabler/icons-svelte-runes/icons/grip-vertical';
     import LayoutSidebarLeftCollapse from '@tabler/icons-svelte-runes/icons/layout-sidebar-left-collapse';
@@ -60,7 +61,8 @@
         starred: StarFilled,
         ascending: ArrowNarrowUp,
         descending: ArrowNarrowDown,
-        sortable: ArrowsSort
+        sortable: ArrowsSort,
+        locate: CurrentLocation
     } as const;
 
     export type IconName = keyof typeof ICONS;
