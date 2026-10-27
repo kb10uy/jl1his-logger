@@ -149,6 +149,49 @@ jobs:
           VOSK_WORDS_JA: ${{ runner.temp }}/vosk-words/${{ env.VOSK_MODEL_JA }}
       - run: pnpm run build
 
+  desktop:
+    name: Desktop
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the Tauri build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          shared-key: desktop
+          save-if: ${{ env.SAVE_CACHE }}
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run check
+      - run: pnpm run build
+
+      - name: Check formatting
+        run: cargo fmt --check
+        working-directory: desktop/src-tauri
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: desktop/src-tauri
+
   licenses:
     name: Licenses
     runs-on: ubuntu-latest
