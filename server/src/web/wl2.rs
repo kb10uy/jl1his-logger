@@ -249,8 +249,8 @@ mod tests {
             Fixture { h, token, _dir }
         }
 
-        pub(super) async fn install(&self, kind: ReferenceKind, text: &str, version: &str) {
-            self.h.install_reference(kind, text, version).await;
+        pub(super) async fn install(&self, kind: ReferenceKind, content: impl AsRef<[u8]>, version: &str) {
+            self.h.install_reference(kind, content, version).await;
         }
 
         pub(super) async fn get(&self, uri: &str) -> (StatusCode, Value) {

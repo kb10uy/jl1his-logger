@@ -19,7 +19,7 @@ use webauthn_rs::prelude::{DiscoverableAuthentication, PasskeyRegistration};
 use crate::{
     store::{
         StoreError, WriteTx,
-        access::{self, Principal, UserAccess},
+        access::{self, AdminAccess, Principal, UserAccess},
         account::{
             session::{self as sessions, SESSION_TTL},
             token::{self as tokens, TokenKind},
@@ -109,6 +109,18 @@ impl FromRequestParts<Arc<AppState>> for SignedIn {
         let principal = sessions::authenticate(&state.db, &session_token(&parts.headers)?).await?;
         let mut conn = state.db.acquire().await?;
         Ok(SignedIn(access::user(&mut conn, &principal).await?))
+    }
+}
+
+pub struct Admin(pub AdminAccess);
+
+impl FromRequestParts<Arc<AppState>> for Admin {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Admin, ApiError> {
+        let principal = sessions::authenticate(&state.db, &session_token(&parts.headers)?).await?;
+        let mut conn = state.db.acquire().await?;
+        Ok(Admin(access::admin(&mut conn, &principal).await?))
     }
 }
 

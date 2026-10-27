@@ -233,7 +233,7 @@ mod tests {
             adif::{Encoding, LengthUnit, Lengths, read_adi},
             reference::tests::CTY,
         },
-        store::{logbook::station::StationInput, reference::ReferenceKind},
+        store::logbook::station::StationInput,
         web::{testing::Auth, wl2::tests::Fixture},
     };
 
@@ -484,8 +484,7 @@ mod tests {
         let (status, created) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::CREATED, "{created}");
 
-        f.install(ReferenceKind::Cty, CTY, "20260915").await;
-        f.install(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
+        f.h.install_cty(CTY, "20260915").await;
         let (status, again) = f.create(hislog_body()).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{again}");
         assert_eq!(

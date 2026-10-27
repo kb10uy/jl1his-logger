@@ -56,7 +56,6 @@ impl Default for DatabaseConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ReferenceConfig {
     pub cty: PathBuf,
-    pub dxcc: PathBuf,
     pub subdivisions: PathBuf,
     pub parks: PathBuf,
 }
@@ -64,8 +63,7 @@ pub struct ReferenceConfig {
 impl Default for ReferenceConfig {
     fn default() -> Self {
         Self {
-            cty: "reference/cty.dat".into(),
-            dxcc: "reference/dxcc.toml".into(),
+            cty: "reference/cty.zip".into(),
             subdivisions: "reference/subdivisions.toml".into(),
             parks: "reference/parks.toml".into(),
         }
@@ -114,7 +112,6 @@ impl Config {
             Some(&mut self.database.path),
             self.server.web_dir.as_mut(),
             Some(&mut self.reference.cty),
-            Some(&mut self.reference.dxcc),
             Some(&mut self.reference.subdivisions),
             Some(&mut self.reference.parks),
         ];
@@ -180,7 +177,7 @@ mod tests {
         let config = Config::load(&path).unwrap();
         assert_eq!(config.database.path, dir.path().join("jl1his-logger.db"));
         assert_eq!(config.server.web_dir, Some(dir.path().join("web")));
-        assert_eq!(config.reference.cty, dir.path().join("reference").join("cty.dat"));
+        assert_eq!(config.reference.cty, dir.path().join("reference").join("cty.zip"));
     }
 
     #[test]

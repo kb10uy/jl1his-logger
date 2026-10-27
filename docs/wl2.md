@@ -127,7 +127,7 @@ native lookup (see [api.md](api.md)) in Wavelog's shape.
 | --- | --- |
 | `callsign` | The callsign, upper case |
 | `dxcc`, `dxcc_lat`, `dxcc_long`, `dxcc_cqz`, `dxcc_ituz`, `cont` | The entity `cty.dat` resolves the callsign to, with the overrides of the matching alias; longitude grows towards the east |
-| `dxcc_id` | The entity's ADIF code from the `dxcc` table |
+| `dxcc_id` | The entity's ADIF code from `cty.csv` |
 | `name`, `gridsquare`, `location`, `state`, `us_county`, `iota_ref`, `qsl_manager` | `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`, `QSL_VIA` of the newest earlier QSO with the same base call that has the field |
 | `workedBefore` | Whether there is such a QSO |
 
@@ -178,7 +178,7 @@ Wavelog scopes are not modelled; a `wl2` token may use everything here.
 | `GET catalog` (no topic) | Yes | Lists only the topics served here |
 | `GET catalog?topic=contest` | Partly | `CONTEST_ID`s found in the Logbook's QSOs, with no `id` and a `null` `name`; there is no contest table |
 | `GET catalog?topic=subdivisions` | Yes | From the installed `subdivisions` reference data; each item also carries `dxcc`. `404` until installed |
-| `GET catalog?topic=dxcc` | No | `400`; could be built from `cty.dat` and the `dxcc` table if a client needs it |
+| `GET catalog?topic=dxcc` | No | `400`; could be built from the installed `cty` data if a client needs it |
 | `logbook` | No | Logbooks are the native API's; a `wl2` token is fixed to one |
 | `radio` | No | CAT is not part of this application |
 | `statistic` | No | Dashboards are not part of this application |

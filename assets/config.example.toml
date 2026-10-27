@@ -23,10 +23,10 @@ auto_migrate = true
 path = "jl1his-logger.db"
 
 [reference]
-# AD1C cty.dat used by lookup and callsign resolution; updated with the CLI.
-cty = "reference/cty.dat"
-# ADIF DXCC entity codes keyed by the primary prefixes cty.dat declares.
-dxcc = "reference/dxcc.toml"
+# The CTY zip archive (Big CTY or the contest files from country-files.com)
+# whose cty.dat and cty.csv lookup and callsign resolution use; installed by an
+# admin with the CLI or from the web app.
+cty = "reference/cty.zip"
 # Subdivision names keyed by DXCC entity.
 subdivisions = "reference/subdivisions.toml"
 # POTA park references and names.

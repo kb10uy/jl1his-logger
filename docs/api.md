@@ -83,9 +83,21 @@ container runtime to probe.
 ## Reference Data
 
 `GET /api/reference` returns the versions of the reference data in use,
-`[{kind, version, updated_at}]` with `kind` one of `cty`, `dxcc`,
-`subdivisions` and `parks`. It takes the session cookie only. Reference data is updated with the
-CLI.
+`[{kind, version, updated_at}]` with `kind` one of `cty`, `subdivisions` and
+`parks`. It takes the session cookie only. Reference data is updated with the
+CLI, and `cty` also with the endpoint below.
+
+`PUT /api/reference/cty` installs a CTY zip archive from country-files.com (Big
+CTY or the contest files), sent as the raw request body, and answers the
+installed `{kind, version, updated_at}`. It takes the session cookie of an
+admin only (`403` for other users, `401` for API tokens) and, like every write,
+must come from `public_origin`. The body is limited to 4 MiB (`413` beyond it).
+The archive must hold `cty.dat` and `cty.csv` at its root whose primary
+prefixes match one to one; the version is the `=VER` entry of `cty.dat`, or
+the UTC date of the installation without one. A refused archive is `400` with
+`code` `reference_invalid` and the reason in `error`, and leaves the installed
+data as it was. See "Reference Data" in `decisions.md` for the limits applied
+while reading it.
 
 `GET /api/reference/subdivisions/{dxcc}` returns the subdivisions of one DXCC
 entity from the installed `subdivisions` data, `[{code, name}]` ordered by
@@ -281,7 +293,7 @@ outside the Logbook is `404`. Creating fills the Instrument's `MY_RIG`,
 Station's `MY_*` defaults, then `OPERATOR` from the caller's callsign, for
 fields the request leaves out. It also fills a
 missing `CQZ`, `ITUZ` and `CONT` from the entity `cty.dat` resolves `CALL` to,
-and `DXCC` when the `dxcc` table has a code for it; without `cty.dat`, or when
+and `DXCC` from `cty.csv`; without `cty` installed, or when
 it cannot be read (which is logged), nothing is filled and the QSO is still
 created. `PUT` never fills them. An `id` that belongs
 to another Logbook is `409`.
@@ -403,9 +415,8 @@ reference data and the Logbook know about a callsign:
 
 `call` is required and answered upper-cased. `entity` is what `cty.dat`
 resolves the call to, with the overrides of the matching alias and longitude
-growing towards the east; it is `null` when `cty.dat` is not installed or does
-not know the call, and `dxcc` is `null` when the `dxcc` table has no code for
-the entity. `previous` covers the live QSOs whose call has the same base
+growing towards the east, and `dxcc` is the entity code from `cty.csv`; it is
+`null` when `cty` is not installed or `cty.dat` does not know the call. `previous` covers the live QSOs whose call has the same base
 (`JA1XYZ` matches `JA1XYZ/P`), optionally narrowed by `station_ids`, a
 comma-separated list of Station IDs: their number, the QSO time of the latest,
 and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`

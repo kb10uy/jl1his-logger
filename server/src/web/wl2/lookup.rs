@@ -74,7 +74,7 @@ mod tests {
     use crate::{
         domain::{
             qso::{Qso, QsoId},
-            reference::tests::CTY,
+            reference::tests::{CTY, CTY_CSV, cty_archive},
         },
         store::{
             WriteTx,
@@ -116,8 +116,7 @@ mod tests {
     #[tokio::test]
     async fn answers_the_entity_and_the_latest_own_contacts() {
         let f = Fixture::new().await;
-        f.install(ReferenceKind::Cty, CTY, "20260915").await;
-        f.install(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
+        f.h.install_cty(CTY, "20260915").await;
         worked(&f).await;
 
         let (status, body) = f.get("/wl2/index.php/api/v2/lookup?callsign=ja1xyz&detail=basic").await;
@@ -244,16 +243,16 @@ mod tests {
             (&Value::Null, &json!("Hanako"))
         );
 
-        f.install(ReferenceKind::Cty, CTY, "20260915").await;
+        f.h.install_cty(CTY, "20260915").await;
         let (_, first) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(first["data"]["dxcc"], "Japan");
 
-        let renamed = CTY.replace("Japan:", "Nippon:");
+        let renamed = cty_archive(&CTY.replace("Japan:", "Nippon:"), CTY_CSV);
         f.install(ReferenceKind::Cty, &renamed, "20261001").await;
         let (_, second) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(second["data"]["dxcc"], "Nippon");
 
-        fs::write(f.h.reference_path(ReferenceKind::Cty), CTY).unwrap();
+        fs::write(f.h.reference_path(ReferenceKind::Cty), cty_archive(CTY, CTY_CSV)).unwrap();
         let (_, cached) = f.get("/wl2/api/v2/lookup?callsign=JA1XYZ").await;
         assert_eq!(cached["data"]["dxcc"], "Nippon");
         f.h.record_reference(ReferenceKind::Cty, "20261015", &renamed).await;
