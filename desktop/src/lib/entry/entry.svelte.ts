@@ -1,11 +1,23 @@
 import { untrack } from 'svelte';
-import type { Fields, Instrument, Lookup, Qso, Saved, Station } from '#client/api/types.ts';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import type {
+    Fields,
+    Hello,
+    Instrument,
+    Lookup,
+    Qso,
+    QsoEvent,
+    Saved,
+    Station
+} from '#client/api/types.ts';
 import type { EntrySettings } from '#client/entry/settings.ts';
 import type { Sent } from '#client/entry/outbox.ts';
 import { RECENT, mergeRecent } from '#client/entry/recent.ts';
 import { usesSerial } from '#client/qso/contest.ts';
 import { utcFields } from '#client/qso/format.ts';
 import * as api from '#lib/api/api.ts';
+import { server } from '#lib/api/request.svelte.ts';
 import type { Logbook } from '#lib/session/types.ts';
 import { chooseStation, stationGroups } from './choice.ts';
 import { outbox } from './outbox.svelte.ts';
@@ -19,6 +31,11 @@ export interface EntryInputs {
     readonly submode: string;
     readonly at: Date;
 }
+
+export type StreamEvent =
+    | { type: 'hello'; logbookId: string; hello: Hello }
+    | { type: 'qso'; logbookId: string; data: QsoEvent }
+    | { type: 'status'; logbookId: string; live: boolean };
 
 function later<T>(delay: number, load: () => Promise<T>, done: (value: T) => void): () => void {
     let live = true;
@@ -46,6 +63,8 @@ export class EntryState {
     duplicates = $state.raw<Qso[]>([]);
     logging = $state(false);
     loaded = $state(false);
+    private resets = $state(0);
+    private generations = new Map<string, string>();
 
     groups = $derived(stationGroups(this.logbooks, this.stations));
     choice = $derived(chooseStation(this.groups, this.settings.stationId));
@@ -81,8 +100,22 @@ export class EntryState {
         });
 
         $effect(() => {
+            const logbookIds = this.logbooks.map((l) => l.id);
+            if (logbookIds.length === 0) return;
+            invoke('watch', { logbookIds }).catch(() => undefined);
+        });
+
+        $effect(() => {
+            const unlisten = listen<StreamEvent>('logbook-stream', (e) => this.stream(e.payload));
+            return () => {
+                void unlisten.then((stop) => stop());
+            };
+        });
+
+        $effect(() => {
             const logbookId = this.logbookId;
             const stationId = this.stationId;
+            void this.resets;
             this.recent = [];
             if (stationId === '') return;
             return later(
@@ -135,6 +168,27 @@ export class EntryState {
                 (found) => (this.duplicates = found.qsos)
             );
         });
+    }
+
+    private stream(event: StreamEvent) {
+        switch (event.type) {
+            case 'hello': {
+                const before = this.generations.get(event.logbookId);
+                this.generations.set(event.logbookId, event.hello.cursor_generation);
+                if (before !== undefined && before !== event.hello.cursor_generation) {
+                    if (event.logbookId === this.logbookId) this.resets += 1;
+                }
+                break;
+            }
+            case 'qso':
+                if (event.logbookId === this.logbookId) {
+                    this.recent = mergeRecent(this.recent, [event.data.qso], this.stationId);
+                }
+                break;
+            case 'status':
+                if (event.logbookId === this.logbookId) server.reachable = event.live;
+                break;
+        }
     }
 
     async load(logbooks: Logbook[] | null) {

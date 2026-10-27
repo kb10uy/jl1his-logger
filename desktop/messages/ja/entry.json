@@ -58,7 +58,7 @@
     "latest_synced_dot": "同期済み",
     "latest_empty": "この運用地の QSO はまだありません。",
     "status_label": "接続状況",
-    "status_server_title": "{url} に API トークンでサインインしています。",
+    "status_server_title": "{url} に API トークンでサインインしています。変更はすぐに反映されます。",
     "status_unreachable": "{host} に接続できません",
     "status_unreachable_title": "QSO は送信できるまでこの端末に保存されます。",
     "status_synced": "同期済み",

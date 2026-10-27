@@ -10,6 +10,7 @@ use crate::{
     api::{Api, ApiError, Logbook, Method},
     config::{Config, ConfigError, Server},
     credentials,
+    events::Watchers,
     origin::{OriginError, parse_origin},
 };
 
@@ -25,7 +26,7 @@ impl Connection {
         *self.0.lock().expect("the connection lock is never poisoned") = api;
     }
 
-    fn get(&self) -> Option<Api> {
+    pub fn get(&self) -> Option<Api> {
         self.0.lock().expect("the connection lock is never poisoned").clone()
     }
 }
@@ -182,8 +183,13 @@ pub async fn sign_in(
 }
 
 #[tauri::command]
-pub fn sign_out(paths: State<'_, Paths>, connection: State<'_, Connection>) -> Result<Session, CommandError> {
+pub fn sign_out(
+    paths: State<'_, Paths>,
+    connection: State<'_, Connection>,
+    watchers: State<'_, Watchers>,
+) -> Result<Session, CommandError> {
     connection.set(None);
+    watchers.stop();
     let url = Config::load(&paths.config)?.server.map(|server| server.url);
     if let Some(url) = &url {
         credentials::forget(url)?;

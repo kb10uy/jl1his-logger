@@ -58,7 +58,7 @@
     "latest_synced_dot": "synced",
     "latest_empty": "No QSOs at this Station yet.",
     "status_label": "Connections",
-    "status_server_title": "Signed in to {url} with an API token.",
+    "status_server_title": "Signed in to {url} with an API token; changes arrive live.",
     "status_unreachable": "{host} unreachable",
     "status_unreachable_title": "QSOs are kept on this device until they are sent.",
     "status_synced": "Synced",

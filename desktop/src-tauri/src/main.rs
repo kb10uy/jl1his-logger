@@ -3,12 +3,16 @@
 mod api;
 mod config;
 mod credentials;
+mod events;
 mod origin;
 mod session;
 
 use tauri::Manager;
 
-use crate::session::{Connection, Paths};
+use crate::{
+    events::Watchers,
+    session::{Connection, Paths},
+};
 
 fn main() {
     tauri::Builder::default()
@@ -19,13 +23,15 @@ fn main() {
             };
             app.manage(Paths { config });
             app.manage(Connection::default());
+            app.manage(Watchers::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             session::session,
             session::sign_in,
             session::sign_out,
-            session::request
+            session::request,
+            events::watch
         ])
         .run(tauri::generate_context!())
         .expect("the Tauri application failed to run");

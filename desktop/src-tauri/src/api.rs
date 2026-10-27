@@ -7,6 +7,7 @@ use thiserror::Error;
 use url::Url;
 
 const USER_AGENT: &str = concat!("jl1his-logger-desktop/", env!("CARGO_PKG_VERSION"));
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AreaField {
@@ -76,7 +77,7 @@ impl Api {
         let client = Client::builder()
             .user_agent(USER_AGENT)
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(30))
+            .read_timeout(Duration::from_secs(45))
             .build()
             .expect("the HTTP client always builds");
         Api { client, origin, token }
@@ -91,19 +92,37 @@ impl Api {
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
-        let response = self.send(Method::Get, path, None).await?;
+        let response = self.send(Method::Get, path, None, Some(REQUEST_TIMEOUT)).await?;
         response.json().await.map_err(|e| ApiError::Unreachable(e.to_string()))
     }
 
     pub async fn request(&self, method: Method, path: &str, body: Option<&Value>) -> Result<Value, ApiError> {
-        let response = self.send(method, path, body).await?;
+        let response = self.send(method, path, body, Some(REQUEST_TIMEOUT)).await?;
         if response.status() == StatusCode::NO_CONTENT {
             return Ok(Value::Null);
         }
         response.json().await.map_err(|e| ApiError::Unreachable(e.to_string()))
     }
 
-    async fn send(&self, method: Method, path: &str, body: Option<&Value>) -> Result<Response, ApiError> {
+    pub async fn events(&self, logbook_id: &str, after: Option<u64>) -> Result<Response, ApiError> {
+        let logbook: String = url::form_urlencoded::byte_serialize(logbook_id.as_bytes()).collect();
+        let query = after.map(|after| format!("?after={after}")).unwrap_or_default();
+        self.send(
+            Method::Get,
+            &format!("/api/logbooks/{logbook}/events{query}"),
+            None,
+            None,
+        )
+        .await
+    }
+
+    async fn send(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&Value>,
+        timeout: Option<Duration>,
+    ) -> Result<Response, ApiError> {
         if !is_api_path(path) {
             return Err(ApiError::NotApiPath(path.to_owned()));
         }
@@ -114,6 +133,9 @@ impl Api {
         let mut request = self.client.request(method.into(), url).bearer_auth(&self.token);
         if let Some(body) = body {
             request = request.json(body);
+        }
+        if let Some(timeout) = timeout {
+            request = request.timeout(timeout);
         }
         let response = request.send().await.map_err(|e| ApiError::Unreachable(e.to_string()))?;
         let status = response.status();
