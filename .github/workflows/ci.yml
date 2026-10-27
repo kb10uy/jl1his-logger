@@ -170,7 +170,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: desktop/pnpm-lock.yaml
+          cache-dependency-path: |
+            client/pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -180,6 +182,9 @@ jobs:
           shared-key: desktop
           save-if: ${{ env.SAVE_CACHE }}
 
+      - name: Install the web client it imports
+        run: pnpm install --frozen-lockfile
+        working-directory: client
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run check

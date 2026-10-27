@@ -21,7 +21,7 @@ export default defineConfig({
     server: {
         port: 1420,
         strictPort: true,
-        fs: { allow: [searchForWorkspaceRoot(process.cwd()), '../client/src'] },
+        fs: { allow: [searchForWorkspaceRoot(process.cwd()), '../client'] },
         watch: { ignored: ['**/src-tauri/**'] }
     },
     test: {

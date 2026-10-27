@@ -5,15 +5,16 @@
     "type": "module",
     "packageManager": "pnpm@12.15.0",
     "scripts": {
-        "dev": "vite dev",
-        "build": "vite build",
+        "client": "pnpm --dir ../client run adif && pnpm --dir ../client run messages",
+        "dev": "pnpm run client && vite dev",
+        "build": "pnpm run client && vite build",
         "preview": "vite preview",
         "prepare": "svelte-kit sync || echo ''",
         "messages": "paraglide-js compile --project ./project.inlang --silent",
-        "check": "pnpm run messages && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+        "check": "pnpm run client && pnpm run messages && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "lint": "prettier --check .",
         "format": "prettier --write .",
-        "test": "pnpm run messages && vitest --run",
+        "test": "pnpm run client && pnpm run messages && vitest --run",
         "tauri": "tauri"
     },
     "devDependencies": {
@@ -25,6 +26,7 @@
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/cli": "^2.12.4",
         "@types/node": "^22.20.5",
+        "jl1his-logger-client": "link:../client",
         "prettier": "^3.9.10",
         "prettier-plugin-svelte": "^4.1.1",
         "prettier-plugin-tailwindcss": "^0.8.1",
@@ -40,6 +42,7 @@
         "@tauri-apps/api": "^2.12.4"
     },
     "imports": {
-        "#lib/*": "./src/lib/*"
+        "#lib/*": "./src/lib/*",
+        "#client/*": "jl1his-logger-client/src/lib/*"
     }
 }

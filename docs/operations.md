@@ -35,7 +35,9 @@ the database can be read, for the proxy or the container runtime to probe.
 ## Desktop Client
 
 ```sh
-cd desktop
+cd client
+pnpm install --frozen-lockfile
+cd ../desktop
 pnpm install --frozen-lockfile
 pnpm tauri dev                # Vite on port 1420 inside a Tauri window
 pnpm tauri build              # → desktop/src-tauri/target/release, with installers under bundle/
@@ -47,7 +49,9 @@ settings are `config.toml` in the app's configuration directory
 (`%APPDATA%\org.kb10uy.jl1his-logger\` on Windows; `config.dev.toml` for a
 debug build), or the file given as `--config <path>`
 (`pnpm tauri dev -- -- --config dev.toml`). The token is kept in the system's
-credential store, not in that file.
+credential store, not in that file. Its frontend imports the web client's
+`client/src/lib`, so `client/` is installed first; the desktop's scripts
+generate the client's ADIF tables and messages themselves.
 
 It needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 of the platform: WebView2 on Windows, WebKitGTK and its development packages
