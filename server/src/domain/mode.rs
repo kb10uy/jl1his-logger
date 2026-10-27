@@ -10,188 +10,7 @@ const fn mode(name: &'static str, submodes: &'static [&'static str]) -> Mode {
     Mode { name, submodes }
 }
 
-pub const MODES: &[Mode] = &[
-    mode("AM", &[]),
-    mode("ARDOP", &[]),
-    mode("ATV", &[]),
-    mode("CHIP", &["CHIP64", "CHIP128"]),
-    mode("CLO", &[]),
-    mode("CONTESTI", &[]),
-    mode("CW", &["PCW"]),
-    mode("DIGITALVOICE", &["C4FM", "DMR", "DSTAR", "FREEDV", "M17"]),
-    mode(
-        "DOMINO",
-        &[
-            "DOM-M", "DOM4", "DOM5", "DOM8", "DOM11", "DOM16", "DOM22", "DOM44", "DOM88", "DOMINOEX", "DOMINOF",
-        ],
-    ),
-    mode(
-        "DYNAMIC",
-        &["FREEDATA", "VARA HF", "VARA SATELLITE", "VARA FM 1200", "VARA FM 9600"],
-    ),
-    mode("FAX", &[]),
-    mode("FM", &[]),
-    mode("FSK441", &[]),
-    mode("FSK", &["SCAMP_FAST", "SCAMP_SLOW", "SCAMP_VSLOW"]),
-    mode("FT8", &[]),
-    mode(
-        "HELL",
-        &[
-            "FMHELL", "FSKH105", "FSKH245", "FSKHELL", "HELL80", "HELLX5", "HELLX9", "HFSK", "PSKHELL", "SLOWHELL",
-        ],
-    ),
-    mode("ISCAT", &["ISCAT-A", "ISCAT-B"]),
-    mode("JT4", &["JT4A", "JT4B", "JT4C", "JT4D", "JT4E", "JT4F", "JT4G"]),
-    mode("JT6M", &[]),
-    mode(
-        "JT9",
-        &[
-            "JT9-1",
-            "JT9-2",
-            "JT9-5",
-            "JT9-10",
-            "JT9-30",
-            "JT9A",
-            "JT9B",
-            "JT9C",
-            "JT9D",
-            "JT9E",
-            "JT9E FAST",
-            "JT9F",
-            "JT9F FAST",
-            "JT9G",
-            "JT9G FAST",
-            "JT9H",
-            "JT9H FAST",
-        ],
-    ),
-    mode("JT44", &[]),
-    mode("JT65", &["JT65A", "JT65B", "JT65B2", "JT65C", "JT65C2"]),
-    mode(
-        "MFSK",
-        &[
-            "FSQCALL", "FST4", "FST4W", "FT2", "FT4", "JS8", "JTMS", "JTTY", "MFSK4", "MFSK8", "MFSK11", "MFSK16",
-            "MFSK22", "MFSK31", "MFSK32", "MFSK64", "MFSK64L", "MFSK128", "MFSK128L", "Q65",
-        ],
-    ),
-    mode("MSK144", &[]),
-    mode("MTONE", &["SCAMP_OO", "SCAMP_OO_SLW"]),
-    mode("MT63", &[]),
-    mode("OFDM", &["RIBBIT_PIX", "RIBBIT_SMS"]),
-    mode(
-        "OLIVIA",
-        &[
-            "OLIVIA 4/125",
-            "OLIVIA 4/250",
-            "OLIVIA 8/250",
-            "OLIVIA 8/500",
-            "OLIVIA 16/500",
-            "OLIVIA 16/1000",
-            "OLIVIA 32/1000",
-        ],
-    ),
-    mode("OPERA", &["OPERA-BEACON", "OPERA-QSO"]),
-    mode("PAC", &["PAC2", "PAC3", "PAC4"]),
-    mode("PAX", &["PAX2"]),
-    mode("PKT", &[]),
-    mode(
-        "PSK",
-        &[
-            "8PSK125",
-            "8PSK125F",
-            "8PSK125FL",
-            "8PSK250",
-            "8PSK250F",
-            "8PSK250FL",
-            "8PSK500",
-            "8PSK500F",
-            "8PSK1000",
-            "8PSK1000F",
-            "8PSK1200F",
-            "FSK31",
-            "PSK10",
-            "PSK31",
-            "PSK63",
-            "PSK63F",
-            "PSK63RC4",
-            "PSK63RC5",
-            "PSK63RC10",
-            "PSK63RC20",
-            "PSK63RC32",
-            "PSK125",
-            "PSK125C12",
-            "PSK125R",
-            "PSK125RC10",
-            "PSK125RC12",
-            "PSK125RC16",
-            "PSK125RC4",
-            "PSK125RC5",
-            "PSK250",
-            "PSK250C6",
-            "PSK250R",
-            "PSK250RC2",
-            "PSK250RC3",
-            "PSK250RC5",
-            "PSK250RC6",
-            "PSK250RC7",
-            "PSK500",
-            "PSK500C2",
-            "PSK500C4",
-            "PSK500R",
-            "PSK500RC2",
-            "PSK500RC3",
-            "PSK500RC4",
-            "PSK800C2",
-            "PSK800RC2",
-            "PSK1000",
-            "PSK1000C2",
-            "PSK1000R",
-            "PSK1000RC2",
-            "PSKAM10",
-            "PSKAM31",
-            "PSKAM50",
-            "PSKFEC31",
-            "QPSK31",
-            "QPSK63",
-            "QPSK125",
-            "QPSK250",
-            "QPSK500",
-            "SIM31",
-        ],
-    ),
-    mode("PSK2K", &[]),
-    mode("Q15", &[]),
-    mode("QRA64", &["QRA64A", "QRA64B", "QRA64C", "QRA64D", "QRA64E"]),
-    mode("ROS", &["ROS-EME", "ROS-HF", "ROS-MF"]),
-    mode("RTTY", &["ASCI"]),
-    mode("RTTYM", &[]),
-    mode("SSB", &["LSB", "USB"]),
-    mode("SSTV", &[]),
-    mode("T10", &[]),
-    mode(
-        "THOR",
-        &[
-            "THOR-M", "THOR4", "THOR5", "THOR8", "THOR11", "THOR16", "THOR22", "THOR25X4", "THOR50X1", "THOR50X2",
-            "THOR100",
-        ],
-    ),
-    mode(
-        "THRB",
-        &["THRBX", "THRBX1", "THRBX2", "THRBX4", "THROB1", "THROB2", "THROB4"],
-    ),
-    mode("TOR", &["AMTORFEC", "GTOR", "NAVTEX", "SITORB"]),
-    mode("V4", &[]),
-    mode("VOI", &[]),
-    mode("WINMOR", &[]),
-    mode("WSPR", &[]),
-];
-
-pub const IMPORT_ONLY_MODES: &[&str] = &[
-    "AMTORFEC", "ASCI", "C4FM", "CHIP64", "CHIP128", "DOMINOF", "DSTAR", "FMHELL", "FSK31", "GTOR", "HELL80", "HFSK",
-    "JT4A", "JT4B", "JT4C", "JT4D", "JT4E", "JT4F", "JT4G", "JT65A", "JT65B", "JT65C", "MFSK8", "MFSK16", "PAC2",
-    "PAC3", "PAX2", "PCW", "PSK10", "PSK31", "PSK63", "PSK63F", "PSK125", "PSKAM10", "PSKAM31", "PSKAM50", "PSKFEC31",
-    "PSKHELL", "QPSK31", "QPSK63", "QPSK125", "THRBX",
-];
+include!(concat!(env!("OUT_DIR"), "/adif/modes.rs"));
 
 impl Mode {
     pub fn named(name: &str) -> Option<&'static Mode> {
@@ -236,33 +55,25 @@ mod tests {
     use std::collections::BTreeSet;
 
     use rstest::rstest;
-    use serde::Deserialize;
 
     use super::*;
 
-    #[derive(Deserialize)]
-    struct Fixture {
-        modes: Vec<FixtureMode>,
-        import_only: Vec<String>,
-    }
-
-    #[derive(Deserialize)]
-    struct FixtureMode {
-        mode: String,
-        submodes: Vec<String>,
+    #[rstest]
+    #[case("AM", &[])]
+    #[case("SSB", &["LSB", "USB"])]
+    #[case("DYNAMIC", &["FREEDATA", "VARA HF", "VARA SATELLITE", "VARA FM 1200", "VARA FM 9600"])]
+    fn follows_the_adif_mode_enumeration(#[case] name: &str, #[case] submodes: &[&str]) {
+        assert_eq!(Mode::named(name).map(|m| m.submodes), Some(submodes));
     }
 
     #[test]
-    fn matches_the_shared_mode_table() {
-        let fixture: Fixture = serde_json::from_str(include_str!("../../../fixtures/reference/modes.json")).unwrap();
-        let modes: Vec<(&str, Vec<&str>)> = MODES.iter().map(|m| (m.name, m.submodes.to_vec())).collect();
-        let expected: Vec<(&str, Vec<&str>)> = fixture
-            .modes
-            .iter()
-            .map(|m| (m.mode.as_str(), m.submodes.iter().map(String::as_str).collect()))
-            .collect();
-        assert_eq!(modes, expected);
-        assert_eq!(IMPORT_ONLY_MODES, fixture.import_only);
+    fn takes_the_union_of_the_mode_and_submode_tables() {
+        let mfsk = Mode::named("MFSK").unwrap().submodes;
+        assert!(mfsk.ends_with(&["MFSK64L", "MFSK128", "MFSK128L", "Q65"]), "{mfsk:?}");
+        let psk = Mode::named("PSK").unwrap().submodes;
+        assert!(psk.contains(&"PSK125C12") && psk.contains(&"PSK63RC4"), "{psk:?}");
+        assert_eq!(IMPORT_ONLY_MODES.len(), 42);
+        assert!(Mode::named("C4FM").is_none());
     }
 
     #[test]

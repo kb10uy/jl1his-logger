@@ -176,9 +176,10 @@ export interface Token {
 export interface ServerVersion {
     version: string;
     commit: string | null;
+    adif: string;
 }
 
-export type ReferenceKind = 'cty' | 'subdivisions' | 'parks';
+export type ReferenceKind = 'cty' | 'parks';
 
 export interface ReferenceVersion {
     kind: ReferenceKind;

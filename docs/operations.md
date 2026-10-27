@@ -22,7 +22,9 @@ cargo run --release -- -c data/config.toml serve
 
 The client build compiles `query/` to WASM first, so it needs Rust with the
 `wasm32-unknown-unknown` target and
-[wasm-pack](https://github.com/drager/wasm-pack). Without the speech models
+[wasm-pack](https://github.com/drager/wasm-pack). The server and the client
+both generate their ADIF tables from `assets/adif/` as they build, so a build
+needs the whole repository, not `server/` or `client/` alone. Without the speech models
 the rest of the app works and voice entry says the model is missing.
 
 Passkeys need HTTPS (or `http://localhost`), so put a TLS-terminating reverse
@@ -129,7 +131,7 @@ jl1his-logger --as JL1HIS token issue field-logger --kind wl2 --wl2-prefix --log
 
 ### Reference Data
 
-Reference data (`cty`, `subdivisions`, `parks`) is installed from local files
+Reference data (`cty`, `parks`) is installed from local files
 by an admin and goes where `[reference]` in the configuration points. The
 running server picks up a new version without a restart.
 
@@ -159,6 +161,17 @@ after the upgrade lookups answer without the entity and new QSOs get no `DXCC`,
    server settings screen.
 4. Delete the old `cty.dat` and `dxcc.toml` from the reference directory if
    `cty` no longer points at them.
+
+#### Upgrading to built-in subdivisions
+
+Subdivisions used to be a reference data kind installed from a TOML file. They
+are now built into the server from the ADIF specification (see
+`assets/adif/README.md`), and migration 10 forgets the `subdivisions` row:
+
+1. Remove the `subdivisions` line from `[reference]` in `config.toml`; the
+   setting is no longer accepted and the server refuses to start with it.
+2. Start the new version (or run `migrate`).
+3. Delete the old `subdivisions.toml` from the reference directory.
 
 ### Backup and Restore
 

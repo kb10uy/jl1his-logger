@@ -63,7 +63,6 @@ impl Entity {
 }
 
 pub type DxccCodes = BTreeMap<String, u32>;
-pub type Subdivisions = BTreeMap<u32, BTreeMap<String, String>>;
 pub type Parks = BTreeMap<String, Park>;
 
 pub fn parse_cty_archive(bytes: &[u8]) -> Result<Cty, ReferenceError> {
@@ -197,24 +196,6 @@ fn parse_cty_csv(text: &str) -> Result<DxccCodes, ReferenceError> {
 
 pub fn text(bytes: &[u8]) -> Result<&str, ReferenceError> {
     std::str::from_utf8(bytes).map_err(|_| invalid("the file is not UTF-8 text"))
-}
-
-pub fn parse_subdivisions(text: &str) -> Result<Subdivisions, ReferenceError> {
-    let tables: BTreeMap<String, BTreeMap<String, String>> = table(text, "subdivision")?;
-    tables
-        .into_iter()
-        .map(|(dxcc, names)| {
-            let code = dxcc
-                .trim()
-                .parse()
-                .map_err(|_| ReferenceError::Invalid(format!("{dxcc:?} is not a DXCC entity code")))?;
-            let names = names
-                .into_iter()
-                .map(|(state, name)| (state.trim().to_ascii_uppercase(), name))
-                .collect();
-            Ok((code, names))
-        })
-        .collect()
 }
 
 pub fn parse_parks(text: &str) -> Result<Parks, ReferenceError> {
@@ -545,10 +526,7 @@ I,Italy,248,EU,15,28,42.82,-12.58,-1.0,I IT9;
     }
 
     #[test]
-    fn reads_the_tables_qso_tools_reads() {
-        let subdivisions = parse_subdivisions("[339]\n01 = \"Hokkaido\"\nab = \"x\"\n").unwrap();
-        assert_eq!(subdivisions[&339]["01"], "Hokkaido");
-        assert_eq!(subdivisions[&339]["AB"], "x");
+    fn reads_the_parks_table_qso_tools_reads() {
         let parks = parse_parks("JP-0001 = { name_en = \"Rishiri\", name_ja = \"利尻\" }\nJP-0002 = {}\n").unwrap();
         assert_eq!(parks["JP-0001"].name_ja.as_deref(), Some("利尻"));
         assert_eq!(
@@ -561,8 +539,6 @@ I,Italy,248,EU,15,28,42.82,-12.58,-1.0,I IT9;
     }
 
     #[rstest]
-    #[case::text_entity(parse_subdivisions("[Japan]\n01 = \"Hokkaido\"\n").is_err())]
-    #[case::empty_subdivisions(parse_subdivisions("").is_err())]
     #[case::empty_parks(parse_parks("").is_err())]
     #[case::not_utf8(text(b"\xff").is_err())]
     fn refuses_malformed_tables(#[case] refused: bool) {

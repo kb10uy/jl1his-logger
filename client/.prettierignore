@@ -2,6 +2,7 @@ pnpm-lock.yaml
 /build/
 /.svelte-kit/
 /src/lib/query/wasm/
+/src/lib/adif/
 /src/lib/paraglide/
 /project.inlang/
 /static/

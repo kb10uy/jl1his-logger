@@ -72,8 +72,10 @@ cookie only.
 
 ## Server Version and Health
 
-`GET /api/version` returns `{version, commit}`: the server's package version
-and the Git commit it was built from, or `null` when the build did not know it.
+`GET /api/version` returns `{version, commit, adif}`: the server's package
+version, the Git commit it was built from, or `null` when the build did not
+know it, and the ADIF version its built-in tables follow (`3.1.8`), which is
+also the `ADIF_VER` of its exports.
 It takes the session cookie only.
 
 `GET /api/health` needs no sign-in and answers `{"status": "ok"}` when the
@@ -83,8 +85,7 @@ container runtime to probe.
 ## Reference Data
 
 `GET /api/reference` returns the versions of the reference data in use,
-`[{kind, version, updated_at}]` with `kind` one of `cty`, `subdivisions` and
-`parks`. It takes the session cookie only. Reference data is updated with the
+`[{kind, version, updated_at}]` with `kind` one of `cty` and `parks`. It takes the session cookie only. Reference data is updated with the
 CLI, and `cty` also with the endpoint below.
 
 `PUT /api/reference/cty` installs a CTY zip archive from country-files.com (Big
@@ -100,10 +101,12 @@ data as it was. See "Reference Data" in `decisions.md` for the limits applied
 while reading it.
 
 `GET /api/reference/subdivisions/{dxcc}` returns the subdivisions of one DXCC
-entity from the installed `subdivisions` data, `[{code, name}]` ordered by
-code, for the `STATE` and `MY_STATE` choices. It also takes the session cookie
-only. An entity without subdivisions is `[]`, a `dxcc` that is not a number is
-`400`, and `404` means the data is not installed.
+entity from the ADIF Primary Administrative Subdivision table built into the
+server, `[{code, name}]` ordered by code, for the `STATE` and `MY_STATE`
+choices; subdivisions the specification marks deleted or import-only are left
+out. It also takes the session cookie only. An entity without subdivisions is
+`[]`, a `dxcc` that is not a number is `400`, and a number that is not an ADIF
+DXCC entity code is `404`.
 
 ## API Tokens
 
@@ -320,7 +323,8 @@ It sets the Instrument to `instrument_id`, so leaving it out clears it.
 | `submode_of_another_mode` | `mode`, `submode`, `expected` | `SUBMODE` belongs to the mode `expected`, not to `MODE` |
 
 Modes are the Mode enumeration of ADIF 3.1.8, compared ignoring case; the table
-is `fixtures/reference/modes.json`. An import-only mode such as `C4FM` or
+is generated from `assets/adif/enumerations_mode.csv` and
+`enumerations_submode.csv`. An import-only mode such as `C4FM` or
 `PSK31` is accepted and stands for the mode it is a submode of
 (`DIGITALVOICE`, `PSK`), so `MODE` `DSTAR` with no `SUBMODE` warns of nothing.
 

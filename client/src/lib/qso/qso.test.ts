@@ -1,10 +1,16 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import {
+    ADIF_BANDS,
+    ADIF_MODES,
+    ADIF_QSL_RCVD,
+    ADIF_QSL_SENT,
+    ADIF_QSL_VIA
+} from '#lib/adif/tables.ts';
 import { BANDS, bandOf, frequencyHz, representativeFreq } from './bands.ts';
 import { MODE_CHOICES, followsBand, modeKey, parseModeKey, sidebandFor } from './modes.ts';
 import { uuidv7 } from './uuid.ts';
 import { compareNewestFirst, hhmm, isoDate, parks, rst, utcFields } from './format.ts';
-import { qslLabel, qslTone } from './qsl.ts';
+import { QSL_RCVD_VALUES, QSL_SENT_VALUES, QSL_VIA_VALUES, qslLabel, qslTone } from './qsl.ts';
 import {
     contestProblem,
     defaultContest,
@@ -13,19 +19,16 @@ import {
     usesSerial
 } from './contest.ts';
 
-const fixture = <T>(path: string): T =>
-    JSON.parse(
-        readFileSync(new URL(`../../../../fixtures/reference/${path}`, import.meta.url), 'utf8')
-    );
-
 describe('bands', () => {
-    it('match the server table', () => {
-        const { bands } = fixture<{
-            bands: { band: string; lower_hz: number; upper_hz: number }[];
-        }>('bands.json');
+    it('offer every ADIF band in order', () => {
         expect(BANDS.map((b) => [b.name, b.lowerHz, b.upperHz])).toEqual(
-            bands.map((b) => [b.band, b.lower_hz, b.upper_hz])
+            ADIF_BANDS.map((b) => [b.name, b.lowerHz, b.upperHz])
         );
+        expect(ADIF_BANDS.find((b) => b.name === '5m')).toEqual({
+            name: '5m',
+            lowerHz: 54_000_001,
+            upperHz: 69_900_000
+        });
     });
 
     it.each([
@@ -57,9 +60,8 @@ describe('bands', () => {
 
 describe('modes', () => {
     it('offer only ADIF modes and submodes', () => {
-        const { modes } = fixture<{ modes: { mode: string; submodes: string[] }[] }>('modes.json');
         for (const choice of MODE_CHOICES) {
-            const mode = modes.find((m) => m.mode === choice.mode);
+            const mode = ADIF_MODES.find((m) => m.mode === choice.mode);
             expect(mode, choice.mode).toBeDefined();
             if (choice.submode !== '') expect(mode?.submodes).toContain(choice.submode);
         }
@@ -122,6 +124,14 @@ describe('qsl', () => {
         expect(qslTone('r')).toBe('warn');
         expect(qslTone('V')).toBe('ok');
         expect(qslLabel('q', true)).toBe('Queued');
+    });
+
+    it.each([
+        [QSL_SENT_VALUES, ADIF_QSL_SENT],
+        [QSL_RCVD_VALUES, ADIF_QSL_RCVD],
+        [QSL_VIA_VALUES, ADIF_QSL_VIA]
+    ])('label every ADIF value and nothing else', (labelled, values) => {
+        expect(labelled.map(([code]) => code).sort()).toEqual([...values].sort());
     });
 });
 

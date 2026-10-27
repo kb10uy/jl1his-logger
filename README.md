@@ -81,7 +81,9 @@ for the rest, including the container image.
 The client uses [pnpm](https://pnpm.io), at the version pinned in
 `client/package.json`. Its build compiles `query/` to WASM first, so it needs
 Rust with the `wasm32-unknown-unknown` target and
-[wasm-pack](https://github.com/drager/wasm-pack).
+[wasm-pack](https://github.com/drager/wasm-pack). The server and the client
+generate their ADIF tables from the CSV files in `assets/adif/` when they
+build; see its README to update them to a new ADIF version.
 Voice entry needs the speech models in `client/static/models`, fetched by
 `pnpm run models` (bash; on Windows `pwsh scripts/setup-vosk.ps1`); without
 them the rest of the app works and voice entry says the model is missing.

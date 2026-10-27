@@ -260,6 +260,7 @@ mod tests {
              VALUES ('log', 'batch', 'qso', 2);
              INSERT INTO reference_versions (kind, version, checksum, updated_at)
              VALUES ('cty', '20261022', X'abcd', '2026-10-22T00:00:00Z'),
+                    ('subdivisions', '2026-10-23', X'01', '2026-10-23T00:00:00Z'),
                     ('parks', '2026-10', X'ef', '2026-10-22T00:00:00Z');
              INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
              VALUES (X'01', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z');",
@@ -269,7 +270,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert!(migrated.snapshot.unwrap().is_file());
         let session: (String, Vec<u8>, String, Option<String>) =
             sqlx::query_as("SELECT id, token_hash, last_used_at, user_agent FROM sessions")
@@ -338,6 +339,7 @@ mod tests {
             "UPDATE export_batches SET kind = 'unknown' WHERE id = 'batch'",
             "UPDATE reference_versions SET kind = 'unknown' WHERE kind = 'parks'",
             "INSERT INTO reference_versions (kind, version, updated_at) VALUES ('dxcc', '1', 'now')",
+            "INSERT INTO reference_versions (kind, version, updated_at) VALUES ('subdivisions', '1', 'now')",
             "UPDATE export_batch_qsos SET batch_id = 'missing' WHERE batch_id = 'batch'",
             "UPDATE export_batch_qsos SET qso_id = 'missing' WHERE qso_id = 'qso'",
             "UPDATE qsos SET instrument_id = 'missing' WHERE id = 'qso'",

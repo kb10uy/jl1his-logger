@@ -15,8 +15,9 @@ use crate::{
     config::ReferenceConfig,
     db::Db,
     domain::{
+        dxcc::DxccEntity,
         qso::Qso,
-        reference::{self, Cty, Entity, ReferenceError, Subdivisions},
+        reference::{self, Cty, Entity, ReferenceError},
     },
     store::{
         StoreError,
@@ -75,31 +76,26 @@ pub async fn install_cty(
 
 #[derive(Debug, Serialize)]
 pub struct SubdivisionBody {
-    code: String,
-    name: String,
+    code: &'static str,
+    name: &'static str,
 }
 
 pub async fn subdivisions(
-    State(state): State<Arc<AppState>>,
     SignedIn(_): SignedIn,
     UrlPath(dxcc): UrlPath<String>,
 ) -> Result<Json<Vec<SubdivisionBody>>, ApiError> {
-    let dxcc: u32 = dxcc
+    let code: u32 = dxcc
         .parse()
         .map_err(|_| ApiError::bad_request(format!("{dxcc:?} is not a DXCC entity code")))?;
-    let subdivisions = state
-        .references
-        .subdivisions(&state.db, &state.config.reference)
-        .await?
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "no subdivisions are installed"))?;
+    let entity = DxccEntity::of_code(code)
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, format!("{code} is not an ADIF DXCC entity code")))?;
     Ok(Json(
-        subdivisions
-            .get(&dxcc)
-            .into_iter()
-            .flatten()
-            .map(|(code, name)| SubdivisionBody {
-                code: code.clone(),
-                name: name.clone(),
+        entity
+            .subdivisions()
+            .iter()
+            .map(|s| SubdivisionBody {
+                code: s.code,
+                name: s.name,
             })
             .collect(),
     ))
@@ -124,7 +120,6 @@ type Slot<T> = Mutex<Option<Loaded<T>>>;
 #[derive(Default)]
 pub struct References {
     cty: Slot<Cty>,
-    subdivisions: Slot<Subdivisions>,
 }
 
 impl References {
@@ -155,17 +150,6 @@ impl References {
                 None
             }
         }
-    }
-
-    pub async fn subdivisions(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<Subdivisions>>, LoadError> {
-        load(
-            db,
-            &self.subdivisions,
-            ReferenceKind::Subdivisions,
-            &paths.subdivisions,
-            |bytes| reference::parse_subdivisions(reference::text(bytes)?),
-        )
-        .await
     }
 }
 
@@ -220,7 +204,7 @@ mod tests {
             MAX_ARCHIVE_BYTES,
             tests::{CTY, CTY_CSV, cty_archive},
         },
-        store::{account::token::TokenKind, reference::ReferenceKind},
+        store::account::token::TokenKind,
         web::testing::{Auth, Harness, ORIGIN},
     };
 
@@ -351,44 +335,30 @@ mod tests {
 
     #[tokio::test]
     async fn serves_the_subdivisions_of_an_entity() {
-        let (h, _dir) = Harness::with_references().await;
+        let h = Harness::new().await;
         let session = h.session(&h.world.operator).await;
-        let uri = "/api/reference/subdivisions/339";
-        let (status, _) = h.send("GET", uri, Auth::Session(&session), None).await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
-
-        h.install_reference(
-            ReferenceKind::Subdivisions,
-            "[339]
-13 = \"Tokyo\"
-01 = \"Hokkaido\"
-[291]
-CA = \"California\"
-",
-            "2026-10-23",
-        )
-        .await;
-        let (status, body) = h.send("GET", uri, Auth::Session(&session), None).await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        assert_eq!(
-            body,
-            json!([{ "code": "01", "name": "Hokkaido" }, { "code": "13", "name": "Tokyo" }])
-        );
-
         let (status, body) = h
-            .send("GET", "/api/reference/subdivisions/1", Auth::Session(&session), None)
+            .send("GET", "/api/reference/subdivisions/339", Auth::Session(&session), None)
             .await;
-        assert_eq!((status, body), (StatusCode::OK, json!([])));
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body.as_array().unwrap().len(), 47);
+        assert_eq!(body[0], json!({ "code": "01", "name": "Hokkaido" }));
+        assert_eq!(body[9], json!({ "code": "10", "name": "Tokyo" }));
+
+        for (uri, expected) in [
+            ("/api/reference/subdivisions/0", StatusCode::OK),
+            ("/api/reference/subdivisions/1000", StatusCode::NOT_FOUND),
+            ("/api/reference/subdivisions/Japan", StatusCode::BAD_REQUEST),
+        ] {
+            let (status, body) = h.send("GET", uri, Auth::Session(&session), None).await;
+            assert_eq!(status, expected, "{uri}");
+            if status == StatusCode::OK {
+                assert_eq!(body, json!([]));
+            }
+        }
         let (status, _) = h
-            .send(
-                "GET",
-                "/api/reference/subdivisions/Japan",
-                Auth::Session(&session),
-                None,
-            )
+            .send("GET", "/api/reference/subdivisions/339", Auth::Anonymous, None)
             .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-        let (status, _) = h.send("GET", uri, Auth::Anonymous, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
 }

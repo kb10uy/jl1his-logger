@@ -56,7 +56,6 @@ impl Default for DatabaseConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ReferenceConfig {
     pub cty: PathBuf,
-    pub subdivisions: PathBuf,
     pub parks: PathBuf,
 }
 
@@ -64,7 +63,6 @@ impl Default for ReferenceConfig {
     fn default() -> Self {
         Self {
             cty: "reference/cty.zip".into(),
-            subdivisions: "reference/subdivisions.toml".into(),
             parks: "reference/parks.toml".into(),
         }
     }
@@ -112,7 +110,6 @@ impl Config {
             Some(&mut self.database.path),
             self.server.web_dir.as_mut(),
             Some(&mut self.reference.cty),
-            Some(&mut self.reference.subdivisions),
             Some(&mut self.reference.parks),
         ];
         for path in paths.into_iter().flatten() {
@@ -205,6 +202,7 @@ mod tests {
     #[case::unknown_section("[referance]\n")]
     #[case::unknown_unit("[adif]\nlength = \"octets\"\n")]
     #[case::unknown_encoding("[adif]\nfallback_encoding = \"euc-jp\"\n")]
+    #[case::embedded_subdivisions("[reference]\nsubdivisions = \"reference/subdivisions.toml\"\n")]
     fn rejects_mistakes(#[case] text: &str) {
         assert!(toml::from_str::<Config>(text).is_err());
     }

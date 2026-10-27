@@ -69,7 +69,6 @@ impl Harness {
         let config = Config {
             reference: ReferenceConfig {
                 cty: dir.path().join("cty.zip"),
-                subdivisions: dir.path().join("subdivisions.toml"),
                 parks: dir.path().join("parks.toml"),
             },
             ..Config::default()
@@ -81,7 +80,6 @@ impl Harness {
         let paths = &self.state.config.reference;
         match kind {
             ReferenceKind::Cty => &paths.cty,
-            ReferenceKind::Subdivisions => &paths.subdivisions,
             ReferenceKind::Parks => &paths.parks,
         }
     }

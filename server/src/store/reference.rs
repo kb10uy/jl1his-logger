@@ -25,7 +25,6 @@ const SELECT: &str = "SELECT kind, version, checksum, updated_at FROM reference_
 #[serde(rename_all = "snake_case")]
 pub enum ReferenceKind {
     Cty,
-    Subdivisions,
     Parks,
 }
 
@@ -33,7 +32,6 @@ impl ReferenceKind {
     pub fn as_str(self) -> &'static str {
         match self {
             ReferenceKind::Cty => "cty",
-            ReferenceKind::Subdivisions => "subdivisions",
             ReferenceKind::Parks => "parks",
         }
     }
@@ -41,7 +39,6 @@ impl ReferenceKind {
     fn parse(s: &str) -> Result<ReferenceKind, StoreError> {
         match s {
             "cty" => Ok(ReferenceKind::Cty),
-            "subdivisions" => Ok(ReferenceKind::Subdivisions),
             "parks" => Ok(ReferenceKind::Parks),
             _ => Err(StoreError::Invalid(format!("unknown reference data {s:?}").into())),
         }
@@ -133,10 +130,6 @@ fn check(kind: ReferenceKind, bytes: &[u8]) -> Result<(Option<String>, usize), R
         ReferenceKind::Cty => {
             let cty = data::parse_cty_archive(bytes)?;
             Ok((cty.version, cty.database.len()))
-        }
-        ReferenceKind::Subdivisions => {
-            let subdivisions = data::parse_subdivisions(data::text(bytes)?)?;
-            Ok((None, subdivisions.values().map(|names| names.len()).sum()))
         }
         ReferenceKind::Parks => Ok((None, data::parse_parks(data::text(bytes)?)?.len())),
     }
@@ -448,7 +441,7 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(
-            set(&mut tx, &admin, ReferenceKind::Subdivisions, " ", None).await,
+            set(&mut tx, &admin, ReferenceKind::Parks, " ", None).await,
             Err(StoreError::Invalid(_))
         ));
         let not_admin = access::admin(&mut tx, &access::Principal::user(&world.operator.id)).await;
