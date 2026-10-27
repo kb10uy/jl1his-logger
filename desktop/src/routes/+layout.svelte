@@ -7,6 +7,7 @@
     import { page } from '$app/state';
     import { m } from '#lib/paraglide/messages.js';
     import { getLocale } from '#lib/paraglide/runtime.js';
+    import { incoming } from '#lib/incoming/incoming.svelte.ts';
     import { session } from '#lib/session/session.svelte.ts';
     import { settings } from '#lib/settings/settings.svelte.ts';
 
@@ -38,6 +39,10 @@
         const signingIn = page.url.pathname === '/sign-in';
         if (current.state === 'signedOut' && !signingIn) goto('/sign-in', { replace: true });
         if (current.state === 'signedIn' && signingIn) goto('/', { replace: true });
+    });
+
+    $effect(() => {
+        if (session.current?.state === 'signedIn' && ready) incoming.start();
     });
 </script>
 

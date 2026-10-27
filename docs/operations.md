@@ -67,7 +67,20 @@ poll_ms = 1000
 [rig.modes]                  # the logged mode for a rig mode, as MODE|SUBMODE
 PKTUSB = "MFSK|FT4"
 FM = "DIGITALVOICE|C4FM"
+
+[[listeners]]                # UDP for WSJT-X, ADIF and the client's own JSON
+enabled = true
+host = "127.0.0.1"
+port = 2237
+
+[[listeners]]
+enabled = false
+host = "127.0.0.1"
+port = 2333
 ```
+
+In WSJT-X, set Settings › Reporting › UDP Server to `127.0.0.1` and the
+port of a listener.
 
 Its frontend imports the web client's
 `client/src/lib`, so `client/` is installed first; the desktop's scripts

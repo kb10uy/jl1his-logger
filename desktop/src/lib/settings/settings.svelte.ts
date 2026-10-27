@@ -13,12 +13,24 @@ export interface RigSettings {
     modes: Record<string, string>;
 }
 
+export interface ListenerSettings {
+    enabled: boolean;
+    host: string;
+    port: number;
+}
+
 export interface Settings {
     path: string;
     credentialStore: string;
     language: Locale | null;
     rig: RigSettings;
+    listeners: ListenerSettings[];
 }
+
+export type ListenerState =
+    | { state: 'off' }
+    | { state: 'listening'; address: string }
+    | { state: 'failed'; address: string; error: string };
 
 export type RigState =
     | { state: 'off' }
@@ -35,6 +47,7 @@ export type RigState =
 class SettingsState {
     current = $state<Settings | undefined>();
     rig = $state<RigState>({ state: 'off' });
+    listening = $state.raw<ListenerState[]>([]);
     error = $state<CommandError | undefined>();
 
     async load(): Promise<boolean> {
@@ -47,16 +60,25 @@ class SettingsState {
         }
         void listen<RigState>('rig-state', (e) => (this.rig = e.payload));
         this.rig = await invoke<RigState>('rig_state').catch(() => this.rig);
+        void listen<ListenerState[]>('listener-state', (e) => (this.listening = e.payload));
+        this.listening = await invoke<ListenerState[]>('listener_states').catch(
+            () => this.listening
+        );
         return true;
     }
 
-    async save(change: { language?: Locale | null; rig?: RigSettings }) {
+    async save(change: {
+        language?: Locale | null;
+        rig?: RigSettings;
+        listeners?: ListenerSettings[];
+    }) {
         const current = this.current;
         if (current === undefined) return;
         try {
             const saved = await invoke<Settings>('save_settings', {
                 language: change.language === undefined ? current.language : change.language,
-                rig: change.rig ?? current.rig
+                rig: change.rig ?? current.rig,
+                listeners: change.listeners ?? current.listeners
             });
             this.current = { ...saved, language: asLocale(saved.language) };
             this.error = undefined;

@@ -2,7 +2,8 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::{
-    config::{Config, Rig},
+    config::{Config, Listener, Rig},
+    listen::{Incoming, ListenerState, Listeners},
     rig::{RigState, RigWatcher},
     session::{CommandError, Paths},
 };
@@ -24,6 +25,7 @@ pub struct Settings {
     credential_store: &'static str,
     language: Option<String>,
     rig: Rig,
+    listeners: Vec<Listener>,
 }
 
 impl Settings {
@@ -33,6 +35,7 @@ impl Settings {
             credential_store: CREDENTIAL_STORE,
             language: config.language,
             rig: config.rig,
+            listeners: config.listeners,
         }
     }
 }
@@ -51,16 +54,23 @@ pub fn save_settings(
     app: AppHandle,
     paths: State<'_, Paths>,
     watcher: State<'_, RigWatcher>,
+    listening: State<'_, Listeners>,
     language: Option<String>,
     rig: Rig,
+    listeners: Vec<Listener>,
 ) -> Result<Settings, CommandError> {
     let mut config = Config::load(&paths.config)?;
     let restart = !config.rig.same_connection(&rig);
+    let relisten = config.listeners != listeners;
     config.language = self::language(language);
     config.rig = rig;
+    config.listeners = listeners;
     config.save(&paths.config)?;
     if restart {
         watcher.start(&app, &config.rig);
+    }
+    if relisten {
+        listening.start(&app, &config.listeners);
     }
     Ok(Settings::of(&paths, config))
 }
@@ -78,6 +88,21 @@ pub fn reconnect_rig(
 ) -> Result<(), CommandError> {
     watcher.start(&app, &Config::load(&paths.config)?.rig);
     Ok(())
+}
+
+#[tauri::command]
+pub fn listener_states(listening: State<'_, Listeners>) -> Vec<ListenerState> {
+    listening.states()
+}
+
+#[tauri::command]
+pub fn incoming(listening: State<'_, Listeners>) -> Vec<Incoming> {
+    listening.incoming()
+}
+
+#[tauri::command]
+pub fn ack_incoming(listening: State<'_, Listeners>, ids: Vec<u64>) {
+    listening.ack(&ids);
 }
 
 #[cfg(test)]

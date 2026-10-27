@@ -75,5 +75,10 @@
     "status_rig_off": "rigctld off",
     "status_rig_down": "rigctld not connected",
     "status_rig_title": "Reading the rig every {seconds} s; it reports {mode}.",
-    "status_settings": "Settings"
+    "status_settings": "Settings",
+    "entry_incoming_logged": "Logged {call} from {program}",
+    "entry_incoming_logged_unnamed": "Logged {call} from another program",
+    "entry_incoming_mismatch": "{name} kept as {given}; the Station has {station}",
+    "entry_incoming_waiting": "{count} QSOs from other programs wait for a Station",
+    "entry_incoming_dismiss": "Dismiss"
 }

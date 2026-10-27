@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
+    import { listen } from '@tauri-apps/api/event';
     import { goto } from '$app/navigation';
     import { entryFields, entryProblem, type Entry } from '#client/entry/record.ts';
     import { expandExchange } from '#client/qso/contest.ts';
@@ -13,12 +14,15 @@
     import ContestBar from '#lib/components/ContestBar.svelte';
     import EntryHeader from '#lib/components/EntryHeader.svelte';
     import ExtraFields from '#lib/components/ExtraFields.svelte';
+    import IncomingNotice from '#lib/components/IncomingNotice.svelte';
     import LatestList from '#lib/components/LatestList.svelte';
     import LookupLine from '#lib/components/LookupLine.svelte';
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import StatusBar from '#lib/components/StatusBar.svelte';
     import { EntryState } from '#lib/entry/entry.svelte.ts';
     import { outbox } from '#lib/entry/outbox.svelte.ts';
+    import { applyFields, type EntryMessage } from '#lib/incoming/form.ts';
+    import { incoming } from '#lib/incoming/incoming.svelte.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { followRig, pickMode, rigModeOf, type RigFit } from '#lib/rig/modes.ts';
     import { session } from '#lib/session/session.svelte.ts';
@@ -143,11 +147,29 @@
 
     onMount(() => {
         if (signedIn?.logbooks === null) server.reachable = false;
-        void desk.load(signedIn?.logbooks ?? null);
+        void desk.load(signedIn?.logbooks ?? null).then(() => incoming.drain());
         const tick = setInterval(() => (now = new Date()), 1000);
+        const unlisten = listen<EntryMessage>('entry-fields', (e) => receive(e.payload));
         callInput?.focus();
-        return () => clearInterval(tick);
+        return () => {
+            clearInterval(tick);
+            void unlisten.then((stop) => stop());
+        };
     });
+
+    function receive(message: EntryMessage) {
+        switch (message.type) {
+            case 'set':
+                entry = applyFields(entry, message.fields, area);
+                break;
+            case 'clear':
+                clear();
+                break;
+            case 'log':
+                void submit();
+                break;
+        }
+    }
 
     function clear() {
         entry.call = '';
@@ -164,6 +186,10 @@
 
     async function log(event: Event) {
         event.preventDefault();
+        await submit();
+    }
+
+    async function submit() {
         if (cantLog) return;
         const fields = entryFields(entry, settings.contest, at, area);
         await desk.log(fields);
@@ -442,6 +468,8 @@
                 <ExtraFields bind:entry {area} power={desk.instrument?.tx_pwr ?? ''} />
             {/if}
         </form>
+
+        <IncomingNotice />
 
         <LatestList
             unsent={desk.unsent}

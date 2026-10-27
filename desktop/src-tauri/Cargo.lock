@@ -3,6 +3,18 @@
 version = 4
 
 [[package]]
+name = "adif-manip"
+version = "0.3.0"
+source = "git+https://github.com/kb10uy/adif-manip#88deea73bed902d4ae740f619e61799b73f65c80"
+dependencies = [
+ "encoding_rs",
+ "regex",
+ "roxmltree",
+ "thiserror 2.0.21",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2074,6 +2086,7 @@ dependencies = [
 name = "jl1his-logger-desktop"
 version = "0.4.0"
 dependencies = [
+ "adif-manip",
  "keyring",
  "reqwest",
  "rstest",
@@ -3299,6 +3312,15 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "roxmltree"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da7f59328b09405b181fee1018925fad50f157afb43c0c0f5c522c256dd5907"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]

@@ -26,5 +26,15 @@
     "settings_language": "言語",
     "settings_language_system": "システム ({language})",
     "settings_language_follows": "OS の言語に合わせます。",
-    "settings_language_reload": "選んだ言語でウィンドウを読み込み直します。"
+    "settings_language_reload": "選んだ言語でウィンドウを読み込み直します。",
+    "settings_listen": "他のプログラム",
+    "settings_listen_lead": "WSJT-X と ADIF over UDP の QSO はすぐに記録し、独自 JSON は入力欄に入れます。",
+    "settings_listen_switch": "{address} で待ち受ける",
+    "settings_listen_host": "アドレス",
+    "settings_listen_port": "UDP ポート",
+    "settings_listen_remove": "この待ち受けを削除",
+    "settings_listen_add": "+ 待ち受け",
+    "settings_listen_off": "オフ",
+    "settings_listen_listening": "待ち受け中",
+    "settings_listen_failed": "{error}。5 秒ごとに再試行します。"
 }

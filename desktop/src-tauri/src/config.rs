@@ -13,13 +13,34 @@ pub const FILE_NAME: &str = if cfg!(debug_assertions) {
     "config.toml"
 };
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
     pub server: Option<Server>,
     #[serde(default)]
     pub rig: Rig,
+    #[serde(default = "default_listeners")]
+    pub listeners: Vec<Listener>,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            language: None,
+            server: None,
+            rig: Rig::default(),
+            listeners: default_listeners(),
+        }
+    }
+}
+
+fn socket_address(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,11 +67,7 @@ impl Default for Rig {
 
 impl Rig {
     pub fn address(&self) -> String {
-        if self.host.contains(':') && !self.host.starts_with('[') {
-            format!("[{}]:{}", self.host, self.port)
-        } else {
-            format!("{}:{}", self.host, self.port)
-        }
+        socket_address(&self.host, self.port)
     }
 
     pub fn same_connection(&self, other: &Rig) -> bool {
@@ -59,6 +76,39 @@ impl Rig {
             && self.port == other.port
             && self.poll_ms == other.poll_ms
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Listener {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+}
+
+impl Default for Listener {
+    fn default() -> Listener {
+        Listener {
+            enabled: false,
+            host: "127.0.0.1".to_owned(),
+            port: 2237,
+        }
+    }
+}
+
+impl Listener {
+    pub fn address(&self) -> String {
+        socket_address(&self.host, self.port)
+    }
+}
+
+fn default_listeners() -> Vec<Listener> {
+    [2237, 2333]
+        .map(|port| Listener {
+            port,
+            ..Listener::default()
+        })
+        .to_vec()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,6 +229,45 @@ mod tests {
         assert!(rig.enabled);
         assert_eq!(rig.address(), "127.0.0.1:4533");
         assert_eq!(rig.poll_ms, 1000);
+    }
+
+    #[test]
+    fn saves_and_loads_the_listeners() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let config = Config {
+            listeners: vec![Listener {
+                enabled: true,
+                host: "::1".to_owned(),
+                port: 2238,
+            }],
+            ..Config::default()
+        };
+        config.save(&path).unwrap();
+        assert_eq!(Config::load(&path).unwrap(), config);
+        assert_eq!(config.listeners[0].address(), "[::1]:2238");
+    }
+
+    #[test]
+    fn listens_on_the_usual_ports_unless_told_otherwise() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        fs::write(
+            &path,
+            "[rig]
+enabled = true
+",
+        )
+        .unwrap();
+        let listeners = Config::load(&path).unwrap().listeners;
+        let addresses: Vec<_> = listeners.iter().map(|l| (l.enabled, l.address())).collect();
+        assert_eq!(
+            addresses,
+            [
+                (false, "127.0.0.1:2237".to_owned()),
+                (false, "127.0.0.1:2333".to_owned())
+            ]
+        );
     }
 
     #[rstest]

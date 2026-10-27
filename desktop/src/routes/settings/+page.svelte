@@ -10,7 +10,12 @@
     import { errorText } from '#lib/session/errors.ts';
     import { session } from '#lib/session/session.svelte.ts';
     import { LOCALE_NAMES, asLocale, systemLanguage } from '#lib/settings/language.ts';
-    import { settings, type RigSettings } from '#lib/settings/settings.svelte.ts';
+    import {
+        settings,
+        type ListenerSettings,
+        type ListenerState,
+        type RigSettings
+    } from '#lib/settings/settings.svelte.ts';
 
     const signedIn = $derived(session.current?.state === 'signedIn' ? session.current : undefined);
     const current = $derived(settings.current);
@@ -52,6 +57,22 @@
     function saveRig(change: Partial<RigSettings>) {
         if (current === undefined) return;
         void settings.save({ rig: { ...current.rig, ...change } });
+    }
+
+    function saveListeners(listeners: ListenerSettings[]) {
+        void settings.save({ listeners });
+    }
+
+    function saveListener(index: number, change: Partial<ListenerSettings>) {
+        if (current === undefined) return;
+        saveListeners(current.listeners.map((l, i) => (i === index ? { ...l, ...change } : l)));
+    }
+
+    function listenerStatus(listener: ListenerSettings, state: ListenerState | undefined) {
+        if (!listener.enabled || state === undefined || state.state === 'off')
+            return { tone: 'off', text: m.settings_listen_off() };
+        if (state.state === 'listening') return { tone: 'ok', text: m.settings_listen_listening() };
+        return { tone: 'error', text: m.settings_listen_failed({ error: state.error }) };
     }
 </script>
 
@@ -245,6 +266,115 @@
                             {/each}
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section
+                aria-labelledby="settings-listen"
+                class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-[12px]"
+            >
+                <div class="flex items-center gap-2.5">
+                    <h2 id="settings-listen" class="m-0 flex-none text-[13px] font-semibold">
+                        {m.settings_listen()}
+                    </h2>
+                    <span class="truncate text-[12px] text-muted" title={m.settings_listen_lead()}
+                        >{m.settings_listen_lead()}</span
+                    >
+                </div>
+                {#each current.listeners as listener, index (index)}
+                    {@const status = listenerStatus(listener, settings.listening[index])}
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={listener.enabled}
+                            aria-label={m.settings_listen_switch({
+                                address: `${listener.host}:${listener.port}`
+                            })}
+                            class={[
+                                'relative h-[20px] w-[36px] flex-none rounded-full',
+                                listener.enabled ? 'bg-info-strong' : 'bg-border'
+                            ]}
+                            onclick={() => saveListener(index, { enabled: !listener.enabled })}
+                            ><span
+                                class={[
+                                    'absolute top-[2px] size-[16px] rounded-full bg-text',
+                                    listener.enabled ? 'left-[18px]' : 'left-[2px]'
+                                ]}
+                            ></span></button
+                        >
+                        <input
+                            aria-label={m.settings_listen_host()}
+                            spellcheck="false"
+                            autocomplete="off"
+                            class="field h-[28px] w-[150px] font-mono text-[12px]"
+                            value={listener.host}
+                            onchange={(e) => {
+                                const host = e.currentTarget.value.trim();
+                                if (host !== '') saveListener(index, { host });
+                            }}
+                        />
+                        <input
+                            aria-label={m.settings_listen_port()}
+                            type="number"
+                            min="1"
+                            max="65535"
+                            class="field h-[28px] w-[76px] text-right font-mono text-[12px]"
+                            value={listener.port}
+                            onchange={(e) => {
+                                const port = Number(e.currentTarget.value);
+                                if (Number.isInteger(port) && port >= 1 && port <= 65535)
+                                    saveListener(index, { port });
+                            }}
+                        />
+                        <span class="flex min-w-0 flex-1 items-center gap-1.5 text-[12px]">
+                            <span
+                                class={[
+                                    'size-[7px] flex-none rounded-full',
+                                    status.tone === 'ok' && 'bg-ok',
+                                    status.tone === 'error' && 'bg-error',
+                                    status.tone === 'off' && 'bg-[#6e7681]'
+                                ]}
+                            ></span>
+                            <span
+                                title={status.text}
+                                class={[
+                                    'truncate',
+                                    status.tone === 'ok' && 'text-text',
+                                    status.tone === 'error' && 'text-error-text',
+                                    status.tone === 'off' && 'text-muted'
+                                ]}>{status.text}</span
+                            >
+                        </span>
+                        <button
+                            type="button"
+                            aria-label={m.settings_listen_remove()}
+                            class="flex-none text-muted"
+                            onclick={() =>
+                                saveListeners(current.listeners.filter((_, i) => i !== index))}
+                            ><svg
+                                aria-hidden="true"
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg
+                            ></button
+                        >
+                    </div>
+                {/each}
+                <div>
+                    <button
+                        type="button"
+                        class="h-[28px] rounded-md border border-border bg-surface-2 px-2.5 text-[12px]"
+                        onclick={() =>
+                            saveListeners([
+                                ...current.listeners,
+                                { enabled: false, host: '127.0.0.1', port: 2237 }
+                            ])}>{m.settings_listen_add()}</button
+                    >
                 </div>
             </section>
 

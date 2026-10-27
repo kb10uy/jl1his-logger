@@ -32,6 +32,15 @@ class OutboxState {
         instrumentId: string | null,
         fields: Fields
     ): Promise<Sent> {
+        return this.deliver(await this.queue(logbookId, stationId, instrumentId, fields));
+    }
+
+    async queue(
+        logbookId: string,
+        stationId: string,
+        instrumentId: string | null,
+        fields: Fields
+    ): Promise<Outgoing> {
         const outbox = await this.open();
         const item: Outgoing = {
             id: uuidv7(),
@@ -43,7 +52,11 @@ class OutboxState {
         };
         await outbox.put(item);
         await this.refresh();
-        const sent = await outbox.send(item, api.createQso);
+        return item;
+    }
+
+    async deliver(item: Outgoing): Promise<Sent> {
+        const sent = await (await this.open()).send(item, api.createQso);
         await this.refresh();
         return sent;
     }

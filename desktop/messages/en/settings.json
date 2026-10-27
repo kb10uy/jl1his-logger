@@ -26,5 +26,15 @@
     "settings_language": "Language",
     "settings_language_system": "System ({language})",
     "settings_language_follows": "Follows the language of the operating system.",
-    "settings_language_reload": "The window reloads in the chosen language."
+    "settings_language_reload": "The window reloads in the chosen language.",
+    "settings_listen": "Other programs",
+    "settings_listen_lead": "QSOs from WSJT-X and ADIF over UDP are logged at once; the client's own JSON fills the form.",
+    "settings_listen_switch": "Listen on {address}",
+    "settings_listen_host": "Address",
+    "settings_listen_port": "UDP port",
+    "settings_listen_remove": "Remove this listener",
+    "settings_listen_add": "+ Listener",
+    "settings_listen_off": "Off",
+    "settings_listen_listening": "Listening",
+    "settings_listen_failed": "{error}. Retrying every 5 s."
 }
