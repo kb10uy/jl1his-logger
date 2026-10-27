@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -14,7 +15,50 @@ pub const FILE_NAME: &str = if cfg!(debug_assertions) {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
     pub server: Option<Server>,
+    #[serde(default)]
+    pub rig: Rig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Rig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+    pub poll_ms: u64,
+    pub modes: BTreeMap<String, String>,
+}
+
+impl Default for Rig {
+    fn default() -> Rig {
+        Rig {
+            enabled: false,
+            host: "127.0.0.1".to_owned(),
+            port: 4532,
+            poll_ms: 1000,
+            modes: BTreeMap::new(),
+        }
+    }
+}
+
+impl Rig {
+    pub fn address(&self) -> String {
+        if self.host.contains(':') && !self.host.starts_with('[') {
+            format!("[{}]:{}", self.host, self.port)
+        } else {
+            format!("{}:{}", self.host, self.port)
+        }
+    }
+
+    pub fn same_connection(&self, other: &Rig) -> bool {
+        self.enabled == other.enabled
+            && self.host == other.host
+            && self.port == other.port
+            && self.poll_ms == other.poll_ms
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -98,13 +142,55 @@ mod tests {
             server: Some(Server {
                 url: "https://log.example.com".to_owned(),
             }),
+            ..Config::default()
         };
         config.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), config);
-        assert_eq!(
-            fs::read_to_string(&path).unwrap(),
-            "[server]\nurl = \"https://log.example.com\"\n"
+        assert!(
+            fs::read_to_string(&path)
+                .unwrap()
+                .starts_with("[server]\nurl = \"https://log.example.com\"\n")
         );
+    }
+
+    #[test]
+    fn saves_and_loads_the_language_and_the_rig() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let config = Config {
+            language: Some("ja".to_owned()),
+            rig: Rig {
+                enabled: true,
+                modes: BTreeMap::from([("PKTUSB".to_owned(), "MFSK|FT4".to_owned())]),
+                ..Rig::default()
+            },
+            ..Config::default()
+        };
+        config.save(&path).unwrap();
+        assert_eq!(Config::load(&path).unwrap(), config);
+    }
+
+    #[test]
+    fn fills_what_the_rig_table_leaves_out() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        fs::write(&path, "[rig]\nenabled = true\nport = 4533\n").unwrap();
+        let rig = Config::load(&path).unwrap().rig;
+        assert!(rig.enabled);
+        assert_eq!(rig.address(), "127.0.0.1:4533");
+        assert_eq!(rig.poll_ms, 1000);
+    }
+
+    #[rstest]
+    #[case("localhost", "localhost:4532")]
+    #[case("::1", "[::1]:4532")]
+    #[case("[::1]", "[::1]:4532")]
+    fn addresses_rigctld(#[case] host: &str, #[case] expected: &str) {
+        let rig = Rig {
+            host: host.to_owned(),
+            ..Rig::default()
+        };
+        assert_eq!(rig.address(), expected);
     }
 
     #[test]

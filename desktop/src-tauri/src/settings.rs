@@ -1,0 +1,97 @@
+use serde::Serialize;
+use tauri::{AppHandle, State};
+
+use crate::{
+    config::{Config, Rig},
+    rig::{RigState, RigWatcher},
+    session::{CommandError, Paths},
+};
+
+const LANGUAGES: [&str; 2] = ["en", "ja"];
+
+const CREDENTIAL_STORE: &str = if cfg!(windows) {
+    "Windows Credential Manager"
+} else if cfg!(target_os = "macos") {
+    "macOS Keychain"
+} else {
+    "Secret Service"
+};
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    path: String,
+    credential_store: &'static str,
+    language: Option<String>,
+    rig: Rig,
+}
+
+impl Settings {
+    fn of(paths: &Paths, config: Config) -> Settings {
+        Settings {
+            path: paths.config.display().to_string(),
+            credential_store: CREDENTIAL_STORE,
+            language: config.language,
+            rig: config.rig,
+        }
+    }
+}
+
+pub fn language(language: Option<String>) -> Option<String> {
+    language.filter(|l| LANGUAGES.contains(&l.as_str()))
+}
+
+#[tauri::command]
+pub fn settings(paths: State<'_, Paths>) -> Result<Settings, CommandError> {
+    Ok(Settings::of(&paths, Config::load(&paths.config)?))
+}
+
+#[tauri::command]
+pub fn save_settings(
+    app: AppHandle,
+    paths: State<'_, Paths>,
+    watcher: State<'_, RigWatcher>,
+    language: Option<String>,
+    rig: Rig,
+) -> Result<Settings, CommandError> {
+    let mut config = Config::load(&paths.config)?;
+    let restart = !config.rig.same_connection(&rig);
+    config.language = self::language(language);
+    config.rig = rig;
+    config.save(&paths.config)?;
+    if restart {
+        watcher.start(&app, &config.rig);
+    }
+    Ok(Settings::of(&paths, config))
+}
+
+#[tauri::command]
+pub fn rig_state(watcher: State<'_, RigWatcher>) -> RigState {
+    watcher.state()
+}
+
+#[tauri::command]
+pub fn reconnect_rig(
+    app: AppHandle,
+    paths: State<'_, Paths>,
+    watcher: State<'_, RigWatcher>,
+) -> Result<(), CommandError> {
+    watcher.start(&app, &Config::load(&paths.config)?.rig);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case(Some("ja"), Some("ja"))]
+    #[case(Some("en"), Some("en"))]
+    #[case(Some("fr"), None)]
+    #[case(None, None)]
+    fn keeps_only_known_languages(#[case] given: Option<&str>, #[case] expected: Option<&str>) {
+        assert_eq!(language(given.map(str::to_owned)).as_deref(), expected);
+    }
+}
