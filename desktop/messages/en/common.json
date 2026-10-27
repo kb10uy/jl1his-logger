@@ -5,7 +5,5 @@
     "common_sign_out": "Sign out",
     "common_unexpected": "Something went wrong: {detail}",
     "window_title": "{callsign} — JL1HIS Logger",
-    "home_connected": "Connected to {url}",
-    "home_logbooks": "Logbooks",
-    "home_offline": "{url} could not be reached, so the Logbooks are not shown."
+    "common_unreachable": "Could not reach the server."
 }

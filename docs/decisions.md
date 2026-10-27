@@ -330,8 +330,13 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 - At start the client checks the saved token. A refused token returns to the sign-in form with the URL filled in; an unreachable server keeps it signed in, since entry must work offline.
 - The desktop client's text is localized like the web client's, with its own messages under `desktop/messages/`. It imports the web client's `client/src/theme.css`, so both share the tokens, fonts and base styles.
 - What it reads from the rig through rigctld (frequency, mode) fills its own form only. Nothing about the rig is sent to the server, which has no rig state.
+- The entry screen is the web client's live entry laid out for the small window: Station and Instrument above the form, the contest settings in a bar under them when contest mode is on, the form, the latest QSOs at the Station, and a status bar with the server and the queue. The Station choice spans every Logbook the token reaches, grouped by Logbook, and choosing a Station chooses its Logbook; the Instruments are that Logbook's. The lookup line under the call also shows the last QSO with it, since the window has no room for the list of earlier QSOs.
+- It reuses the web client's pure logic (the QSO record, bands, modes, contest exchanges, the queue) by importing `client/src/lib` as `#client/...` through a `link:` dependency on `client/`, not through a shared package.
+- Every API request goes through one Rust command that sends it with the token to a path under `/api/` and returns the JSON, so the WebView never holds the token. A `401` returns to the sign-in form as a refused token.
+- The queue is the web client's IndexedDB queue inside the WebView and behaves the same: a QSO is written to it before it is sent and stays there, shown on the screen, until the user sends it. The last Station, Instrument, band, mode and contest settings, and a copy of each Logbook's Stations and Instruments, are kept in the WebView's storage, so the screen opens without the server.
+- It does not follow the event stream yet: the latest QSOs are read when the Station changes and grow with what it logs itself.
 
 ## Remaining Work
 
 - The CLI takes the text query of Search: `export write` still takes only the structured filters.
-- The desktop client signs in and lists its Logbooks: its entry screen, rigctld and logging from other programs on the local machine are still to be built.
+- The desktop client signs in and logs QSOs from its entry screen: following the event stream, rigctld and logging from other programs on the local machine are still to be built.
