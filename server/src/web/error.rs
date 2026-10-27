@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     domain::qso::{MAX_FIELDS, MAX_VALUE_BYTES, QsoError},
-    store::StoreError,
+    store::{StoreError, reference::InstallError},
     web::references::LoadError,
 };
 
@@ -105,6 +105,15 @@ impl From<LoadError> for ApiError {
         match e {
             LoadError::Store(e) => e.into(),
             LoadError::File(message) => ApiError::internal(message),
+        }
+    }
+}
+
+impl From<InstallError> for ApiError {
+    fn from(e: InstallError) -> ApiError {
+        match e {
+            InstallError::Store(e) => e.into(),
+            InstallError::File(message) => ApiError::internal(message),
         }
     }
 }

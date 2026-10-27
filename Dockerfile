@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=server /usr/local/bin/jl1his-logger /usr/local/bin/
 COPY --from=client /src/client/build /usr/share/jl1his-logger/web
-COPY assets/config.example.toml assets/dxcc.toml /usr/share/jl1his-logger/
+COPY assets/config.example.toml /usr/share/jl1his-logger/
 COPY --from=server --chown=nonroot:nonroot /out/data /data
 WORKDIR /data
 VOLUME /data

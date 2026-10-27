@@ -4,6 +4,7 @@ use std::{
 };
 
 use axum::{
+    body::Bytes,
     extract::{Path as UrlPath, State},
     http::StatusCode,
 };
@@ -15,13 +16,18 @@ use crate::{
     db::Db,
     domain::{
         qso::Qso,
-        reference::{self, Cty, DxccCodes, Entity, ReferenceError, Subdivisions},
+        reference::{self, Cty, Entity, ReferenceError, Subdivisions},
     },
     store::{
         StoreError,
         reference::{self as versions, ReferenceKind, ReferenceVersion, current},
     },
-    web::{AppState, api::auth::SignedIn, error::ApiError, extract::Json},
+    web::{
+        AppState,
+        api::auth::{Admin, SignedIn},
+        error::ApiError,
+        extract::Json,
+    },
 };
 
 #[derive(Debug, Serialize)]
@@ -48,6 +54,23 @@ pub async fn list(
     let mut conn = state.db.acquire().await?;
     let installed = versions::list(&mut conn, &user).await?;
     Ok(Json(installed.into_iter().map(VersionBody::from).collect()))
+}
+
+pub async fn install_cty(
+    State(state): State<Arc<AppState>>,
+    Admin(admin): Admin,
+    body: Bytes,
+) -> Result<Json<VersionBody>, ApiError> {
+    let installed = versions::install(
+        &state.db,
+        &admin,
+        ReferenceKind::Cty,
+        &state.config.reference.cty,
+        &body,
+        None,
+    )
+    .await?;
+    Ok(Json(installed.version.into()))
 }
 
 #[derive(Debug, Serialize)]
@@ -101,25 +124,26 @@ type Slot<T> = Mutex<Option<Loaded<T>>>;
 #[derive(Default)]
 pub struct References {
     cty: Slot<Cty>,
-    dxcc: Slot<DxccCodes>,
     subdivisions: Slot<Subdivisions>,
 }
 
 impl References {
     async fn cty(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<Cty>>, LoadError> {
-        load(db, &self.cty, ReferenceKind::Cty, &paths.cty, reference::parse_cty).await
-    }
-
-    async fn dxcc(&self, db: &Db, paths: &ReferenceConfig) -> Result<Option<Arc<DxccCodes>>, LoadError> {
-        load(db, &self.dxcc, ReferenceKind::Dxcc, &paths.dxcc, reference::parse_dxcc).await
+        load(
+            db,
+            &self.cty,
+            ReferenceKind::Cty,
+            &paths.cty,
+            reference::parse_cty_archive,
+        )
+        .await
     }
 
     pub async fn entity(&self, db: &Db, paths: &ReferenceConfig, call: &str) -> Result<Option<Entity>, LoadError> {
         let Some(cty) = self.cty(db, paths).await? else {
             return Ok(None);
         };
-        let codes = self.dxcc(db, paths).await?;
-        Ok(reference::entity(&cty, codes.as_deref(), call))
+        Ok(reference::entity(&cty, call))
     }
 
     pub async fn entity_of(&self, db: &Db, paths: &ReferenceConfig, qso: &Qso) -> Option<Entity> {
@@ -139,7 +163,7 @@ impl References {
             &self.subdivisions,
             ReferenceKind::Subdivisions,
             &paths.subdivisions,
-            reference::parse_subdivisions,
+            |bytes| reference::parse_subdivisions(reference::text(bytes)?),
         )
         .await
     }
@@ -150,7 +174,7 @@ async fn load<T>(
     slot: &Slot<T>,
     kind: ReferenceKind,
     path: &Path,
-    parse: fn(&str) -> Result<T, ReferenceError>,
+    parse: fn(&[u8]) -> Result<T, ReferenceError>,
 ) -> Result<Option<Arc<T>>, LoadError> {
     let mut conn = db.acquire().await.map_err(StoreError::from)?;
     let Some(installed) = current(&mut conn, kind).await? else {
@@ -172,12 +196,11 @@ async fn load<T>(
         .is_some_and(|checksum| checksum != Sha256::digest(&bytes).as_slice())
     {
         return Err(failed(&format!(
-            "the file is not version {} as installed; install it again with the CLI",
+            "the file is not version {} as installed; install it again",
             installed.version
         )));
     }
-    let text = String::from_utf8(bytes).map_err(|e| failed(&e))?;
-    let data = Arc::new(parse(&text).map_err(|e| failed(&e))?);
+    let data = Arc::new(parse(&bytes).map_err(|e| failed(&e))?);
     *slot.lock().expect("reference lock poisoned") = Some(Loaded {
         version: installed.version,
         checksum: installed.checksum,
@@ -189,12 +212,142 @@ async fn load<T>(
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
-    use serde_json::json;
+    use rstest::rstest;
+    use serde_json::{Value, json};
 
     use crate::{
-        store::reference::ReferenceKind,
-        web::testing::{Auth, Harness},
+        domain::reference::{
+            MAX_ARCHIVE_BYTES,
+            tests::{CTY, CTY_CSV, cty_archive},
+        },
+        store::{account::token::TokenKind, reference::ReferenceKind},
+        web::testing::{Auth, Harness, ORIGIN},
     };
+
+    const CTY_URI: &str = "/api/reference/cty";
+
+    async fn lookup(h: &Harness, call: &str) -> Value {
+        let session = h.session(&h.world.operator).await;
+        let uri = h.path(&format!("/lookup?call={call}"));
+        let (status, body) = h.send("GET", &uri, Auth::Session(&session), None).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        body["entity"].clone()
+    }
+
+    #[tokio::test]
+    async fn installs_a_cty_archive_uploaded_by_an_admin() {
+        let (h, dir) = Harness::with_references().await;
+        let admin = h.session(&h.world.admin).await;
+        let archive = cty_archive(CTY, CTY_CSV);
+        let (status, body) = h.put_bytes(CTY_URI, Auth::Session(&admin), &[], &archive).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!((&body["kind"], &body["version"]), (&json!("cty"), &json!("20260915")));
+        assert_eq!(std::fs::read(dir.path().join("cty.zip")).unwrap(), archive);
+        assert_eq!(lookup(&h, "JA1XYZ").await["dxcc"], 339);
+
+        let renamed = cty_archive(
+            &CTY.replace("Japan:", "Nippon:").replace("20260915", "20261001"),
+            CTY_CSV,
+        );
+        let (status, body) = h.put_bytes(CTY_URI, Auth::Session(&admin), &[], &renamed).await;
+        assert_eq!((status, &body["version"]), (StatusCode::OK, &json!("20261001")));
+        assert_eq!(lookup(&h, "JA1XYZ").await["name"], "Nippon");
+        let (_, versions) = h.send("GET", "/api/reference", Auth::Session(&admin), None).await;
+        assert_eq!(versions[0]["version"], "20261001");
+    }
+
+    #[tokio::test]
+    async fn refuses_a_malformed_archive_and_keeps_the_installed_one() {
+        let (h, dir) = Harness::with_references().await;
+        let admin = h.session(&h.world.admin).await;
+        let archive = cty_archive(CTY, CTY_CSV);
+        h.put_bytes(CTY_URI, Auth::Session(&admin), &[], &archive).await;
+
+        for (upload, reason) in [
+            (CTY.as_bytes().to_vec(), "the file is not a zip archive"),
+            (
+                cty_archive(CTY, "JA,Japan,339,AS,25,45,36.40,-138.38,-9.0,JA;\n"),
+                "cty.csv has no row for JD/o of cty.dat",
+            ),
+            (Vec::new(), "the file is not a zip archive"),
+        ] {
+            let (status, body) = h.put_bytes(CTY_URI, Auth::Session(&admin), &[], &upload).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+            assert_eq!(
+                body,
+                json!({ "status": "error", "error": reason, "code": "reference_invalid" })
+            );
+        }
+        assert_eq!(std::fs::read(dir.path().join("cty.zip")).unwrap(), archive);
+        assert_eq!(lookup(&h, "JA1XYZ").await["name"], "Japan");
+    }
+
+    #[tokio::test]
+    async fn refuses_an_archive_over_the_body_limit() {
+        let (h, dir) = Harness::with_references().await;
+        let admin = h.session(&h.world.admin).await;
+        let mut archive = cty_archive(CTY, CTY_CSV);
+        archive.resize(MAX_ARCHIVE_BYTES + 1, 0);
+        let (status, _) = h.put_bytes(CTY_URI, Auth::Session(&admin), &[], &archive).await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(!dir.path().join("cty.zip").exists());
+    }
+
+    #[rstest]
+    #[case::operator("operator", StatusCode::FORBIDDEN)]
+    #[case::owner("owner", StatusCode::FORBIDDEN)]
+    #[case::anonymous("anonymous", StatusCode::UNAUTHORIZED)]
+    #[case::admin_token("token", StatusCode::UNAUTHORIZED)]
+    #[case::foreign_origin("foreign", StatusCode::FORBIDDEN)]
+    #[tokio::test]
+    async fn installs_only_for_an_admin_session_from_the_public_origin(
+        #[case] who: &str,
+        #[case] expected: StatusCode,
+    ) {
+        let (h, dir) = Harness::with_references().await;
+        let operator = h.session(&h.world.operator).await;
+        let owner = h.session(&h.world.owner).await;
+        let admin = h.session(&h.world.admin).await;
+        sqlx::query("INSERT INTO memberships (logbook_id, user_id, role, created_at) VALUES (?, ?, 'operator', 'now')")
+            .bind(&h.world.logbook.id)
+            .bind(&h.world.admin.id)
+            .execute(&h.world.db)
+            .await
+            .unwrap();
+        let token = h.token(&h.world.admin, TokenKind::Native, &[&h.world.logbook.id]).await;
+        let (auth, headers): (Auth<'_>, Vec<(&str, &str)>) = match who {
+            "operator" => (Auth::Session(&operator), vec![]),
+            "owner" => (Auth::Session(&owner), vec![]),
+            "anonymous" => (Auth::Anonymous, vec![]),
+            "token" => (Auth::Bearer(&token), vec![]),
+            "foreign" => (
+                Auth::Anonymous,
+                vec![("origin", "https://evil.example.com"), ("cookie", &admin)],
+            ),
+            _ => unreachable!(),
+        };
+        let (status, body) = h.put_bytes(CTY_URI, auth, &headers, &cty_archive(CTY, CTY_CSV)).await;
+        assert_eq!(status, expected, "{body}");
+        assert!(!dir.path().join("cty.zip").exists());
+        let (status, _) = h
+            .put_bytes(CTY_URI, Auth::Anonymous, &[("origin", ORIGIN), ("cookie", &admin)], &[])
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn hides_file_errors_from_the_client() {
+        let (h, dir) = Harness::with_references().await;
+        std::fs::create_dir(dir.path().join("cty.zip")).unwrap();
+        let admin = h.session(&h.world.admin).await;
+        let (status, body) = h
+            .put_bytes(CTY_URI, Auth::Session(&admin), &[], &cty_archive(CTY, CTY_CSV))
+            .await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body, json!({ "status": "error", "error": "internal server error" }));
+        let (_, versions) = h.send("GET", "/api/reference", Auth::Session(&admin), None).await;
+        assert_eq!(versions, json!([]));
+    }
 
     #[tokio::test]
     async fn serves_the_subdivisions_of_an_entity() {

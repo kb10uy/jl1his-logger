@@ -594,11 +594,10 @@ mod tests {
         let bare = create(&h, &cookie, "JA1AAA", "40m", "010000").await;
         assert_eq!(entity(&bare), [Value::Null, Value::Null, Value::Null, Value::Null]);
 
-        h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
-        let uncoded = create(&h, &cookie, "JA1BBB", "40m", "020000").await;
-        assert_eq!(entity(&uncoded), [Value::Null, json!("25"), json!("45"), json!("AS")]);
+        h.install_cty(CTY, "20260915").await;
+        let filled = create(&h, &cookie, "JA1BBB", "40m", "020000").await;
+        assert_eq!(entity(&filled), [json!("339"), json!("25"), json!("45"), json!("AS")]);
 
-        h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
         let created = h
             .create_qso(
                 &cookie,
@@ -632,7 +631,7 @@ mod tests {
     #[tokio::test]
     async fn records_a_qso_when_the_reference_data_cannot_be_read() {
         let (h, _dir) = Harness::with_references().await;
-        h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
+        h.install_cty(CTY, "20260915").await;
         std::fs::write(h.reference_path(ReferenceKind::Cty), "changed").unwrap();
         let cookie = h.session(&h.world.operator).await;
         let created = create(&h, &cookie, "JA1AAA", "40m", "010000").await;

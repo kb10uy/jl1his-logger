@@ -259,7 +259,8 @@ mod tests {
              INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision)
              VALUES ('log', 'batch', 'qso', 2);
              INSERT INTO reference_versions (kind, version, checksum, updated_at)
-             VALUES ('cty', '20261022', X'abcd', '2026-10-22T00:00:00Z');
+             VALUES ('cty', '20261022', X'abcd', '2026-10-22T00:00:00Z'),
+                    ('parks', '2026-10', X'ef', '2026-10-22T00:00:00Z');
              INSERT INTO sessions (token_hash, user_id, created_at, expires_at)
              VALUES (X'01', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z');",
         )
@@ -268,7 +269,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9]);
         assert!(migrated.snapshot.unwrap().is_file());
         let session: (String, Vec<u8>, String, Option<String>) =
             sqlx::query_as("SELECT id, token_hash, last_used_at, user_agent FROM sessions")
@@ -312,19 +313,19 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(target, ("log".into(), "batch".into(), "qso".into(), 2));
-        let reference: (String, String, Vec<u8>, String) =
+        let references: Vec<(String, String, Vec<u8>, String)> =
             sqlx::query_as("SELECT kind, version, checksum, updated_at FROM reference_versions")
-                .fetch_one(&db)
+                .fetch_all(&db)
                 .await
                 .unwrap();
         assert_eq!(
-            reference,
-            (
-                "cty".into(),
-                "20261022".into(),
-                vec![0xab, 0xcd],
+            references,
+            [(
+                "parks".into(),
+                "2026-10".into(),
+                vec![0xef],
                 "2026-10-22T00:00:00Z".into()
-            )
+            )]
         );
         assert!(
             sqlx::query("PRAGMA foreign_key_check")
@@ -335,17 +336,14 @@ mod tests {
         );
         for sql in [
             "UPDATE export_batches SET kind = 'unknown' WHERE id = 'batch'",
-            "UPDATE reference_versions SET kind = 'unknown' WHERE kind = 'cty'",
+            "UPDATE reference_versions SET kind = 'unknown' WHERE kind = 'parks'",
+            "INSERT INTO reference_versions (kind, version, updated_at) VALUES ('dxcc', '1', 'now')",
             "UPDATE export_batch_qsos SET batch_id = 'missing' WHERE batch_id = 'batch'",
             "UPDATE export_batch_qsos SET qso_id = 'missing' WHERE qso_id = 'qso'",
             "UPDATE qsos SET instrument_id = 'missing' WHERE id = 'qso'",
         ] {
             assert!(sqlx::query(sql).execute(&db).await.is_err(), "{sql}");
         }
-        sqlx::query("INSERT INTO reference_versions (kind, version, updated_at) VALUES ('dxcc', '1', 'now')")
-            .execute(&db)
-            .await
-            .unwrap();
         sqlx::query("DELETE FROM export_batches WHERE id = 'batch'")
             .execute(&db)
             .await

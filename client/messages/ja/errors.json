@@ -65,5 +65,6 @@
     "error_query_bad_field_name": "「{value}」は ADIF のフィールド名ではありません。",
     "error_query_missing_value": "{term}: 値がありません。",
     "error_query_bad_date": "「{value}」は日付でも日付の範囲でもありません。",
-    "error_query_bad_number": "「{value}」は数値でも数値の範囲でもありません。"
+    "error_query_bad_number": "「{value}」は数値でも数値の範囲でもありません。",
+    "error_reference_invalid": "ファイルを受け付けませんでした: {reason}"
 }

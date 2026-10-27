@@ -89,6 +89,8 @@ export function errorText(body: Record<string, unknown>): string | undefined {
             return m.error_passkey_unknown();
         case 'registration_link_invalid':
             return m.error_registration_link_invalid();
+        case 'reference_invalid':
+            return m.error_reference_invalid({ reason: text('error') });
         case 'not_utf8':
             return m.error_not_utf8();
         case 'not_encoding':

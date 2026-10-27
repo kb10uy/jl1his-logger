@@ -43,7 +43,7 @@ scoped to Logbooks.
   client-only app with offline entry.
 - `query/` — the log's query syntax as a Rust crate, used by the server and
   compiled to WASM for the client.
-- `assets/` — `config.example.toml` and the `dxcc` reference table.
+- `assets/` — `config.example.toml`.
 - `docs/` — development documentation.
 - `fixtures/` — expected files shared by the server and client tests.
 

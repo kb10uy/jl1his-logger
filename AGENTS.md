@@ -20,8 +20,7 @@ The repository contains:
   Instrument editing, ADIF import and export, bulk QSL changes.
 - `query/`: the query syntax of the log list as a Rust crate (parsing and
   matching a row), used by the server and compiled to WASM for the client.
-- `assets/`: `config.example.toml` and `dxcc.toml`, the `dxcc` reference
-  table.
+- `assets/`: `config.example.toml`.
 - `docs/`: development documentation: `decisions.md` (the design record),
   `operations.md` (building, configuration, the CLI, backups, the container),
   `api.md` (the native API), `wl2.md` (the `/wl2` layer) and `schema.md` (the
@@ -108,8 +107,10 @@ or another shared crate.
   Logbook, optionally prefixed `wl2_`. Compatibility `since_id`
   is the insertion `seq`. A Station may carry the Wavelog integer ID `/wl2`
   clients address it by. No Host-based routing.
-- **Reference data** (`cty.dat`, bands, modes, subdivisions, POTA parks) is
-  updated by CLI subcommands; the web UI shows versions and gets the
+- **Reference data** (a CTY zip archive holding `cty.dat` and `cty.csv`,
+  bands, modes, subdivisions, POTA parks) is installed by an admin with CLI
+  subcommands, and the CTY archive also by an upload on the server settings
+  screen; the web UI shows versions and gets the
   subdivisions of one DXCC entity from the native API for `STATE` and
   `MY_STATE` choices. Updating it never rewrites DXCC or zones already
   recorded on QSOs.

@@ -13,7 +13,10 @@ use axum::{
 };
 use serde_json::json;
 
-use super::{AppState, error::ApiError, references};
+use crate::{
+    domain::reference::MAX_ARCHIVE_BYTES,
+    web::{AppState, error::ApiError, references},
+};
 
 pub(super) fn router() -> Router<Arc<AppState>> {
     Router::new()
@@ -32,6 +35,10 @@ pub(super) fn router() -> Router<Arc<AppState>> {
         .route("/api/sessions", get(auth::session::list))
         .route("/api/sessions/{id}", delete(auth::session::revoke))
         .route("/api/reference", get(references::list))
+        .route(
+            "/api/reference/cty",
+            put(references::install_cty).layer(DefaultBodyLimit::max(MAX_ARCHIVE_BYTES)),
+        )
         .route("/api/reference/subdivisions/{dxcc}", get(references::subdivisions))
         .route("/api/tokens", get(auth::token::list).post(auth::token::issue))
         .route("/api/tokens/{id}", delete(auth::token::revoke))

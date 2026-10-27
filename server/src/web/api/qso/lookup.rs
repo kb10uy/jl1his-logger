@@ -84,7 +84,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::{account::token::TokenKind, logbook::station::StationInput, reference::ReferenceKind},
+        store::{account::token::TokenKind, logbook::station::StationInput},
         web::testing::{Auth, Harness},
     };
 
@@ -103,8 +103,7 @@ mod tests {
     #[tokio::test]
     async fn answers_the_entity_and_the_previous_contacts() {
         let (h, _dir) = Harness::with_references().await;
-        h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
-        h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
+        h.install_cty(CTY, "20260915").await;
         let session = h.session(&h.world.operator).await;
         let portable = h
             .create_station(&StationInput {
@@ -174,7 +173,6 @@ mod tests {
     #[tokio::test]
     async fn answers_without_an_entity_until_cty_is_installed() {
         let (h, _dir) = Harness::with_references().await;
-        h.install_reference(ReferenceKind::Dxcc, "JA = 339\n", "1").await;
         let token = h
             .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
             .await;
@@ -182,11 +180,11 @@ mod tests {
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body["entity"], Value::Null);
 
-        h.install_reference(ReferenceKind::Cty, CTY, "20260915").await;
+        h.install_cty(CTY, "20260915").await;
         let (_, body) = h.send("GET", &uri(&h, "call=JD1ABC"), Auth::Bearer(&token), None).await;
         assert_eq!(
             (&body["entity"]["name"], &body["entity"]["dxcc"]),
-            (&json!("Ogasawara"), &Value::Null)
+            (&json!("Ogasawara"), &json!(192))
         );
     }
 

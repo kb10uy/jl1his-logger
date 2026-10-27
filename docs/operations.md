@@ -129,16 +129,36 @@ jl1his-logger --as JL1HIS token issue field-logger --kind wl2 --wl2-prefix --log
 
 ### Reference Data
 
-Reference data (`cty`, `dxcc`, `subdivisions`, `parks`) is installed from local
-files by an admin and goes where `[reference]` in the configuration points. The
-running server picks up a new version without a restart. `assets/dxcc.toml` is
-the `dxcc` table, ready to install.
+Reference data (`cty`, `subdivisions`, `parks`) is installed from local files
+by an admin and goes where `[reference]` in the configuration points. The
+running server picks up a new version without a restart.
+
+`cty` is a CTY zip archive from [country-files.com](https://www.country-files.com/),
+either Big CTY (`bigcty-YYYYMMDD.zip`) or the contest files (`cty-NNNN.zip`),
+installed as downloaded: the server takes `cty.dat` and `cty.csv` from it. An
+admin can also upload it on the server settings screen of the web app.
 
 ```sh
-jl1his-logger --as JL1HIS reference install cty cty.dat                       # version from its =VER entry
-jl1his-logger --as JL1HIS reference install dxcc assets/dxcc.toml --version 2026-10
+jl1his-logger --as JL1HIS reference install cty bigcty-20261023.zip   # version from the =VER entry of its cty.dat
+jl1his-logger --as JL1HIS reference install parks parks.toml --version 2026-10
 jl1his-logger --as JL1HIS reference list
 ```
+
+#### Upgrading from a plain cty.dat
+
+Earlier versions installed `cty` as a plain `cty.dat` and kept the DXCC codes
+in a separate `dxcc` kind (`assets/dxcc.toml`). Migration 9 forgets both, so
+after the upgrade lookups answer without the entity and new QSOs get no `DXCC`,
+`CQZ`, `ITUZ` or `CONT` until `cty` is installed again from an archive:
+
+1. Remove the `dxcc` line from `[reference]` in `config.toml`; the setting is no
+   longer accepted and the server refuses to start with it. Optionally point
+   `cty` at `reference/cty.zip`, the new default.
+2. Start the new version (or run `migrate`).
+3. Install a CTY archive with `reference install cty <archive>.zip` or from the
+   server settings screen.
+4. Delete the old `cty.dat` and `dxcc.toml` from the reference directory if
+   `cty` no longer points at them.
 
 ### Backup and Restore
 
@@ -166,8 +186,8 @@ app come from the image's `serve` arguments, so the configuration needs only
 `server.public_origin`. The image is based on distroless and runs as its
 `nonroot` user (UID 65532) without a shell, so `docker exec` runs the binary
 itself, files go in and out with `docker cp`, and a bind-mounted `/data` must be
-writable by UID 65532. `assets/dxcc.toml` and `assets/config.example.toml` are
-in `/usr/share/jl1his-logger`.
+writable by UID 65532. `assets/config.example.toml` is in
+`/usr/share/jl1his-logger`.
 
 The Image workflow pushes it to `ghcr.io/kb10uy/jl1his-logger`: a `v*` tag
 publishes its version and `latest`, a manual run on `master` publishes `edge`,
@@ -180,5 +200,6 @@ printf '[server]\npublic_origin = "https://log.example.com"\n' > config.toml
 docker cp config.toml jl1his-logger:/data/config.toml
 docker start jl1his-logger
 docker exec jl1his-logger jl1his-logger setup --callsign JL1HIS
-docker exec jl1his-logger jl1his-logger --as JL1HIS reference install dxcc /usr/share/jl1his-logger/dxcc.toml
+docker cp bigcty-20261023.zip jl1his-logger:/data/bigcty-20261023.zip
+docker exec jl1his-logger jl1his-logger --as JL1HIS reference install cty /data/bigcty-20261023.zip
 ```

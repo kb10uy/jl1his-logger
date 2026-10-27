@@ -14,7 +14,10 @@ use url::Url;
 
 use crate::{
     config::{Config, ReferenceConfig},
-    domain::qso::QsoId,
+    domain::{
+        qso::QsoId,
+        reference::tests::{CTY_CSV, cty_archive},
+    },
     store::{
         WriteTx,
         account::{
@@ -65,8 +68,7 @@ impl Harness {
         let dir = tempfile::tempdir().unwrap();
         let config = Config {
             reference: ReferenceConfig {
-                cty: dir.path().join("cty.dat"),
-                dxcc: dir.path().join("dxcc.toml"),
+                cty: dir.path().join("cty.zip"),
                 subdivisions: dir.path().join("subdivisions.toml"),
                 parks: dir.path().join("parks.toml"),
             },
@@ -79,21 +81,25 @@ impl Harness {
         let paths = &self.state.config.reference;
         match kind {
             ReferenceKind::Cty => &paths.cty,
-            ReferenceKind::Dxcc => &paths.dxcc,
             ReferenceKind::Subdivisions => &paths.subdivisions,
             ReferenceKind::Parks => &paths.parks,
         }
     }
 
-    pub async fn install_reference(&self, kind: ReferenceKind, text: &str, version: &str) {
-        fs::write(self.reference_path(kind), text).unwrap();
-        self.record_reference(kind, version, text).await;
+    pub async fn install_reference(&self, kind: ReferenceKind, content: impl AsRef<[u8]>, version: &str) {
+        fs::write(self.reference_path(kind), content.as_ref()).unwrap();
+        self.record_reference(kind, version, content).await;
     }
 
-    pub async fn record_reference(&self, kind: ReferenceKind, version: &str, text: &str) {
+    pub async fn install_cty(&self, dat: &str, version: &str) {
+        self.install_reference(ReferenceKind::Cty, cty_archive(dat, CTY_CSV), version)
+            .await;
+    }
+
+    pub async fn record_reference(&self, kind: ReferenceKind, version: &str, content: impl AsRef<[u8]>) {
         let admin = self.world.admin_access().await;
         let mut tx = WriteTx::begin(&self.world.db).await.unwrap();
-        let checksum = Sha256::digest(text);
+        let checksum = Sha256::digest(content);
         reference::set(&mut tx, &admin, kind, version, Some(checksum.as_slice()))
             .await
             .unwrap();
@@ -210,6 +216,21 @@ impl Harness {
 
     pub async fn send_bytes(&self, uri: &str, auth: Auth<'_>, bytes: &[u8]) -> (StatusCode, Value) {
         let req = authorize(Request::post(uri), auth).header(header::CONTENT_TYPE, "text/plain");
+        let (status, _, body) = self.exchange(req.body(Body::from(bytes.to_owned())).unwrap()).await;
+        (status, body)
+    }
+
+    pub async fn put_bytes(
+        &self,
+        uri: &str,
+        auth: Auth<'_>,
+        headers: &[(&str, &str)],
+        bytes: &[u8],
+    ) -> (StatusCode, Value) {
+        let mut req = authorize(Request::put(uri), auth).header(header::CONTENT_TYPE, "application/zip");
+        for (name, value) in headers {
+            req = req.header(*name, *value);
+        }
         let (status, _, body) = self.exchange(req.body(Body::from(bytes.to_owned())).unwrap()).await;
         (status, body)
     }
