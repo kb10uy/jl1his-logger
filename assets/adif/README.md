@@ -48,4 +48,4 @@ Developers Group.
    QSL labels) may need updating: a new band needs a representative frequency
    and a label, and a new QSL value a localized label.
 5. Update the version and date at the top of this file and the ADIF version in
-   `docs/decisions.md`.
+   `docs/development/decisions.md`.

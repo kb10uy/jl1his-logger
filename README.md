@@ -46,19 +46,30 @@ scoped to Logbooks.
 - `query/` — the log's query syntax as a Rust crate, used by the server and
   compiled to WASM for the client.
 - `assets/` — `config.example.toml`.
-- `docs/` — development documentation.
+- `docs/` — `guide/` for running and talking to the application,
+  `development/` for its design.
 - `fixtures/` — expected files shared by the server and client tests.
 
 ## Documentation
 
-- [docs/operations.md](docs/operations.md) — building, configuring and running
-  the server, the CLI, backups and the container image.
-- [docs/decisions.md](docs/decisions.md) — the design record and the reasons
-  behind it.
-- [docs/api.md](docs/api.md) — the native API under `/api`.
-- [docs/wl2.md](docs/wl2.md) — the Wavelog API v2 compatibility layer under
-  `/wl2`.
-- [docs/schema.md](docs/schema.md) — the SQLite schema.
+For running the application and talking to it:
+
+- [docs/guide/operations.md](docs/guide/operations.md) — building, configuring
+  and running the server and the desktop client, the CLI, backups and the
+  container image.
+- [docs/guide/api.md](docs/guide/api.md) — the native API under `/api`.
+- [docs/guide/query.md](docs/guide/query.md) — the search query syntax of
+  the log list and the API.
+- [docs/guide/wl2.md](docs/guide/wl2.md) — the Wavelog API v2 compatibility
+  layer under `/wl2`.
+- [docs/guide/protocol.md](docs/guide/protocol.md) — what the desktop client
+  takes from other programs over UDP.
+
+For working on it:
+
+- [docs/development/decisions.md](docs/development/decisions.md) — the design
+  record and the reasons behind it.
+- [docs/development/schema.md](docs/development/schema.md) — the SQLite schema.
 
 ## Quick Start
 
@@ -75,7 +86,7 @@ cargo run --release -- -c data/config.toml serve
 ```
 
 `setup` prints a one-time link to register the first admin's passkey. Passkeys
-need HTTPS or `http://localhost`. See [docs/operations.md](docs/operations.md)
+need HTTPS or `http://localhost`. See [docs/guide/operations.md](docs/guide/operations.md)
 for the rest, including the container image.
 
 ## Development

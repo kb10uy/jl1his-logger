@@ -1,7 +1,7 @@
 # Operations
 
 How to build, configure and run jl1his-logger, and what the administration CLI
-does. The reasons behind these choices are in [decisions.md](decisions.md),
+does. The reasons behind these choices are in [decisions.md](../development/decisions.md),
 mostly under "Migrations and Deployment", "Backup and Restore" and "Reference
 Data".
 
@@ -97,7 +97,8 @@ port = 2333
 ```
 
 In WSJT-X, set Settings › Reporting › UDP Server to `127.0.0.1` and the
-port of a listener.
+port of a listener. What a listener takes, from WSJT-X, as ADIF text or as the
+client's own JSON, is in [protocol.md](protocol.md).
 
 Its frontend imports the web client's
 `client/src/lib`, so `client/` is installed first; the desktop's scripts
@@ -193,7 +194,7 @@ An import previews unless given `--apply`. New QSOs get IDs derived from their
 records, so rerunning an interrupted import adds only what is missing. A QSL
 merge (`lotw`, `eqsl`, `card`) only marks matched QSOs as received and reports
 unmatched and ambiguous records instead of guessing. See "ADIF Import" in
-decisions.md for the matching rules.
+[decisions.md](../development/decisions.md) for the matching rules.
 
 ### Wavelog API v2 Clients
 
