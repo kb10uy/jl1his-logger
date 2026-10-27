@@ -25,7 +25,10 @@ use crate::{
 };
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| tray::show_window(app)));
+    builder
         .setup(|app| {
             let config = match config::path_argument(std::env::args().skip(1)) {
                 Some(path) => path,
