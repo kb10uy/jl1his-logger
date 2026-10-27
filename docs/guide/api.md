@@ -1,44 +1,107 @@
 # Native API
 
-The API the web client uses, under `/api` on `public_origin`. Bodies are JSON.
-An error is `{"status": "error", "error": "<message>"}` with the HTTP status:
-`400` for an invalid request or an expired passkey request, `401` when not signed
-in or a passkey or registration link is refused, `403` for a cross-origin write or
-a missing right, `404` for anything not found or not visible, `409` for a
-conflict, `412` when `If-Match` names another revision, `415` / `422` for a body
-that is not the expected JSON, `428` when `If-Match` is missing. Some errors add fields next to `error`, such
-as `current` on a revision conflict. An error a user can meet in the web client
-also has a stable `code` and its parameters beside it, so the client can word
-it in the user's language; `error` stays English. The codes are `not_found`
-(with `what`: `QSO`, `Station`, `Instrument`, `Logbook`, `user`, `passkey`,
-`API token`, `export batch`, `Membership`), `qso_missing` and `qso_invalid`
-(`field`, `value`), `qso_field_name`, `qso_column_field`, `qso_too_long`
-(`field`, `bytes`, `max`), `qso_too_many_fields` (`count`, `max`),
-`field_repeated`, `field_not_allowed`, `instrument_field` and
-`area_field_not_allowed` (`field`), `name_required`, `name_too_long` (`bytes`,
-`max`), `wavelog_id_taken` (`id`), `last_owner`, `last_passkey`,
-`passkey_registered`, `passkey_failed`, `passkey_expired`, `passkey_unknown`,
-`registration_link_invalid`, `not_a_callsign` (`callsign`),
-`token_needs_logbook`, `wl2_token_one_logbook`, `wl2_prefix_only`,
-`qso_deleted`, `qso_changed`, `id_taken` and `revision_conflict` (`id`),
-`rewrite_count_changed` (`count`, `expected`), `too_many_values` (`count`,
-`max`), `batch_empty`, `batch_applied` (`id`), `batch_nothing_to_apply`
-(`kind`), `not_utf8`, `not_encoding` (`encoding`), `not_adif` (`detail`),
-`unencodable` (`record`, `field`, `character`) and the query codes below. Under `/api/logbooks/{logbook_id}` the
-caller's Membership is checked before the request itself, so a caller outside
-the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
-and carry the security headers listed in [decisions.md](../development/decisions.md).
+The API the web client uses, under `/api` on `public_origin`. Bodies are
+JSON. It covers sign-in, the server version and health, reference versions,
+API tokens, Logbooks, Members, Stations, Instruments, QSOs with their event
+stream, bulk QSL changes, export batches and ADIF import. The Wavelog API v2
+compatibility layer under `/wl2` is described in [wl2.md](wl2.md). Responses
+are `Cache-Control: no-store` and carry the security headers listed in
+[decisions.md](../development/decisions.md).
 
-It covers sign-in, the server version and health, reference versions, API tokens, Logbooks, Members,
-Stations, Instruments, QSOs with their event stream, bulk QSL changes, export batches and
-ADIF import. The Wavelog API v2 compatibility layer under `/wl2` is described
-in [wl2.md](wl2.md).
+## Callers
+
+A request is authenticated by the session cookie the web client holds, or by a
+`native` API token sent as `Authorization: Bearer <token>` (see API Tokens
+below). When `Authorization` is present the cookie is ignored. Not every
+endpoint takes a token:
+
+| Endpoints | Session cookie | `native` API token |
+| --- | --- | --- |
+| `GET /api/health` | Not needed | Not needed |
+| `POST /api/auth/login/*`, `POST /api/auth/register/*` | Issued by them | No |
+| `GET /api/me` | Yes | Yes |
+| `GET /api/logbooks` and everything under `/api/logbooks/{logbook_id}`: Logbooks, Members, Stations, Instruments, QSOs, Lookup, Bulk QSL Changes, Export Batches, ADIF Import, the Event Stream | Yes | Yes, for the Logbooks of its scopes |
+| `POST /api/auth/logout`, `/api/passkeys`, `/api/sessions`, `/api/tokens`, `GET /api/version`, `/api/reference` | Yes | No: `401` |
+
+A token reaches only the Logbooks of its scopes where its user still has a
+Membership; a `wl2` token is refused with `401` everywhere under `/api`. Under
+`/api/logbooks/{logbook_id}` the caller's Membership is checked before the
+request itself, so a caller outside the Logbook gets `404` whatever it sends.
+A Logbook, Station, Instrument or QSO the caller cannot reach is `404`, the
+same as one that does not exist. A write reserved for owners is `403` for an
+operator. State-changing requests must come from `public_origin`.
+
+## Errors
+
+An error is `{"status": "error", "error": "<message>"}` with the HTTP status:
+
+| Status | When |
+| --- | --- |
+| `400` | An invalid request, or an expired passkey request |
+| `401` | Not signed in, or a passkey or registration link is refused |
+| `403` | A cross-origin write, or a missing right |
+| `404` | Anything not found or not visible |
+| `409` | A conflict |
+| `412` | `If-Match` names another revision |
+| `415` / `422` | A body that is not the expected JSON |
+| `428` | `If-Match` is missing |
+
+Some errors add fields next to `error`, such as `current` on a revision
+conflict. An error a user can meet in the web client also has a stable `code`
+and its parameters beside it, so the client can word it in the user's
+language; `error` stays English.
+
+| `code` | Parameters | When |
+| --- | --- | --- |
+| `not_found` | `what`: `QSO`, `Station`, `Instrument`, `Logbook`, `user`, `passkey`, `API token`, `export batch` or `Membership` | The thing does not exist or is not visible |
+| `qso_missing` | `field` | A required QSO field is absent |
+| `qso_invalid` | `field`, `value` | A QSO field holds a value that is not valid |
+| `qso_field_name` | `field` | Not an ADIF field name |
+| `qso_column_field` | `field` | A column field was given among the extra fields |
+| `qso_too_long` | `field`, `bytes`, `max` | A value is longer than a field may be |
+| `qso_too_many_fields` | `count`, `max` | The QSO has more extra fields than are kept |
+| `field_repeated` | `field` | A field is given more than once |
+| `field_not_allowed` | `field` | A field that cannot be a Station or Instrument default |
+| `instrument_field` | `field` | `MY_RIG`, `MY_ANTENNA` or `TX_PWR` given to a Station |
+| `area_field_not_allowed` | `field` | A field that cannot be the Logbook's area field |
+| `name_required` | | A Station, Instrument or token without a name |
+| `name_too_long` | `bytes`, `max` | A name longer than is kept |
+| `wavelog_id_taken` | `id` | Another Station has the Wavelog ID |
+| `last_owner` | | Removing or demoting the Logbook's last owner |
+| `last_passkey` | | Deleting the user's last passkey |
+| `passkey_registered` | | The passkey is already registered |
+| `passkey_failed` | | The authenticator's answer was refused |
+| `passkey_expired` | | The ceremony has expired |
+| `passkey_unknown` | | The passkey is not registered |
+| `registration_link_invalid` | | The registration link is unknown or used up |
+| `not_a_callsign` | `callsign` | The member's callsign is not a callsign |
+| `token_needs_logbook` | | A token without a Logbook |
+| `wl2_token_one_logbook` | | A `wl2` token with more than one Logbook |
+| `wl2_prefix_only` | | `wl2_prefix` on a `native` token |
+| `qso_deleted` | `id` | Updating a deleted QSO |
+| `qso_changed` | `id` | The QSO changed while it was being updated |
+| `id_taken` | `id` | The ID belongs to another QSO |
+| `revision_conflict` | `id` | `If-Match` names another revision |
+| `rewrite_count_changed` | `count`, `expected` | The QSOs a rewrite would change no longer match the previewed count |
+| `too_many_values` | `count`, `max` | A filter lists more values than are taken |
+| `batch_empty` | | An export selects no QSOs |
+| `batch_applied` | `id` | The export batch has already been applied |
+| `batch_nothing_to_apply` | `kind` | Batches of this kind have nothing to apply |
+| `not_utf8` | | An imported file is not UTF-8 |
+| `not_encoding` | `encoding` | An imported file is not in the named encoding |
+| `not_adif` | `detail` | An imported file is not ADIF |
+| `unencodable` | `record`, `field`, `character` | An export holds a character the encoding cannot write |
+| `reference_invalid` | | A CTY archive was refused |
+
+The query codes of `q` are listed under Search.
 
 ## Sign-in
 
 WebAuthn options are the webauthn-rs JSON (`publicKey` with base64url binary
 fields). A start returns a `ceremony` ID that its finish sends back with the
 browser's `credential`; a ceremony is used once and expires after 5 minutes.
+Of these endpoints, only `GET /api/me` takes a `native` API token; the rest
+work with the session cookie alone.
 
 | Request | Body | Response |
 | --- | --- | --- |
@@ -126,24 +189,14 @@ The plaintext is shown only in the response that issues it. Every Logbook in
 exactly one Logbook; `wl2_prefix` starts its plaintext with `wl2_`, by which
 some clients choose API v2. Another user's token is `404` for anyone but an admin.
 
-## Callers
-
-The endpoints under `/api/logbooks` accept either the session cookie or a `native` API
-token as `Authorization: Bearer <token>`. A token reaches only the Logbooks of
-its scopes where its user still has a Membership; a `wl2` token is refused with
-`401`. When `Authorization` is present the cookie is ignored. `GET /api/me`
-also takes a `native` token and answers with its user, without a cookie.
-The other sign-in and passkey endpoints take the session cookie only.
-
-A Logbook, Station, Instrument or QSO the caller cannot reach is `404`, the same as one
-that does not exist. A write reserved for owners is `403` for an operator.
-
 ## Logbooks
 
 A Logbook is `{id, name, role, cursor_generation, last_seq, last_updated_seq,
 area_field}`, where `role` is the caller's Membership, `owner` or `operator`,
 and `area_field` is the Logbook's area code field, `{name, label}` such as
-`{"name": "CNTY", "label": "JCC / JCG"}`, or `null`.
+`{"name": "CNTY", "label": "JCC / JCG"}`, or `null`. These endpoints, and
+every one under `/api/logbooks/{logbook_id}` in the sections that follow, take
+the session cookie or a `native` API token.
 
 | Request | Body | Response |
 | --- | --- | --- |
