@@ -171,6 +171,17 @@ function fields() {
     return names;
 }
 
+function dxccEntities() {
+    const entities = [];
+    for (const row of read('enumerations_dxcc_entity_code')) {
+        const code = Number(row.required('Entity Code'));
+        if (!Number.isInteger(code)) row.fail(`${row.get('Entity Code')} is not an entity code`);
+        if (entities.some((e) => e.code === code)) row.fail(`entity ${code} is listed twice`);
+        entities.push({ code, name: row.required('Entity Name'), deleted: row.flag('Deleted') });
+    }
+    return entities.sort((a, b) => a.code - b.code);
+}
+
 const values = (name, column) => read(name).map((row) => row.required(column));
 
 const { modes: modeTable, importOnly } = modes();
@@ -179,6 +190,7 @@ const tables = [
     ['ADIF_MODES', 'readonly AdifMode[]', modeTable],
     ['ADIF_IMPORT_ONLY_MODES', 'readonly string[]', importOnly],
     ['ADIF_QSO_FIELDS', 'readonly string[]', fields()],
+    ['ADIF_DXCC_ENTITIES', 'readonly AdifDxccEntity[]', dxccEntities()],
     ['ADIF_QSL_SENT', 'readonly string[]', values('enumerations_qsl_sent', 'Status')],
     ['ADIF_QSL_RCVD', 'readonly string[]', values('enumerations_qsl_rcvd', 'Status')],
     ['ADIF_QSL_VIA', 'readonly string[]', values('enumerations_qsl_via', 'Via')]
@@ -187,6 +199,7 @@ const text = [
     `export const ADIF_VERSION = ${JSON.stringify(version)};`,
     'export interface AdifBand {\n    name: string;\n    lowerHz: number;\n    upperHz: number;\n}',
     'export interface AdifMode {\n    mode: string;\n    submodes: readonly string[];\n}',
+    'export interface AdifDxccEntity {\n    code: number;\n    name: string;\n    deleted: boolean;\n}',
     ...tables.map(
         ([name, type, value]) =>
             `export const ${name}: ${type} = ${JSON.stringify(value, null, 4)};`
