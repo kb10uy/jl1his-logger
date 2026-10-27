@@ -1,4 +1,5 @@
 <script lang="ts">
+    import type { ClassValue } from 'svelte/elements';
     import { MODE_CHOICES, MODE_ENTRIES, modeKey, parseModeKey } from '#client/qso/modes.ts';
 
     let {
@@ -11,7 +12,7 @@
         id: string;
         mode: string;
         submode: string;
-        class?: string;
+        class?: ClassValue;
         onchange: (mode: string, submode: string) => void;
     } = $props();
 

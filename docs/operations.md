@@ -49,7 +49,27 @@ settings are `config.toml` in the app's configuration directory
 (`%APPDATA%\org.kb10uy.jl1his-logger\` on Windows; `config.dev.toml` for a
 debug build), or the file given as `--config <path>`
 (`pnpm tauri dev -- -- --config dev.toml`). The token is kept in the system's
-credential store, not in that file. Its frontend imports the web client's
+credential store, not in that file. The rest of it is set on the settings
+screen, or by hand:
+
+```toml
+language = "ja"              # en or ja; without it, the operating system's
+
+[server]
+url = "https://log.example.com"
+
+[rig]
+enabled = true               # read the rig through rigctld
+host = "127.0.0.1"
+port = 4532
+poll_ms = 1000
+
+[rig.modes]                  # the logged mode for a rig mode, as MODE|SUBMODE
+PKTUSB = "MFSK|FT4"
+FM = "DIGITALVOICE|C4FM"
+```
+
+Its frontend imports the web client's
 `client/src/lib`, so `client/` is installed first; the desktop's scripts
 generate the client's ADIF tables and messages themselves.
 
