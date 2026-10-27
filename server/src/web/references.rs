@@ -204,7 +204,6 @@ mod tests {
             MAX_ARCHIVE_BYTES,
             tests::{CTY, CTY_CSV, cty_archive},
         },
-        store::account::token::TokenKind,
         web::testing::{Auth, Harness, ORIGIN},
     };
 
@@ -298,7 +297,7 @@ mod tests {
             .execute(&h.world.db)
             .await
             .unwrap();
-        let token = h.token(&h.world.admin, TokenKind::Native, &[&h.world.logbook.id]).await;
+        let token = h.token(&h.world.admin, &[&h.world.logbook.id]).await;
         let (auth, headers): (Auth<'_>, Vec<(&str, &str)>) = match who {
             "operator" => (Auth::Session(&operator), vec![]),
             "owner" => (Auth::Session(&owner), vec![]),

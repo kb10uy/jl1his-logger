@@ -4,7 +4,6 @@ import type { CommandError } from './types.ts';
 const KINDS = new Set([
     'badUrl',
     'unauthorized',
-    'wl2Token',
     'noLogbook',
     'unreachable',
     'server',
@@ -26,8 +25,6 @@ export function errorText(e: CommandError): string {
             return m.signin_error_bad_url({ detail: e.detail });
         case 'unauthorized':
             return m.signin_error_unauthorized();
-        case 'wl2Token':
-            return m.signin_error_wl2();
         case 'noLogbook':
             return m.signin_error_no_logbook();
         case 'unreachable':
@@ -44,4 +41,4 @@ export function errorText(e: CommandError): string {
 }
 
 export const refusesToken = (e: CommandError | undefined): boolean =>
-    e?.kind === 'unauthorized' || e?.kind === 'wl2Token' || e?.kind === 'noLogbook';
+    e?.kind === 'unauthorized' || e?.kind === 'noLogbook';

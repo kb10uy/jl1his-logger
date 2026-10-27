@@ -12,7 +12,6 @@
     "signin_rejected": "保存していたトークンがサーバーに拒否されました。新しいトークンを入力してください。",
     "signin_error_bad_url": "Web 版を開いている URL を https:// から入力してください。({detail})",
     "signin_error_unauthorized": "サーバーがトークンを拒否しました。失効しているか、ユーザーがどのログブックにも属していない可能性があります。",
-    "signin_error_wl2": "これは Wavelog 互換のトークンです。ネイティブ API のトークンを発行してください。",
     "signin_error_no_logbook": "このトークンで使えるログブックがありません。記録するログブックを選んで発行してください。",
     "signin_error_unreachable": "サーバーに接続できません。URL とネットワークを確認してください。({detail})",
     "signin_error_server": "サーバーが {status} を返しました: {detail}",

@@ -22,7 +22,7 @@ use crate::{
         WriteTx,
         account::{
             session,
-            token::{self, TokenInput, TokenKind},
+            token::{self, TokenInput},
             user::User,
         },
         logbook::station::{self, Station, StationInput},
@@ -109,17 +109,15 @@ impl Harness {
         format!("__Host-session={token}")
     }
 
-    pub async fn token(&self, user: &User, kind: TokenKind, logbook_ids: &[&str]) -> String {
+    pub async fn token(&self, user: &User, logbook_ids: &[&str]) -> String {
         let access = self.world.user_access(user).await;
         let mut tx = WriteTx::begin(&self.world.db).await.unwrap();
         let issued = token::issue(
             &mut tx,
             &access,
             &TokenInput {
-                kind,
                 name: "test".into(),
                 logbook_ids: logbook_ids.iter().map(|id| id.to_string()).collect(),
-                wl2_prefix: false,
             },
         )
         .await

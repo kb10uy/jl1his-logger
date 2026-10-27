@@ -203,27 +203,6 @@ pub struct Filter {
     pub query: text::Query,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Confirmation {
-    Card,
-    Lotw,
-    Eqsl,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct InsertionQuery {
-    pub filter: Filter,
-    pub mode_or_submode: Option<String>,
-    pub confirmed_by: Vec<Confirmation>,
-    pub after_seq: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InsertionPage {
-    pub rows: Vec<StoredQso>,
-    pub total: u64,
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Order {
     #[default]
@@ -757,75 +736,6 @@ pub async fn previous(
         }
     }
     Ok(previous)
-}
-
-pub async fn by_insertion(
-    conn: &mut SqliteConnection,
-    access: &LogbookAccess,
-    query: &InsertionQuery,
-    offset: u64,
-    limit: u32,
-) -> Result<InsertionPage, StoreError> {
-    access.revalidate(conn).await?;
-    if limit == 0 {
-        return Err(StoreError::Invalid("a page needs at least one row".into()));
-    }
-    let mut conditions = Conditions::of(access, &query.filter)?;
-    conditions.push("seq > ?", [Bind::Int(query.after_seq)]);
-    if let Some(mode) = &query.mode_or_submode {
-        let mode = mode.trim().to_owned();
-        conditions.push(
-            "(trim(mode) = ? COLLATE NOCASE OR trim(coalesce(submode, '')) = ? COLLATE NOCASE)",
-            [Bind::Text(mode.clone()), Bind::Text(mode)],
-        );
-    }
-    if !query.confirmed_by.is_empty() {
-        let any: Vec<&str> = query
-            .confirmed_by
-            .iter()
-            .map(|confirmation| match confirmation {
-                Confirmation::Card => "upper(trim(coalesce(qsl_rcvd, ''))) IN ('Y', 'V')",
-                Confirmation::Lotw => "upper(trim(coalesce(lotw_qsl_rcvd, ''))) IN ('Y', 'V')",
-                Confirmation::Eqsl => "upper(trim(coalesce(eqsl_qsl_rcvd, ''))) IN ('Y', 'V')",
-            })
-            .collect();
-        conditions.push(format!("({})", any.join(" OR ")), []);
-    }
-    let offset = i64::try_from(offset).map_err(|_| StoreError::Invalid("the page is out of range".into()))?;
-
-    let mut tx = conn.begin().await?;
-    let count_sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
-    let total: i64 = conditions
-        .bind(sqlx::query(AssertSqlSafe(count_sql)))
-        .fetch_one(&mut *tx)
-        .await?
-        .try_get(0)?;
-    let sql = format!("{} WHERE {} ORDER BY seq LIMIT ? OFFSET ?", *SELECT, conditions.sql());
-    let rows = conditions
-        .bind(sqlx::query(AssertSqlSafe(sql)))
-        .bind(i64::from(limit))
-        .bind(offset)
-        .fetch_all(&mut *tx)
-        .await?
-        .iter()
-        .map(StoredQso::from_row)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(InsertionPage {
-        rows,
-        total: total.try_into().unwrap_or_default(),
-    })
-}
-
-pub async fn contest_ids(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result<Vec<String>, StoreError> {
-    access.revalidate(conn).await?;
-    Ok(sqlx::query_scalar(
-        "SELECT min(trim(contest_id)) FROM qsos \
-         WHERE logbook_id = ? AND deleted_at IS NULL AND trim(coalesce(contest_id, '')) <> '' \
-         GROUP BY upper(trim(contest_id)) ORDER BY upper(trim(contest_id))",
-    )
-    .bind(access.logbook_id())
-    .fetch_all(conn)
-    .await?)
 }
 
 #[derive(Debug, Clone, Copy)]

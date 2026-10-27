@@ -6,15 +6,14 @@ jl1his-logger is the QSO log of record for JL1HIS: one Rust server, one SQLite
 database, a same-origin SvelteKit PWA and a Tauri desktop entry client. The
 design is recorded in
 `docs/development/decisions.md`; it is the authority on IDs, synchronization, storage,
-permissions, ADIF handling and the Wavelog API v2 compatibility layer, and
-this file only summarizes it. `README.md` is the product overview.
+permissions and ADIF handling, and this file only summarizes it. `README.md` is the product overview.
 
 The repository contains:
 
 - `server/`: Rust (edition 2024) + axum + sqlx (SQLite). The native API, the
-  Wavelog API v2 compatibility layer under `/wl2`, the SSE stream, ADIF import
-  and export, passkey sign-in (webauthn-rs), and the admin CLI (`setup`,
-  reference data, backup). Serves `client/build` on one origin.
+  SSE stream, ADIF import and export, passkey sign-in (webauthn-rs), and the
+  admin CLI (`setup`, reference data, backup). Serves `client/build` on one
+  origin.
 - `client/`: SvelteKit + Svelte 5 (runes) + TypeScript, built with
   `adapter-static` as a client-only SPA/PWA. Log list and search, QSO editing,
   live entry, voice entry, Station Location and
@@ -29,9 +28,8 @@ The repository contains:
   its README).
 - `docs/`: `guide/` for running and talking to the application:
   `operations.md` (building, configuration, the CLI, backups, the container),
-  `api.md` (the native API), `query.md` (the search query syntax), `wl2.md`
-  (the `/wl2` layer) and `protocol.md` (what the desktop client takes over
-  UDP); `development/` for working on it:
+  `api.md` (the native API), `query.md` (the search query syntax) and
+  `protocol.md` (what the desktop client takes over UDP); `development/` for working on it:
   `decisions.md` (the design record) and `schema.md` (the database).
 - `fixtures/`: expected files shared by the `server/` and `client/` tests,
   such as ADIF exports.
@@ -64,7 +62,6 @@ shared crate.
   other defaults) of a Logbook, independent of Stations, which never hold
   those three. Their values are baked in before the Station's, so they win;
   `instrument_id` is kept like `station_id`. Without one, nothing fills them.
-  `/wl2` QSOs have none.
 - **A Logbook may name an area code field** (`area_field`: an ADIF field
   and a label, such as `CNTY` labelled "JCC / JCG"), set by owners. Live
   entry, voice entry and the QSO editor show one field for it and nothing
@@ -109,14 +106,6 @@ shared crate.
   and deletes anyone's QSOs and manages Instruments; rewriting the past QSOs
   of a Station or an Instrument is for owners. API tokens belong to a User and are scoped to
   Logbooks; the plaintext is shown once.
-- **The `/wl2` layer matches a subset of Wavelog API v2**:
-  `station_profile_id`, `since_id` / `lastfetchedid` / `has_more`,
-  `format=adif`, `400 validation_error` with `details.duplicate`,
-  `lookup?detail=basic`, and the `contest` and `subdivisions` catalog topics.
-  `/wl2/api/v2/lookup` is an alias. Compatibility tokens are fixed to one
-  Logbook, optionally prefixed `wl2_`. Compatibility `since_id`
-  is the insertion `seq`. A Station may carry the Wavelog integer ID `/wl2`
-  clients address it by. No Host-based routing.
 - **Reference data** (a CTY zip archive holding `cty.dat` and `cty.csv`) is
   installed by an admin with a CLI subcommand or by an upload on the server
   settings screen; the web UI shows versions.
@@ -214,7 +203,8 @@ shared crate.
 - When a change departs from a decision in `docs/development/decisions.md`, or settles
   something listed under "Remaining Work" there, update that file in the same
   change.
-- Mention Wavelog only where it concerns the `/wl2` compatibility layer.
+- Mention Wavelog only in the notes on the removed `/wl2` compatibility
+  layer.
 - When a change alters behavior, APIs, architecture or anything else
   documented, update the relevant documentation in the same change.
 

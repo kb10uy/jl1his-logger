@@ -461,7 +461,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::{account::token::TokenKind, reference::ReferenceKind},
+        store::reference::ReferenceKind,
         web::testing::{Auth, Harness},
     };
 
@@ -1037,8 +1037,7 @@ mod tests {
     async fn accepts_native_tokens_scoped_to_the_logbook() {
         let h = Harness::new().await;
         let logbook_id = h.world.logbook.id.as_str();
-        let native = h.token(&h.world.operator, TokenKind::Native, &[logbook_id]).await;
-        let wl2 = h.token(&h.world.operator, TokenKind::Wl2, &[logbook_id]).await;
+        let native = h.token(&h.world.operator, &[logbook_id]).await;
         let outsider = h.session(&h.world.outsider).await;
         let admin = h.session(&h.world.admin).await;
         let uri = h.path("/qsos");
@@ -1056,7 +1055,6 @@ mod tests {
 
         for (auth, expected) in [
             (Auth::Bearer(&native), StatusCode::OK),
-            (Auth::Bearer(&wl2), StatusCode::UNAUTHORIZED),
             (Auth::Bearer("nothing"), StatusCode::UNAUTHORIZED),
             (Auth::Anonymous, StatusCode::UNAUTHORIZED),
             (Auth::Session(&outsider), StatusCode::NOT_FOUND),

@@ -13,8 +13,6 @@ use crate::{
 
 #[derive(Args)]
 pub struct StationFields {
-    #[arg(long, help = "Old Wavelog station ID kept for /wl2 clients")]
-    wavelog_id: Option<i64>,
     #[arg(
         long = "field",
         value_name = "NAME=VALUE",
@@ -26,9 +24,6 @@ pub struct StationFields {
 
 impl StationFields {
     fn apply(&self, input: &mut StationInput) {
-        if let Some(id) = self.wavelog_id {
-            input.wavelog_id = Some(id);
-        }
         for (name, value) in &self.fields {
             let name = name.to_ascii_uppercase();
             match value.is_empty() {
@@ -120,11 +115,10 @@ impl StationCommand {
 }
 
 fn print_station(station: &Station) {
-    let wavelog = station.wavelog_id.map(|id| format!("wavelog {id}")).unwrap_or_default();
     let archived = station.archived_at.as_ref().map(|_| "archived").unwrap_or("");
     let favorite = if station.favorite { "favorite" } else { "" };
     println!(
-        "{}\t{}\t{}\t{wavelog}\t{archived}\t{favorite}",
+        "{}\t{}\t{}\t{archived}\t{favorite}",
         station.id, station.name, station.callsign
     );
     for (name, value) in &station.fields {
@@ -145,7 +139,6 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
             let mut input = StationInput {
                 name,
                 callsign,
-                wavelog_id: None,
                 fields: BTreeMap::new(),
             };
             fields.apply(&mut input);
@@ -165,7 +158,6 @@ pub async fn station(context: &Context<'_>, command: StationCommand) -> CliResul
             let mut input = StationInput {
                 name: name.unwrap_or(current.name),
                 callsign: callsign.unwrap_or(current.callsign),
-                wavelog_id: current.wavelog_id,
                 fields: current.fields,
             };
             fields.apply(&mut input);
@@ -236,14 +228,12 @@ mod tests {
             ..StationInput::default()
         };
         let fields = StationFields {
-            wavelog_id: Some(3),
             fields: vec![
                 ("my_city".to_owned(), String::new()),
                 ("my_rig".to_owned(), "IC-705".to_owned()),
             ],
         };
         fields.apply(&mut input);
-        assert_eq!(input.wavelog_id, Some(3));
         assert_eq!(
             input.fields,
             BTreeMap::from([("MY_RIG".to_owned(), "IC-705".to_owned())])

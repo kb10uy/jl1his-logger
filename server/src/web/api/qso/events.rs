@@ -195,12 +195,9 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
-    use crate::{
-        store::account::token::TokenKind,
-        web::{
-            MAX_STREAMS,
-            testing::{Auth, Harness, authorize},
-        },
+    use crate::web::{
+        MAX_STREAMS,
+        testing::{Auth, Harness, authorize},
     };
 
     struct Events {
@@ -335,9 +332,7 @@ mod tests {
         assert_eq!(resumed.next().await, Some(hello(&h, 2, 1)));
         assert_eq!(resumed.next().await, Some(change(&h, &second)));
 
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         let (status, mut live) = Events::open(&h, Auth::Bearer(&token), "", None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(live.next().await, Some(hello(&h, 2, 2)));
@@ -404,9 +399,7 @@ mod tests {
         let operator = h.session(&h.world.operator).await;
         create(&h, &operator, "JA1AAA").await;
         create(&h, &operator, "JA1BBB").await;
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         let (_, mut events) = Events::open(&h, Auth::Bearer(&token), "?after=0", None).await;
         assert_eq!(events.next().await, Some(hello(&h, 2, 0)));
         assert!(events.next().await.is_some());

@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 
 use chrono::{TimeDelta, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
@@ -13,46 +12,18 @@ use crate::{
     },
 };
 
-const WL2_PREFIX: &str = "wl2_";
 const TOUCH_INTERVAL: TimeDelta = TimeDelta::days(1);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TokenKind {
-    Native,
-    Wl2,
-}
-
-impl TokenKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            TokenKind::Native => "native",
-            TokenKind::Wl2 => "wl2",
-        }
-    }
-
-    fn parse(s: &str) -> Result<TokenKind, StoreError> {
-        match s {
-            "native" => Ok(TokenKind::Native),
-            "wl2" => Ok(TokenKind::Wl2),
-            _ => Err(StoreError::Invalid(format!("unknown token kind {s:?}").into())),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenInput {
-    pub kind: TokenKind,
     pub name: String,
     pub logbook_ids: Vec<String>,
-    pub wl2_prefix: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApiToken {
     pub id: String,
     pub user_id: String,
-    pub kind: TokenKind,
     pub name: String,
     pub logbook_ids: Vec<String>,
     pub created_at: String,
@@ -65,7 +36,6 @@ impl ApiToken {
         Ok(ApiToken {
             id: row.try_get("id")?,
             user_id: row.try_get("user_id")?,
-            kind: TokenKind::parse(row.try_get("kind")?)?,
             name: row.try_get("name")?,
             logbook_ids: serde_json::from_str(&scopes)
                 .map_err(|e| StoreError::Invalid(format!("token scopes are not a list: {e}").into()))?,
@@ -81,7 +51,7 @@ pub struct Issued {
     pub plaintext: String,
 }
 
-const SELECT: &str = "SELECT t.id, t.user_id, t.kind, t.name, t.created_at, t.last_used_at, \
+const SELECT: &str = "SELECT t.id, t.user_id, t.name, t.created_at, t.last_used_at, \
      (SELECT json_group_array(logbook_id) FROM \
       (SELECT logbook_id FROM api_token_scopes WHERE token_id = t.id ORDER BY logbook_id)) AS scopes \
      FROM api_tokens t";
@@ -90,25 +60,10 @@ pub async fn issue(tx: &mut WriteTx, user: &UserAccess, input: &TokenInput) -> R
     let user = user.revalidate(tx).await?;
     let name = store_name("a token", &input.name)?;
     let scopes: BTreeSet<&str> = input.logbook_ids.iter().map(String::as_str).collect();
-    match (input.kind, scopes.len()) {
-        (_, 0) => {
-            return Err(StoreError::Invalid(Fault::coded(
-                "token_needs_logbook",
-                "a token needs a Logbook",
-            )));
-        }
-        (TokenKind::Wl2, 2..) => {
-            return Err(StoreError::Invalid(Fault::coded(
-                "wl2_token_one_logbook",
-                "a wl2 token is fixed to one Logbook",
-            )));
-        }
-        _ => {}
-    }
-    if input.wl2_prefix && input.kind != TokenKind::Wl2 {
+    if scopes.is_empty() {
         return Err(StoreError::Invalid(Fault::coded(
-            "wl2_prefix_only",
-            "only wl2 tokens take the wl2_ prefix",
+            "token_needs_logbook",
+            "a token needs a Logbook",
         )));
     }
     let principal = Principal::user(user.user_id());
@@ -116,13 +71,11 @@ pub async fn issue(tx: &mut WriteTx, user: &UserAccess, input: &TokenInput) -> R
         access::logbook(tx, &principal, logbook_id).await?;
     }
 
-    let prefix = if input.wl2_prefix { WL2_PREFIX } else { "" };
-    let plaintext = format!("{prefix}{}", random_token());
+    let plaintext = random_token();
     let id = new_id();
-    sqlx::query("INSERT INTO api_tokens (id, user_id, kind, name, token_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    sqlx::query("INSERT INTO api_tokens (id, user_id, name, token_hash, created_at) VALUES (?, ?, ?, ?, ?)")
         .bind(&id)
         .bind(user.user_id())
-        .bind(input.kind.as_str())
         .bind(name)
         .bind(hash_token(&plaintext))
         .bind(now())
@@ -170,15 +123,14 @@ pub async fn revoke(tx: &mut WriteTx, user: &UserAccess, token_id: &str) -> Resu
     Ok(())
 }
 
-pub async fn authenticate(db: &Db, plaintext: &str, kind: TokenKind) -> Result<(Principal, ApiToken), StoreError> {
+pub async fn authenticate(db: &Db, plaintext: &str) -> Result<(Principal, ApiToken), StoreError> {
     let mut token = {
         let mut conn = db.acquire().await?;
         let row = sqlx::query(AssertSqlSafe(format!(
             "{SELECT} JOIN users u ON u.id = t.user_id \
-             WHERE t.token_hash = ? AND t.kind = ? AND u.disabled_at IS NULL"
+             WHERE t.token_hash = ? AND u.disabled_at IS NULL"
         )))
         .bind(hash_token(plaintext.trim()))
-        .bind(kind.as_str())
         .fetch_optional(&mut *conn)
         .await?
         .ok_or(StoreError::Unauthenticated)?;
@@ -223,12 +175,10 @@ mod tests {
     use super::*;
     use crate::store::{logbook, testing::World};
 
-    fn input(kind: TokenKind, logbook_ids: &[&str]) -> TokenInput {
+    fn input(logbook_ids: &[&str]) -> TokenInput {
         TokenInput {
-            kind,
             name: " hislog ".into(),
             logbook_ids: logbook_ids.iter().map(|id| id.to_string()).collect(),
-            wl2_prefix: false,
         }
     }
 
@@ -243,7 +193,7 @@ mod tests {
     #[tokio::test]
     async fn issues_a_token_that_authenticates_as_its_user() {
         let world = World::new().await;
-        let issued = issue_one(&world, &input(TokenKind::Native, &[&world.logbook.id])).await;
+        let issued = issue_one(&world, &input(&[&world.logbook.id])).await;
         assert_eq!(issued.token.name, "hislog");
         assert_eq!(issued.token.logbook_ids, std::slice::from_ref(&world.logbook.id));
         assert_eq!(issued.plaintext.len(), 64);
@@ -255,9 +205,7 @@ mod tests {
             .unwrap();
         assert_ne!(stored, issued.plaintext.as_bytes());
 
-        let (principal, token) = authenticate(&world.db, &issued.plaintext, TokenKind::Native)
-            .await
-            .unwrap();
+        let (principal, token) = authenticate(&world.db, &issued.plaintext).await.unwrap();
         assert!(token.last_used_at.is_some());
         let mut conn = world.db.acquire().await.unwrap();
         let access = access::logbook(&mut conn, &principal, &world.logbook.id).await.unwrap();
@@ -265,19 +213,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn opens_only_the_api_of_its_kind() {
+    async fn refuses_an_unknown_token() {
         let world = World::new().await;
-        let mut wl2 = input(TokenKind::Wl2, &[&world.logbook.id]);
-        wl2.wl2_prefix = true;
-        let issued = issue_one(&world, &wl2).await;
-        assert!(issued.plaintext.starts_with("wl2_"));
-        assert!(authenticate(&world.db, &issued.plaintext, TokenKind::Wl2).await.is_ok());
+        issue_one(&world, &input(&[&world.logbook.id])).await;
         assert!(matches!(
-            authenticate(&world.db, &issued.plaintext, TokenKind::Native).await,
-            Err(StoreError::Unauthenticated)
-        ));
-        assert!(matches!(
-            authenticate(&world.db, "wl2_unknown", TokenKind::Wl2).await,
+            authenticate(&world.db, "unknown").await,
             Err(StoreError::Unauthenticated)
         ));
     }
@@ -297,16 +237,11 @@ mod tests {
         let user = world.user_access(&world.operator).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let refused = [
-            input(TokenKind::Native, &[&world.logbook.id, &other.id]),
-            input(TokenKind::Native, &[]),
-            input(TokenKind::Wl2, &[&world.logbook.id, &other.id]),
-            TokenInput {
-                wl2_prefix: true,
-                ..input(TokenKind::Native, &[&world.logbook.id])
-            },
+            input(&[&world.logbook.id, &other.id]),
+            input(&[]),
             TokenInput {
                 name: " ".into(),
-                ..input(TokenKind::Native, &[&world.logbook.id])
+                ..input(&[&world.logbook.id])
             },
         ];
         for input in &refused {
@@ -321,7 +256,7 @@ mod tests {
     #[tokio::test]
     async fn lets_the_user_or_an_admin_list_and_revoke() {
         let world = World::new().await;
-        let issued = issue_one(&world, &input(TokenKind::Native, &[&world.logbook.id])).await;
+        let issued = issue_one(&world, &input(&[&world.logbook.id])).await;
         let owner = world.user_access(&world.owner).await;
         let admin = world.user_access(&world.admin).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
@@ -343,7 +278,7 @@ mod tests {
         tx.commit().await.unwrap();
 
         assert!(matches!(
-            authenticate(&world.db, &issued.plaintext, TokenKind::Native).await,
+            authenticate(&world.db, &issued.plaintext).await,
             Err(StoreError::Unauthenticated)
         ));
     }
@@ -351,16 +286,14 @@ mod tests {
     #[tokio::test]
     async fn touches_last_used_at_once_a_day() {
         let world = World::new().await;
-        let issued = issue_one(&world, &input(TokenKind::Native, &[&world.logbook.id])).await;
+        let issued = issue_one(&world, &input(&[&world.logbook.id])).await;
         let old = timestamp(Utc::now() - TimeDelta::hours(1));
         sqlx::query("UPDATE api_tokens SET last_used_at = ?")
             .bind(&old)
             .execute(&world.db)
             .await
             .unwrap();
-        let (_, token) = authenticate(&world.db, &issued.plaintext, TokenKind::Native)
-            .await
-            .unwrap();
+        let (_, token) = authenticate(&world.db, &issued.plaintext).await.unwrap();
         assert_eq!(token.last_used_at, Some(old));
 
         let older = timestamp(Utc::now() - TimeDelta::hours(25));
@@ -369,9 +302,7 @@ mod tests {
             .execute(&world.db)
             .await
             .unwrap();
-        authenticate(&world.db, &issued.plaintext, TokenKind::Native)
-            .await
-            .unwrap();
+        authenticate(&world.db, &issued.plaintext).await.unwrap();
         let stored: String = sqlx::query_scalar("SELECT last_used_at FROM api_tokens")
             .fetch_one(&world.db)
             .await

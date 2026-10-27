@@ -23,7 +23,6 @@ use crate::{
 #[derive(Debug, Serialize)]
 pub struct StationBody {
     id: String,
-    wavelog_id: Option<i64>,
     name: String,
     callsign: String,
     fields: BTreeMap<String, String>,
@@ -37,7 +36,6 @@ impl From<Station> for StationBody {
     fn from(station: Station) -> StationBody {
         StationBody {
             id: station.id,
-            wavelog_id: station.wavelog_id,
             name: station.name,
             callsign: station.callsign,
             fields: station.fields,
@@ -53,7 +51,6 @@ impl From<Station> for StationBody {
 pub struct StationRequest {
     name: String,
     callsign: String,
-    wavelog_id: Option<i64>,
     #[serde(default)]
     fields: BTreeMap<String, String>,
 }
@@ -63,7 +60,6 @@ impl From<StationRequest> for StationInput {
         StationInput {
             name: req.name,
             callsign: req.callsign,
-            wavelog_id: req.wavelog_id,
             fields: req.fields,
         }
     }
@@ -198,16 +194,12 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::*;
-    use crate::{
-        store::account::token::TokenKind,
-        web::testing::{Auth, Harness},
-    };
+    use crate::web::testing::{Auth, Harness};
 
     fn portable() -> Value {
         json!({
             "name": "Portable",
             "callsign": "jl1his/p",
-            "wavelog_id": 7,
             "fields": { "my_gridsquare": "PM95" },
         })
     }
@@ -227,7 +219,6 @@ mod tests {
         let (status, created) = h.send("POST", &stations, Auth::Session(&owner), Some(portable())).await;
         assert_eq!(status, StatusCode::CREATED, "{created}");
         assert_eq!(created["callsign"], "JL1HIS/P");
-        assert_eq!(created["wavelog_id"], 7);
         assert_eq!(created["fields"], json!({ "MY_GRIDSQUARE": "PM95" }));
         let uri = format!("{stations}/{}", created["id"].as_str().unwrap());
 
@@ -318,9 +309,7 @@ mod tests {
         let owner = h.session(&h.world.owner).await;
         let operator = h.session(&h.world.operator).await;
         let outsider = h.session(&h.world.outsider).await;
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         let favorite = format!("{stations}/{}/favorite", first.id);
 
         let (status, _) = h.send("POST", &favorite, Auth::Session(&outsider), None).await;

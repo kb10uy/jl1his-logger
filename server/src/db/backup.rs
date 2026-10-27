@@ -50,7 +50,6 @@ pub struct Restored {
 pub struct RestoredToken {
     pub callsign: String,
     pub name: String,
-    pub kind: String,
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
@@ -214,7 +213,7 @@ async fn reset(db: &Db, database: &Path) -> Result<Restored, BackupError> {
         .await?;
     tx.commit().await?;
     let tokens = sqlx::query_as(
-        "SELECT u.callsign, t.name, t.kind, t.created_at, t.last_used_at \
+        "SELECT u.callsign, t.name, t.created_at, t.last_used_at \
          FROM api_tokens t JOIN users u ON u.id = t.user_id ORDER BY u.callsign, t.created_at, t.id",
     )
     .fetch_all(db)
@@ -264,8 +263,8 @@ mod tests {
              INSERT INTO registration_tokens (token_hash, user_id, created_at, expires_at, used_at)
              VALUES (X'02', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z', NULL),
                     (X'03', 'user', '2026-10-22T00:00:00Z', '2099-01-01T00:00:00Z', '2026-10-22T01:00:00Z');
-             INSERT INTO api_tokens (id, user_id, kind, name, token_hash, created_at)
-             VALUES ('token', 'user', 'wl2', 'grayline', X'04', '2026-10-22T00:00:00Z');",
+             INSERT INTO api_tokens (id, user_id, name, token_hash, created_at)
+             VALUES ('token', 'user', 'grayline', X'04', '2026-10-22T00:00:00Z');",
         )
         .execute(&db)
         .await
@@ -356,7 +355,6 @@ mod tests {
             [RestoredToken {
                 callsign: "JL1HIS".into(),
                 name: "grayline".into(),
-                kind: "wl2".into(),
                 created_at: NOW.into(),
                 last_used_at: None,
             }]
@@ -454,7 +452,7 @@ mod tests {
 
         let held = lock(&path).unwrap();
         let restored = restore(&held, &path, &source).await.unwrap();
-        assert_eq!(restored.migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+        assert_eq!(restored.migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
         assert!(restored.migrated.snapshot.unwrap().is_file());
         assert!(restored.snapshot.unwrap().is_file());
         assert_eq!(fs::read(&source).unwrap(), saved);

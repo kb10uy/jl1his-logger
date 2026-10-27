@@ -4,7 +4,6 @@ import { draftOf, sameInput, splitParks, stationInput, stationProblem } from './
 
 const station: Station = {
     id: 's1',
-    wavelog_id: 3,
     name: 'Mt. Takao',
     callsign: 'JL1HIS/1',
     fields: {
@@ -28,13 +27,12 @@ describe('station drafts', () => {
         expect(input).toEqual({
             name: 'Mt. Takao',
             callsign: 'JL1HIS/1',
-            wavelog_id: 3,
             fields: station.fields
         });
         expect(sameInput(input, { ...input, fields: { MY_SIG: 'POTA', ...input.fields } })).toBe(
             true
         );
-        expect(sameInput(input, { ...input, wavelog_id: null })).toBe(false);
+        expect(sameInput(input, { ...input, callsign: 'JL1HIS' })).toBe(false);
     });
 
     it('drops empty values and upper-cases names', () => {
@@ -49,7 +47,6 @@ describe('station drafts', () => {
         expect(stationInput(draft)).toEqual({
             name: 'Home',
             callsign: 'JL1HIS',
-            wavelog_id: null,
             fields: { MY_SIG_INFO: 'JP-0012' }
         });
     });
@@ -61,7 +58,6 @@ describe('station drafts', () => {
 
     it.each([
         [{ name: '' }, 'A Station needs a name.'],
-        [{ wavelogId: '0' }, 'The Wavelog ID is a positive whole number.'],
         [
             { extra: [{ name: 'STATION_CALLSIGN', value: 'X' }] },
             'STATION_CALLSIGN cannot be a Station default.'

@@ -84,7 +84,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::{account::token::TokenKind, logbook::station::StationInput},
+        store::logbook::station::StationInput,
         web::testing::{Auth, Harness},
     };
 
@@ -109,7 +109,6 @@ mod tests {
             .create_station(&StationInput {
                 name: "Portable".into(),
                 callsign: "JL1HIS/1".into(),
-                wavelog_id: None,
                 fields: BTreeMap::new(),
             })
             .await;
@@ -173,9 +172,7 @@ mod tests {
     #[tokio::test]
     async fn answers_without_an_entity_until_cty_is_installed() {
         let (h, _dir) = Harness::with_references().await;
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         let (status, body) = h.send("GET", &uri(&h, "call=JA1XYZ"), Auth::Bearer(&token), None).await;
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body["entity"], Value::Null);

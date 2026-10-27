@@ -22,7 +22,7 @@ use crate::{
         access::{self, AdminAccess, Principal, UserAccess},
         account::{
             session::{self as sessions, SESSION_TTL},
-            token::{self as tokens, TokenKind},
+            token::{self as tokens},
             user::{self as users, Role, User},
         },
         hash_token, random_token,
@@ -143,7 +143,7 @@ impl FromRequestParts<Arc<AppState>> for Caller {
             });
         };
         let plaintext = bearer(authorization).ok_or(StoreError::Unauthenticated)?;
-        let (principal, token) = tokens::authenticate(&state.db, plaintext, TokenKind::Native).await?;
+        let (principal, token) = tokens::authenticate(&state.db, plaintext).await?;
         Ok(Caller {
             principal,
             scopes: Some(token.logbook_ids),

@@ -196,17 +196,6 @@ merge (`lotw`, `eqsl`, `card`) only marks matched QSOs as received and reports
 unmatched and ambiguous records instead of guessing. See "ADIF Import" in
 [decisions.md](../development/decisions.md) for the matching rules.
 
-### Wavelog API v2 Clients
-
-A client written for Wavelog API v2 reaches the `/wl2` layer
-([wl2.md](wl2.md)) with a `wl2` token fixed to one Logbook, and addresses
-Stations by the Wavelog IDs they are given:
-
-```sh
-jl1his-logger --as JL1HIS station update Home --wavelog-id 1
-jl1his-logger --as JL1HIS token issue field-logger --kind wl2 --wl2-prefix --logbook JL1HIS
-```
-
 ### Reference Data
 
 Reference data (`cty`, the one kind) is installed from a local file

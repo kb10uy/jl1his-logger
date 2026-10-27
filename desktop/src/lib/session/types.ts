@@ -14,7 +14,6 @@ export type Session =
 export type CommandError =
     | { kind: 'badUrl'; detail: string }
     | { kind: 'unauthorized' }
-    | { kind: 'wl2Token' }
     | { kind: 'noLogbook' }
     | { kind: 'unreachable'; detail: string }
     | { kind: 'server'; status: number; detail: string; body: Record<string, unknown> | null }

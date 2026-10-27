@@ -304,10 +304,8 @@ mod tests {
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         session::create(&mut tx, &world.operator.id, None).await.unwrap();
         let input = token::TokenInput {
-            kind: token::TokenKind::Native,
             name: "hislog".into(),
             logbook_ids: vec![world.logbook.id.clone()],
-            wl2_prefix: false,
         };
         token::issue(&mut tx, &operator, &input).await.unwrap();
         registration::issue(&mut tx, &admin, &world.operator.id, registration::DEFAULT_TTL)
