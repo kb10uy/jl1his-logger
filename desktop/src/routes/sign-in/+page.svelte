@@ -75,7 +75,7 @@
                     type="button"
                     aria-label={revealed ? m.signin_hide_token() : m.signin_show_token()}
                     aria-pressed={revealed}
-                    class="flex h-9 w-10 items-center justify-center rounded-r-md border border-l-0 border-border bg-surface text-muted"
+                    class="flex w-10 items-center justify-center self-stretch rounded-r-md border border-l-0 border-border bg-surface text-muted"
                     onclick={() => (revealed = !revealed)}
                 >
                     <svg
