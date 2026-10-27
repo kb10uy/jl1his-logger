@@ -44,7 +44,6 @@
     "settings_server_commit": "Commit",
     "settings_server_adif": "ADIF tables",
     "settings_server_commit_unknown": "unknown",
-    "settings_reference_parks": "POTA parks",
     "settings_reference_version": "Version",
     "settings_reference_installed": "Installed",
     "settings_reference_not_installed": "not installed",

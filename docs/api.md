@@ -85,8 +85,8 @@ container runtime to probe.
 ## Reference Data
 
 `GET /api/reference` returns the versions of the reference data in use,
-`[{kind, version, updated_at}]` with `kind` one of `cty` and `parks`. It takes the session cookie only. Reference data is updated with the
-CLI, and `cty` also with the endpoint below.
+`[{kind, version, updated_at}]` with `kind` `cty`, the one kind. It takes the session cookie only. Reference data is updated with the
+CLI or with the endpoint below.
 
 `PUT /api/reference/cty` installs a CTY zip archive from country-files.com (Big
 CTY or the contest files), sent as the raw request body, and answers the

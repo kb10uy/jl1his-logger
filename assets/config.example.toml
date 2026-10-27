@@ -27,8 +27,6 @@ path = "jl1his-logger.db"
 # whose cty.dat and cty.csv lookup and callsign resolution use; installed by an
 # admin with the CLI or from the web app.
 cty = "reference/cty.zip"
-# POTA park references and names.
-parks = "reference/parks.toml"
 
 [adif]
 # Length counting for exported ADI: "codepoints" (default) or "bytes".

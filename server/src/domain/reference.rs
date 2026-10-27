@@ -4,7 +4,7 @@ use std::{
 };
 
 use callfind::cty::{CtyDatabase, CtyError};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::Serialize;
 use zip::{CompressionMethod, ZipArchive};
 
 use crate::domain::qso::{Qso, QsoError};
@@ -17,8 +17,6 @@ pub const MAX_ARCHIVE_TEXT_BYTES: u64 = 4 * 1024 * 1024;
 pub enum ReferenceError {
     #[error(transparent)]
     Cty(#[from] CtyError),
-    #[error(transparent)]
-    Toml(#[from] toml::de::Error),
     #[error("{0}")]
     Invalid(String),
 }
@@ -32,12 +30,6 @@ pub struct Cty {
     pub database: CtyDatabase,
     pub codes: DxccCodes,
     pub version: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct Park {
-    pub name_en: Option<String>,
-    pub name_ja: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -63,7 +55,6 @@ impl Entity {
 }
 
 pub type DxccCodes = BTreeMap<String, u32>;
-pub type Parks = BTreeMap<String, Park>;
 
 pub fn parse_cty_archive(bytes: &[u8]) -> Result<Cty, ReferenceError> {
     if bytes.len() > MAX_ARCHIVE_BYTES {
@@ -192,25 +183,6 @@ fn parse_cty_csv(text: &str) -> Result<DxccCodes, ReferenceError> {
         return Err(invalid("cty.csv has no rows"));
     }
     Ok(codes)
-}
-
-pub fn text(bytes: &[u8]) -> Result<&str, ReferenceError> {
-    std::str::from_utf8(bytes).map_err(|_| invalid("the file is not UTF-8 text"))
-}
-
-pub fn parse_parks(text: &str) -> Result<Parks, ReferenceError> {
-    table(text, "park")
-}
-
-fn table<K: Ord + DeserializeOwned, V: DeserializeOwned>(
-    text: &str,
-    what: &str,
-) -> Result<BTreeMap<K, V>, ReferenceError> {
-    let table: BTreeMap<K, V> = toml::from_str(text)?;
-    match table.is_empty() {
-        true => Err(ReferenceError::Invalid(format!("the {what} table is empty"))),
-        false => Ok(table),
-    }
 }
 
 pub fn entity(cty: &Cty, call: &str) -> Option<Entity> {
@@ -523,25 +495,5 @@ I,Italy,248,EU,15,28,42.82,-12.58,-1.0,I IT9;
             lying[at..at + 4].copy_from_slice(&declared);
         }
         assert!(parse_cty_archive(&lying).is_err());
-    }
-
-    #[test]
-    fn reads_the_parks_table_qso_tools_reads() {
-        let parks = parse_parks("JP-0001 = { name_en = \"Rishiri\", name_ja = \"利尻\" }\nJP-0002 = {}\n").unwrap();
-        assert_eq!(parks["JP-0001"].name_ja.as_deref(), Some("利尻"));
-        assert_eq!(
-            parks["JP-0002"],
-            Park {
-                name_en: None,
-                name_ja: None
-            }
-        );
-    }
-
-    #[rstest]
-    #[case::empty_parks(parse_parks("").is_err())]
-    #[case::not_utf8(text(b"\xff").is_err())]
-    fn refuses_malformed_tables(#[case] refused: bool) {
-        assert!(refused);
     }
 }

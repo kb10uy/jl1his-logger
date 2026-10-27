@@ -246,12 +246,13 @@ operation.
 
 ### `reference_versions`
 
-The active version of each reference data set (`cty`, `parks`, enforced by a
+The active version of each reference data set (only `cty`, enforced by a
 `CHECK`), written when an admin installs a file with the
 CLI or uploads a CTY archive, with the file's SHA-256 as `checksum`. Migration 9
 removed the `dxcc` kind and forgot the `cty` row of a plain `cty.dat`, which
 must be installed again as an archive; migration 10 removed the
-`subdivisions` kind, now built into the server. The data itself
+`subdivisions` kind, now built into the server, and migration 11 the `parks`
+kind. The data itself
 lives in the files `config.toml` points at; the server reloads a file when its
 row changes, and the web UI reads this table to show the versions.
 

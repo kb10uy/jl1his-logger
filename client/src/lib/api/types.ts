@@ -179,7 +179,7 @@ export interface ServerVersion {
     adif: string;
 }
 
-export type ReferenceKind = 'cty' | 'parks';
+export type ReferenceKind = 'cty';
 
 export interface ReferenceVersion {
     kind: ReferenceKind;
