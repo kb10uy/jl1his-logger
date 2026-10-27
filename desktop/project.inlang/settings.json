@@ -6,7 +6,8 @@
         "pathPattern": [
             "./messages/{locale}/common.json",
             "./messages/{locale}/signin.json",
-            "./messages/{locale}/entry.json"
+            "./messages/{locale}/entry.json",
+            "./messages/{locale}/settings.json"
         ]
     }
 }

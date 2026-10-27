@@ -68,5 +68,12 @@
     "status_queued_title": "{count} 件の QSO がまだサーバーにありません。",
     "entry_favorites": "お気に入り",
     "entry_others": "その他",
-    "entry_band_shf": "SHF 以上"
+    "entry_band_shf": "SHF 以上",
+    "entry_rig_kept": "無線機: {rig}。{mode} は合っているのでそのままです。",
+    "entry_rig_followed": "無線機が {rig} に変わったため、モードを {mode} にしました。",
+    "entry_rig_mismatch": "無線機: {rig}。{mode} は合いませんが、{mode} として記録します。",
+    "status_rig_off": "rigctld オフ",
+    "status_rig_down": "rigctld 未接続",
+    "status_rig_title": "{seconds} 秒ごとに無線機を読み取っています。モードは {mode} です。",
+    "status_settings": "設定"
 }

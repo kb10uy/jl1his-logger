@@ -8,12 +8,15 @@
     import { m } from '#lib/paraglide/messages.js';
     import { getLocale } from '#lib/paraglide/runtime.js';
     import { session } from '#lib/session/session.svelte.ts';
+    import { settings } from '#lib/settings/settings.svelte.ts';
 
     let { children } = $props();
+    let ready = $state(false);
 
     document.documentElement.lang = getLocale();
 
     onMount(() => {
+        void settings.load().then((go) => (ready = go));
         session.load();
     });
 
@@ -42,7 +45,7 @@
     <title>{title}</title>
 </svelte:head>
 
-{#if session.current}
+{#if session.current && ready}
     {@render children()}
 {:else}
     <main class="flex min-h-dvh items-center justify-center text-muted">{m.common_loading()}</main>

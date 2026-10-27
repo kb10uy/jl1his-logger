@@ -68,5 +68,12 @@
     "status_queued_title": "{count} QSOs are not on the server yet.",
     "entry_favorites": "Favorites",
     "entry_others": "Others",
-    "entry_band_shf": "SHF and up"
+    "entry_band_shf": "SHF and up",
+    "entry_rig_kept": "Rig: {rig}. {mode} fits it, so it is kept.",
+    "entry_rig_followed": "The rig changed to {rig}, so the mode followed it to {mode}.",
+    "entry_rig_mismatch": "Rig: {rig}. {mode} does not fit it; it is logged as {mode} anyway.",
+    "status_rig_off": "rigctld off",
+    "status_rig_down": "rigctld not connected",
+    "status_rig_title": "Reading the rig every {seconds} s; it reports {mode}.",
+    "status_settings": "Settings"
 }
