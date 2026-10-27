@@ -23,4 +23,8 @@ node_modules
 /client/static/vosk-worker.js
 /client/test-results
 /client/playwright-report
+
+# desktop/
+/desktop/.svelte-kit
+/desktop/build
 vite.config.ts.timestamp-*
