@@ -1,0 +1,72 @@
+name: Desktop
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            client/pnpm-lock.yaml
+            desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          shared-key: desktop-windows
+
+      - name: Install the web client it imports
+        run: pnpm install --frozen-lockfile
+        working-directory: client
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the executable
+        run: pnpm tauri build --no-bundle
+      - name: Name the executable
+        id: exe
+        shell: bash
+        run: |
+          name="jl1his-logger-desktop-${GITHUB_REF_NAME//\//-}-windows-x64.exe"
+          cp src-tauri/target/release/jl1his-logger-desktop.exe "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.exe.outputs.name }}
+          path: desktop/${{ steps.exe.outputs.name }}
+          if-no-files-found: error
+
+      - name: Attach the executable to the release
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXE: ${{ steps.exe.outputs.name }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" "$EXE" --clobber

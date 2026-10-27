@@ -43,9 +43,12 @@ pnpm tauri dev                # Vite on port 1420 inside a Tauri window
 pnpm tauri build --no-bundle  # → desktop/src-tauri/target/release/jl1his-logger-desktop.exe
 ```
 
-The executable is handed out alone, without an installer. Its notifications
-on Windows are balloons of its tray icon, which Windows shows as toasts under
-the executable's own name and icon.
+The executable is handed out alone, without an installer. The Desktop workflow
+builds it on Windows for a `v*` tag and attaches it to that tag's GitHub
+Release as `jl1his-logger-desktop-<tag>-windows-x64.exe`, creating the Release
+with generated notes when there is none yet; a manual run keeps it as the
+run's artifact only. Its notifications on Windows are balloons of its tray
+icon, which Windows shows as toasts under the executable's own name and icon.
 
 It signs in with the server's URL and a Native API token issued in the web
 client under Settings › API tokens, or with `jl1his-logger token issue`. Its
