@@ -54,6 +54,7 @@ screen, or by hand:
 
 ```toml
 language = "ja"              # en or ja; without it, the operating system's
+close_to_tray = true         # closing the window leaves it running in the tray
 
 [server]
 url = "https://log.example.com"

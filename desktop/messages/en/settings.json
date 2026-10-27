@@ -36,5 +36,9 @@
     "settings_listen_add": "+ Listener",
     "settings_listen_off": "Off",
     "settings_listen_listening": "Listening",
-    "settings_listen_failed": "{error}. Retrying every 5 s."
+    "settings_listen_failed": "{error}. Retrying every 5 s.",
+    "settings_tray": "Tray",
+    "settings_tray_switch": "Keep running in the tray when the window is closed",
+    "settings_tray_on": "Closing the window keeps it in the tray, logging from other programs. Quit from the tray menu.",
+    "settings_tray_off": "Closing the window quits."
 }

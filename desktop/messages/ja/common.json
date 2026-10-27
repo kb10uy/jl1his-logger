@@ -5,5 +5,7 @@
     "common_sign_out": "サインアウト",
     "common_unexpected": "問題が起きました: {detail}",
     "window_title": "{callsign} — JL1HIS Logger",
-    "common_unreachable": "サーバーに接続できません。"
+    "common_unreachable": "サーバーに接続できません。",
+    "tray_show": "表示",
+    "tray_quit": "終了"
 }

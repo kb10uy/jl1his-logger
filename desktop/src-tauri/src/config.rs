@@ -17,6 +17,8 @@ pub const FILE_NAME: &str = if cfg!(debug_assertions) {
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    #[serde(default = "default_close_to_tray")]
+    pub close_to_tray: bool,
     pub server: Option<Server>,
     #[serde(default)]
     pub rig: Rig,
@@ -28,11 +30,16 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             language: None,
+            close_to_tray: true,
             server: None,
             rig: Rig::default(),
             listeners: default_listeners(),
         }
     }
+}
+
+fn default_close_to_tray() -> bool {
+    true
 }
 
 fn socket_address(host: &str, port: u16) -> String {
@@ -199,7 +206,7 @@ mod tests {
         assert!(
             fs::read_to_string(&path)
                 .unwrap()
-                .starts_with("[server]\nurl = \"https://log.example.com\"\n")
+                .starts_with("close_to_tray = true\n\n[server]\nurl = \"https://log.example.com\"\n")
         );
     }
 
@@ -209,6 +216,7 @@ mod tests {
         let path = dir.path().join("config.toml");
         let config = Config {
             language: Some("ja".to_owned()),
+            close_to_tray: false,
             rig: Rig {
                 enabled: true,
                 modes: BTreeMap::from([("PKTUSB".to_owned(), "MFSK|FT4".to_owned())]),
@@ -259,7 +267,9 @@ enabled = true
 ",
         )
         .unwrap();
-        let listeners = Config::load(&path).unwrap().listeners;
+        let config = Config::load(&path).unwrap();
+        assert!(config.close_to_tray);
+        let listeners = config.listeners;
         let addresses: Vec<_> = listeners.iter().map(|l| (l.enabled, l.address())).collect();
         assert_eq!(
             addresses,

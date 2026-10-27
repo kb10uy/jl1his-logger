@@ -36,5 +36,9 @@
     "settings_listen_add": "+ 待ち受け",
     "settings_listen_off": "オフ",
     "settings_listen_listening": "待ち受け中",
-    "settings_listen_failed": "{error}。5 秒ごとに再試行します。"
+    "settings_listen_failed": "{error}。5 秒ごとに再試行します。",
+    "settings_tray": "トレイ",
+    "settings_tray_switch": "ウィンドウを閉じてもトレイで動かし続ける",
+    "settings_tray_on": "ウィンドウを閉じてもトレイに残り、他のプログラムからの QSO を記録し続けます。終了はトレイのメニューから。",
+    "settings_tray_off": "ウィンドウを閉じると終了します。"
 }

@@ -23,6 +23,7 @@ export interface Settings {
     path: string;
     credentialStore: string;
     language: Locale | null;
+    closeToTray: boolean;
     rig: RigSettings;
     listeners: ListenerSettings[];
 }
@@ -69,6 +70,7 @@ class SettingsState {
 
     async save(change: {
         language?: Locale | null;
+        closeToTray?: boolean;
         rig?: RigSettings;
         listeners?: ListenerSettings[];
     }) {
@@ -76,9 +78,12 @@ class SettingsState {
         if (current === undefined) return;
         try {
             const saved = await invoke<Settings>('save_settings', {
-                language: change.language === undefined ? current.language : change.language,
-                rig: change.rig ?? current.rig,
-                listeners: change.listeners ?? current.listeners
+                change: {
+                    language: change.language === undefined ? current.language : change.language,
+                    closeToTray: change.closeToTray ?? current.closeToTray,
+                    rig: change.rig ?? current.rig,
+                    listeners: change.listeners ?? current.listeners
+                }
             });
             this.current = { ...saved, language: asLocale(saved.language) };
             this.error = undefined;

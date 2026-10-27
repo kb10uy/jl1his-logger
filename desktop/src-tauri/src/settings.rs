@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 use crate::{
@@ -6,6 +6,7 @@ use crate::{
     listen::{Incoming, ListenerState, Listeners},
     rig::{RigState, RigWatcher},
     session::{CommandError, Paths},
+    tray::Tray,
 };
 
 const LANGUAGES: [&str; 2] = ["en", "ja"];
@@ -24,6 +25,7 @@ pub struct Settings {
     path: String,
     credential_store: &'static str,
     language: Option<String>,
+    close_to_tray: bool,
     rig: Rig,
     listeners: Vec<Listener>,
 }
@@ -34,10 +36,20 @@ impl Settings {
             path: paths.config.display().to_string(),
             credential_store: CREDENTIAL_STORE,
             language: config.language,
+            close_to_tray: config.close_to_tray,
             rig: config.rig,
             listeners: config.listeners,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Change {
+    language: Option<String>,
+    close_to_tray: bool,
+    rig: Rig,
+    listeners: Vec<Listener>,
 }
 
 pub fn language(language: Option<String>) -> Option<String> {
@@ -55,17 +67,18 @@ pub fn save_settings(
     paths: State<'_, Paths>,
     watcher: State<'_, RigWatcher>,
     listening: State<'_, Listeners>,
-    language: Option<String>,
-    rig: Rig,
-    listeners: Vec<Listener>,
+    tray: State<'_, Tray>,
+    change: Change,
 ) -> Result<Settings, CommandError> {
     let mut config = Config::load(&paths.config)?;
-    let restart = !config.rig.same_connection(&rig);
-    let relisten = config.listeners != listeners;
-    config.language = self::language(language);
-    config.rig = rig;
-    config.listeners = listeners;
+    let restart = !config.rig.same_connection(&change.rig);
+    let relisten = config.listeners != change.listeners;
+    config.language = self::language(change.language);
+    config.close_to_tray = change.close_to_tray;
+    config.rig = change.rig;
+    config.listeners = change.listeners;
     config.save(&paths.config)?;
+    tray.set_close_to_tray(config.close_to_tray);
     if restart {
         watcher.start(&app, &config.rig);
     }

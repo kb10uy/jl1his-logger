@@ -2,6 +2,7 @@
     import '@fontsource-variable/inter';
     import '../app.css';
     import { onMount } from 'svelte';
+    import { invoke } from '@tauri-apps/api/core';
     import { getCurrentWindow } from '@tauri-apps/api/window';
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
@@ -31,6 +32,9 @@
         getCurrentWindow()
             .setTitle(title)
             .catch(() => undefined);
+        invoke('set_tray_text', { tooltip: title, show: m.tray_show(), quit: m.tray_quit() }).catch(
+            () => undefined
+        );
     });
 
     $effect(() => {

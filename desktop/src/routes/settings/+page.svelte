@@ -420,6 +420,35 @@
             {/if}
 
             <section
+                aria-labelledby="settings-tray"
+                class="flex items-center gap-3 rounded-lg border border-border bg-surface p-[12px]"
+            >
+                <h2 id="settings-tray" class="m-0 w-[96px] flex-none text-[13px] font-semibold">
+                    {m.settings_tray()}
+                </h2>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={current.closeToTray}
+                    aria-label={m.settings_tray_switch()}
+                    class={[
+                        'relative h-[20px] w-[36px] flex-none rounded-full',
+                        current.closeToTray ? 'bg-info-strong' : 'bg-border'
+                    ]}
+                    onclick={() => settings.save({ closeToTray: !current.closeToTray })}
+                    ><span
+                        class={[
+                            'absolute top-[2px] size-[16px] rounded-full bg-text',
+                            current.closeToTray ? 'left-[18px]' : 'left-[2px]'
+                        ]}
+                    ></span></button
+                >
+                <span class="text-[12px] text-muted"
+                    >{current.closeToTray ? m.settings_tray_on() : m.settings_tray_off()}</span
+                >
+            </section>
+
+            <section
                 aria-labelledby="settings-language"
                 class="flex items-center gap-3 rounded-lg border border-border bg-surface p-[12px]"
             >

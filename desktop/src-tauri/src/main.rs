@@ -11,8 +11,9 @@ mod rig;
 mod rigctld;
 mod session;
 mod settings;
+mod tray;
 
-use tauri::{Manager, RunEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 use crate::{
     config::Config,
@@ -20,6 +21,7 @@ use crate::{
     listen::Listeners,
     rig::RigWatcher,
     session::{Connection, Paths},
+    tray::Tray,
 };
 
 fn main() {
@@ -31,10 +33,13 @@ fn main() {
             };
             let rig = RigWatcher::default();
             let listeners = Listeners::default();
-            if let Ok(loaded) = Config::load(&config) {
+            let loaded = Config::load(&config).ok();
+            if let Some(loaded) = &loaded {
                 rig.start(app.handle(), &loaded.rig);
                 listeners.start(app.handle(), &loaded.listeners);
             }
+            let close_to_tray = loaded.as_ref().is_none_or(|l| l.close_to_tray);
+            app.manage(Tray::build(app.handle(), close_to_tray)?);
             app.manage(Paths { config });
             app.manage(Connection::default());
             app.manage(Watchers::default());
@@ -54,8 +59,17 @@ fn main() {
             settings::reconnect_rig,
             settings::listener_states,
             settings::incoming,
-            settings::ack_incoming
+            settings::ack_incoming,
+            tray::set_tray_text
         ])
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && window.try_state::<Tray>().is_some_and(|tray| tray.closes_to_tray())
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .build(tauri::generate_context!())
         .expect("the Tauri application failed to build")
         .run(|app, event| {
