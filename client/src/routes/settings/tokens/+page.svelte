@@ -1,31 +1,26 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import type { Token, TokenKind } from '#lib/api/types.ts';
+    import type { Token } from '#lib/api/types.ts';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
-    import Slotted from '#lib/components/ui/Slotted.svelte';
-    import { roleLabel, SLOT } from '#lib/i18n.ts';
+    import { roleLabel } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { lastLogbook, session } from '#lib/state/session.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
     let tokens = $state<Token[] | undefined>(undefined);
     let name = $state('');
-    let kind = $state<TokenKind>('native');
     let chosen = $state<string[]>(
         session.logbook(lastLogbook() ?? '') ? [lastLogbook() ?? ''] : []
     );
-    let prefix = $state(true);
     let issuing = $state(false);
     let plaintext = $state<string | undefined>(undefined);
     let revoking = $state<Token | undefined>(undefined);
     let confirming = $state(false);
 
-    const logbookIds = $derived(
-        kind === 'wl2' ? chosen.slice(0, 1) : chosen.filter((id) => session.logbook(id))
-    );
+    const logbookIds = $derived(chosen.filter((id) => session.logbook(id)));
     const problem = $derived(
         name.trim() === ''
             ? m.settings_tokens_name_problem()
@@ -45,8 +40,7 @@
     });
 
     function toggle(id: string, on: boolean) {
-        if (kind === 'wl2') chosen = on ? [id] : [];
-        else chosen = on ? [...chosen, id] : chosen.filter((c) => c !== id);
+        chosen = on ? [...chosen, id] : chosen.filter((c) => c !== id);
     }
 
     async function issue(event: Event) {
@@ -54,12 +48,7 @@
         if (problem !== undefined) return;
         issuing = true;
         try {
-            const issued = await api.issueToken({
-                kind,
-                name: name.trim(),
-                logbook_ids: logbookIds,
-                wl2_prefix: kind === 'wl2' ? prefix : undefined
-            });
+            const issued = await api.issueToken({ name: name.trim(), logbook_ids: logbookIds });
             tokens = [issued.token, ...(tokens ?? [])];
             plaintext = issued.plaintext;
             name = '';
@@ -109,27 +98,12 @@
                 autocomplete="off"
                 bind:value={name}
             />
-            <span class="text-xs text-muted md:pt-0.5">{m.settings_kind()}</span>
-            <div
-                role="radiogroup"
-                aria-label={m.settings_kind()}
-                class="flex flex-wrap gap-x-5 gap-y-2"
-            >
-                <label class="flex cursor-pointer items-center gap-1.5 text-[13px]">
-                    <input type="radio" name="tok-kind" value="native" bind:group={kind} />
-                    {m.settings_tokens_native()}
-                </label>
-                <label class="flex cursor-pointer items-center gap-1.5 text-[13px]">
-                    <input type="radio" name="tok-kind" value="wl2" bind:group={kind} />
-                    {m.settings_tokens_wl2()}
-                </label>
-            </div>
             <span class="text-xs text-muted md:pt-0.5">{m.settings_tokens_logbooks()}</span>
             <div class="flex flex-col gap-2">
                 {#each session.logbooks as logbook (logbook.id)}
                     <label class="flex cursor-pointer items-center gap-2 text-[13px]">
                         <input
-                            type={kind === 'wl2' ? 'radio' : 'checkbox'}
+                            type="checkbox"
                             name="tok-logbook"
                             checked={logbookIds.includes(logbook.id)}
                             onchange={(e) => toggle(logbook.id, e.currentTarget.checked)}
@@ -138,19 +112,7 @@
                         <span class="text-xs text-muted">{roleLabel(logbook.role)}</span>
                     </label>
                 {/each}
-                {#if kind === 'wl2'}
-                    <span class="text-xs text-muted">{m.settings_tokens_wl2_one_logbook()}</span>
-                {/if}
             </div>
-            {#if kind === 'wl2'}
-                <span class="max-md:hidden"></span>
-                <label class="flex cursor-pointer items-center gap-2 text-[13px]">
-                    <input type="checkbox" bind:checked={prefix} />
-                    <Slotted text={m.settings_tokens_wl2_prefix({ prefix: SLOT })}
-                        ><code class="font-mono">wl2_</code></Slotted
-                    >
-                </label>
-            {/if}
         </div>
         <div class="flex flex-wrap items-center justify-end gap-3">
             {#if problem && name !== ''}
@@ -184,9 +146,6 @@
                         >{m.settings_tokens_name()}</th
                     >
                     <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                        >{m.settings_kind()}</th
-                    >
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                         >{m.settings_tokens_logbooks()}</th
                     >
                     <th scope="col" class="border-b border-border px-3 py-2 font-medium"
@@ -201,7 +160,6 @@
                 {#each tokens ?? [] as token (token.id)}
                     <tr class="border-b border-surface-2 last:border-b-0">
                         <td class="px-3 py-2.5">{token.name}</td>
-                        <td class="px-3 py-2.5 font-mono">{token.kind}</td>
                         <td class="px-3 py-2.5 font-mono">{logbookNames(token.logbook_ids)}</td>
                         <td class="px-3 py-2.5 font-mono text-muted"
                             >{token.last_used_at?.slice(0, 10) ?? m.settings_never()}</td
@@ -219,7 +177,7 @@
                     </tr>
                 {:else}
                     <tr>
-                        <td colspan="5" class="px-3 py-4 text-muted"
+                        <td colspan="4" class="px-3 py-4 text-muted"
                             >{tokens === undefined
                                 ? m.common_loading()
                                 : m.settings_tokens_none()}</td

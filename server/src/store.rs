@@ -311,7 +311,6 @@ pub(crate) mod testing {
         StationInput {
             name: name.into(),
             callsign: "jl1his/1".into(),
-            wavelog_id: None,
             fields: BTreeMap::from([
                 ("my_city".to_owned(), "Minato".to_owned()),
                 ("MY_CNTY".to_owned(), "100103".to_owned()),

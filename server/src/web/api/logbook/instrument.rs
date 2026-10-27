@@ -201,7 +201,6 @@ mod tests {
     use super::*;
     use crate::{
         domain::qso::QsoId,
-        store::account::token::TokenKind,
         web::testing::{Auth, Harness},
     };
 
@@ -328,9 +327,7 @@ mod tests {
         let owner = h.session(&h.world.owner).await;
         let operator = h.session(&h.world.operator).await;
         let outsider = h.session(&h.world.outsider).await;
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         let favorite = format!("{instruments}/{}/favorite", first.id);
 
         let (status, _) = h.send("POST", &favorite, Auth::Session(&outsider), None).await;

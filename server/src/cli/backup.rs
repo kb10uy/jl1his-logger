@@ -72,10 +72,9 @@ pub async fn restore(database: &Path, args: &RestoreArgs) -> CliResult<()> {
     println!("API tokens in the restored database; revoke any that were revoked after the backup:");
     for token in &restored.tokens {
         println!(
-            "  {}\t{}\t{}\tcreated {}\tlast used {}",
+            "  {}\t{}\tcreated {}\tlast used {}",
             token.callsign,
             token.name,
-            token.kind,
             token.created_at,
             token.last_used_at.as_deref().unwrap_or("never")
         );

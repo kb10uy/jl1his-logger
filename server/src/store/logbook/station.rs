@@ -8,7 +8,7 @@ use crate::{
         Fault, StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
         account::user::normalize_callsign,
-        is_unique_violation, name as store_name, new_id, now,
+        name as store_name, new_id, now,
         qso::{self, Holder, StoredQso, TimeRange},
     },
 };
@@ -17,7 +17,7 @@ const NOT_DEFAULTS: &[&str] = &["CALL", "QSO_DATE", "TIME_ON", "BAND", "MODE", "
 
 const EQUIPMENT: &[&str] = &["MY_RIG", "MY_ANTENNA", "TX_PWR"];
 
-const SELECT: &str = "SELECT id, wavelog_id, name, callsign, fields, archived_at, created_at, updated_at, \
+const SELECT: &str = "SELECT id, name, callsign, fields, archived_at, created_at, updated_at, \
                       EXISTS (SELECT 1 FROM station_favorites f WHERE f.user_id = ? AND f.station_id = stations.id) \
                       AS favorite FROM stations";
 
@@ -25,14 +25,12 @@ const SELECT: &str = "SELECT id, wavelog_id, name, callsign, fields, archived_at
 pub struct StationInput {
     pub name: String,
     pub callsign: String,
-    pub wavelog_id: Option<i64>,
     pub fields: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Station {
     pub id: String,
-    pub wavelog_id: Option<i64>,
     pub name: String,
     pub callsign: String,
     pub fields: BTreeMap<String, String>,
@@ -47,7 +45,6 @@ impl Station {
         let fields: String = row.try_get("fields")?;
         Ok(Station {
             id: row.try_get("id")?,
-            wavelog_id: row.try_get("wavelog_id")?,
             name: row.try_get("name")?,
             callsign: row.try_get("callsign")?,
             fields: serde_json::from_str(&fields)
@@ -116,35 +113,24 @@ pub(super) fn defaults(
     Ok(fields)
 }
 
-fn wavelog_id_taken(e: sqlx::Error, wavelog_id: Option<i64>) -> StoreError {
-    match (is_unique_violation(&e), wavelog_id) {
-        (true, Some(id)) => StoreError::Conflict(
-            Fault::coded("wavelog_id_taken", format!("another Station has the Wavelog ID {id}")).with("id", id),
-        ),
-        _ => e.into(),
-    }
-}
-
 pub async fn create(tx: &mut WriteTx, owner: &OwnerAccess<'_>, input: &StationInput) -> Result<Station, StoreError> {
     owner.revalidate(tx).await?;
     let normalized = normalize(input)?;
     let id = new_id();
     let now = now();
     sqlx::query(
-        "INSERT INTO stations (id, logbook_id, wavelog_id, name, callsign, fields, created_at, updated_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO stations (id, logbook_id, name, callsign, fields, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(owner.logbook_id())
-    .bind(input.wavelog_id)
     .bind(&normalized.name)
     .bind(&normalized.callsign)
     .bind(&normalized.fields)
     .bind(&now)
     .bind(&now)
     .execute(&mut **tx)
-    .await
-    .map_err(|e| wavelog_id_taken(e, input.wavelog_id))?;
+    .await?;
     fetch(tx, owner, &id).await
 }
 
@@ -157,10 +143,9 @@ pub async fn update(
     owner.revalidate(tx).await?;
     let normalized = normalize(input)?;
     let updated = sqlx::query(
-        "UPDATE stations SET wavelog_id = ?, name = ?, callsign = ?, fields = ?, updated_at = ? \
+        "UPDATE stations SET name = ?, callsign = ?, fields = ?, updated_at = ? \
          WHERE logbook_id = ? AND id = ?",
     )
-    .bind(input.wavelog_id)
     .bind(&normalized.name)
     .bind(&normalized.callsign)
     .bind(&normalized.fields)
@@ -168,8 +153,7 @@ pub async fn update(
     .bind(owner.logbook_id())
     .bind(id)
     .execute(&mut **tx)
-    .await
-    .map_err(|e| wavelog_id_taken(e, input.wavelog_id))?;
+    .await?;
     if updated.rows_affected() == 0 {
         return Err(StoreError::NotFound("Station"));
     }
@@ -355,23 +339,6 @@ mod tests {
             matches!(refused, Err(StoreError::Invalid(_) | StoreError::Qso(_))),
             "{refused:?}"
         );
-    }
-
-    #[tokio::test]
-    async fn keeps_wavelog_ids_unique_within_a_logbook() {
-        let world = World::new().await;
-        let access = world.access(&world.owner).await;
-        let owner = access.owner().unwrap();
-        let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let mut first = input("Home");
-        first.wavelog_id = Some(3);
-        create(&mut tx, &owner, &first).await.unwrap();
-        let mut second = input("Park");
-        second.wavelog_id = Some(3);
-        assert!(matches!(
-            create(&mut tx, &owner, &second).await,
-            Err(StoreError::Conflict(_))
-        ));
     }
 
     #[tokio::test]

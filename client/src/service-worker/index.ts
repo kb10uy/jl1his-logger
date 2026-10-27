@@ -36,7 +36,7 @@ self.addEventListener('fetch', (event) => {
     if (request.method !== 'GET') return;
     const url = new URL(request.url);
     if (url.origin !== location.origin || !url.href.startsWith(scope().href)) return;
-    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/wl2/')) return;
+    if (url.pathname.startsWith('/api/')) return;
 
     event.respondWith(
         (async () => {

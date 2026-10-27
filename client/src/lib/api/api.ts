@@ -30,8 +30,7 @@ import type {
     Subdivision,
     Target,
     Unencodable,
-    Token,
-    TokenKind
+    Token
 } from './types.ts';
 import {
     authenticationJson,
@@ -108,10 +107,8 @@ export const subdivisions = (dxcc: number) =>
 export const tokens = () => request<Token[]>('GET', '/api/tokens');
 
 export interface TokenRequest {
-    kind: TokenKind;
     name: string;
     logbook_ids: string[];
-    wl2_prefix?: boolean;
 }
 
 export const issueToken = (token: TokenRequest) =>

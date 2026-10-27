@@ -7,7 +7,6 @@ const logbook = (id: string): Logbook => ({ id, name: id, role: 'owner', area_fi
 
 const station = (id: string, extra: Partial<Station> = {}): Station => ({
     id,
-    wavelog_id: null,
     name: id,
     callsign: 'JL1HIS',
     fields: {},

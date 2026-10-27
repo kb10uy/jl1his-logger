@@ -44,8 +44,6 @@ export function errorText(body: Record<string, unknown>): string | undefined {
             return m.error_field_not_allowed({ field });
         case 'instrument_field':
             return m.error_instrument_field({ field });
-        case 'wavelog_id_taken':
-            return m.error_wavelog_id_taken({ id: text('id') });
         case 'qso_deleted':
             return m.error_qso_deleted();
         case 'revision_conflict':
@@ -63,10 +61,6 @@ export function errorText(body: Record<string, unknown>): string | undefined {
             return m.error_too_many_values({ count: text('count'), max: text('max') });
         case 'token_needs_logbook':
             return m.error_token_needs_logbook();
-        case 'wl2_token_one_logbook':
-            return m.error_wl2_token_one_logbook();
-        case 'wl2_prefix_only':
-            return m.error_wl2_prefix_only();
         case 'not_a_callsign':
             return m.error_not_a_callsign({ callsign: text('callsign') });
         case 'qso_missing':

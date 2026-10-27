@@ -27,8 +27,8 @@ describe('errorText', () => {
         expect(
             errorText({ kind: 'server', status: 503, detail: 'Service Unavailable', body: null })
         ).toBe('The server answered 503: Service Unavailable');
-        expect(errorText({ kind: 'wl2Token' })).toBe(
-            'This is a Wavelog compatible token. Issue a Native API token instead.'
+        expect(errorText({ kind: 'noLogbook' })).toBe(
+            'The token reaches no Logbook. Issue one for the Logbooks you log to.'
         );
         expect(errorText({ kind: 'unreachable', detail: 'timed out' })).toContain('timed out');
     });
@@ -37,7 +37,6 @@ describe('errorText', () => {
 describe('refusesToken', () => {
     it.each([
         [{ kind: 'unauthorized' } as const, true],
-        [{ kind: 'wl2Token' } as const, true],
         [{ kind: 'noLogbook' } as const, true],
         [{ kind: 'unreachable', detail: '' } as const, false],
         [undefined, false]

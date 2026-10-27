@@ -27,6 +27,9 @@ decisions.md.
 - **Connections** set `PRAGMA journal_mode = WAL`, `PRAGMA foreign_keys = ON`
   and `PRAGMA busy_timeout` on open. Foreign keys are only enforced when the
   pragma is on, so it is part of the connection options, not the migration.
+  Migration 12 runs outside a transaction so that it can turn the pragma off
+  while it rebuilds `stations`, which `qsos` and `station_favorites`
+  reference, and turns it back on at its end.
 - **Logbook ownership** is enforced with composite foreign keys: a QSO and
   its Station and Instrument belong to the same Logbook, as do an export
   batch and all its QSOs. The referenced tables have `UNIQUE (logbook_id, id)` constraints.
@@ -104,11 +107,10 @@ A Station Location of a Logbook.
   web UI edits them as form fields; the server does not need columns for
   them because nothing searches Stations by them. `MY_RIG`, `MY_ANTENNA`
   and `TX_PWR` are never among them; they belong to `instruments`.
-- `wavelog_id` is the integer ID `/wl2` clients address the Station by
-  (Wavelog's `station_id`), unique within the Logbook, or `NULL` for a
-  Station `/wl2` does not show.
-- `archived_at` hides the Station from entry and from `/wl2` `GET station`
-  (`active = false`). QSOs keep pointing at archived Stations.
+- `archived_at` hides the Station from entry. QSOs keep pointing at archived
+  Stations.
+- Migration 12 rebuilt the table without the `wavelog_id` of the former
+  `/wl2` compatibility layer.
 
 ### `instruments`
 
@@ -143,7 +145,7 @@ One row per QSO, including deleted ones.
 | `id` | Client-generated UUID v7. `POST` with an existing ID returns this row. |
 | `logbook_id`, `station_id` | The Logbook and the Station Location. `station_id` is for classification and search only; the ADIF values are in the row. |
 | `instrument_id` | The Instrument, or `NULL` for none. Like `station_id`, it classifies the row; the ADIF values are in the row. |
-| `seq` | Insertion order within the Logbook. The `/wl2` `since_id`. |
+| `seq` | Insertion order within the Logbook. |
 | `updated_seq` | Update order within the Logbook; also set on insert and on delete. The SSE event `id` and the differential cursor. |
 | `revision` | Starts at 1 and increments on every update. An update must send the revision it is based on. |
 | `created_by`, `updated_by`, `created_at`, `updated_at` | Who and when. API-token writes record the token's user. |
@@ -178,7 +180,7 @@ key references.
 | Index | Serves |
 | --- | --- |
 | `UNIQUE (logbook_id, updated_seq)` | Differential fetch: `updated_seq > ?` ordered, tombstones included. The SSE catch-up query is the same. |
-| `UNIQUE (logbook_id, seq)` | `/wl2` `since_id` paging. |
+| `UNIQUE (logbook_id, seq)` | Keeps the insertion order unique within the Logbook. |
 | `UNIQUE (logbook_id, id)` | Composite foreign key from `export_batch_qsos`, enforcing Logbook ownership. |
 | `(logbook_id, qso_time)` | The log list and date filters. |
 | `(logbook_id, call, qso_time)` | Searching an exact `call`. |
@@ -211,15 +213,11 @@ no other writer runs between the reads and the writes (`server/src/store/qso.rs`
 ### `api_tokens`, `api_token_scopes`
 
 A token belongs to a user and is limited to the Logbooks listed in
-`api_token_scopes`. `kind` is `native` or `wl2`. A `wl2` token has exactly
-one scope row, which is the Logbook its compatibility requests are fixed to;
-the application enforces the count. Whether the plaintext started with `wl2_`
-is a formatting choice at issue time and is not stored; the
-prefix is part of the plaintext that is hashed. `kind` decides the API a
-token opens: `native` the native API, `wl2` only `/wl2`. Every scope needs a
-Membership of the user when the token is issued, and access revalidates the
-Membership on every use. `last_used_at` is written at most once a day.
-Revoking a token deletes the row.
+`api_token_scopes`. Every scope needs a Membership of the user when the token
+is issued, and access revalidates the Membership on every use. `last_used_at`
+is written at most once a day. Revoking a token deletes the row. Migration 12
+deleted the `wl2` tokens of the former `/wl2` compatibility layer and dropped
+the `kind` column, since every token opens the native API.
 
 ### `export_batches`, `export_batch_qsos`
 
@@ -258,9 +256,6 @@ row changes, and the web UI reads this table to show the versions.
 
 ## Not in the schema
 
-- **Contest catalog** for `/wl2` `catalog?topic=contest`: served from the
-  distinct `contest_id` values of the Logbook, so no table. If names are
-  needed, they can come from the ADIF Contest_ID table.
 - **ADIF tables** (bands, modes, QSL values, DXCC entities, subdivisions):
   compiled into the server from `assets/adif/`, from which the
   client generates its own.

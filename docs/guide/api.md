@@ -3,19 +3,18 @@
 The API the web client uses, under `/api` on `public_origin`. Bodies are
 JSON. It covers sign-in, the server version and health, reference versions,
 API tokens, Logbooks, Members, Stations, Instruments, QSOs with their event
-stream, bulk QSL changes, export batches and ADIF import. The Wavelog API v2
-compatibility layer under `/wl2` is described in [wl2.md](wl2.md). Responses
-are `Cache-Control: no-store` and carry the security headers listed in
+stream, bulk QSL changes, export batches and ADIF import. Responses are
+`Cache-Control: no-store` and carry the security headers listed in
 [decisions.md](../development/decisions.md).
 
 ## Callers
 
 A request is authenticated by the session cookie the web client holds, or by a
-`native` API token sent as `Authorization: Bearer <token>` (see API Tokens
+an API token sent as `Authorization: Bearer <token>` (see API Tokens
 below). When `Authorization` is present the cookie is ignored. Not every
 endpoint takes a token:
 
-| Endpoints | Session cookie | `native` API token |
+| Endpoints | Session cookie | API token |
 | --- | --- | --- |
 | `GET /api/health` | Not needed | Not needed |
 | `POST /api/auth/login/*`, `POST /api/auth/register/*` | Issued by them | No |
@@ -24,7 +23,7 @@ endpoint takes a token:
 | `POST /api/auth/logout`, `/api/passkeys`, `/api/sessions`, `/api/tokens`, `GET /api/version`, `/api/reference` | Yes | No: `401` |
 
 A token reaches only the Logbooks of its scopes where its user still has a
-Membership; a `wl2` token is refused with `401` everywhere under `/api`. Under
+Membership. Under
 `/api/logbooks/{logbook_id}` the caller's Membership is checked before the
 request itself, so a caller outside the Logbook gets `404` whatever it sends.
 A Logbook, Station, Instrument or QSO the caller cannot reach is `404`, the
@@ -66,7 +65,6 @@ language; `error` stays English.
 | `area_field_not_allowed` | `field` | A field that cannot be the Logbook's area field |
 | `name_required` | | A Station, Instrument or token without a name |
 | `name_too_long` | `bytes`, `max` | A name longer than is kept |
-| `wavelog_id_taken` | `id` | Another Station has the Wavelog ID |
 | `last_owner` | | Removing or demoting the Logbook's last owner |
 | `last_passkey` | | Deleting the user's last passkey |
 | `passkey_registered` | | The passkey is already registered |
@@ -76,8 +74,6 @@ language; `error` stays English.
 | `registration_link_invalid` | | The registration link is unknown or used up |
 | `not_a_callsign` | `callsign` | The member's callsign is not a callsign |
 | `token_needs_logbook` | | A token without a Logbook |
-| `wl2_token_one_logbook` | | A `wl2` token with more than one Logbook |
-| `wl2_prefix_only` | | `wl2_prefix` on a `native` token |
 | `qso_deleted` | `id` | Updating a deleted QSO |
 | `qso_changed` | `id` | The QSO changed while it was being updated |
 | `id_taken` | `id` | The ID belongs to another QSO |
@@ -173,21 +169,19 @@ DXCC entity code is `404`.
 
 ## API Tokens
 
-A token is `{id, user_id, kind, name, logbook_ids, created_at, last_used_at}`.
-`kind` is `native` for `/api` or `wl2` for `/wl2`; `last_used_at` is updated at
-most once a day. These endpoints take the session cookie only, so a token cannot
+A token is `{id, user_id, name, logbook_ids, created_at, last_used_at}`.
+`last_used_at` is updated at most once a day. These endpoints take the session cookie only, so a token cannot
 manage tokens.
 
 | Request | Body | Response |
 | --- | --- | --- |
 | `GET /api/tokens?user_id=` | | The tokens of the signed-in user, or of `user_id` for an admin |
-| `POST /api/tokens` | `{kind, name, logbook_ids, wl2_prefix?}` | `201 {token, plaintext}` |
+| `POST /api/tokens` | `{name, logbook_ids}` | `201 {token, plaintext}` |
 | `DELETE /api/tokens/{id}` | | `204`; the token's user or an admin |
 
 The plaintext is shown only in the response that issues it. Every Logbook in
-`logbook_ids` needs a Membership of the user, or it is `404`. A `wl2` token has
-exactly one Logbook; `wl2_prefix` starts its plaintext with `wl2_`, by which
-some clients choose API v2. Another user's token is `404` for anyone but an admin.
+`logbook_ids` needs a Membership of the user, or it is `404`. Another user's
+token is `404` for anyone but an admin.
 
 ## Logbooks
 
@@ -227,17 +221,16 @@ owner is `409`.
 
 ## Stations
 
-A Station is `{id, wavelog_id, name, callsign, fields, archived_at,
-created_at, updated_at, favorite}`. `fields` holds the `MY_*` and other defaults baked
-into new QSOs; `wavelog_id` is the integer ID `/wl2` clients address the Station by, or `null`. Paths
-are relative to `/api/logbooks/{logbook_id}`.
+A Station is `{id, name, callsign, fields, archived_at, created_at,
+updated_at, favorite}`. `fields` holds the `MY_*` and other defaults baked
+into new QSOs. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
 | `GET /stations` | | The Stations: your favorites first, then the others by name, archived ones last |
 | `GET /stations/{id}` | | One Station |
-| `POST /stations` | `{name, callsign, wavelog_id?, fields}` | `201` with the Station; owners only |
-| `PUT /stations/{id}` | `{name, callsign, wavelog_id?, fields}` | The Station; owners only |
+| `POST /stations` | `{name, callsign, fields}` | `201` with the Station; owners only |
+| `PUT /stations/{id}` | `{name, callsign, fields}` | The Station; owners only |
 | `POST /stations/{id}/archive` | | The archived Station; owners only |
 | `DELETE /stations/{id}/archive` | | The Station, no longer archived; owners only |
 | `POST /stations/{id}/favorite` | | The Station, now one of your favorites |
@@ -248,8 +241,7 @@ are relative to `/api/logbooks/{logbook_id}`.
 The callsign is upper-cased and field names are read ignoring case; an empty
 value leaves the field out. `CALL`, `QSO_DATE`, `TIME_ON`, `BAND`, `MODE` and
 `STATION_CALLSIGN` cannot be defaults, and `MY_RIG`, `MY_ANTENNA` and `TX_PWR`
-belong to Instruments, so a Station with any of them is `400`. A `wavelog_id` another Station has is
-`409`.
+belong to Instruments, so a Station with any of them is `400`.
 
 Editing a Station never changes past QSOs. A rewrite does: it covers the
 Station's live QSOs with a QSO time in `[from, until)` (RFC 3339 times, both

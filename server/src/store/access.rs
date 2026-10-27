@@ -311,16 +311,14 @@ mod tests {
     async fn add_token(world: &World, user_id: &str, scopes: &[&str]) -> Principal {
         let token_id = new_id();
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        sqlx::query(
-            "INSERT INTO api_tokens (id, user_id, kind, name, token_hash, created_at) VALUES (?, ?, 'native', 't', ?, ?)",
-        )
-        .bind(&token_id)
-        .bind(user_id)
-        .bind(token_id.as_bytes())
-        .bind(now())
-        .execute(&mut *tx)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO api_tokens (id, user_id, name, token_hash, created_at) VALUES (?, ?, 't', ?, ?)")
+            .bind(&token_id)
+            .bind(user_id)
+            .bind(token_id.as_bytes())
+            .bind(now())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
         for scope in scopes {
             sqlx::query("INSERT INTO api_token_scopes (token_id, logbook_id) VALUES (?, ?)")
                 .bind(&token_id)

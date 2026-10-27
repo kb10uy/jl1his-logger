@@ -1,7 +1,6 @@
 <script lang="ts">
     import { untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import { ApiError } from '#lib/api/client.ts';
     import type { Station, Subdivision } from '#lib/api/types.ts';
     import RewritePanel from '#lib/components/RewritePanel.svelte';
     import DxccField from '#lib/components/stations/DxccField.svelte';
@@ -142,10 +141,7 @@
             );
             onsaved(saved);
         } catch (e) {
-            saveError =
-                e instanceof ApiError && e.status === 409
-                    ? m.stations_wavelog_id_taken({ id: String(input.wavelog_id) })
-                    : message(e);
+            saveError = message(e);
         } finally {
             saving = false;
         }
@@ -210,14 +206,6 @@
             autocomplete="off"
             spellcheck="false"
             bind:value={draft.callsign}
-        />
-        {@render labelFor('st-wl', m.stations_wavelog_id(), '/wl2 station_id')}
-        <input
-            id="st-wl"
-            inputmode="numeric"
-            placeholder={m.stations_placeholder_none()}
-            class="control h-10 font-mono"
-            bind:value={draft.wavelogId}
         />
 
         <div class="border-t border-border md:col-span-2"></div>

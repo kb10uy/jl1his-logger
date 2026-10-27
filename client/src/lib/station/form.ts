@@ -31,7 +31,6 @@ export const FIELD_NAMES = ADIF_QSO_FIELDS.filter(
 export interface StationDraft {
     name: string;
     callsign: string;
-    wavelogId: string;
     main: Record<string, string>;
     parks: string[];
     extra: { name: string; value: string }[];
@@ -53,7 +52,6 @@ export function draftOf(station?: Station): StationDraft {
     return {
         name: station?.name ?? '',
         callsign: station?.callsign ?? '',
-        wavelogId: station?.wavelog_id == null ? '' : String(station.wavelog_id),
         main: Object.fromEntries(MAIN_FIELDS.map((f) => [f.name, fields[f.name] ?? ''])),
         parks: splitParks(fields.MY_POTA_REF),
         extra: Object.entries(fields)
@@ -72,11 +70,9 @@ export function stationInput(draft: StationDraft): StationInput {
         const key = name.trim().toUpperCase();
         if (key !== '' && value.trim() !== '') fields[key] = value.trim();
     }
-    const id = draft.wavelogId.trim();
     return {
         name: draft.name.trim(),
         callsign: draft.callsign.trim().toUpperCase(),
-        wavelog_id: id === '' ? null : Number(id),
         fields
     };
 }
@@ -84,8 +80,6 @@ export function stationInput(draft: StationDraft): StationInput {
 export function stationProblem(draft: StationDraft): string | undefined {
     if (draft.name.trim() === '') return m.stations_problem_name();
     if (draft.callsign.trim() === '') return m.stations_problem_callsign();
-    if (draft.wavelogId.trim() !== '' && !/^[1-9]\d*$/.test(draft.wavelogId.trim()))
-        return m.stations_problem_wavelog_id();
     const dxcc = draft.main.MY_DXCC?.trim() ?? '';
     if (dxcc !== '' && !/^\d+$/.test(dxcc)) return m.stations_problem_dxcc();
     const names = new Set<string>();
@@ -106,7 +100,6 @@ export function sameInput(a: StationInput, b: StationInput): boolean {
     return (
         a.name === b.name &&
         a.callsign === b.callsign &&
-        a.wavelog_id === b.wavelog_id &&
         JSON.stringify(sorted(a.fields)) === JSON.stringify(sorted(b.fields))
     );
 }

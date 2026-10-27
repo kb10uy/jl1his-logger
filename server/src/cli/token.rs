@@ -1,37 +1,18 @@
-use clap::{Subcommand, ValueEnum};
+use clap::Subcommand;
 
 use crate::{
     cli::{CliResult, Context, find_user, pick_logbook},
     store::{
         WriteTx, access,
-        account::token::{self, TokenInput, TokenKind},
+        account::token::{self, TokenInput},
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum TokenKindArg {
-    Native,
-    Wl2,
-}
-
-impl From<TokenKindArg> for TokenKind {
-    fn from(arg: TokenKindArg) -> TokenKind {
-        match arg {
-            TokenKindArg::Native => TokenKind::Native,
-            TokenKindArg::Wl2 => TokenKind::Wl2,
-        }
-    }
-}
 
 #[derive(Subcommand)]
 pub enum TokenCommand {
     #[command(about = "Issues an API token and prints it once")]
     Issue {
         name: String,
-        #[arg(long, value_enum, default_value_t = TokenKindArg::Native, help = "The API the token opens")]
-        kind: TokenKindArg,
-        #[arg(long, help = "Prefix a wl2 token with wl2_")]
-        wl2_prefix: bool,
         #[arg(
             long = "logbook",
             required = true,
@@ -47,12 +28,7 @@ pub enum TokenCommand {
 
 pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()> {
     match command {
-        TokenCommand::Issue {
-            name,
-            kind,
-            wl2_prefix,
-            logbooks: keys,
-        } => {
+        TokenCommand::Issue { name, logbooks: keys } => {
             let (principal, logbooks) = context.logbooks().await?;
             let logbook_ids = keys
                 .iter()
@@ -60,12 +36,7 @@ pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()
                 .collect::<CliResult<_>>()?;
             let mut tx = WriteTx::begin(context.db).await?;
             let user = access::user(&mut tx, &principal).await?;
-            let input = TokenInput {
-                kind: kind.into(),
-                name,
-                logbook_ids,
-                wl2_prefix,
-            };
+            let input = TokenInput { name, logbook_ids };
             let issued = token::issue(&mut tx, &user, &input).await?;
             tx.commit().await?;
             println!(
@@ -84,10 +55,9 @@ pub async fn token(context: &Context<'_>, command: TokenCommand) -> CliResult<()
             };
             for token in token::list(&mut conn, &user, &user_id).await? {
                 println!(
-                    "{}\t{}\t{}\t{}\tlast used {}",
+                    "{}\t{}\t{}\tlast used {}",
                     token.id,
                     token.name,
-                    token.kind.as_str(),
                     token.logbook_ids.join(","),
                     token.last_used_at.as_deref().unwrap_or("never")
                 );

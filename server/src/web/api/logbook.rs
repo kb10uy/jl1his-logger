@@ -188,10 +188,7 @@ mod tests {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::{
-        store::account::token::TokenKind,
-        web::testing::{Auth, Harness},
-    };
+    use crate::web::testing::{Auth, Harness};
 
     #[tokio::test]
     async fn lists_the_logbooks_of_the_caller() {
@@ -211,7 +208,7 @@ mod tests {
         let (status, body) = h.send("GET", "/api/logbooks", Auth::Session(&operator), None).await;
         assert_eq!((status, &body), (StatusCode::OK, &expected));
 
-        let token = h.token(&h.world.operator, TokenKind::Native, &[&logbook.id]).await;
+        let token = h.token(&h.world.operator, &[&logbook.id]).await;
         let (status, body) = h.send("GET", "/api/logbooks", Auth::Bearer(&token), None).await;
         assert_eq!((status, &body), (StatusCode::OK, &expected));
 
@@ -329,9 +326,7 @@ mod tests {
     #[tokio::test]
     async fn drops_scopes_the_token_user_lost() {
         let h = Harness::new().await;
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         sqlx::query("DELETE FROM memberships WHERE user_id = ?")
             .bind(&h.world.operator.id)
             .execute(&h.world.db)

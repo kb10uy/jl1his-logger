@@ -52,8 +52,6 @@ pub enum CommandError {
     BadUrl { detail: String },
     #[error("the server refused the token")]
     Unauthorized,
-    #[error("the token is for the Wavelog compatible API")]
-    Wl2Token,
     #[error("the token reaches no Logbook")]
     NoLogbook,
     #[error("{detail}")]
@@ -159,10 +157,7 @@ pub async fn sign_in(
     let url = origin_text(&origin);
     let token = token.trim().to_owned();
     let api = Api::new(origin, token.clone());
-    let logbooks = api.logbooks().await.map_err(|e| match e {
-        ApiError::Unauthorized if token.starts_with("wl2_") => CommandError::Wl2Token,
-        e => e.into(),
-    })?;
+    let logbooks = api.logbooks().await?;
     if logbooks.is_empty() {
         return Err(CommandError::NoLogbook);
     }

@@ -27,8 +27,6 @@ scope.
   editing, live QSO entry, push-to-talk voice entry, Station Location and
   Instrument editing, ADIF import and export, and bulk QSL changes, in English
   or Japanese. Entry keeps working offline.
-- Offers a Wavelog API v2 compatible layer under `/wl2`, so logging clients
-  written for Wavelog can log here.
 
 Users sign in with passkeys only. Instance roles are `admin` and `user`;
 Logbook roles are `owner` and `operator`. API tokens belong to a user and are
@@ -36,9 +34,9 @@ scoped to Logbooks.
 
 ## Layout
 
-- `server/` — Rust (axum, SQLite). The native API, the `/wl2` compatibility
-  layer, the SSE stream, ADIF import and export, and the admin CLI (setup,
-  reference data, backup). Serves `client/build` on the same origin.
+- `server/` — Rust (axum, SQLite). The native API, the SSE stream, ADIF
+  import and export, and the admin CLI (setup, reference data, backup). Serves
+  `client/build` on the same origin.
 - `client/` — SvelteKit + TypeScript PWA, built with `adapter-static` as a
   client-only app with offline entry.
 - `desktop/` — the desktop entry client, a Tauri v2 app with a SvelteKit
@@ -60,8 +58,6 @@ For running the application and talking to it:
 - [docs/guide/api.md](docs/guide/api.md) — the native API under `/api`.
 - [docs/guide/query.md](docs/guide/query.md) — the search query syntax of
   the log list and the API.
-- [docs/guide/wl2.md](docs/guide/wl2.md) — the Wavelog API v2 compatibility
-  layer under `/wl2`.
 - [docs/guide/protocol.md](docs/guide/protocol.md) — what the desktop client
   takes from other programs over UDP.
 

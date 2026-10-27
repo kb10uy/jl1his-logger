@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     store::{
         WriteTx,
-        account::token::{self, ApiToken, TokenInput, TokenKind},
+        account::token::{self, ApiToken, TokenInput},
     },
     web::{
         AppState,
@@ -23,7 +23,6 @@ use crate::{
 pub struct TokenBody {
     id: String,
     user_id: String,
-    kind: TokenKind,
     name: String,
     logbook_ids: Vec<String>,
     created_at: String,
@@ -35,7 +34,6 @@ impl From<ApiToken> for TokenBody {
         TokenBody {
             id: token.id,
             user_id: token.user_id,
-            kind: token.kind,
             name: token.name,
             logbook_ids: token.logbook_ids,
             created_at: token.created_at,
@@ -52,11 +50,8 @@ pub struct IssuedBody {
 
 #[derive(Debug, Deserialize)]
 pub struct TokenRequest {
-    kind: TokenKind,
     name: String,
     logbook_ids: Vec<String>,
-    #[serde(default)]
-    wl2_prefix: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -81,10 +76,8 @@ pub async fn issue(
     Json(req): Json<TokenRequest>,
 ) -> Result<(StatusCode, Json<IssuedBody>), ApiError> {
     let input = TokenInput {
-        kind: req.kind,
         name: req.name,
         logbook_ids: req.logbook_ids,
-        wl2_prefix: req.wl2_prefix,
     };
     let mut tx = WriteTx::begin(&state.db).await?;
     let issued = token::issue(&mut tx, &user, &input).await?;
@@ -130,13 +123,8 @@ mod tests {
         let h = Harness::new().await;
         let operator = h.session(&h.world.operator).await;
         let logbook_id = h.world.logbook.id.as_str();
-        let issued = issue(
-            &h,
-            &operator,
-            json!({ "kind": "native", "name": "hislog", "logbook_ids": [logbook_id] }),
-        )
-        .await;
-        assert_eq!(issued["token"]["kind"], "native");
+        let issued = issue(&h, &operator, json!({ "name": "hislog", "logbook_ids": [logbook_id] })).await;
+        assert_eq!(issued["token"]["name"], "hislog");
         assert_eq!(issued["token"]["logbook_ids"], json!([logbook_id]));
         let plaintext = issued["plaintext"].as_str().unwrap();
 
@@ -145,20 +133,12 @@ mod tests {
         let (status, _) = h.send("GET", "/api/tokens", Auth::Bearer(plaintext), None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
 
-        let wl2 = issue(
-            &h,
-            &operator,
-            json!({ "kind": "wl2", "name": "grayline", "logbook_ids": [logbook_id], "wl2_prefix": true }),
-        )
-        .await;
-        assert!(wl2["plaintext"].as_str().unwrap().starts_with("wl2_"));
-
         let (status, list) = h.send("GET", "/api/tokens", Auth::Session(&operator), None).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(list[0]["id"], issued["token"]["id"]);
         assert!(list[0]["last_used_at"].is_string());
         assert!(list[0].get("plaintext").is_none());
-        assert_eq!(list[1], wl2["token"]);
+        assert_eq!(list.as_array().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -167,7 +147,7 @@ mod tests {
         let operator = &h.world.operator;
         let expected = json!({ "id": operator.id, "callsign": operator.callsign, "role": "user" });
 
-        let native = h.token(operator, TokenKind::Native, &[&h.world.logbook.id]).await;
+        let native = h.token(operator, &[&h.world.logbook.id]).await;
         let (status, headers, body) = h.send_with("GET", "/api/me", Auth::Bearer(&native), &[], None).await;
         assert_eq!((status, &body), (StatusCode::OK, &expected));
         assert!(headers.get(header::SET_COOKIE).is_none());
@@ -176,10 +156,6 @@ mod tests {
         let (status, headers, body) = h.send_with("GET", "/api/me", Auth::Session(&session), &[], None).await;
         assert_eq!((status, &body), (StatusCode::OK, &expected));
         assert!(headers.get(header::SET_COOKIE).is_some());
-
-        let wl2 = h.token(operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
-        let (status, _) = h.send("GET", "/api/me", Auth::Bearer(&wl2), None).await;
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
@@ -187,16 +163,11 @@ mod tests {
         let h = Harness::new().await;
         let operator = h.session(&h.world.operator).await;
         let logbook_id = h.world.logbook.id.as_str();
-        let issued = issue(
-            &h,
-            &operator,
-            json!({ "kind": "native", "name": "hislog", "logbook_ids": [logbook_id] }),
-        )
-        .await;
+        let issued = issue(&h, &operator, json!({ "name": "hislog", "logbook_ids": [logbook_id] })).await;
         let plaintext = issued["plaintext"].as_str().unwrap();
 
         let outsider = h.session(&h.world.outsider).await;
-        let elsewhere = json!({ "kind": "native", "name": "x", "logbook_ids": [logbook_id] });
+        let elsewhere = json!({ "name": "x", "logbook_ids": [logbook_id] });
         let (status, _) = h
             .send("POST", "/api/tokens", Auth::Session(&outsider), Some(elsewhere))
             .await;

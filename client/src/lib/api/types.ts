@@ -27,7 +27,6 @@ export interface Logbook {
 
 export interface Station {
     id: string;
-    wavelog_id: number | null;
     name: string;
     callsign: string;
     fields: Fields;
@@ -135,7 +134,6 @@ export interface QsoEvent {
 export interface StationInput {
     name: string;
     callsign: string;
-    wavelog_id: number | null;
     fields: Fields;
 }
 
@@ -161,12 +159,9 @@ export interface Passkey {
     last_used_at: string | null;
 }
 
-export type TokenKind = 'native' | 'wl2';
-
 export interface Token {
     id: string;
     user_id: string;
-    kind: TokenKind;
     name: string;
     logbook_ids: string[];
     created_at: string;

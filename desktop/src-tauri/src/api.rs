@@ -170,7 +170,7 @@ mod tests {
     #[case("/api", false)]
     #[case("//evil.example/api/", false)]
     #[case("https://evil.example/api/", false)]
-    #[case("/wl2/api/v2/qso", false)]
+    #[case("/other/api/v2/qso", false)]
     #[case("/api/\\evil", false)]
     #[case("/api/logbooks#x", false)]
     fn accepts_only_native_api_paths(#[case] path: &str, #[case] expected: bool) {

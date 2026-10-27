@@ -6,7 +6,6 @@ mod references;
 mod serve;
 #[cfg(test)]
 mod testing;
-mod wl2;
 
 use std::{path::Path, sync::Arc, time::Duration};
 
@@ -87,7 +86,6 @@ impl AppState {
 
 pub fn router(state: Arc<AppState>, web_dir: Option<&Path>) -> Router {
     let api = api::router()
-        .merge(wl2::router())
         .layer(middleware::from_fn_with_state(state.clone(), announce_writes))
         .layer(middleware::from_fn_with_state(state.clone(), same_origin_only))
         .with_state(state);
@@ -118,7 +116,7 @@ fn under(path: &str, prefix: &str) -> bool {
 }
 
 fn is_api(path: &str) -> bool {
-    under(path, "/api") || under(path, "/wl2")
+    under(path, "/api")
 }
 
 async fn security_headers(request: Request, next: Next) -> Response {
@@ -176,7 +174,6 @@ mod tests {
         db,
         store::{
             WriteTx,
-            account::token::TokenKind,
             reference::{self, ReferenceKind},
         },
         web::testing::{Auth, Harness, authorize},
@@ -233,7 +230,6 @@ mod tests {
     #[rstest]
     #[case::api("/api/health", Some("no-store"))]
     #[case::api_not_found("/api/nothing", Some("no-store"))]
-    #[case::wl2("/wl2/index.php/api/v2/station", Some("no-store"))]
     #[case::page("/", Some("no-cache"))]
     #[case::page_under_api_like_path("/apiary", Some("no-cache"))]
     #[case::immutable("/_app/immutable/app.js", Some("public, max-age=31536000, immutable"))]
@@ -335,9 +331,7 @@ mod tests {
             json!([{ "kind": "cty", "version": "2026-10-15", "updated_at": cty.updated_at }])
         );
 
-        let token = h
-            .token(&h.world.operator, TokenKind::Native, &[&h.world.logbook.id])
-            .await;
+        let token = h.token(&h.world.operator, &[&h.world.logbook.id]).await;
         for auth in [Auth::Anonymous, Auth::Bearer(&token)] {
             let (status, _) = h.send("GET", "/api/reference", auth, None).await;
             assert_eq!(status, StatusCode::UNAUTHORIZED);

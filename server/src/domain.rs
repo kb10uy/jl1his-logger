@@ -10,4 +10,3 @@ pub mod pota;
 pub mod qsl;
 pub mod qso;
 pub mod reference;
-pub mod wavelog;
