@@ -253,15 +253,21 @@
                     aria-labelledby="settings-server"
                     class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
                 >
-                    <h2 id="settings-server" class="m-0 text-[13px] font-semibold">
-                        {m.settings_server()}
-                    </h2>
+                    <div class="flex items-center justify-between gap-2.5">
+                        <h2 id="settings-server" class="m-0 text-[13px] font-semibold">
+                            {m.settings_server()}
+                        </h2>
+                        <button
+                            type="button"
+                            class="h-[28px] rounded-md border border-error-border px-2.5 text-[12px] text-error-text"
+                            onclick={() => session.signOut()}>{m.common_sign_out()}</button
+                        >
+                    </div>
                     <div
-                        class="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 text-[12px]"
+                        class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-[12px]"
                     >
                         <span class="text-muted">{m.settings_server_url()}</span>
                         <span class="font-mono">{signedIn.url}</span>
-                        <span></span>
                         <span class="text-muted">{m.settings_server_signed_in()}</span>
                         <span
                             ><strong class="font-mono font-semibold"
@@ -273,17 +279,11 @@
                                     })}`}</span
                                 >{/if}</span
                         >
-                        <span></span>
                         <span class="text-muted">{m.settings_server_token()}</span>
                         <span class="text-muted"
                             >{m.settings_server_token_store({
                                 store: current.credentialStore
                             })}</span
-                        >
-                        <button
-                            type="button"
-                            class="h-[28px] rounded-md border border-error-border px-2.5 text-[12px] text-error-text"
-                            onclick={() => session.signOut()}>{m.common_sign_out()}</button
                         >
                     </div>
                 </section>
