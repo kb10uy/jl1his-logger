@@ -4,7 +4,7 @@ Clients written for Wavelog API v2 can talk to jl1his-logger through this
 layer. Their base URL becomes `public_origin/wl2`, so their requests arrive at
 `/wl2/index.php/api/v2/<resource>`; lookup is also at `/wl2/api/v2/lookup`.
 Only a subset of the API is matched; see
-"Wavelog API v2 Compatibility Layer" in [decisions.md](decisions.md).
+"Wavelog API v2 Compatibility Layer" in [decisions.md](../development/decisions.md).
 
 ## Requests and Errors
 

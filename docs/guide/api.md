@@ -27,7 +27,7 @@ it in the user's language; `error` stays English. The codes are `not_found`
 `unencodable` (`record`, `field`, `character`) and the query codes below. Under `/api/logbooks/{logbook_id}` the
 caller's Membership is checked before the request itself, so a caller outside
 the Logbook gets `404` whatever it sends. Responses are `Cache-Control: no-store`
-and carry the security headers listed in [decisions.md](decisions.md).
+and carry the security headers listed in [decisions.md](../development/decisions.md).
 
 It covers sign-in, the server version and health, reference versions, API tokens, Logbooks, Members,
 Stations, Instruments, QSOs with their event stream, bulk QSL changes, export batches and
@@ -97,7 +97,7 @@ The archive must hold `cty.dat` and `cty.csv` at its root whose primary
 prefixes match one to one; the version is the `=VER` entry of `cty.dat`, or
 the UTC date of the installation without one. A refused archive is `400` with
 `code` `reference_invalid` and the reason in `error`, and leaves the installed
-data as it was. See "Reference Data" in `decisions.md` for the limits applied
+data as it was. See "Reference Data" in [decisions.md](../development/decisions.md) for the limits applied
 while reading it.
 
 `GET /api/reference/subdivisions/{dxcc}` returns the subdivisions of one DXCC
@@ -365,7 +365,7 @@ Each filter is optional:
 | `call_base` | The call without prefixes and suffixes (`JA1XYZ` matches `JA1XYZ/P`); not together with `call` |
 | `qsl_sent` | Comma-separated `QSL_SENT` values ignoring case; an empty value matches an absent field |
 | `contest_id` | `CONTEST_ID`, ignoring case |
-| `q` | The text query of decisions.md, "Search" (`call:JA1* -mode:FT8 date:2026-10-01..`) |
+| `q` | The text query of [decisions.md](../development/decisions.md), "Search" (`call:JA1* -mode:FT8 date:2026-10-01..`) |
 
 All the filters given must hold. `next` is an opaque cursor for the following
 page, passed back as `cursor` with the same `sort`, or `null` on the last page.
@@ -478,7 +478,7 @@ rows still at their recorded revisions. A batch is applied once; again is
 
 `POST /api/logbooks/{logbook_id}/imports?source=&station_id=&instrument_id=&format=&length=&encoding=&apply=`
 takes the file itself as the body, up to 64 MiB. It works as the CLI
-`import` does (see `decisions.md`, "ADIF Import"):
+`import` does (see [decisions.md](../development/decisions.md), "ADIF Import"):
 
 | Parameter | Meaning |
 | --- | --- |
