@@ -156,10 +156,27 @@ pub async fn install(
         .map(str::to_owned)
         .or(detected)
         .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
+    let (db, admin, path, bytes) = (db.clone(), admin.clone(), path.to_owned(), bytes.to_vec());
+    let installed = tokio::spawn(async move { swap(&db, &admin, kind, &path, &bytes, &version).await })
+        .await
+        .map_err(|e| InstallError::File(format!("installing {} stopped: {e}", kind.as_str())))??;
+    Ok(Installed {
+        version: installed,
+        entries,
+    })
+}
 
+async fn swap(
+    db: &Db,
+    admin: &AdminAccess,
+    kind: ReferenceKind,
+    path: &Path,
+    bytes: &[u8],
+    version: &str,
+) -> Result<ReferenceVersion, InstallError> {
     let mut tx = WriteTx::begin(db).await?;
     let checksum = Sha256::digest(bytes);
-    let installed = set(&mut tx, admin, kind, &version, Some(checksum.as_slice())).await?;
+    let installed = set(&mut tx, admin, kind, version, Some(checksum.as_slice())).await?;
     let previous = match fs::read(path).await {
         Ok(bytes) => Some(bytes),
         Err(e) if e.kind() == ErrorKind::NotFound => None,
@@ -179,10 +196,7 @@ pub async fn install(
         }
         return Err(error.into());
     }
-    Ok(Installed {
-        version: installed,
-        entries,
-    })
+    Ok(installed)
 }
 
 fn file_error(path: &Path, error: std::io::Error) -> InstallError {
@@ -356,6 +370,48 @@ mod tests {
         let bytes = sync_fs::read(&path).unwrap();
         assert_eq!(installed.checksum.as_deref(), Some(Sha256::digest(&bytes).as_slice()));
         assert!(installed == a.version || installed == b.version);
+        assert!(leftovers(dir.path()).is_empty());
+    }
+
+    #[tokio::test]
+    async fn finishes_an_install_whose_caller_gives_up_after_the_swap() {
+        let world = World::new().await;
+        let admin = world.admin_access().await;
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("cty.zip");
+        let first = cty_archive(CTY, CTY_CSV);
+        install(&world.db, &admin, ReferenceKind::Cty, &path, &first, Some("1"))
+            .await
+            .unwrap();
+
+        let second = cty_archive(&CTY.replace("Japan:", "Nippon:"), CTY_CSV);
+        let swapped = async {
+            while sync_fs::read(&path).ok().as_deref() != Some(second.as_slice()) {
+                tokio::task::yield_now().await;
+            }
+        };
+        tokio::select! {
+            biased;
+            _ = swapped => {}
+            _ = install(&world.db, &admin, ReferenceKind::Cty, &path, &second, Some("2")) => {
+                panic!("the install finished before the swap was seen")
+            }
+        }
+
+        let committed = async {
+            loop {
+                if let Some(installed) = current_cty(&world).await.filter(|installed| installed.version == "2") {
+                    return installed;
+                }
+                tokio::task::yield_now().await;
+            }
+        };
+        let installed = tokio::time::timeout(std::time::Duration::from_secs(10), committed)
+            .await
+            .expect("the abandoned install was rolled back");
+        let bytes = sync_fs::read(&path).unwrap();
+        assert_eq!(bytes, second);
+        assert_eq!(installed.checksum.as_deref(), Some(Sha256::digest(&bytes).as_slice()));
         assert!(leftovers(dir.path()).is_empty());
     }
 
