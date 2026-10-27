@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+@import '../../client/src/theme.css';
+
+@utility field {
+    min-width: 0;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+}

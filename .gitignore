@@ -23,4 +23,11 @@ node_modules
 /client/static/vosk-worker.js
 /client/test-results
 /client/playwright-report
+
+# desktop/
+/desktop/.svelte-kit
+/desktop/build
+/desktop/src/lib/paraglide
+/desktop/src-tauri/target
+/desktop/src-tauri/gen
 vite.config.ts.timestamp-*

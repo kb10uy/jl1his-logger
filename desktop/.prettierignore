@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+/build/
+/.svelte-kit/
+/src/lib/paraglide/
+/project.inlang/
+/src-tauri/

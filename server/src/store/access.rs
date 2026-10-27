@@ -21,7 +21,7 @@ impl Principal {
         }
     }
 
-    fn user_id(&self) -> &str {
+    pub(crate) fn user_id(&self) -> &str {
         match self {
             Principal::User { user_id } | Principal::Token { user_id, .. } => user_id,
         }

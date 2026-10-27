@@ -1,0 +1,11 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "app_name": "JL1HIS Logger",
+    "common_loading": "Loading…",
+    "common_sign_out": "Sign out",
+    "common_unexpected": "Something went wrong: {detail}",
+    "window_title": "{callsign} — JL1HIS Logger",
+    "common_unreachable": "Could not reach the server.",
+    "tray_show": "Show",
+    "tray_quit": "Quit"
+}

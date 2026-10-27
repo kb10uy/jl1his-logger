@@ -41,6 +41,8 @@ scoped to Logbooks.
   reference data, backup). Serves `client/build` on the same origin.
 - `client/` — SvelteKit + TypeScript PWA, built with `adapter-static` as a
   client-only app with offline entry.
+- `desktop/` — the desktop entry client, a Tauri v2 app with a SvelteKit
+  frontend.
 - `query/` — the log's query syntax as a Rust crate, used by the server and
   compiled to WASM for the client.
 - `assets/` — `config.example.toml`.

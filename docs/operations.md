@@ -32,6 +32,71 @@ proxy in front; it is also where HSTS and any request rate limits belong, since
 the server applies neither. `GET /api/health` answers `{"status": "ok"}` while
 the database can be read, for the proxy or the container runtime to probe.
 
+## Desktop Client
+
+```sh
+cd client
+pnpm install --frozen-lockfile
+cd ../desktop
+pnpm install --frozen-lockfile
+pnpm tauri dev                # Vite on port 1420 inside a Tauri window
+pnpm tauri build --no-bundle  # → desktop/src-tauri/target/release/jl1his-logger-desktop.exe
+```
+
+The executable is handed out alone, without an installer. Its notifications
+on Windows are balloons of its tray icon, which Windows shows as toasts under
+the executable's own name and icon.
+
+It signs in with the server's URL and a Native API token issued in the web
+client under Settings › API tokens, or with `jl1his-logger token issue`. Its
+settings are `config.toml` in the app's configuration directory
+(`%APPDATA%\org.kb10uy.jl1his-logger\` on Windows; `config.dev.toml` for a
+debug build), or the file given as `--config <path>`
+(`pnpm tauri dev -- -- --config dev.toml`). The token is kept in the system's
+credential store, not in that file. The rest of it is set on the settings
+screen, or by hand:
+
+```toml
+language = "ja"              # en or ja; without it, the operating system's
+close_to_tray = true         # closing the window leaves it running in the tray
+
+[server]
+url = "https://log.example.com"
+
+[rig]
+enabled = true               # read the rig through rigctld
+host = "127.0.0.1"
+port = 4532
+poll_ms = 1000
+
+[rig.modes]                  # the logged mode for a rig mode, as MODE|SUBMODE
+PKTUSB = "MFSK|FT4"
+FM = "DIGITALVOICE|C4FM"
+
+[[listeners]]                # UDP for WSJT-X, ADIF and the client's own JSON
+enabled = true
+host = "127.0.0.1"
+port = 2237
+
+[[listeners]]
+enabled = false
+host = "127.0.0.1"
+port = 2333
+```
+
+In WSJT-X, set Settings › Reporting › UDP Server to `127.0.0.1` and the
+port of a listener.
+
+Its frontend imports the web client's
+`client/src/lib`, so `client/` is installed first; the desktop's scripts
+generate the client's ADIF tables and messages themselves.
+
+It needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+of the platform: WebView2 on Windows, WebKitGTK and its development packages
+on Linux. The app icons in `desktop/src-tauri/icons` are generated from
+`client/static/logo.svg` by `pnpm tauri icon ../client/static/logo.svg -o
+src-tauri/icons`, keeping only the files `tauri.conf.json` lists.
+
 ## Configuration
 
 Everything is set in one TOML file, `config.toml` in the working directory or

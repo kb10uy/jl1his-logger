@@ -111,6 +111,7 @@ pub async fn revoke(
 
 #[cfg(test)]
 mod tests {
+    use axum::http::header;
     use serde_json::{Value, json};
 
     use super::*;
@@ -158,6 +159,27 @@ mod tests {
         assert!(list[0]["last_used_at"].is_string());
         assert!(list[0].get("plaintext").is_none());
         assert_eq!(list[1], wl2["token"]);
+    }
+
+    #[tokio::test]
+    async fn a_native_token_reads_its_user_without_a_cookie() {
+        let h = Harness::new().await;
+        let operator = &h.world.operator;
+        let expected = json!({ "id": operator.id, "callsign": operator.callsign, "role": "user" });
+
+        let native = h.token(operator, TokenKind::Native, &[&h.world.logbook.id]).await;
+        let (status, headers, body) = h.send_with("GET", "/api/me", Auth::Bearer(&native), &[], None).await;
+        assert_eq!((status, &body), (StatusCode::OK, &expected));
+        assert!(headers.get(header::SET_COOKIE).is_none());
+
+        let session = h.session(operator).await;
+        let (status, headers, body) = h.send_with("GET", "/api/me", Auth::Session(&session), &[], None).await;
+        assert_eq!((status, &body), (StatusCode::OK, &expected));
+        assert!(headers.get(header::SET_COOKIE).is_some());
+
+        let wl2 = h.token(operator, TokenKind::Wl2, &[&h.world.logbook.id]).await;
+        let (status, _) = h.send("GET", "/api/me", Auth::Bearer(&wl2), None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]

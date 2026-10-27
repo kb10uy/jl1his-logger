@@ -23,7 +23,7 @@ use crate::{
         account::{
             session::{self as sessions, SESSION_TTL},
             token::{self as tokens, TokenKind},
-            user::{Role, User},
+            user::{self as users, Role, User},
         },
         hash_token, random_token,
     },
@@ -199,12 +199,24 @@ impl From<&User> for Me {
     }
 }
 
-pub async fn me(SignedIn(user): SignedIn, jar: CookieJar) -> (CookieJar, Json<Me>) {
-    let token = jar
-        .get(SESSION_COOKIE)
-        .map(|c| c.value().to_owned())
-        .unwrap_or_default();
-    (jar.add(session_cookie(token)), Json(Me::from(&user)))
+pub async fn me(
+    State(state): State<Arc<AppState>>,
+    caller: Caller,
+    jar: CookieJar,
+) -> Result<(CookieJar, Json<Me>), ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let user = users::of_principal(&mut conn, &caller.principal).await?;
+    let jar = match caller.session_hash {
+        Some(_) => {
+            let token = jar
+                .get(SESSION_COOKIE)
+                .map(|c| c.value().to_owned())
+                .unwrap_or_default();
+            jar.add(session_cookie(token))
+        }
+        None => jar,
+    };
+    Ok((jar, Json(Me::from(&user))))
 }
 
 pub async fn logout(State(state): State<Arc<AppState>>, jar: CookieJar) -> Result<(CookieJar, StatusCode), ApiError> {

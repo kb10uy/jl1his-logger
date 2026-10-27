@@ -3,7 +3,11 @@ use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
     domain::callsign,
-    store::{Fault, StoreError, WriteTx, access::AdminAccess, is_unique_violation, new_id, now},
+    store::{
+        Fault, StoreError, WriteTx,
+        access::{AdminAccess, Principal},
+        is_unique_violation, new_id, now,
+    },
 };
 
 const SELECT: &str = "SELECT id, callsign, role, disabled_at FROM users";
@@ -186,6 +190,13 @@ pub(crate) async fn find(conn: &mut SqliteConnection, id: &str) -> Result<Option
         .await?
         .map(|row| User::from_row(&row))
         .transpose()
+}
+
+pub async fn of_principal(conn: &mut SqliteConnection, principal: &Principal) -> Result<User, StoreError> {
+    find(conn, principal.user_id())
+        .await?
+        .filter(|user| user.disabled_at.is_none())
+        .ok_or(StoreError::Unauthenticated)
 }
 
 pub(crate) async fn is_active(conn: &mut SqliteConnection, id: &str) -> Result<bool, StoreError> {
