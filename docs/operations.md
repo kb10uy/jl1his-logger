@@ -41,14 +41,23 @@ cd ../desktop
 pnpm install --frozen-lockfile
 pnpm tauri dev                # Vite on port 1420 inside a Tauri window
 pnpm tauri build --no-bundle  # → desktop/src-tauri/target/release/jl1his-logger-desktop.exe
+pnpm tauri build --bundles appimage  # on Linux → desktop/src-tauri/target/release/bundle/appimage/
 ```
 
-The executable is handed out alone, without an installer. The Desktop workflow
-builds it on Windows for a `v*` tag and attaches it to that tag's GitHub
-Release as `jl1his-logger-desktop-<tag>-windows-x64.exe`, creating the Release
-with generated notes when there is none yet; a manual run keeps it as the
-run's artifact only. Its notifications on Windows are balloons of its tray
-icon, which Windows shows as toasts under the executable's own name and icon.
+The executable is handed out alone, without an installer, and on Linux as an
+AppImage. The Desktop workflow builds both for a `v*` tag, the AppImage on
+Ubuntu 22.04 so that it runs on that glibc and newer, and attaches them to that
+tag's GitHub Release as `jl1his-logger-desktop-windows-x64.exe` and
+`jl1his-logger-desktop-linux-x64.AppImage`, creating the Release with
+generated notes when there is none yet; a manual run keeps them as the run's
+artifacts only. The names carry no version, so a new one overwrites the old
+file and the latest is always at
+`https://github.com/kb10uy/jl1his-logger/releases/latest/download/<name>`.
+To upgrade, quit the running copy from the tray and replace the file; the
+settings, the token and unsent QSOs carry over. Its notifications on Windows
+are balloons of its tray icon, which Windows shows as toasts under the
+executable's own name and icon. On Linux the token needs a Secret Service
+(GNOME Keyring, KWallet) and the tray an AppIndicator host.
 
 It signs in with the server's URL and a Native API token issued in the web
 client under Settings › API tokens, or with `jl1his-logger token issue`. Its
