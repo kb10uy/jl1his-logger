@@ -6,6 +6,7 @@ mod credentials;
 mod datagram;
 mod events;
 mod listen;
+mod notify;
 mod origin;
 mod rig;
 mod rigctld;
@@ -29,6 +30,7 @@ fn main() {
     #[cfg(not(debug_assertions))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| tray::show_window(app)));
     builder
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let config = match config::path_argument(std::env::args().skip(1)) {
                 Some(path) => path,
@@ -63,7 +65,8 @@ fn main() {
             settings::listener_states,
             settings::incoming,
             settings::ack_incoming,
-            tray::set_tray_text
+            tray::set_tray_text,
+            notify::notify
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event

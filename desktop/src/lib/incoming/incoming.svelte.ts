@@ -4,6 +4,7 @@ import type { Fields } from '#client/api/types.ts';
 import { chooseStation, stationGroups } from '#lib/entry/choice.ts';
 import { outbox } from '#lib/entry/outbox.svelte.ts';
 import { loadCache, loadSettings } from '#lib/entry/storage.ts';
+import { loggedNotification } from './notification.ts';
 import { stationMismatches, type Mismatch } from './station.ts';
 
 interface Incoming {
@@ -77,16 +78,22 @@ class IncomingState {
                 fields
             );
             await invoke('ack_incoming', { ids: [id] });
+            const mismatches = stationMismatches(fields, station);
             const notice: Notice = {
                 kind: 'logged',
                 program,
                 call: fields.CALL ?? '',
-                mismatches: stationMismatches(fields, station)
+                mismatches
             };
             const shown = this.notice;
             if (shown === undefined || shown.kind === 'waiting' || !warns(shown) || warns(notice))
                 this.notice = notice;
-            await outbox.deliver(item);
+            const sent = await outbox.deliver(item);
+            if ('saved' in sent) {
+                invoke('notify', { ...loggedNotification(program, fields, mismatches) }).catch(
+                    () => undefined
+                );
+            }
         }
     }
 }

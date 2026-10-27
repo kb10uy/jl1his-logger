@@ -80,5 +80,8 @@
     "entry_incoming_logged_unnamed": "他のプログラムから {call} を記録しました",
     "entry_incoming_mismatch": "{name} は {given} のまま記録(運用地では {station})",
     "entry_incoming_waiting": "他のプログラムからの QSO {count} 件が運用地を待っています",
-    "entry_incoming_dismiss": "閉じる"
+    "entry_incoming_dismiss": "閉じる",
+    "notify_logged": "{call} を記録しました",
+    "notify_from": "{program} から",
+    "notify_from_unnamed": "他のプログラムから"
 }

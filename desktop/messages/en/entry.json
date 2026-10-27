@@ -80,5 +80,8 @@
     "entry_incoming_logged_unnamed": "Logged {call} from another program",
     "entry_incoming_mismatch": "{name} kept as {given}; the Station has {station}",
     "entry_incoming_waiting": "{count} QSOs from other programs wait for a Station",
-    "entry_incoming_dismiss": "Dismiss"
+    "entry_incoming_dismiss": "Dismiss",
+    "notify_logged": "Logged {call}",
+    "notify_from": "From {program}",
+    "notify_from_unnamed": "From another program"
 }
