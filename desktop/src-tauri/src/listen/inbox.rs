@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::listen::datagram::Fields;
 
 const SAME_QSO: Duration = Duration::from_secs(120);
+const MAX_HELD: usize = 1000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Incoming {
@@ -22,10 +23,16 @@ pub struct Inbox {
 
 impl Inbox {
     pub fn push(&mut self, program: Option<String>, fields: Fields, now: Instant) -> bool {
+        if self.pending.len() >= MAX_HELD {
+            return false;
+        }
         self.seen.retain(|(_, at)| now.duration_since(*at) < SAME_QSO);
         if let Some(key) = same_qso(&fields) {
             if self.seen.iter().any(|(seen, _)| *seen == key) {
                 return false;
+            }
+            if self.seen.len() >= MAX_HELD {
+                self.seen.remove(0);
             }
             self.seen.push((key, now));
         }
@@ -122,5 +129,20 @@ mod tests {
         assert!(inbox.push(None, fields.clone(), now));
         assert!(inbox.push(None, fields, now));
         assert_eq!(inbox.pending.len(), 2);
+    }
+
+    #[test]
+    fn drops_what_arrives_while_full() {
+        let mut inbox = Inbox::default();
+        let now = Instant::now();
+        for n in 0..MAX_HELD {
+            assert!(inbox.push(None, qso(&format!("JA{n}ABC"), "120015"), now));
+        }
+        assert!(!inbox.push(None, qso("JL1HIS", "120015"), now));
+        assert_eq!(inbox.pending.len(), MAX_HELD);
+        inbox.ack(&[1]);
+        assert!(inbox.push(None, qso("JL1HIS", "120015"), now));
+        assert_eq!(inbox.seen.len(), MAX_HELD);
+        assert_eq!(inbox.seen[0].0, "JA1ABC|20261027|120015|20m|FT8");
     }
 }

@@ -256,4 +256,5 @@ running Clippy on it. The desktop frontend imports `client/src/lib`, so install
 `client/` before checking `desktop/`.
 
 `cargo deny check licenses` and `cargo deny check advisories` run in `server/`
-against `server/deny.toml`.
+against `server/deny.toml` and in `desktop/src-tauri/` against
+`desktop/src-tauri/deny.toml`.

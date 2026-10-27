@@ -1,0 +1,28 @@
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+]
+exceptions = [
+    { allow = ["MPL-2.0"], crate = "cssparser" },
+    { allow = ["MPL-2.0"], crate = "cssparser-macros" },
+    { allow = ["MPL-2.0"], crate = "dtoa-short" },
+    { allow = ["MPL-2.0"], crate = "option-ext" },
+    { allow = ["MPL-2.0"], crate = "selectors" },
+]
+
+[advisories]
+ignore = [
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is a build-time macro dependency of the GTK 0.18 bindings that Tauri's Linux backend and tray-icon use; there is no newer GTK 3 binding to move to" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant 5 comes through zbus 5, which the Linux notification, single-instance and keyring backends use; it was folded into zbus, and the advisory reports no vulnerability" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names 5 comes through zbus 5 like zvariant; folded into zbus, with no vulnerability reported" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5 comes through zbus 5 like zvariant; folded into zbus, with no vulnerability reported" },
+]

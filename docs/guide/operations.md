@@ -29,7 +29,9 @@ the rest of the app works and voice entry says the model is missing.
 
 Passkeys need HTTPS (or `http://localhost`), so put a TLS-terminating reverse
 proxy in front; it is also where HSTS and any request rate limits belong, since
-the server applies neither. `GET /api/health` answers `{"status": "ok"}` while
+the server applies neither. Limit `/api/auth/` above all: a flood of sign-in
+starts can push a sign-in in progress out of the server's table, and the user
+has to start again. `GET /api/health` answers `{"status": "ok"}` while
 the database can be read, for the proxy or the container runtime to probe.
 
 ## Desktop Client
@@ -97,7 +99,9 @@ port = 2333
 ```
 
 In WSJT-X, set Settings › Reporting › UDP Server to `127.0.0.1` and the
-port of a listener. What a listener takes, from WSJT-X, as ADIF text or as the
+port of a listener. A listener does not ask who is sending: on any address but
+the loopback one, other machines on the network can log QSOs and fill the form
+too, and the settings screen says so. What a listener takes, from WSJT-X, as ADIF text or as the
 client's own JSON, is in [protocol.md](protocol.md).
 
 Its frontend imports the web client's
