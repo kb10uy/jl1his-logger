@@ -99,6 +99,9 @@ export const version = () => request<ServerVersion>('GET', '/api/version');
 
 export const references = () => request<ReferenceVersion[]>('GET', '/api/reference');
 
+export const installCty = (archive: Blob) =>
+    request<ReferenceVersion>('PUT', '/api/reference/cty', { raw: archive });
+
 export const subdivisions = (dxcc: number) =>
     request<Subdivision[]>('GET', `/api/reference/subdivisions/${dxcc}`);
 

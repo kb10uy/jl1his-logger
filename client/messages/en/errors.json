@@ -70,5 +70,6 @@
     "error_query_bad_field_name": "\"{value}\" is not an ADIF field name.",
     "error_query_missing_value": "{term}: the term has no value.",
     "error_query_bad_date": "\"{value}\" is not a date or a date range.",
-    "error_query_bad_number": "\"{value}\" is not a number or a range of numbers."
+    "error_query_bad_number": "\"{value}\" is not a number or a range of numbers.",
+    "error_reference_invalid": "The file was refused: {reason}"
 }

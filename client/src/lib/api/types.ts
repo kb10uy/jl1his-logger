@@ -178,7 +178,7 @@ export interface ServerVersion {
     commit: string | null;
 }
 
-export type ReferenceKind = 'cty' | 'dxcc' | 'subdivisions' | 'parks';
+export type ReferenceKind = 'cty' | 'subdivisions' | 'parks';
 
 export interface ReferenceVersion {
     kind: ReferenceKind;
