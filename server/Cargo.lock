@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "adif-manip"
 version = "0.3.0"
-source = "git+https://github.com/kb10uy/adif-manip#eeef7445e0ff9012cad89a3da5663a489561bb2a"
+source = "git+https://github.com/kb10uy/adif-manip#88deea73bed902d4ae740f619e61799b73f65c80"
 dependencies = [
  "encoding_rs",
  "regex",
@@ -1633,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "jl1his-logger"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "adif-manip",
  "axum",
@@ -2423,9 +2423,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags 2.13.2",
  "errno",
