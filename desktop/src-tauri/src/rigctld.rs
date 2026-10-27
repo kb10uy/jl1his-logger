@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, ErrorKind, Read, Write},
     net::{TcpStream, ToSocketAddrs},
     time::Duration,
 };
@@ -8,6 +8,7 @@ use thiserror::Error;
 
 const MAXIMUM_RESPONSE_LINES: usize = 512;
 const MAXIMUM_RESPONSE_LINE_BYTES: u64 = 4_096;
+const REPORT_GRACE: Duration = Duration::from_millis(150);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RigStatus {
@@ -19,6 +20,7 @@ pub struct RigStatus {
 pub struct Rigctld {
     reader: BufReader<TcpStream>,
     writer: TcpStream,
+    timeout: Duration,
     requires_vfo: bool,
 }
 
@@ -41,6 +43,7 @@ impl Rigctld {
         let mut rig = Self {
             reader: BufReader::new(stream),
             writer,
+            timeout,
             requires_vfo: false,
         };
         rig.requires_vfo = rig.asks_for_a_vfo()?;
@@ -85,31 +88,66 @@ impl Rigctld {
     }
 
     fn asks_for_a_vfo(&mut self) -> Result<bool, RigError> {
-        match self.send("\\chk_vfo") {
-            Ok(lines) => Ok(number(&lines) == Some(1)),
-            Err(error) if error.is_fatal() => Err(error),
-            Err(_) => Ok(false),
+        const COMMAND: &str = "\\chk_vfo";
+        self.write(COMMAND)?;
+        let mut line = self.read_line(COMMAND)?;
+        while line.ends_with(':') {
+            line = self.read_line(COMMAND)?;
         }
+        if line.starts_with("RPRT ") {
+            return Ok(false);
+        }
+        self.skip_report(COMMAND)?;
+        Ok(last_number(&line) == Some(1))
+    }
+
+    fn skip_report(&mut self, command: &str) -> Result<(), RigError> {
+        let transport = |error: std::io::Error| RigError::Transport(error.to_string());
+        self.reader
+            .get_ref()
+            .set_read_timeout(Some(REPORT_GRACE))
+            .map_err(transport)?;
+        let pending = match self.reader.fill_buf() {
+            Ok(buffer) => buffer.starts_with(b"RPRT "),
+            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => false,
+            Err(e) => return Err(transport(e)),
+        };
+        self.reader
+            .get_ref()
+            .set_read_timeout(Some(self.timeout))
+            .map_err(transport)?;
+        if pending {
+            self.read_line(command)?;
+        }
+        Ok(())
+    }
+
+    fn write(&mut self, command: &str) -> Result<(), RigError> {
+        writeln!(self.writer, "+{command}")
+            .and_then(|()| self.writer.flush())
+            .map_err(|error| RigError::Transport(error.to_string()))
+    }
+
+    fn read_line(&mut self, command: &str) -> Result<String, RigError> {
+        let mut raw = String::new();
+        let read = (&mut self.reader)
+            .take(MAXIMUM_RESPONSE_LINE_BYTES)
+            .read_line(&mut raw)
+            .map_err(|error| RigError::Transport(error.to_string()))?;
+        if read == 0 {
+            return Err(RigError::Closed);
+        }
+        if read as u64 == MAXIMUM_RESPONSE_LINE_BYTES && !raw.ends_with('\n') {
+            return Err(unreadable(command));
+        }
+        Ok(raw.trim_end_matches(['\r', '\n']).to_owned())
     }
 
     fn send(&mut self, command: &str) -> Result<Vec<String>, RigError> {
-        writeln!(self.writer, "+{command}")
-            .and_then(|()| self.writer.flush())
-            .map_err(|error| RigError::Transport(error.to_string()))?;
+        self.write(command)?;
         let mut lines = Vec::new();
         loop {
-            let mut raw = String::new();
-            let read = (&mut self.reader)
-                .take(MAXIMUM_RESPONSE_LINE_BYTES)
-                .read_line(&mut raw)
-                .map_err(|error| RigError::Transport(error.to_string()))?;
-            if read == 0 {
-                return Err(RigError::Closed);
-            }
-            if read as u64 == MAXIMUM_RESPONSE_LINE_BYTES && !raw.ends_with('\n') {
-                return Err(unreadable(command));
-            }
-            let line = raw.trim_end_matches(['\r', '\n']);
+            let line = self.read_line(command)?;
             if let Some(status) = line.strip_prefix("RPRT ") {
                 let code: i32 = status.trim().parse().map_err(|_| unreadable(command))?;
                 if code != 0 {
@@ -123,7 +161,7 @@ impl Rigctld {
             if lines.len() >= MAXIMUM_RESPONSE_LINES {
                 return Err(unreadable(command));
             }
-            lines.push(line.to_owned());
+            lines.push(line);
         }
     }
 }
@@ -141,6 +179,12 @@ fn number(lines: &[String]) -> Option<u64> {
     lines
         .iter()
         .find_map(|line| line.rsplit(':').next().and_then(|value| value.trim().parse().ok()))
+}
+
+fn last_number(line: &str) -> Option<u64> {
+    line.split([':', ' ', '\t'])
+        .rfind(|part| !part.is_empty())
+        .and_then(|value| value.parse().ok())
 }
 
 fn labelled<'a>(lines: &'a [String], name: &str) -> Option<&'a str> {
@@ -194,10 +238,12 @@ mod tests {
         thread::{self, JoinHandle},
     };
 
+    use rstest::rstest;
+
     use super::*;
 
     const TEST_TIMEOUT: Duration = Duration::from_secs(5);
-    const NO_VFO: &str = "chk_vfo:\nChkVFO: 0\nRPRT 0\n";
+    const NO_VFO: &str = "ChkVFO: 0\n";
 
     struct FakeRig {
         address: String,
@@ -303,6 +349,27 @@ mod tests {
         assert!(rig.requires_vfo());
         assert_eq!(rig.frequency(), Ok(7_178_000));
         assert_eq!(fake.received(), ["+\\chk_vfo", "+\\get_freq currVFO"]);
+    }
+
+    #[rstest]
+    #[case::current("ChkVFO: 1\n", true)]
+    #[case::current_without_vfo("ChkVFO: 0\n", false)]
+    #[case::older("CHKVFO 1\n", true)]
+    #[case::with_a_report("chk_vfo:\nChkVFO: 1\nRPRT 0\n", true)]
+    #[case::refused("RPRT -11\n", false)]
+    fn reads_whether_rigctld_asks_for_a_vfo(#[case] answer: &str, #[case] expected: bool) {
+        let get_freq = if expected {
+            "get_freq: currVFO\nFreq: 7178000\nRPRT 0\n"
+        } else {
+            "get_freq:\nFreq: 7178000\nRPRT 0\n"
+        };
+        let fake = FakeRig::spawn(&[answer, get_freq]);
+        let started = std::time::Instant::now();
+        let mut rig = Rigctld::connect(&fake.address, TEST_TIMEOUT).unwrap();
+
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert_eq!(rig.requires_vfo(), expected);
+        assert_eq!(rig.frequency(), Ok(7_178_000));
     }
 
     #[test]
