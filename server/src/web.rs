@@ -225,6 +225,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(body["commit"], json!(option_env!("JL1HIS_COMMIT")));
+        assert_eq!(body["adif"], "3.1.8");
         let (status, _) = h.send("GET", "/api/version", Auth::Anonymous, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
     }

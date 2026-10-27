@@ -1,18 +1,14 @@
 import * as api from '#lib/api/api.ts';
 import type { Subdivision } from '#lib/api/types.ts';
 
-const cache = new Map<string, Promise<Subdivision[]>>();
+const cache = new Map<number, Promise<Subdivision[]>>();
 
-export async function subdivisionsOf(dxcc: number): Promise<Subdivision[]> {
-    const versions = await api.references();
-    const version = versions.find((v) => v.kind === 'subdivisions')?.version;
-    if (version === undefined) return [];
-    const key = `${version}:${dxcc}`;
-    let found = cache.get(key);
+export function subdivisionsOf(dxcc: number): Promise<Subdivision[]> {
+    let found = cache.get(dxcc);
     if (found === undefined) {
         found = api.subdivisions(dxcc);
-        cache.set(key, found);
-        found.catch(() => cache.delete(key));
+        cache.set(dxcc, found);
+        found.catch(() => cache.delete(dxcc));
     }
     return found;
 }

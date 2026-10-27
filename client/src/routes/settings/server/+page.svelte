@@ -13,7 +13,6 @@
 
     const KINDS: { kind: ReferenceKind; label: () => string }[] = [
         { kind: 'cty', label: () => 'CTY' },
-        { kind: 'subdivisions', label: m.settings_reference_subdivisions },
         { kind: 'parks', label: m.settings_reference_parks }
     ];
 
@@ -76,6 +75,8 @@
                 ? '…'
                 : (server.commit?.slice(0, 12) ?? m.settings_server_commit_unknown())}
         </dd>
+        <dt class="text-muted">{m.settings_server_adif()}</dt>
+        <dd class="font-mono">{server?.adif ?? '…'}</dd>
     </dl>
     <section aria-label={m.settings_reference()} class="flex flex-col gap-2">
         <h2 class="eyebrow">{m.settings_reference()}</h2>

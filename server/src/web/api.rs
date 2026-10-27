@@ -14,7 +14,7 @@ use axum::{
 use serde_json::json;
 
 use crate::{
-    domain::reference::MAX_ARCHIVE_BYTES,
+    domain::{adif::TABLES_VERSION, reference::MAX_ARCHIVE_BYTES},
     web::{AppState, error::ApiError, references},
 };
 
@@ -129,7 +129,12 @@ async fn health(State(state): State<Arc<AppState>>) -> Response {
 }
 
 async fn version(_: auth::SignedIn) -> Response {
-    Json(json!({ "version": env!("CARGO_PKG_VERSION"), "commit": option_env!("JL1HIS_COMMIT") })).into_response()
+    Json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "commit": option_env!("JL1HIS_COMMIT"),
+        "adif": TABLES_VERSION,
+    }))
+    .into_response()
 }
 
 async fn api_not_found() -> Response {

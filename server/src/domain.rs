@@ -3,6 +3,7 @@ pub mod band;
 pub mod callsign;
 pub mod confirmation;
 pub mod duplicate;
+pub mod dxcc;
 pub mod import;
 pub mod mode;
 pub mod pota;

@@ -10,6 +10,7 @@ client/build
 client/static/models
 client/static/vosk-worker.js
 client/src/lib/query/wasm
+client/src/lib/adif
 client/test-results
 client/playwright-report
 config.toml

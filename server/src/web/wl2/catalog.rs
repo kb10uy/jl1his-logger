@@ -5,6 +5,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
+    domain::dxcc::DxccEntity,
     store::qso,
     web::{
         AppState,
@@ -42,16 +43,12 @@ pub async fn get(
                 .as_deref()
                 .and_then(|d| d.trim().parse().ok())
                 .ok_or_else(|| Wl2Error::validation("dxcc is required as a DXCC entity code"))?;
-            let subdivisions = state
-                .references
-                .subdivisions(&state.db, &state.config.reference)
-                .await?
-                .ok_or_else(|| Wl2Error::not_found("no subdivisions are installed"))?;
-            let names = subdivisions
-                .get(&dxcc)
-                .into_iter()
-                .flatten()
-                .map(|(state, name)| json!({ "dxcc": dxcc, "state": state, "name": name }))
+            let entity = DxccEntity::of_code(dxcc)
+                .ok_or_else(|| Wl2Error::not_found(format!("{dxcc} is not an ADIF DXCC entity code")))?;
+            let names = entity
+                .subdivisions()
+                .iter()
+                .map(|s| json!({ "dxcc": dxcc, "state": s.code, "name": s.name }))
                 .collect();
             Ok(data(
                 Value::Array(names),
@@ -71,7 +68,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        store::{account::token::TokenKind, reference::ReferenceKind},
+        store::account::token::TokenKind,
         web::{
             testing::{Auth, Harness},
             wl2::tests::Fixture,
@@ -147,34 +144,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lists_the_installed_subdivisions_of_an_entity() {
+    async fn lists_the_subdivisions_of_an_entity() {
         let f = Fixture::new().await;
-        let uri = "/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=339";
-        let (status, body) = f.get(uri).await;
+        let (status, body) = f.get("/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=339").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["meta"], json!({ "topic": "subdivisions", "dxcc": 339 }));
+        assert_eq!(body["data"].as_array().unwrap().len(), 47);
+        assert_eq!(
+            body["data"][0],
+            json!({ "dxcc": 339, "state": "01", "name": "Hokkaido" })
+        );
+
+        let (_, none) = f.get("/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=0").await;
+        assert_eq!(none["data"], json!([]));
+        let (status, body) = f
+            .get("/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=1000")
+            .await;
         assert_eq!(
             (status, &body["error"]["code"]),
             (StatusCode::NOT_FOUND, &json!("not_found"))
         );
-
-        f.install(
-            ReferenceKind::Subdivisions,
-            "[339]\n13 = \"Tokyo\"\n01 = \"Hokkaido\"\n[291]\nCA = \"California\"\n",
-            "2026-10-23",
-        )
-        .await;
-        let (status, body) = f.get(uri).await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        assert_eq!(
-            body,
-            json!({
-                "data": [
-                    { "dxcc": 339, "state": "01", "name": "Hokkaido" },
-                    { "dxcc": 339, "state": "13", "name": "Tokyo" },
-                ],
-                "meta": { "topic": "subdivisions", "dxcc": 339 },
-            })
-        );
-        let (_, none) = f.get("/wl2/index.php/api/v2/catalog?topic=subdivisions&dxcc=1").await;
-        assert_eq!(none["data"], json!([]));
     }
 }

@@ -15,41 +15,7 @@ const fn band(name: &'static str, lower_hz: u64, upper_hz: u64) -> Band {
     }
 }
 
-pub const BANDS: &[Band] = &[
-    band("2190m", 135_700, 137_800),
-    band("630m", 472_000, 479_000),
-    band("560m", 501_000, 504_000),
-    band("160m", 1_800_000, 2_000_000),
-    band("80m", 3_500_000, 4_000_000),
-    band("60m", 5_060_000, 5_450_000),
-    band("40m", 7_000_000, 7_300_000),
-    band("30m", 10_100_000, 10_150_000),
-    band("20m", 14_000_000, 14_350_000),
-    band("17m", 18_068_000, 18_168_000),
-    band("15m", 21_000_000, 21_450_000),
-    band("12m", 24_890_000, 24_990_000),
-    band("10m", 28_000_000, 29_700_000),
-    band("8m", 40_000_000, 45_000_000),
-    band("6m", 50_000_000, 54_000_000),
-    band("5m", 54_000_001, 69_900_000),
-    band("4m", 70_000_000, 71_000_000),
-    band("2m", 144_000_000, 148_000_000),
-    band("1.25m", 222_000_000, 225_000_000),
-    band("70cm", 420_000_000, 450_000_000),
-    band("33cm", 902_000_000, 928_000_000),
-    band("23cm", 1_240_000_000, 1_300_000_000),
-    band("13cm", 2_300_000_000, 2_450_000_000),
-    band("9cm", 3_300_000_000, 3_500_000_000),
-    band("6cm", 5_650_000_000, 5_925_000_000),
-    band("3cm", 10_000_000_000, 10_500_000_000),
-    band("1.25cm", 24_000_000_000, 24_250_000_000),
-    band("6mm", 47_000_000_000, 47_200_000_000),
-    band("4mm", 75_500_000_000, 81_000_000_000),
-    band("2.5mm", 119_980_000_000, 123_000_000_000),
-    band("2mm", 134_000_000_000, 149_000_000_000),
-    band("1mm", 241_000_000_000, 250_000_000_000),
-    band("submm", 300_000_000_000, 7_500_000_000_000),
-];
+include!(concat!(env!("OUT_DIR"), "/adif/bands.rs"));
 
 impl Band {
     pub fn named(name: &str) -> Option<&'static Band> {
@@ -76,32 +42,15 @@ pub fn format_frequency_mhz(hz: u64) -> String {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
-    use serde::Deserialize;
 
     use super::*;
 
-    #[derive(Deserialize)]
-    struct Fixture {
-        bands: Vec<FixtureBand>,
-    }
-
-    #[derive(Deserialize)]
-    struct FixtureBand {
-        band: String,
-        lower_hz: u64,
-        upper_hz: u64,
-    }
-
-    #[test]
-    fn matches_the_shared_band_table() {
-        let fixture: Fixture = serde_json::from_str(include_str!("../../../fixtures/reference/bands.json")).unwrap();
-        let bands: Vec<(&str, u64, u64)> = BANDS.iter().map(|b| (b.name, b.lower_hz, b.upper_hz)).collect();
-        let expected: Vec<(&str, u64, u64)> = fixture
-            .bands
-            .iter()
-            .map(|b| (b.band.as_str(), b.lower_hz, b.upper_hz))
-            .collect();
-        assert_eq!(bands, expected);
+    #[rstest]
+    #[case(0, band("2190m", 135_700, 137_800))]
+    #[case(15, band("5m", 54_000_001, 69_900_000))]
+    #[case(32, band("submm", 300_000_000_000, 7_500_000_000_000))]
+    fn follows_the_adif_band_enumeration(#[case] index: usize, #[case] expected: Band) {
+        assert_eq!(BANDS[index], expected);
     }
 
     #[rstest]

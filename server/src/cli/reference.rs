@@ -22,9 +22,7 @@ pub enum ReferenceCommand {
 pub struct InstallArgs {
     #[arg(value_enum, help = "Which reference data the file holds")]
     kind: KindArg,
-    #[arg(
-        help = "A CTY zip archive (Big CTY or the contest files) for cty, or the TOML table for subdivisions or parks"
-    )]
+    #[arg(help = "A CTY zip archive (Big CTY or the contest files) for cty, or the TOML table for parks")]
     file: PathBuf,
     #[arg(
         long,
@@ -36,7 +34,6 @@ pub struct InstallArgs {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum KindArg {
     Cty,
-    Subdivisions,
     Parks,
 }
 
@@ -44,7 +41,6 @@ impl From<KindArg> for ReferenceKind {
     fn from(kind: KindArg) -> ReferenceKind {
         match kind {
             KindArg::Cty => ReferenceKind::Cty,
-            KindArg::Subdivisions => ReferenceKind::Subdivisions,
             KindArg::Parks => ReferenceKind::Parks,
         }
     }
@@ -83,7 +79,6 @@ async fn install(context: &Context<'_>, args: &InstallArgs) -> CliResult<(Instal
     let paths = &context.config.reference;
     let path = match args.kind {
         KindArg::Cty => &paths.cty,
-        KindArg::Subdivisions => &paths.subdivisions,
         KindArg::Parks => &paths.parks,
     };
     let installed = reference::install(

@@ -246,11 +246,12 @@ operation.
 
 ### `reference_versions`
 
-The active version of each reference data set (`cty`, `subdivisions`,
-`parks`, enforced by a `CHECK`), written when an admin installs a file with the
+The active version of each reference data set (`cty`, `parks`, enforced by a
+`CHECK`), written when an admin installs a file with the
 CLI or uploads a CTY archive, with the file's SHA-256 as `checksum`. Migration 9
 removed the `dxcc` kind and forgot the `cty` row of a plain `cty.dat`, which
-must be installed again as an archive. The data itself
+must be installed again as an archive; migration 10 removed the
+`subdivisions` kind, now built into the server. The data itself
 lives in the files `config.toml` points at; the server reloads a file when its
 row changes, and the web UI reads this table to show the versions.
 
@@ -258,9 +259,10 @@ row changes, and the web UI reads this table to show the versions.
 
 - **Contest catalog** for `/wl2` `catalog?topic=contest`: served from the
   distinct `contest_id` values of the Logbook, so no table. If names are
-  needed, this becomes a reference data set.
-- **Bands and modes**: compiled into the server, shared with the client's
-  tables.
+  needed, they can come from the ADIF Contest_ID table.
+- **ADIF tables** (bands, modes, QSL values, DXCC entities, subdivisions):
+  compiled into the server from `assets/adif/`, from which the
+  client generates its own.
 - **Import staging**: an import previews and applies within one CLI run or
   one request; the web UI sends the file again to apply what it previewed.
 - **Change history**: none, by decision. Triggers that stack the previous

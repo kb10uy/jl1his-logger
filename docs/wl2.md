@@ -21,7 +21,7 @@ with `details` where Wavelog gives them:
 | `400` | `validation_error` | An unsupported or malformed parameter or body, or a duplicate `POST qso` |
 | `401` | `invalid_token` | See above |
 | `403` | `forbidden` | A Station ID that is not a Station of the Logbook |
-| `404` | `not_found` | An unknown path, or subdivisions not installed |
+| `404` | `not_found` | An unknown path, or subdivisions of a code that is not an ADIF DXCC entity |
 | `409` | `conflict` | A derived QSO ID taken by another Logbook |
 | `500` | `internal_error` | A server failure, or a reference file that does not match its installed version |
 
@@ -141,10 +141,11 @@ live QSOs, ignoring case, as `{"contest": "<id>", "name": null}`. There is no
 contest table, so there are no names.
 
 `GET catalog?topic=subdivisions&dxcc=<code>` lists the subdivisions of an
-entity from the installed `subdivisions` data, as
-`{"dxcc": 339, "state": "13", "name": "Tokyo"}` ordered by `state`. An entity
-without subdivisions is an empty list, `dxcc` is required, and the topic is
-`404` until subdivisions are installed.
+entity from the ADIF table built into the server, as
+`{"dxcc": 339, "state": "10", "name": "Tokyo"}` ordered by `state`, without
+the subdivisions the specification marks deleted or import-only. An entity
+without subdivisions is an empty list, `dxcc` is required, and a `dxcc` that
+is not an ADIF DXCC entity code is `404`.
 
 `GET catalog` without a topic answers `{"topics": ["contest", "subdivisions"]}`
 in `data`. Another topic is `400 validation_error` with those names in
@@ -177,7 +178,7 @@ Wavelog scopes are not modelled; a `wl2` token may use everything here.
 | `GET lookup?grid=` | No | `400` (`callsign` is required) |
 | `GET catalog` (no topic) | Yes | Lists only the topics served here |
 | `GET catalog?topic=contest` | Partly | `CONTEST_ID`s found in the Logbook's QSOs, with no `id` and a `null` `name`; there is no contest table |
-| `GET catalog?topic=subdivisions` | Yes | From the installed `subdivisions` reference data; each item also carries `dxcc`. `404` until installed |
+| `GET catalog?topic=subdivisions` | Yes | From the ADIF table built into the server; each item also carries `dxcc`. `404` for a code that is not an ADIF DXCC entity |
 | `GET catalog?topic=dxcc` | No | `400`; could be built from the installed `cty` data if a client needs it |
 | `logbook` | No | Logbooks are the native API's; a `wl2` token is fixed to one |
 | `radio` | No | CAT is not part of this application |

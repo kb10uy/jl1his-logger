@@ -17,9 +17,7 @@ pub const FIELDS: [&str; 14] = [
     "LOTW_QSLRDATE",
 ];
 
-const SENT: &[&str] = &["Y", "N", "R", "Q", "I"];
-const RCVD: &[&str] = &["Y", "N", "R", "I", "V"];
-const VIA: &[&str] = &["B", "D", "E", "M"];
+include!(concat!(env!("OUT_DIR"), "/adif/qsl.rs"));
 
 pub fn field(name: &str) -> Option<&'static str> {
     FIELDS

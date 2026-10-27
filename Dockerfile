@@ -23,6 +23,7 @@ COPY client/package.json client/pnpm-lock.yaml client/pnpm-workspace.yaml ./
 RUN npm install -g "$(node -p 'require("./package.json").packageManager')" \
     && pnpm install --frozen-lockfile
 COPY query /src/query
+COPY assets/adif /src/assets/adif
 COPY client ./
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/query/target \
@@ -32,6 +33,7 @@ FROM rust AS server
 ARG GIT_COMMIT=
 WORKDIR /src/server
 COPY query /src/query
+COPY assets/adif /src/assets/adif
 COPY server/Cargo.toml server/Cargo.lock server/build.rs ./
 COPY server/migrations migrations
 COPY server/src src

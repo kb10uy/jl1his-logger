@@ -16,6 +16,7 @@ node_modules
 /client/.svelte-kit
 /client/build
 /client/src/lib/query/wasm
+/client/src/lib/adif
 /client/src/lib/paraglide
 /client/static/models
 /client/.vosk
