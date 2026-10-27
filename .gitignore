@@ -27,6 +27,7 @@ node_modules
 # desktop/
 /desktop/.svelte-kit
 /desktop/build
+/desktop/src/lib/paraglide
 /desktop/src-tauri/target
 /desktop/src-tauri/gen
 vite.config.ts.timestamp-*

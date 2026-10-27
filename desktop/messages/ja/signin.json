@@ -1,0 +1,21 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "signin_lead": "API トークンでログサーバーに接続します。",
+    "signin_url": "サーバーの URL",
+    "signin_token": "API トークン",
+    "signin_token_hint": "Web 版の 設定 › API トークン で、ネイティブ API のトークンを発行してください。",
+    "signin_show_token": "トークンを表示",
+    "signin_hide_token": "トークンを隠す",
+    "signin_connect": "接続",
+    "signin_checking": "確認中…",
+    "signin_keychain": "トークンはシステムの資格情報ストアに保存し、ファイルには書きません。",
+    "signin_rejected": "保存していたトークンがサーバーに拒否されました。新しいトークンを入力してください。",
+    "signin_error_bad_url": "Web 版を開いている URL を https:// から入力してください。({detail})",
+    "signin_error_unauthorized": "サーバーがトークンを拒否しました。失効しているか、ユーザーがどのログブックにも属していない可能性があります。",
+    "signin_error_wl2": "これは Wavelog 互換のトークンです。ネイティブ API のトークンを発行してください。",
+    "signin_error_no_logbook": "このトークンで使えるログブックがありません。記録するログブックを選んで発行してください。",
+    "signin_error_unreachable": "サーバーに接続できません。URL とネットワークを確認してください。({detail})",
+    "signin_error_server": "サーバーが {status} を返しました: {detail}",
+    "signin_error_credentials": "トークンを資格情報ストアに保存できませんでした: {detail}",
+    "signin_error_config": "設定ファイルを使えませんでした: {detail}"
+}

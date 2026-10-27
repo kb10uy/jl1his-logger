@@ -1,0 +1,21 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "signin_lead": "Connect to the log server with an API token.",
+    "signin_url": "Server URL",
+    "signin_token": "API token",
+    "signin_token_hint": "Issue a Native API token in the web client under Settings › API tokens.",
+    "signin_show_token": "Show the token",
+    "signin_hide_token": "Hide the token",
+    "signin_connect": "Connect",
+    "signin_checking": "Checking…",
+    "signin_keychain": "The token is kept in the system's credential store, never in a file.",
+    "signin_rejected": "The server refused the saved token. Enter a new one.",
+    "signin_error_bad_url": "Enter the URL the web client is reached at, starting with https://. ({detail})",
+    "signin_error_unauthorized": "The server refused the token. It may be revoked, or its user may have no Logbook left.",
+    "signin_error_wl2": "This is a Wavelog compatible token. Issue a Native API token instead.",
+    "signin_error_no_logbook": "The token reaches no Logbook. Issue one for the Logbooks you log to.",
+    "signin_error_unreachable": "Could not reach the server. Check the URL and the network. ({detail})",
+    "signin_error_server": "The server answered {status}: {detail}",
+    "signin_error_credentials": "The token could not be kept in the credential store: {detail}",
+    "signin_error_config": "The settings file could not be used: {detail}"
+}

@@ -1,0 +1,10 @@
+{
+    "$schema": "https://inlang.com/schema/inlang-message-format",
+    "app_name": "JL1HIS Logger",
+    "common_loading": "読み込み中…",
+    "common_sign_out": "サインアウト",
+    "common_unexpected": "問題が起きました: {detail}",
+    "home_connected": "{url} に接続中",
+    "home_logbooks": "ログブック",
+    "home_offline": "{url} に接続できないため、ログブックを表示できません。"
+}
