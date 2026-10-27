@@ -42,7 +42,7 @@ browser's `credential`; a ceremony is used once and expires after 5 minutes.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `GET /api/me` | | The signed-in user `{id, callsign, role}`, renewing the cookie |
+| `GET /api/me` | | The signed-in user `{id, callsign, role}`, renewing the cookie; with a `native` API token, the token's user |
 | `POST /api/auth/login/start` | | `{ceremony, options}` for a discoverable credential |
 | `POST /api/auth/login/finish` | `{ceremony, credential}` | The user, with the session cookie |
 | `POST /api/auth/logout` | | `204`, deleting the session and the cookie |
@@ -131,8 +131,9 @@ some clients choose API v2. Another user's token is `404` for anyone but an admi
 The endpoints under `/api/logbooks` accept either the session cookie or a `native` API
 token as `Authorization: Bearer <token>`. A token reaches only the Logbooks of
 its scopes where its user still has a Membership; a `wl2` token is refused with
-`401`. When `Authorization` is present the cookie is ignored. Sign-in and
-passkey endpoints take the session cookie only.
+`401`. When `Authorization` is present the cookie is ignored. `GET /api/me`
+also takes a `native` token and answers with its user, without a cookie.
+The other sign-in and passkey endpoints take the session cookie only.
 
 A Logbook, Station, Instrument or QSO the caller cannot reach is `404`, the same as one
 that does not exist. A write reserved for owners is `403` for an operator.
