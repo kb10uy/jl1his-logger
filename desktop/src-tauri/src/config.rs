@@ -13,6 +13,10 @@ pub const FILE_NAME: &str = if cfg!(debug_assertions) {
     "config.toml"
 };
 
+pub struct Paths {
+    pub config: PathBuf,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]

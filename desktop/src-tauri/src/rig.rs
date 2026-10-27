@@ -1,3 +1,5 @@
+mod rigctld;
+
 use std::{
     sync::{
         Arc, Mutex,
@@ -8,9 +10,13 @@ use std::{
 };
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 
-use crate::{config::Rig, rigctld::Rigctld};
+use crate::{
+    config::{Config, Paths, Rig},
+    error::CommandError,
+    rig::rigctld::Rigctld,
+};
 
 const TIMEOUT: Duration = Duration::from_secs(2);
 const RETRY: Duration = Duration::from_secs(5);
@@ -135,4 +141,19 @@ fn run(app: &AppHandle, shared: &Mutex<Shared>, generation: u64, address: &str, 
             return;
         }
     }
+}
+
+#[tauri::command]
+pub fn rig_state(watcher: State<'_, RigWatcher>) -> RigState {
+    watcher.state()
+}
+
+#[tauri::command]
+pub fn reconnect_rig(
+    app: AppHandle,
+    paths: State<'_, Paths>,
+    watcher: State<'_, RigWatcher>,
+) -> Result<(), CommandError> {
+    watcher.start(&app, &Config::load(&paths.config)?.rig);
+    Ok(())
 }

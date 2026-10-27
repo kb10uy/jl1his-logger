@@ -1,27 +1,20 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod api;
 mod config;
-mod credentials;
-mod datagram;
-mod events;
+mod error;
 mod listen;
-mod notify;
-mod origin;
 mod rig;
-mod rigctld;
-mod session;
+mod server;
 mod settings;
 mod tray;
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
 use crate::{
-    config::Config,
-    events::Watchers,
+    config::{Config, Paths},
     listen::Listeners,
     rig::RigWatcher,
-    session::{Connection, Paths},
+    server::{events::Watchers, session::Connection},
     tray::Tray,
 };
 
@@ -54,20 +47,20 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            session::session,
-            session::sign_in,
-            session::sign_out,
-            session::request,
-            events::watch,
+            server::session::session,
+            server::session::sign_in,
+            server::session::sign_out,
+            server::session::request,
+            server::events::watch,
             settings::settings,
             settings::save_settings,
-            settings::rig_state,
-            settings::reconnect_rig,
-            settings::listener_states,
-            settings::incoming,
-            settings::ack_incoming,
+            rig::rig_state,
+            rig::reconnect_rig,
+            listen::listener_states,
+            listen::incoming,
+            listen::ack_incoming,
             tray::set_tray_text,
-            notify::notify
+            tray::notify::notify
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event

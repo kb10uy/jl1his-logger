@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 use crate::{
-    config::{Config, Listener, Rig},
-    listen::{Incoming, ListenerState, Listeners},
-    rig::{RigState, RigWatcher},
-    session::{CommandError, Paths},
+    config::{Config, Listener, Paths, Rig},
+    error::CommandError,
+    listen::Listeners,
+    rig::RigWatcher,
     tray::Tray,
 };
 
@@ -86,36 +86,6 @@ pub fn save_settings(
         listening.start(&app, &config.listeners);
     }
     Ok(Settings::of(&paths, config))
-}
-
-#[tauri::command]
-pub fn rig_state(watcher: State<'_, RigWatcher>) -> RigState {
-    watcher.state()
-}
-
-#[tauri::command]
-pub fn reconnect_rig(
-    app: AppHandle,
-    paths: State<'_, Paths>,
-    watcher: State<'_, RigWatcher>,
-) -> Result<(), CommandError> {
-    watcher.start(&app, &Config::load(&paths.config)?.rig);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn listener_states(listening: State<'_, Listeners>) -> Vec<ListenerState> {
-    listening.states()
-}
-
-#[tauri::command]
-pub fn incoming(listening: State<'_, Listeners>) -> Vec<Incoming> {
-    listening.incoming()
-}
-
-#[tauri::command]
-pub fn ack_incoming(listening: State<'_, Listeners>, ids: Vec<u64>) {
-    listening.ack(&ids);
 }
 
 #[cfg(test)]
