@@ -74,7 +74,8 @@ cookie only.
 
 `GET /api/version` returns `{version, commit, adif}`: the server's package
 version, the Git commit it was built from, or `null` when the build did not
-know it, and the ADIF version its built-in tables follow (`3.1.8`).
+know it, and the ADIF version its built-in tables follow (`3.1.8`), which is
+also the `ADIF_VER` of its exports.
 It takes the session cookie only.
 
 `GET /api/health` needs no sign-in and answers `{"status": "ok"}` when the

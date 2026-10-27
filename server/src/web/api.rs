@@ -14,7 +14,7 @@ use axum::{
 use serde_json::json;
 
 use crate::{
-    domain::{adif::TABLES_VERSION, reference::MAX_ARCHIVE_BYTES},
+    domain::{adif::ADIF_VERSION, reference::MAX_ARCHIVE_BYTES},
     web::{AppState, error::ApiError, references},
 };
 
@@ -132,7 +132,7 @@ async fn version(_: auth::SignedIn) -> Response {
     Json(json!({
         "version": env!("CARGO_PKG_VERSION"),
         "commit": option_env!("JL1HIS_COMMIT"),
-        "adif": TABLES_VERSION,
+        "adif": ADIF_VERSION,
     }))
     .into_response()
 }

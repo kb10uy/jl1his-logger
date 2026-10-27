@@ -12,8 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::qso::{Qso, QsoError};
 
-pub const ADIF_VERSION: &str = "3.1.5";
-pub const TABLES_VERSION: &str = include!(concat!(env!("OUT_DIR"), "/adif/version.rs"));
+pub const ADIF_VERSION: &str = include!(concat!(env!("OUT_DIR"), "/adif/version.rs"));
 pub const PROGRAM_ID: &str = "jl1his-logger";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]

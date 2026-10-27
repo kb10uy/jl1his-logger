@@ -15,7 +15,8 @@ generate their ADIF tables from them at build time:
 
 `server/build.rs` writes Rust tables into `OUT_DIR` and `client/scripts/adif.js`
 (`pnpm run adif`) writes `client/src/lib/adif/tables.ts`; neither output is
-committed. Both refuse a malformed file and name the file and row.
+committed. Both refuse a malformed file and name the file and row. Their
+`ADIF Version` is also the `ADIF_VER` the server writes in exports.
 
 ## Source
 
