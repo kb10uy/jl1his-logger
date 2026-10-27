@@ -25,21 +25,18 @@ const SELECT: &str = "SELECT kind, version, checksum, updated_at FROM reference_
 #[serde(rename_all = "snake_case")]
 pub enum ReferenceKind {
     Cty,
-    Parks,
 }
 
 impl ReferenceKind {
     pub fn as_str(self) -> &'static str {
         match self {
             ReferenceKind::Cty => "cty",
-            ReferenceKind::Parks => "parks",
         }
     }
 
     fn parse(s: &str) -> Result<ReferenceKind, StoreError> {
         match s {
             "cty" => Ok(ReferenceKind::Cty),
-            "parks" => Ok(ReferenceKind::Parks),
             _ => Err(StoreError::Invalid(format!("unknown reference data {s:?}").into())),
         }
     }
@@ -131,7 +128,6 @@ fn check(kind: ReferenceKind, bytes: &[u8]) -> Result<(Option<String>, usize), R
             let cty = data::parse_cty_archive(bytes)?;
             Ok((cty.version, cty.database.len()))
         }
-        ReferenceKind::Parks => Ok((None, data::parse_parks(data::text(bytes)?)?.len())),
     }
 }
 
@@ -409,24 +405,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn installs_toml_tables_and_refuses_other_text() {
-        let world = World::new().await;
-        let admin = world.admin_access().await;
-        let dir = TempDir::new().unwrap();
-        let path = dir.path().join("parks.toml");
-        let parks = "JP-0001 = { name_en = \"Rishiri\" }\n";
-        let installed = install(&world.db, &admin, ReferenceKind::Parks, &path, parks.as_bytes(), None)
-            .await
-            .unwrap();
-        assert_eq!(installed.entries, 1);
-        assert_eq!(sync_fs::read_to_string(&path).unwrap(), parks);
-        let error = install(&world.db, &admin, ReferenceKind::Parks, &path, b"\xff", None)
-            .await
-            .unwrap_err();
-        assert!(matches!(error, InstallError::Store(StoreError::Invalid(_))), "{error}");
-    }
-
-    #[tokio::test]
     async fn records_versions_for_signed_in_users_to_read() {
         let world = World::new().await;
         let admin = world.admin_access().await;
@@ -437,11 +415,8 @@ mod tests {
         let cty = set(&mut tx, &admin, ReferenceKind::Cty, " 2026-10-15 ", Some(&[1, 2]))
             .await
             .unwrap();
-        set(&mut tx, &admin, ReferenceKind::Parks, "2026-09", None)
-            .await
-            .unwrap();
         assert!(matches!(
-            set(&mut tx, &admin, ReferenceKind::Parks, " ", None).await,
+            set(&mut tx, &admin, ReferenceKind::Cty, " ", None).await,
             Err(StoreError::Invalid(_))
         ));
         let not_admin = access::admin(&mut tx, &access::Principal::user(&world.operator.id)).await;
@@ -449,12 +424,10 @@ mod tests {
 
         let user = world.user_access(&world.operator).await;
         let versions = list(&mut tx, &user).await.unwrap();
-        assert_eq!(versions.len(), 2);
-        assert_eq!(versions[0], cty);
+        assert_eq!(versions, [cty]);
         assert_eq!(
             (versions[0].version.as_str(), versions[0].checksum.as_deref()),
             ("2026-10-15", Some(&[1u8, 2][..]))
         );
-        assert_eq!(versions[1].kind, ReferenceKind::Parks);
     }
 }

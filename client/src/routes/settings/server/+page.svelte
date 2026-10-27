@@ -12,8 +12,7 @@
     import { session } from '#lib/state/session.svelte.ts';
 
     const KINDS: { kind: ReferenceKind; label: () => string }[] = [
-        { kind: 'cty', label: () => 'CTY' },
-        { kind: 'parks', label: m.settings_reference_parks }
+        { kind: 'cty', label: () => 'CTY' }
     ];
 
     let server = $state<ServerVersion | undefined>(undefined);

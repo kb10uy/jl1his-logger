@@ -270,7 +270,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
         assert!(migrated.snapshot.unwrap().is_file());
         let session: (String, Vec<u8>, String, Option<String>) =
             sqlx::query_as("SELECT id, token_hash, last_used_at, user_agent FROM sessions")
@@ -314,20 +314,11 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(target, ("log".into(), "batch".into(), "qso".into(), 2));
-        let references: Vec<(String, String, Vec<u8>, String)> =
-            sqlx::query_as("SELECT kind, version, checksum, updated_at FROM reference_versions")
-                .fetch_all(&db)
-                .await
-                .unwrap();
-        assert_eq!(
-            references,
-            [(
-                "parks".into(),
-                "2026-10".into(),
-                vec![0xef],
-                "2026-10-22T00:00:00Z".into()
-            )]
-        );
+        let references: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM reference_versions")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(references, 0);
         assert!(
             sqlx::query("PRAGMA foreign_key_check")
                 .fetch_all(&db)
@@ -337,7 +328,7 @@ mod tests {
         );
         for sql in [
             "UPDATE export_batches SET kind = 'unknown' WHERE id = 'batch'",
-            "UPDATE reference_versions SET kind = 'unknown' WHERE kind = 'parks'",
+            "INSERT INTO reference_versions (kind, version, updated_at) VALUES ('parks', '1', 'now')",
             "INSERT INTO reference_versions (kind, version, updated_at) VALUES ('dxcc', '1', 'now')",
             "INSERT INTO reference_versions (kind, version, updated_at) VALUES ('subdivisions', '1', 'now')",
             "UPDATE export_batch_qsos SET batch_id = 'missing' WHERE batch_id = 'batch'",

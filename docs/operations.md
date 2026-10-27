@@ -131,7 +131,7 @@ jl1his-logger --as JL1HIS token issue field-logger --kind wl2 --wl2-prefix --log
 
 ### Reference Data
 
-Reference data (`cty`, `parks`) is installed from local files
+Reference data (`cty`, the one kind) is installed from a local file
 by an admin and goes where `[reference]` in the configuration points. The
 running server picks up a new version without a restart.
 
@@ -142,7 +142,6 @@ admin can also upload it on the server settings screen of the web app.
 
 ```sh
 jl1his-logger --as JL1HIS reference install cty bigcty-20261023.zip   # version from the =VER entry of its cty.dat
-jl1his-logger --as JL1HIS reference install parks parks.toml --version 2026-10
 jl1his-logger --as JL1HIS reference list
 ```
 
@@ -172,6 +171,16 @@ are now built into the server from the ADIF specification (see
    setting is no longer accepted and the server refuses to start with it.
 2. Start the new version (or run `migrate`).
 3. Delete the old `subdivisions.toml` from the reference directory.
+
+#### Upgrading without parks
+
+POTA park names used to be a `parks` reference data kind that nothing in the
+web app displayed. It is removed, and migration 11 forgets its row:
+
+1. Remove the `parks` line from `[reference]` in `config.toml`; the setting is
+   no longer accepted and the server refuses to start with it.
+2. Start the new version (or run `migrate`).
+3. Delete the old `parks.toml` from the reference directory.
 
 ### Backup and Restore
 

@@ -109,9 +109,9 @@ or another shared crate.
   Logbook, optionally prefixed `wl2_`. Compatibility `since_id`
   is the insertion `seq`. A Station may carry the Wavelog integer ID `/wl2`
   clients address it by. No Host-based routing.
-- **Reference data** (a CTY zip archive holding `cty.dat` and `cty.csv`, POTA
-  parks) is installed by an admin with CLI subcommands, and the CTY archive
-  also by an upload on the server settings screen; the web UI shows versions.
+- **Reference data** (a CTY zip archive holding `cty.dat` and `cty.csv`) is
+  installed by an admin with a CLI subcommand or by an upload on the server
+  settings screen; the web UI shows versions.
   Updating it never rewrites DXCC or zones already recorded on QSOs.
 - **ADIF tables are built in** (bands, modes, QSL values, QSO field names, DXCC
   entities, subdivisions): generated at build time from the ADIF

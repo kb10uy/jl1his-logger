@@ -56,14 +56,12 @@ impl Default for DatabaseConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ReferenceConfig {
     pub cty: PathBuf,
-    pub parks: PathBuf,
 }
 
 impl Default for ReferenceConfig {
     fn default() -> Self {
         Self {
             cty: "reference/cty.zip".into(),
-            parks: "reference/parks.toml".into(),
         }
     }
 }
@@ -110,7 +108,6 @@ impl Config {
             Some(&mut self.database.path),
             self.server.web_dir.as_mut(),
             Some(&mut self.reference.cty),
-            Some(&mut self.reference.parks),
         ];
         for path in paths.into_iter().flatten() {
             *path = base.join(&*path);
