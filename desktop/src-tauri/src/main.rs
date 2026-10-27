@@ -33,8 +33,6 @@ fn main() {
     let builder = builder.plugin(tauri_plugin_notification::init());
     builder
         .setup(|app| {
-            #[cfg(windows)]
-            let _ = notify::register(app.handle());
             let config = match config::path_argument(std::env::args().skip(1)) {
                 Some(path) => path,
                 None => app.path().app_config_dir()?.join(config::FILE_NAME),
