@@ -6,6 +6,10 @@ settings (see "Desktop Client" in [operations.md](operations.md)). By default
 these are `127.0.0.1:2237`, where WSJT-X sends, and `127.0.0.1:2333`, both
 off until turned on. Nothing is ever sent back.
 
+There is no authentication: anything that reaches a listener's address is
+taken as coming from the user. Keep listeners on the loopback address unless
+the sending program runs on another machine of a network you trust.
+
 Each datagram is one message, up to 64 KiB, told apart by how it starts:
 
 | Starts with | Read as |

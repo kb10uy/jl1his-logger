@@ -212,7 +212,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: server
+          workspaces: |
+            server
+            desktop/src-tauri
           shared-key: licenses
           cache-targets: false
           cache-directories: ~/.cargo/advisory-dbs
@@ -226,3 +228,9 @@ jobs:
         run: cargo deny check licenses
       - name: Check the dependency graph for advisories
         run: cargo deny check advisories
+      - name: Check the licenses of the desktop client's dependency graph
+        run: cargo deny check licenses
+        working-directory: desktop/src-tauri
+      - name: Check the desktop client's dependency graph for advisories
+        run: cargo deny check advisories
+        working-directory: desktop/src-tauri

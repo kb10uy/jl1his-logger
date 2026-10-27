@@ -10,6 +10,7 @@
     import { errorText } from '#lib/session/errors.ts';
     import { session } from '#lib/session/session.svelte.ts';
     import { LOCALE_NAMES, asLocale, systemLanguage } from '#lib/settings/language.ts';
+    import { isLoopback } from '#lib/settings/listener.ts';
     import {
         settings,
         type ListenerSettings,
@@ -67,6 +68,8 @@
         if (current === undefined) return;
         saveListeners(current.listeners.map((l, i) => (i === index ? { ...l, ...change } : l)));
     }
+
+    const exposed = $derived((current?.listeners ?? []).filter((l) => !isLoopback(l.host)));
 
     function listenerStatus(listener: ListenerSettings, state: ListenerState | undefined) {
         if (!listener.enabled || state === undefined || state.state === 'off')
@@ -365,6 +368,13 @@
                         >
                     </div>
                 {/each}
+                {#if exposed.length > 0}
+                    <p class="m-0 text-[12px] text-warn">
+                        {m.settings_listen_exposed({
+                            addresses: exposed.map((l) => `${l.host}:${l.port}`).join(', ')
+                        })}
+                    </p>
+                {/if}
                 <div>
                     <button
                         type="button"

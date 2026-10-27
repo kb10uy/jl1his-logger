@@ -105,8 +105,7 @@ pub async fn login_finish(
         .finish_discoverable_authentication(&req.credential, auth, &[(&credential).into()])
         .map_err(|e| {
             tracing::info!("passkey sign-in failed: {e}");
-            ApiError::new(StatusCode::UNAUTHORIZED, format!("passkey sign-in failed: {e}"))
-                .with("code", "passkey_failed".into())
+            ApiError::new(StatusCode::UNAUTHORIZED, "passkey sign-in failed").with("code", "passkey_failed".into())
         })?;
     credential.update_credential(&result);
 
@@ -254,8 +253,8 @@ fn finish_registration(
         .webauthn
         .finish_passkey_registration(&req.credential, registration)
         .map_err(|e| {
-            ApiError::new(StatusCode::BAD_REQUEST, format!("passkey registration failed: {e}"))
-                .with("code", "passkey_failed".into())
+            tracing::info!("passkey registration failed: {e}");
+            ApiError::new(StatusCode::BAD_REQUEST, "passkey registration failed").with("code", "passkey_failed".into())
         })?;
     let name = match req.name.trim() {
         "" => DEFAULT_PASSKEY_NAME,
