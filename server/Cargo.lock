@@ -1633,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "jl1his-logger"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "adif-manip",
  "axum",
