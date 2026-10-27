@@ -365,7 +365,7 @@ Each filter is optional:
 | `call_base` | The call without prefixes and suffixes (`JA1XYZ` matches `JA1XYZ/P`); not together with `call` |
 | `qsl_sent` | Comma-separated `QSL_SENT` values ignoring case; an empty value matches an absent field |
 | `contest_id` | `CONTEST_ID`, ignoring case |
-| `q` | The text query of [decisions.md](../development/decisions.md), "Search" (`call:JA1* -mode:FT8 date:2026-10-01..`) |
+| `q` | The text query of [query.md](query.md) (`call:JA1* -mode:FT8 date:2026-10-01..`) |
 
 All the filters given must hold. `next` is an opaque cursor for the following
 page, passed back as `cursor` with the same `sort`, or `null` on the last page.

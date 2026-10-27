@@ -29,8 +29,9 @@ The repository contains:
   its README).
 - `docs/`: `guide/` for running and talking to the application:
   `operations.md` (building, configuration, the CLI, backups, the container),
-  `api.md` (the native API), `wl2.md` (the `/wl2` layer) and `protocol.md`
-  (what the desktop client takes over UDP); `development/` for working on it:
+  `api.md` (the native API), `query.md` (the search query syntax), `wl2.md`
+  (the `/wl2` layer) and `protocol.md` (what the desktop client takes over
+  UDP); `development/` for working on it:
   `decisions.md` (the design record) and `schema.md` (the database).
 - `fixtures/`: expected files shared by the `server/` and `client/` tests,
   such as ADIF exports.
@@ -89,7 +90,8 @@ shared crate.
   list sends one text query syntax (`call:JA1*`, `band:40m,20m`, `-mode:FT8`,
   `date:2026-10-01..`, `no:freq`, `adif.TX_PWR:10`, bare words) and pages
   newest first on `(qso_time, id)`, or by `sort` oldest first or by `call_base`. The native API and export filters take the
-  same syntax; the CLI does not yet. An invalid term is `400`, never dropped. The syntax
+  same syntax; the CLI does not yet. An invalid term is `400`, never dropped.
+  The terms are listed in `docs/guide/query.md`. The syntax
   is one implementation, the `query/` crate: the server turns its terms into
   SQL, and the client runs it as WASM for the chips and to re-test SSE rows.
 - **SSE, not WebSocket.** Event `id` is `updated_seq`; reconnection uses

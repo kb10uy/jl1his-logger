@@ -58,6 +58,8 @@ For running the application and talking to it:
   and running the server and the desktop client, the CLI, backups and the
   container image.
 - [docs/guide/api.md](docs/guide/api.md) — the native API under `/api`.
+- [docs/guide/query.md](docs/guide/query.md) — the search query syntax of
+  the log list and the API.
 - [docs/guide/wl2.md](docs/guide/wl2.md) — the Wavelog API v2 compatibility
   layer under `/wl2`.
 - [docs/guide/protocol.md](docs/guide/protocol.md) — what the desktop client
