@@ -40,8 +40,14 @@ pnpm install --frozen-lockfile
 cd ../desktop
 pnpm install --frozen-lockfile
 pnpm tauri dev                # Vite on port 1420 inside a Tauri window
-pnpm tauri build              # → desktop/src-tauri/target/release, with installers under bundle/
+pnpm tauri build --no-bundle  # → desktop/src-tauri/target/release/jl1his-logger-desktop.exe
 ```
+
+The executable is handed out alone, without an installer. On Windows it
+registers its notification app ID for the current user at start, under
+`HKCU\Software\Classes\AppUserModelId\org.kb10uy.jl1his-logger`, and keeps the
+icon for it as `%LOCALAPPDATA%\org.kb10uy.jl1his-logger\notification.png`;
+deleting the executable leaves both behind.
 
 It signs in with the server's URL and a Native API token issued in the web
 client under Settings › API tokens, or with `jl1his-logger token issue`. Its
