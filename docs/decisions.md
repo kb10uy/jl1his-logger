@@ -10,11 +10,12 @@ The design of jl1his-logger, the QSO log of record for JL1HIS, and the reasons b
 
 ## Structure
 
-- A new, separate repository (this one) holding one server, one SQLite database and a same-origin SPA / PWA.
+- A new, separate repository (this one) holding one server, one SQLite database, a same-origin SPA / PWA and a desktop entry client.
 - The server is Rust + axum; the client is SvelteKit.
 - One SQLite database. Set WAL and `busy_timeout`, and keep write transactions short.
 - The server is one package: no workspace. `domain` stays free of the database, network and file system by convention and review. It is split into a crate of its own only when another binary or repository needs it, or when build times call for it.
 - The query syntax of Search is the one shared crate, `query/` beside `server/`: a path dependency of the server, without a workspace, and compiled to WASM with `wasm-bindgen` (its `wasm` feature) for the client. It holds parsing a query and matching a row, with the `call_base` rule matching needs, and nothing else; the server turns the parsed terms into SQL. It has no dependencies outside the `wasm` feature, so no `regex`, and the module is about 70 KB. The client builds it with `wasm-pack` before it builds itself, and loads it asynchronously before the first query.
+- The desktop entry client is a Tauri v2 app under `desktop/`: a SvelteKit app built with `adapter-static` like the web client, and its Rust side in `desktop/src-tauri/`, a package of its own outside any workspace. It is an application, not a shared crate. It is a separate app rather than the web client in a window because it does what a browser cannot: it talks to rigctld and listens for other programs on the local machine.
 
 ## Required Features
 
@@ -28,7 +29,7 @@ The design of jl1his-logger, the QSO log of record for JL1HIS, and the reasons b
 
 ## Out of Scope
 
-Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, awards, satellites, themes, organization hierarchies and fine-grained permissions.
+Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the desktop client reads its rig through rigctld for itself; see Desktop Client), contest modules, awards, satellites, themes, organization hierarchies and fine-grained permissions.
 
 ## Decisions
 
@@ -318,6 +319,13 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT, contest modules, aw
 - The work lives in `domain` and `store`; `/wl2` lookup only reshapes the result into Wavelog's response.
 - The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Offline Entry).
 
+### Desktop Client
+
+- The desktop client is for entry: a small window, about 800 by 400 and often taller, that sits beside the operator's other radio programs.
+- It signs in with the server's URL and an API token the user creates in the web client, not with a passkey, which is bound to `public_origin`.
+- What it reads from the rig through rigctld (frequency, mode) fills its own form only. Nothing about the rig is sent to the server, which has no rig state.
+
 ## Remaining Work
 
 - The CLI takes the text query of Search: `export write` still takes only the structured filters.
+- The desktop client is a shell: its entry screen, API token sign-in, rigctld and logging from other programs on the local machine are still to be built.

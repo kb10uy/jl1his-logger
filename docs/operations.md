@@ -32,6 +32,21 @@ proxy in front; it is also where HSTS and any request rate limits belong, since
 the server applies neither. `GET /api/health` answers `{"status": "ok"}` while
 the database can be read, for the proxy or the container runtime to probe.
 
+## Desktop Client
+
+```sh
+cd desktop
+pnpm install --frozen-lockfile
+pnpm tauri dev                # Vite on port 1420 inside a Tauri window
+pnpm tauri build              # → desktop/src-tauri/target/release, with installers under bundle/
+```
+
+It needs the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+of the platform: WebView2 on Windows, WebKitGTK and its development packages
+on Linux. The app icons in `desktop/src-tauri/icons` are generated from
+`client/static/logo.svg` by `pnpm tauri icon ../client/static/logo.svg -o
+src-tauri/icons`, keeping only the files `tauri.conf.json` lists.
+
 ## Configuration
 
 Everything is set in one TOML file, `config.toml` in the working directory or

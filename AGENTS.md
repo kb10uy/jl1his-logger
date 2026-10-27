@@ -3,7 +3,8 @@
 ## Overview
 
 jl1his-logger is the QSO log of record for JL1HIS: one Rust server, one SQLite
-database and a same-origin SvelteKit PWA. The design is recorded in
+database, a same-origin SvelteKit PWA and a Tauri desktop entry client. The
+design is recorded in
 `docs/decisions.md`; it is the authority on IDs, synchronization, storage,
 permissions, ADIF handling and the Wavelog API v2 compatibility layer, and
 this file only summarizes it. `README.md` is the product overview.
@@ -18,6 +19,9 @@ The repository contains:
   `adapter-static` as a client-only SPA/PWA. Log list and search, QSO editing,
   live entry, voice entry, Station Location and
   Instrument editing, ADIF import and export, bulk QSL changes.
+- `desktop/`: the desktop entry client, a Tauri v2 app. A SvelteKit app built
+  with `adapter-static` like `client/`, and its Rust side in
+  `desktop/src-tauri/`, a package of its own.
 - `query/`: the query syntax of the log list as a Rust crate (parsing and
   matching a row), used by the server and compiled to WASM for the client.
 - `assets/`: `config.example.toml`, and under `adif/` the ADIF specification's
@@ -31,8 +35,9 @@ The repository contains:
   such as ADIF exports.
 
 The server is a single package and `query/` the one shared crate, a path
-dependency (see "Structure" in `docs/decisions.md`). Do not create a workspace
-or another shared crate.
+dependency (see "Structure" in `docs/decisions.md`). `desktop/src-tauri/` is
+an application, not a shared crate. Do not create a workspace or another
+shared crate.
 
 ## Architecture
 
@@ -228,7 +233,20 @@ pnpm install --frozen-lockfile
 pnpm run lint
 pnpm run check
 pnpm test
+
+cd desktop
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm run check
+pnpm run build
+
+cd desktop/src-tauri
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
 ```
+
+The Tauri crate embeds `desktop/build`, so build the desktop frontend before
+running Clippy on it.
 
 `cargo deny check licenses` and `cargo deny check advisories` run in `server/`
 against `server/deny.toml`.
