@@ -1,3 +1,5 @@
+pub mod notify;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{

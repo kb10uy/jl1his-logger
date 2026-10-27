@@ -1,3 +1,8 @@
+pub mod credentials;
+pub mod events;
+pub mod origin;
+pub mod session;
+
 use std::time::Duration;
 
 use reqwest::{Client, Response, StatusCode};
