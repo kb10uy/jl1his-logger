@@ -10,7 +10,7 @@ mod rigctld;
 mod session;
 mod settings;
 
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 use crate::{
     config::Config,
@@ -47,6 +47,11 @@ fn main() {
             settings::rig_state,
             settings::reconnect_rig
         ])
-        .run(tauri::generate_context!())
-        .expect("the Tauri application failed to run");
+        .build(tauri::generate_context!())
+        .expect("the Tauri application failed to build")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<RigWatcher>().stop();
+            }
+        });
 }

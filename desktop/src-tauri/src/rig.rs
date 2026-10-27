@@ -3,7 +3,7 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, RecvTimeoutError, Sender},
     },
-    thread,
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
@@ -44,7 +44,7 @@ struct Shared {
 
 #[derive(Default)]
 pub struct RigWatcher {
-    stop: Mutex<Option<Sender<()>>>,
+    running: Mutex<Option<(Sender<()>, JoinHandle<()>)>>,
     shared: Arc<Mutex<Shared>>,
 }
 
@@ -59,8 +59,8 @@ fn publish(app: &AppHandle, shared: &Mutex<Shared>, generation: u64, next: RigSt
 
 impl RigWatcher {
     pub fn start(&self, app: &AppHandle, rig: &Rig) {
-        let mut stop = self.stop.lock().expect("the rig lock is never poisoned");
-        stop.take();
+        let mut running = self.running.lock().expect("the rig lock is never poisoned");
+        running.take();
         let generation = {
             let mut shared = self.shared.lock().expect("the rig lock is never poisoned");
             shared.generation += 1;
@@ -71,12 +71,20 @@ impl RigWatcher {
             return;
         }
         let (sender, receiver) = mpsc::channel();
-        *stop = Some(sender);
         let app = app.clone();
         let shared = Arc::clone(&self.shared);
         let address = rig.address();
         let poll = Duration::from_millis(rig.poll_ms.clamp(200, 60_000));
-        thread::spawn(move || run(&app, &shared, generation, &address, poll, &receiver));
+        let handle = thread::spawn(move || run(&app, &shared, generation, &address, poll, &receiver));
+        *running = Some((sender, handle));
+    }
+
+    pub fn stop(&self) {
+        let running = self.running.lock().expect("the rig lock is never poisoned").take();
+        if let Some((sender, handle)) = running {
+            drop(sender);
+            let _ = handle.join();
+        }
     }
 
     pub fn state(&self) -> RigState {

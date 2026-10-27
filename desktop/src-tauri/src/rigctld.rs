@@ -128,6 +128,15 @@ impl Rigctld {
     }
 }
 
+impl Drop for Rigctld {
+    fn drop(&mut self) {
+        let mut answer = String::new();
+        let _ = writeln!(self.writer, "q")
+            .and_then(|()| self.writer.flush())
+            .and_then(|()| self.reader.read_line(&mut answer));
+    }
+}
+
 fn number(lines: &[String]) -> Option<u64> {
     lines
         .iter()
@@ -337,6 +346,18 @@ mod tests {
         let mut rig = Rigctld::connect(&fake.address, TEST_TIMEOUT).unwrap();
 
         assert_eq!(rig.frequency(), Err(unreadable("\\get_freq")));
+    }
+
+    #[test]
+    fn says_goodbye_when_dropped() {
+        let fake = FakeRig::spawn(&[NO_VFO, "RPRT 0\n"]);
+        let rig = Rigctld::connect(&fake.address, TEST_TIMEOUT).unwrap();
+        let received = Arc::clone(&fake.received);
+
+        drop(rig);
+        drop(fake);
+
+        assert_eq!(*received.lock().unwrap(), ["+\\chk_vfo", "q"]);
     }
 
     #[test]
