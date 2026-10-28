@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Entry } from '#client/entry/record.ts';
-import { applyFields } from './form.ts';
+import { defaultContest } from '#client/qso/contest.ts';
+import { applyFields, formFields } from './form.ts';
 
 const entry: Entry = {
     call: '',
@@ -70,5 +71,42 @@ describe('applyFields', () => {
             { name: 'SIG_INFO', value: 'JA-0001' }
         ]);
         expect(filled.call).toBe('');
+    });
+});
+
+describe('formFields', () => {
+    const typed: Entry = {
+        ...entry,
+        call: ' ja1abc ',
+        rstSent: '599 ',
+        received: ' 13m ',
+        name: ' Taro ',
+        qth: ''
+    };
+
+    it('gives every field of the form, empty ones as empty strings', () => {
+        expect(formFields(typed, defaultContest())).toEqual({
+            CALL: 'JA1ABC',
+            RST_SENT: '599',
+            RST_RCVD: '59',
+            SRX_STRING: '',
+            STX_STRING: '',
+            NAME: 'Taro',
+            QTH: ''
+        });
+    });
+
+    it('gives the exchanges without the RST while a contest is on', () => {
+        const contest = {
+            ...defaultContest(),
+            enabled: true,
+            exchangeTemplate: '13m{serial:3}',
+            nextSerial: 7,
+            includeRst: true
+        };
+        expect(formFields(typed, contest)).toMatchObject({
+            SRX_STRING: '13M',
+            STX_STRING: '13M007'
+        });
     });
 });

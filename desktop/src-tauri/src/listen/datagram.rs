@@ -9,7 +9,7 @@ const LENGTHS: [LengthMode; 3] = [LengthMode::Codepoints, LengthMode::Bytes, Len
 
 pub type Fields = BTreeMap<String, String>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum EntryMessage {
     Set { fields: Fields },
@@ -24,14 +24,52 @@ pub enum Datagram {
         records: Vec<Fields>,
     },
     Entry(EntryMessage),
+    Subscribe,
+    Unsubscribe,
     Ignored,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum Body {
+    Set { fields: Fields },
+    Clear,
+    Log,
+    Subscribe,
+    Unsubscribe,
 }
 
 #[derive(Deserialize)]
 struct Message {
     v: u32,
     #[serde(flatten)]
-    body: EntryMessage,
+    body: Body,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum Reply<'a> {
+    Form { fields: &'a Fields },
+    Bye,
+}
+
+#[derive(Serialize)]
+struct Envelope<'a> {
+    v: u32,
+    #[serde(flatten)]
+    body: Reply<'a>,
+}
+
+pub fn form(fields: &Fields) -> Vec<u8> {
+    encode(Reply::Form { fields })
+}
+
+pub fn bye() -> Vec<u8> {
+    encode(Reply::Bye)
+}
+
+fn encode(body: Reply<'_>) -> Vec<u8> {
+    serde_json::to_vec(&Envelope { v: 1, body }).expect("a reply always serializes")
 }
 
 pub fn read(bytes: &[u8]) -> Datagram {
@@ -41,7 +79,13 @@ pub fn read(bytes: &[u8]) -> Datagram {
     let text = String::from_utf8_lossy(bytes);
     if text.trim_start().starts_with('{') {
         return match serde_json::from_str::<Message>(&text) {
-            Ok(Message { v: 1, body }) => Datagram::Entry(body),
+            Ok(Message { v: 1, body }) => match body {
+                Body::Set { fields } => Datagram::Entry(EntryMessage::Set { fields }),
+                Body::Clear => Datagram::Entry(EntryMessage::Clear),
+                Body::Log => Datagram::Entry(EntryMessage::Log),
+                Body::Subscribe => Datagram::Subscribe,
+                Body::Unsubscribe => Datagram::Unsubscribe,
+            },
             _ => Datagram::Ignored,
         };
     }
@@ -216,7 +260,27 @@ mod tests {
     }
 
     #[rstest]
+    #[case(r#"{"v": 1, "type": "subscribe"}"#, Datagram::Subscribe)]
+    #[case(r#"{"type": "unsubscribe", "v": 1}"#, Datagram::Unsubscribe)]
+    fn reads_subscriptions(#[case] json: &str, #[case] expected: Datagram) {
+        assert_eq!(read(json.as_bytes()), expected);
+    }
+
+    #[test]
+    fn writes_the_form_and_bye() {
+        let form = form(&fields(&[("CALL", "JA1ABC"), ("NAME", "")]));
+        assert_eq!(
+            String::from_utf8(form.clone()).unwrap(),
+            r#"{"v":1,"type":"form","fields":{"CALL":"JA1ABC","NAME":""}}"#
+        );
+        assert_eq!(String::from_utf8(bye()).unwrap(), r#"{"v":1,"type":"bye"}"#);
+        assert_eq!(read(&form), Datagram::Ignored);
+        assert_eq!(read(&bye()), Datagram::Ignored);
+    }
+
+    #[rstest]
     #[case::other_version(r#"{"v": 2, "type": "clear"}"#)]
+    #[case::subscribe_of_another_version(r#"{"v": 2, "type": "subscribe"}"#)]
     #[case::no_version(r#"{"type": "clear"}"#)]
     #[case::unknown_type(r#"{"v": 1, "type": "tune"}"#)]
     #[case::number_value(r#"{"v": 1, "type": "set", "fields": {"RST_RCVD": 599}}"#)]

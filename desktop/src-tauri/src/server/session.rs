@@ -2,12 +2,13 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use serde_json::Value;
-use tauri::State;
+use tauri::{AppHandle, State};
 use url::Url;
 
 use crate::{
     config::{Config, Paths, Server},
     error::CommandError,
+    listen::Listeners,
     server::{Api, ApiError, Logbook, Method, credentials, events::Watchers, origin::parse_origin},
 };
 
@@ -118,12 +119,15 @@ pub async fn sign_in(
 
 #[tauri::command]
 pub fn sign_out(
+    app: AppHandle,
     paths: State<'_, Paths>,
     connection: State<'_, Connection>,
     watchers: State<'_, Watchers>,
+    listening: State<'_, Listeners>,
 ) -> Result<Session, CommandError> {
     connection.set(None);
     watchers.stop();
+    listening.forget_form(&app);
     let url = Config::load(&paths.config)?.server.map(|server| server.url);
     if let Some(url) = &url {
         credentials::forget(url)?;

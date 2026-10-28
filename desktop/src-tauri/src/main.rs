@@ -8,7 +8,7 @@ mod server;
 mod settings;
 mod tray;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent, webview::PageLoadEvent};
 
 use crate::{
     config::{Config, Paths},
@@ -59,9 +59,19 @@ fn main() {
             listen::listener_states,
             listen::incoming,
             listen::ack_incoming,
+            listen::attach_entry,
+            listen::detach_entry,
+            listen::share_form,
             tray::set_tray_text,
             tray::notify::notify
         ])
+        .on_page_load(|webview, payload| {
+            if payload.event() == PageLoadEvent::Started
+                && let Some(listeners) = webview.try_state::<Listeners>()
+            {
+                listeners.detach_entry();
+            }
+        })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event
                 && window.try_state::<Tray>().is_some_and(|tray| tray.closes_to_tray())

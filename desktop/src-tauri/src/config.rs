@@ -95,6 +95,7 @@ pub struct Listener {
     pub enabled: bool,
     pub host: String,
     pub port: u16,
+    pub subscribe: bool,
 }
 
 impl Default for Listener {
@@ -103,6 +104,7 @@ impl Default for Listener {
             enabled: false,
             host: "127.0.0.1".to_owned(),
             port: 2237,
+            subscribe: false,
         }
     }
 }
@@ -252,6 +254,7 @@ mod tests {
                 enabled: true,
                 host: "::1".to_owned(),
                 port: 2238,
+                subscribe: true,
             }],
             ..Config::default()
         };
@@ -274,12 +277,15 @@ enabled = true
         let config = Config::load(&path).unwrap();
         assert!(config.close_to_tray);
         let listeners = config.listeners;
-        let addresses: Vec<_> = listeners.iter().map(|l| (l.enabled, l.address())).collect();
+        let addresses: Vec<_> = listeners
+            .iter()
+            .map(|l| (l.enabled, l.address(), l.subscribe))
+            .collect();
         assert_eq!(
             addresses,
             [
-                (false, "127.0.0.1:2237".to_owned()),
-                (false, "127.0.0.1:2333".to_owned())
+                (false, "127.0.0.1:2237".to_owned(), false),
+                (false, "127.0.0.1:2333".to_owned(), false)
             ]
         );
     }

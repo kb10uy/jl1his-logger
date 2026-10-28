@@ -17,6 +17,7 @@ export interface ListenerSettings {
     enabled: boolean;
     host: string;
     port: number;
+    subscribe: boolean;
 }
 
 export interface Settings {
@@ -30,7 +31,7 @@ export interface Settings {
 
 export type ListenerState =
     | { state: 'off' }
-    | { state: 'listening'; address: string }
+    | { state: 'listening'; address: string; subscribers: number }
     | { state: 'failed'; address: string; error: string };
 
 export type RigState =

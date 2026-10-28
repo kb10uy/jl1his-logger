@@ -96,13 +96,17 @@ port = 2237
 enabled = false
 host = "127.0.0.1"
 port = 2333
+subscribe = true             # send the form to programs that subscribe from this machine
 ```
 
 In WSJT-X, set Settings › Reporting › UDP Server to `127.0.0.1` and the
 port of a listener. A listener does not ask who is sending: on any address but
 the loopback one, other machines on the network can log QSOs and fill the form
-too, and the settings screen says so. What a listener takes, from WSJT-X, as ADIF text or as the
-client's own JSON, is in [protocol.md](protocol.md).
+too, and the settings screen says so. With `subscribe`, Share the form on the
+settings screen, a listener also sends the form back to programs on this
+machine that subscribe to it; it is off by default. What a listener takes,
+from WSJT-X, as ADIF text or as the client's own JSON, and what it sends back,
+is in [protocol.md](protocol.md).
 
 Its frontend imports the web client's
 `client/src/lib`, so `client/` is installed first; the desktop's scripts
