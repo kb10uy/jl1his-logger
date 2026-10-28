@@ -1,5 +1,6 @@
 <script lang="ts">
-    import '@fontsource-variable/inter';
+    import '@fontsource-variable/geist';
+    import '@fontsource-variable/m-plus-2';
     import '../app.css';
     import { onMount } from 'svelte';
     import { goto } from '$app/navigation';

@@ -163,7 +163,7 @@
         <div class={['flex items-center gap-2 pt-1 pb-3.5', collapsed ? 'flex-col' : 'pr-0 pl-3']}>
             <img src="/logo.svg" alt="" class="size-6" />
             {#if !collapsed}
-                <span class="flex-1 text-[15px] font-bold">JL1HIS Logger</span>
+                <span class="flex-1 font-logo text-[15px] font-bold">JL1HIS Logger</span>
             {/if}
             <button
                 type="button"

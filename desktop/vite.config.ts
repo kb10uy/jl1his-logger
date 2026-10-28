@@ -4,9 +4,11 @@ import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
+import { fontMetrics } from '../client/vite.fonts.ts';
 
 export default defineConfig({
     plugins: [
+        fontMetrics(),
         paraglideVitePlugin({ project: './project.inlang' }),
         tailwindcss(),
         sveltekit({
