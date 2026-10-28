@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { MODE_CHOICES, modeKey } from '#client/qso/modes.ts';
+    import { asTheme } from '#client/theme.ts';
     import { server } from '#lib/api/request.svelte.ts';
     import StatusBar from '#lib/components/StatusBar.svelte';
     import { outbox } from '#lib/entry/outbox.svelte.ts';
@@ -23,6 +24,10 @@
     const rig = $derived(settings.rig);
     const system = systemLanguage(navigator.languages);
     const POLLS = [500, 1000, 2000, 5000];
+    const themes = [
+        { value: 'light', label: m.settings_theme_light() },
+        { value: 'dark', label: m.settings_theme_dark() }
+    ];
 
     const label = (key: string) =>
         MODE_CHOICES.find((c) => modeKey(c.mode, c.submode) === key)?.label ?? key;
@@ -480,30 +485,51 @@
             </section>
 
             <section
-                aria-labelledby="settings-language"
-                class="flex items-center gap-3 rounded-lg border border-border bg-surface p-[12px]"
+                aria-labelledby="settings-appearance"
+                class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
             >
-                <h2 id="settings-language" class="m-0 w-[96px] text-[13px] font-semibold">
-                    <label for="language">{m.settings_language()}</label>
+                <h2 id="settings-appearance" class="m-0 text-[13px] font-semibold">
+                    {m.settings_appearance()}
                 </h2>
-                <select
-                    id="language"
-                    class="field w-[200px] px-1.5"
-                    value={current.language ?? ''}
-                    onchange={(e) => settings.save({ language: asLocale(e.currentTarget.value) })}
+                <div
+                    class="grid grid-cols-[96px_200px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-[12px]"
                 >
-                    <option value=""
-                        >{m.settings_language_system({ language: LOCALE_NAMES[system] })}</option
+                    <label for="theme" class="text-muted">{m.settings_theme()}</label>
+                    <select
+                        id="theme"
+                        class="field px-1.5"
+                        value={current.theme ?? ''}
+                        onchange={(e) => settings.save({ theme: asTheme(e.currentTarget.value) })}
                     >
-                    {#each locales as locale (locale)}
-                        <option value={locale}>{LOCALE_NAMES[locale]}</option>
-                    {/each}
-                </select>
-                <span class="text-[12px] text-muted"
-                    >{current.language === null
-                        ? m.settings_language_follows()
-                        : m.settings_language_reload()}</span
-                >
+                        <option value="">{m.settings_theme_system()}</option>
+                        {#each themes as theme (theme.value)}
+                            <option value={theme.value}>{theme.label}</option>
+                        {/each}
+                    </select>
+                    <span></span>
+                    <label for="language" class="text-muted">{m.settings_language()}</label>
+                    <select
+                        id="language"
+                        class="field px-1.5"
+                        value={current.language ?? ''}
+                        onchange={(e) =>
+                            settings.save({ language: asLocale(e.currentTarget.value) })}
+                    >
+                        <option value=""
+                            >{m.settings_language_system({
+                                language: LOCALE_NAMES[system]
+                            })}</option
+                        >
+                        {#each locales as locale (locale)}
+                            <option value={locale}>{LOCALE_NAMES[locale]}</option>
+                        {/each}
+                    </select>
+                    <span class="text-muted"
+                        >{current.language === null
+                            ? m.settings_language_follows()
+                            : m.settings_language_reload()}</span
+                    >
+                </div>
             </section>
         {/if}
     </main>

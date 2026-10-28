@@ -5,8 +5,6 @@
     import Button from '#lib/components/ui/Button.svelte';
     import FileDrop from '#lib/components/ui/FileDrop.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
-    import Slotted from '#lib/components/ui/Slotted.svelte';
-    import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { ctyArchiveProblem } from '#lib/reference/cty.ts';
     import { session } from '#lib/state/session.svelte.ts';
@@ -112,11 +110,6 @@
                 </tbody>
             </table>
         </div>
-        <span class="text-xs text-muted"
-            ><Slotted text={m.settings_reference_updated_with({ command: SLOT })}
-                ><code class="font-mono">reference install</code></Slotted
-            ></span
-        >
     </section>
     {#if session.me?.role === 'admin'}
         <section aria-label={m.settings_reference_cty_install()} class="flex flex-col gap-2">

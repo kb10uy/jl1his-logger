@@ -21,6 +21,8 @@ pub struct Paths {
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
     #[serde(default = "default_close_to_tray")]
     pub close_to_tray: bool,
     pub server: Option<Server>,
@@ -34,6 +36,7 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             language: None,
+            theme: None,
             close_to_tray: true,
             server: None,
             rig: Rig::default(),
@@ -217,11 +220,12 @@ mod tests {
     }
 
     #[test]
-    fn saves_and_loads_the_language_and_the_rig() {
+    fn saves_and_loads_the_language_the_theme_and_the_rig() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("config.toml");
         let config = Config {
             language: Some("ja".to_owned()),
+            theme: Some("light".to_owned()),
             close_to_tray: false,
             rig: Rig {
                 enabled: true,

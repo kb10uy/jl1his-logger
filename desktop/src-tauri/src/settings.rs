@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State, Theme};
 
 use crate::{
     config::{Config, Listener, Paths, Rig},
@@ -10,6 +10,7 @@ use crate::{
 };
 
 const LANGUAGES: [&str; 2] = ["en", "ja"];
+const THEMES: [&str; 2] = ["light", "dark"];
 
 const CREDENTIAL_STORE: &str = if cfg!(windows) {
     "Windows Credential Manager"
@@ -25,6 +26,7 @@ pub struct Settings {
     path: String,
     credential_store: &'static str,
     language: Option<String>,
+    theme: Option<String>,
     close_to_tray: bool,
     rig: Rig,
     listeners: Vec<Listener>,
@@ -36,6 +38,7 @@ impl Settings {
             path: paths.config.display().to_string(),
             credential_store: CREDENTIAL_STORE,
             language: config.language,
+            theme: config.theme,
             close_to_tray: config.close_to_tray,
             rig: config.rig,
             listeners: config.listeners,
@@ -47,6 +50,7 @@ impl Settings {
 #[serde(rename_all = "camelCase")]
 pub struct Change {
     language: Option<String>,
+    theme: Option<String>,
     close_to_tray: bool,
     rig: Rig,
     listeners: Vec<Listener>,
@@ -54,6 +58,24 @@ pub struct Change {
 
 pub fn language(language: Option<String>) -> Option<String> {
     language.filter(|l| LANGUAGES.contains(&l.as_str()))
+}
+
+pub fn theme(theme: Option<String>) -> Option<String> {
+    theme.filter(|t| THEMES.contains(&t.as_str()))
+}
+
+pub fn window_theme(theme: Option<&str>) -> Option<Theme> {
+    match theme {
+        Some("light") => Some(Theme::Light),
+        Some("dark") => Some(Theme::Dark),
+        _ => None,
+    }
+}
+
+pub fn apply_theme(app: &AppHandle, theme: Option<&str>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_theme(window_theme(theme));
+    }
 }
 
 #[tauri::command]
@@ -74,11 +96,13 @@ pub fn save_settings(
     let restart = !config.rig.same_connection(&change.rig);
     let relisten = config.listeners != change.listeners;
     config.language = self::language(change.language);
+    config.theme = self::theme(change.theme);
     config.close_to_tray = change.close_to_tray;
     config.rig = change.rig;
     config.listeners = change.listeners;
     config.save(&paths.config)?;
     tray.set_close_to_tray(config.close_to_tray);
+    apply_theme(&app, config.theme.as_deref());
     if restart {
         watcher.start(&app, &config.rig);
     }
@@ -101,5 +125,14 @@ mod tests {
     #[case(None, None)]
     fn keeps_only_known_languages(#[case] given: Option<&str>, #[case] expected: Option<&str>) {
         assert_eq!(language(given.map(str::to_owned)).as_deref(), expected);
+    }
+
+    #[rstest]
+    #[case(Some("light"), Some("light"))]
+    #[case(Some("dark"), Some("dark"))]
+    #[case(Some("sepia"), None)]
+    #[case(None, None)]
+    fn keeps_only_known_themes(#[case] given: Option<&str>, #[case] expected: Option<&str>) {
+        assert_eq!(theme(given.map(str::to_owned)).as_deref(), expected);
     }
 }

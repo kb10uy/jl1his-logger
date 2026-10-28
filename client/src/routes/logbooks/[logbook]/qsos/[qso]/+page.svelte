@@ -446,7 +446,7 @@
                         <button
                             type="button"
                             aria-label={m.entry_remove_field()}
-                            class="inline-flex size-10 items-center justify-center rounded-lg text-muted hover:bg-surface-2"
+                            class="inline-flex size-10 items-center justify-center rounded-lg bg-none text-muted hover:bg-surface-2"
                             onclick={() => draft?.extra.splice(i, 1)}
                             ><Icon name="close" size={16} /></button
                         >

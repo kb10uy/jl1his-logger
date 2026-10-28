@@ -385,7 +385,7 @@
     <DropdownMenu.Root>
         <DropdownMenu.Trigger
             aria-label={`${m.log_sort()}: ${sortLabels[sort]()}`}
-            class="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-md px-2 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
+            class="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-md bg-none px-2 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
         >
             {sortLabels[sort]()}
             <Icon name="chevron" size={14} />

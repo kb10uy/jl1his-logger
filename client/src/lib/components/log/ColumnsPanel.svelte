@@ -48,7 +48,7 @@
     }
 
     const iconButton =
-        'inline-flex size-7 items-center justify-center rounded text-muted hover:bg-surface-2 hover:text-text disabled:pointer-events-none disabled:opacity-30';
+        'inline-flex size-7 items-center justify-center rounded bg-none text-muted hover:bg-surface-2 hover:text-text disabled:pointer-events-none disabled:opacity-30';
 </script>
 
 <Popover.Root>

@@ -156,7 +156,7 @@
             {#if savable}
                 <button
                     type="button"
-                    class="mb-1 flex h-[28px] items-center gap-2 rounded-md border border-dashed border-border px-2 text-left text-muted hover:bg-surface-2 hover:text-text"
+                    class="mb-1 flex h-[28px] items-center gap-2 rounded-md border border-dashed border-border bg-none px-2 text-left text-muted hover:bg-surface-2 hover:text-text"
                     onclick={save}
                 >
                     <svg
@@ -191,7 +191,7 @@
                     <button
                         type="button"
                         aria-current={active ? 'true' : undefined}
-                        class="grid h-[28px] min-w-0 flex-1 grid-cols-[34px_64px_minmax(0,1fr)] items-center gap-2 px-2 text-left font-mono text-[13px]"
+                        class="grid h-[28px] min-w-0 flex-1 grid-cols-[34px_64px_minmax(0,1fr)] items-center gap-2 bg-none px-2 text-left font-mono text-[13px]"
                         onclick={() => select(favorite)}
                     >
                         <span class="text-[11px] font-normal text-muted"
@@ -204,7 +204,7 @@
                         type="button"
                         aria-label={m.favorites_remove({ favorite: favoriteLabel(favorite) })}
                         title={m.favorites_remove({ favorite: favoriteLabel(favorite) })}
-                        class="inline-flex size-[28px] shrink-0 items-center justify-center rounded-md text-muted hover:text-text"
+                        class="inline-flex size-[28px] shrink-0 items-center justify-center rounded-md bg-none text-muted hover:text-text"
                         onclick={() => remove(favorite)}
                         ><svg
                             aria-hidden="true"
@@ -228,7 +228,7 @@
                     >
                     <button
                         type="button"
-                        class="h-[24px] rounded-md px-1.5 font-semibold text-info hover:bg-surface-2"
+                        class="h-[24px] rounded-md bg-none px-1.5 font-semibold text-info hover:bg-surface-2"
                         onclick={() => undo(gone)}>{m.favorites_undo()}</button
                     >
                 </div>

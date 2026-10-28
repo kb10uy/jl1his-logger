@@ -163,13 +163,13 @@
         <div class={['flex items-center gap-2 pt-1 pb-3.5', collapsed ? 'flex-col' : 'pr-0 pl-3']}>
             <img src="/logo.svg" alt="" class="size-6" />
             {#if !collapsed}
-                <span class="flex-1 text-[15px] font-bold">JL1HIS Logger</span>
+                <span class="flex-1 font-logo text-[15px] font-bold">JL1HIS Logger</span>
             {/if}
             <button
                 type="button"
                 aria-label={collapsed ? m.shell_expand_sidebar() : m.shell_collapse_sidebar()}
                 title={collapsed ? m.shell_expand_sidebar() : m.shell_collapse_sidebar()}
-                class="inline-flex size-8 items-center justify-center rounded-md text-muted hover:bg-surface-2/60 hover:text-text"
+                class="inline-flex size-8 items-center justify-center rounded-md bg-none text-muted hover:bg-surface-2/60 hover:text-text"
                 onclick={toggle}><Icon name={collapsed ? 'expand' : 'collapse'} /></button
             >
         </div>

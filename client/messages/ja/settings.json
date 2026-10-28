@@ -43,7 +43,6 @@
     "settings_reference_version": "バージョン",
     "settings_reference_installed": "インストール日",
     "settings_reference_not_installed": "未インストール",
-    "settings_reference_updated_with": "サーバーで {command} を実行して更新します。",
     "settings_reference_cty_install": "CTY アーカイブをインストール",
     "settings_reference_cty_hint": "CTY の zip アーカイブ (Big CTY または country-files.com のコンテスト用ファイル) をドロップするか選択",
     "settings_reference_cty_upload": "インストール",

@@ -43,7 +43,6 @@
     "settings_reference_version": "Version",
     "settings_reference_installed": "Installed",
     "settings_reference_not_installed": "not installed",
-    "settings_reference_updated_with": "Updated with {command} on the server.",
     "settings_reference_cty_install": "Install a CTY archive",
     "settings_reference_cty_hint": "Drop a CTY zip archive (Big CTY or the contest files from country-files.com) or choose one",
     "settings_reference_cty_upload": "Install",

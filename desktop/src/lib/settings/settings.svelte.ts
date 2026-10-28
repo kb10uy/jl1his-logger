@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { asTheme, chooseTheme, type Theme } from '#client/theme.ts';
 import type { Locale } from '#lib/paraglide/runtime.js';
 import { asCommandError } from '#lib/session/errors.ts';
 import type { CommandError } from '#lib/session/types.ts';
@@ -24,6 +25,7 @@ export interface Settings {
     path: string;
     credentialStore: string;
     language: Locale | null;
+    theme: Theme | null;
     closeToTray: boolean;
     rig: RigSettings;
     listeners: ListenerSettings[];
@@ -55,7 +57,12 @@ class SettingsState {
     async load(): Promise<boolean> {
         try {
             const settings = await invoke<Settings>('settings');
-            this.current = { ...settings, language: asLocale(settings.language) };
+            this.current = {
+                ...settings,
+                language: asLocale(settings.language),
+                theme: asTheme(settings.theme)
+            };
+            chooseTheme(this.current.theme);
             if (applyLanguage(this.current.language)) return false;
         } catch (e) {
             this.error = asCommandError(e);
@@ -71,6 +78,7 @@ class SettingsState {
 
     async save(change: {
         language?: Locale | null;
+        theme?: Theme | null;
         closeToTray?: boolean;
         rig?: RigSettings;
         listeners?: ListenerSettings[];
@@ -81,13 +89,19 @@ class SettingsState {
             const saved = await invoke<Settings>('save_settings', {
                 change: {
                     language: change.language === undefined ? current.language : change.language,
+                    theme: change.theme === undefined ? current.theme : change.theme,
                     closeToTray: change.closeToTray ?? current.closeToTray,
                     rig: change.rig ?? current.rig,
                     listeners: change.listeners ?? current.listeners
                 }
             });
-            this.current = { ...saved, language: asLocale(saved.language) };
+            this.current = {
+                ...saved,
+                language: asLocale(saved.language),
+                theme: asTheme(saved.theme)
+            };
             this.error = undefined;
+            chooseTheme(this.current.theme);
             if (change.language !== undefined) applyLanguage(this.current.language);
         } catch (e) {
             this.error = asCommandError(e);

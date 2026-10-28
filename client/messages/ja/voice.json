@@ -11,7 +11,6 @@
             "match": { "": "交信済み · {n}" }
         }
     ],
-    "voice_carried_over": "次の QSO に引き継がれます。",
     "voice_sent": "送",
     "voice_rcvd": "受",
     "voice_number": "ナンバー",
@@ -26,7 +25,6 @@
     "voice_command": "コマンド",
     "voice_command_placeholder": "received five seven、または call jh1xyz",
     "voice_freq_mhz": "周波数 (MHz)",
-    "voice_hint": "「q s o」と言うか、記録ボタンを押してください。同じ項目をもう一度言うと置き換わります。",
     "voice_correct": "訂正",
     "voice_log_qso": "QSO を記録",
     "voice_speech_engine": "音声認識エンジン",
@@ -71,7 +69,6 @@
     "voice_ptt_opening": "マイクを準備中…",
     "voice_ptt_listening": "聞き取り中…",
     "voice_ptt_finishing": "認識中…",
-    "voice_ptt_or_hold": "または {key} キーを押したまま",
     "voice_speech_language": "認識言語",
     "voice_speech_language_hint": "音声入力はこの言語の音声モデルを読み込みます。各モデルは一度だけダウンロードされ、この端末に保存されます。",
     "voice_language_en": "英語",
