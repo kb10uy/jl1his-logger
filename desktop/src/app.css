@@ -11,3 +11,14 @@
     color: var(--text);
     font-size: 13px;
 }
+
+@layer base {
+    body {
+        user-select: none;
+    }
+
+    input,
+    textarea {
+        user-select: text;
+    }
+}

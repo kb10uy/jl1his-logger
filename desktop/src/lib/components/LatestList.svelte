@@ -75,7 +75,7 @@
             {#each unsent.filter((i) => i.error) as item (item.id)}
                 <div class="flex items-center gap-2 text-[11px]">
                     <span class="font-mono font-semibold">{item.fields.CALL}</span>
-                    <span class="min-w-0 flex-1 truncate text-muted">{item.error}</span>
+                    <span class="min-w-0 flex-1 truncate text-muted select-text">{item.error}</span>
                     <button
                         type="button"
                         class="text-error-text"
@@ -104,7 +104,7 @@
                     >
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="select-text">
                 {#each rows as row (row.id)}
                     {@const f = row.fields}
                     <tr

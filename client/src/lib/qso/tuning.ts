@@ -30,8 +30,8 @@ export function withFreq<T extends Tuning>(tuning: T, freq: string): T {
 }
 
 export function withMode<T extends Tuning & Reports>(tuning: T, mode: string, submode: string): T {
-    const before = defaultRst(tuning.mode);
-    const after = defaultRst(mode);
+    const before = defaultRst(tuning.mode, tuning.submode);
+    const after = defaultRst(mode, submode);
     return {
         ...tuning,
         mode,

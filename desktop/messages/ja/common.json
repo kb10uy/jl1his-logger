@@ -7,5 +7,9 @@
     "window_title": "{callsign} — JL1HIS Logger",
     "common_unreachable": "サーバーに接続できません。",
     "tray_show": "表示",
-    "tray_quit": "終了"
+    "tray_quit": "終了",
+    "menu_cut": "切り取り",
+    "menu_copy": "コピー",
+    "menu_paste": "貼り付け",
+    "menu_select_all": "すべて選択"
 }

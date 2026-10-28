@@ -11,6 +11,7 @@
     import { incoming } from '#lib/incoming/incoming.svelte.ts';
     import { session } from '#lib/session/session.svelte.ts';
     import { settings } from '#lib/settings/settings.svelte.ts';
+    import { openTextMenu } from '#lib/text-menu.ts';
 
     let { children } = $props();
     let ready = $state(false);
@@ -49,6 +50,8 @@
         if (session.current?.state === 'signedIn' && ready) incoming.start();
     });
 </script>
+
+<svelte:document oncontextmenu={openTextMenu} />
 
 <svelte:head>
     <title>{title}</title>

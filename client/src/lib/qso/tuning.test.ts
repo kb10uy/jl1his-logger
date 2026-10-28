@@ -33,4 +33,9 @@ describe('tuning', () => {
             rstRcvd: '57'
         });
     });
+
+    it('moves reports at the default when only the submode changes the report form', () => {
+        const ft4 = { ...ssb, mode: 'MFSK', submode: 'FT4', rstSent: '-10', rstRcvd: '-10' };
+        expect(withMode(ft4, 'MFSK', 'MFSK16')).toMatchObject({ rstSent: '599', rstRcvd: '599' });
+    });
 });

@@ -32,7 +32,7 @@ export const FREE_TEXT_MAX_LENGTH = 100;
 const FALLBACK_ANCHOR_HZ = 433_000_000;
 
 export function newDraft(carry: Carry): Draft {
-    const rst = defaultRst(carry.mode);
+    const rst = defaultRst(carry.mode, carry.submode);
     return { ...carry, rstSent: rst, rstRcvd: rst, qsl: 'none' };
 }
 
