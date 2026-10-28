@@ -170,5 +170,6 @@
     "language_label": "Display language",
     "language_browser": "Same as the browser",
     "language_hint": "The language of this app on this device. The speech language of voice entry is set apart, under Voice entry.",
-    "error_unreachable": "The server could not be reached."
+    "error_unreachable": "The server could not be reached.",
+    "common_undo": "Undo"
 }

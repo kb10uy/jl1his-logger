@@ -111,5 +111,11 @@
     "entry_editor_delete_title": "この QSO を削除しますか？",
     "entry_editor_delete_description": "ログからもすべてのエクスポートからも外れます。Web UI から元に戻すことはできません。",
     "entry_editor_needed": "保存する前に入力が必要です: {fields}。",
-    "entry_editor_list_separator": "、"
+    "entry_editor_list_separator": "、",
+    "favorites_title": "お気に入り",
+    "favorites_save": "保存",
+    "favorites_remove": "{favorite} をお気に入りから外す",
+    "favorites_removed": "外しました",
+    "favorites_empty": "お気に入りはまだありません。よく使う周波数とモードを保存しておけます。",
+    "favorites_failed": "お気に入りを読み込めませんでした。"
 }

@@ -83,5 +83,14 @@
     "entry_incoming_dismiss": "Dismiss",
     "notify_logged": "Logged {call}",
     "notify_from": "From {program}",
-    "notify_from_unnamed": "From another program"
+    "notify_from_unnamed": "From another program",
+    "favorites_title": "Favorites",
+    "favorites_save": "Save",
+    "favorites_saved": "is saved",
+    "favorites_remove": "Remove {favorite} from favorites",
+    "favorites_removed": "Removed",
+    "favorites_undo": "Undo",
+    "favorites_empty": "No favorites yet. Save the frequency and mode you use often.",
+    "favorites_failed": "Could not load the favorites.",
+    "favorites_rig": "Only the form changes; the rig is not tuned."
 }

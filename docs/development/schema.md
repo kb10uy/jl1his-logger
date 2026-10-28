@@ -134,6 +134,14 @@ each row to the user's Membership and to a Station or Instrument of the same
 Logbook, both `ON DELETE CASCADE`, so removing a Membership removes its
 favorites. Marking a favorite does not touch the Station or Instrument row.
 
+### `frequency_favorites`
+
+The favorite frequencies of a user: `id`, `user_id` (`ON DELETE CASCADE`),
+`freq` (MHz as the server formats it), `freq_hz` (above zero), `mode`,
+`submode` (empty when there is none) and `created_at`. They belong to no
+Logbook. `UNIQUE (user_id, freq_hz, mode, submode)` keeps each frequency and
+mode once per user and serves the list, which is ordered by `freq_hz`.
+
 ### `qsos`
 
 One row per QSO, including deleted ones.

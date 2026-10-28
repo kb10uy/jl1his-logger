@@ -1,3 +1,4 @@
+pub mod frequency;
 pub mod passkey;
 pub mod registration;
 pub mod session;

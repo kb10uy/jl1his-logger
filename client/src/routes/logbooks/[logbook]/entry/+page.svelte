@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
     import * as api from '#lib/api/api.ts';
-    import type { Fields, Qso } from '#lib/api/types.ts';
+    import type { FavoriteFrequency, Fields, Qso } from '#lib/api/types.ts';
     import BandSelect from '#lib/components/BandSelect.svelte';
     import LogbookLoadError from '#lib/components/LogbookLoadError.svelte';
     import LatestAtStation from '#lib/components/LatestAtStation.svelte';
@@ -12,6 +12,7 @@
     import WarningList from '#lib/components/WarningList.svelte';
     import ContestBar from '#lib/components/entry/ContestBar.svelte';
     import EntryEquipment from '#lib/components/entry/EntryEquipment.svelte';
+    import FrequencyFavorites from '#lib/components/entry/FrequencyFavorites.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
@@ -153,6 +154,10 @@
         entry = withMode(entry, mode, submode);
     }
 
+    function setFavorite(favorite: FavoriteFrequency) {
+        entry = withMode(withFreq(entry, favorite.freq), favorite.mode, favorite.submode);
+    }
+
     function clear() {
         entry = clearedEntry(entry);
         warnings = [];
@@ -274,13 +279,16 @@
                 </div>
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
                     <label for="mode" class="text-xs text-muted">{m.field_mode()}</label>
-                    <ModeSelect
-                        id="mode"
-                        class="h-11 rounded-lg text-[15px]"
-                        mode={entry.mode}
-                        submode={entry.submode}
-                        onchange={setMode}
-                    />
+                    <div class="flex min-w-0 gap-2">
+                        <ModeSelect
+                            id="mode"
+                            class="h-11 flex-1 rounded-lg text-[15px]"
+                            mode={entry.mode}
+                            submode={entry.submode}
+                            onchange={setMode}
+                        />
+                        <FrequencyFavorites tuning={entry} onselect={setFavorite} class="size-11" />
+                    </div>
                 </div>
 
                 <div class="h-px bg-border"></div>

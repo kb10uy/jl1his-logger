@@ -3,7 +3,7 @@
     import { invoke } from '@tauri-apps/api/core';
     import { listen } from '@tauri-apps/api/event';
     import { goto } from '$app/navigation';
-    import type { Fields } from '#client/api/types.ts';
+    import type { FavoriteFrequency, Fields } from '#client/api/types.ts';
     import { clearedEntry, entryFields, entryProblem, type Entry } from '#client/entry/record.ts';
     import { expandExchange } from '#client/qso/contest.ts';
     import { utcClock, utcFields } from '#client/qso/format.ts';
@@ -16,6 +16,7 @@
     import ContestBar from '#lib/components/ContestBar.svelte';
     import EntryHeader from '#lib/components/EntryHeader.svelte';
     import ExtraFields from '#lib/components/ExtraFields.svelte';
+    import FrequencyFavorites from '#lib/components/FrequencyFavorites.svelte';
     import IncomingNotice from '#lib/components/IncomingNotice.svelte';
     import LatestList from '#lib/components/LatestList.svelte';
     import LookupLine from '#lib/components/LookupLine.svelte';
@@ -166,6 +167,11 @@
         }
     }
 
+    function chooseFavorite(favorite: FavoriteFrequency) {
+        entry = withFreq(entry, favorite.freq);
+        chooseMode(favorite.mode, favorite.submode);
+    }
+
     onMount(() => {
         if (signedIn?.logbooks === null) server.reachable = false;
         void desk.load(signedIn?.logbooks ?? null).then(() => incoming.drain());
@@ -274,6 +280,11 @@
                     mode={entry.mode}
                     submode={entry.submode}
                     onchange={chooseMode}
+                />
+                <FrequencyFavorites
+                    tuning={entry}
+                    rig={rig.state === 'connected'}
+                    onselect={chooseFavorite}
                 />
                 {#if rig.state === 'connected'}
                     <span

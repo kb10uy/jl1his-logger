@@ -162,5 +162,6 @@
     "language_label": "表示言語",
     "language_browser": "ブラウザーの設定に合わせる",
     "language_hint": "この端末でのアプリの表示言語です。音声入力で認識する言語は、音声入力の設定で別に選びます。",
-    "error_unreachable": "サーバーに接続できませんでした。"
+    "error_unreachable": "サーバーに接続できませんでした。",
+    "common_undo": "元に戻す"
 }

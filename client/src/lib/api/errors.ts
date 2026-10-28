@@ -61,6 +61,8 @@ export function errorText(body: Record<string, unknown>): string | undefined {
             return m.error_too_many_values({ count: text('count'), max: text('max') });
         case 'token_needs_logbook':
             return m.error_token_needs_logbook();
+        case 'favorite_frequency_invalid':
+            return m.error_favorite_frequency_invalid();
         case 'not_a_callsign':
             return m.error_not_a_callsign({ callsign: text('callsign') });
         case 'qso_missing':

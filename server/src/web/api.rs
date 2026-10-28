@@ -1,4 +1,5 @@
 pub(super) mod auth;
+mod frequency;
 mod logbook;
 pub(super) mod qso;
 
@@ -42,6 +43,8 @@ pub(super) fn router() -> Router<Arc<AppState>> {
         .route("/api/reference/subdivisions/{dxcc}", get(references::subdivisions))
         .route("/api/tokens", get(auth::token::list).post(auth::token::issue))
         .route("/api/tokens/{id}", delete(auth::token::revoke))
+        .route("/api/frequencies", get(frequency::list).post(frequency::add))
+        .route("/api/frequencies/{id}", delete(frequency::remove))
         .route("/api/logbooks", get(logbook::list))
         .route("/api/logbooks/{logbook_id}", get(logbook::get))
         .route("/api/logbooks/{logbook_id}/settings", put(logbook::set_settings))
