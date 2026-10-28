@@ -51,8 +51,13 @@ export function followsBand(mode: string, submode: string): boolean {
     return mode === 'SSB' && (submode === 'LSB' || submode === 'USB');
 }
 
-export function defaultRst(mode: string): string {
-    if (mode === 'CW' || mode === 'RTTY' || mode === 'PSK') return '599';
-    if (mode === 'FT8' || mode === 'MFSK' || mode === 'JT65' || mode === 'JT9') return '-10';
+const RST_MODES = new Set(['CW', 'RTTY', 'PSK', 'OLIVIA']);
+const RST_SUBMODES = new Set(['MFSK16', 'MFSK32']);
+const SNR_MODES = new Set(['FT8', 'MFSK', 'JT65', 'JT9']);
+
+export function defaultRst(mode: string, submode = ''): string {
+    if (RST_MODES.has(mode) || RST_SUBMODES.has(submode)) return '599';
+    if (mode === 'SSTV') return '595';
+    if (SNR_MODES.has(mode)) return '-10';
     return '59';
 }
