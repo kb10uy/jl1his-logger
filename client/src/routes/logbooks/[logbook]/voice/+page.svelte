@@ -315,7 +315,7 @@
                         />
                     </div>
                     <span class="text-xs text-muted">{m.field_rst()}</span>
-                    <span class="font-mono text-lg"
+                    <span class="flex flex-wrap items-center gap-x-1.5 font-mono text-lg"
                         ><span class="font-sans text-xs text-muted">{m.voice_sent()}</span>
                         {draft.rstSent}
                         <span class="ml-3 font-sans text-xs text-muted">{m.voice_rcvd()}</span>
@@ -323,7 +323,7 @@
                     >
                     {#if settings.contest.enabled || draft.received !== undefined}
                         <span class="text-xs text-muted">{m.voice_number()}</span>
-                        <span class="font-mono text-lg"
+                        <span class="flex flex-wrap items-center gap-x-1.5 font-mono text-lg"
                             >{#if settings.contest.enabled}<span
                                     class="font-sans text-xs text-muted">{m.voice_sent()}</span
                                 >
