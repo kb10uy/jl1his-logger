@@ -74,7 +74,13 @@
     function listenerStatus(listener: ListenerSettings, state: ListenerState | undefined) {
         if (!listener.enabled || state === undefined || state.state === 'off')
             return { tone: 'off', text: m.settings_listen_off() };
-        if (state.state === 'listening') return { tone: 'ok', text: m.settings_listen_listening() };
+        if (state.state === 'listening')
+            return {
+                tone: 'ok',
+                text: listener.subscribe
+                    ? m.settings_listen_subscribed({ count: state.subscribers })
+                    : m.settings_listen_listening()
+            };
         return { tone: 'error', text: m.settings_listen_failed({ error: state.error }) };
     }
 </script>
@@ -330,6 +336,21 @@
                                     saveListener(index, { port });
                             }}
                         />
+                        <label
+                            title={m.settings_listen_subscribe_title()}
+                            class={[
+                                'flex flex-none items-center gap-[5px] text-[12px]',
+                                !listener.enabled && 'text-muted'
+                            ]}
+                            ><input
+                                type="checkbox"
+                                class="m-0 size-[14px] accent-info-strong"
+                                checked={listener.subscribe}
+                                disabled={!listener.enabled}
+                                onchange={(e) =>
+                                    saveListener(index, { subscribe: e.currentTarget.checked })}
+                            />{m.settings_listen_subscribe()}</label
+                        >
                         <span class="flex min-w-0 flex-1 items-center gap-1.5 text-[12px]">
                             <span
                                 class={[
@@ -382,7 +403,7 @@
                         onclick={() =>
                             saveListeners([
                                 ...current.listeners,
-                                { enabled: false, host: '127.0.0.1', port: 2237 }
+                                { enabled: false, host: '127.0.0.1', port: 2237, subscribe: false }
                             ])}>{m.settings_listen_add()}</button
                     >
                 </div>
@@ -499,3 +520,15 @@
         />
     {/if}
 </div>
+
+<style>
+    input[type='number'] {
+        appearance: textfield;
+    }
+
+    input[type='number']::-webkit-inner-spin-button,
+    input[type='number']::-webkit-outer-spin-button {
+        appearance: none;
+        margin: 0;
+    }
+</style>

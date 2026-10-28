@@ -1,7 +1,9 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
+    import { invoke } from '@tauri-apps/api/core';
     import { listen } from '@tauri-apps/api/event';
     import { goto } from '$app/navigation';
+    import type { Fields } from '#client/api/types.ts';
     import { entryFields, entryProblem, type Entry } from '#client/entry/record.ts';
     import { expandExchange } from '#client/qso/contest.ts';
     import { utcClock, utcFields } from '#client/qso/format.ts';
@@ -21,7 +23,7 @@
     import StatusBar from '#lib/components/StatusBar.svelte';
     import { EntryState } from '#lib/entry/entry.svelte.ts';
     import { outbox } from '#lib/entry/outbox.svelte.ts';
-    import { applyFields, type EntryMessage } from '#lib/incoming/form.ts';
+    import { applyFields, formFields, type EntryMessage } from '#lib/incoming/form.ts';
     import { incoming } from '#lib/incoming/incoming.svelte.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { followRig, pickMode, rigModeOf, type RigFit } from '#lib/rig/modes.ts';
@@ -74,6 +76,7 @@
     let callInput = $state<HTMLInputElement>();
     let form = $state<HTMLFormElement>();
     let rigFit = $state<RigFit>('kept');
+    let attached = $state(false);
     let seenHz: number | undefined;
     let seenMode: string | undefined;
 
@@ -96,6 +99,7 @@
     const sentShown = $derived(
         (settings.contest.includeRst ? `${entry.rstSent} ` : '') + (sent || '—')
     );
+    const shared = $derived(formFields(entry, settings.contest));
     const rig = $derived(appSettings.rig);
     const rigMode = $derived(rig.state === 'connected' ? rigModeOf(rig.mode) : undefined);
     const prefs = $derived(appSettings.current?.rig.modes ?? {});
@@ -134,6 +138,23 @@
         });
     });
 
+    function typing() {
+        const active = document.activeElement;
+        return (
+            active instanceof HTMLTextAreaElement ||
+            (active instanceof HTMLInputElement && active.type !== 'checkbox')
+        );
+    }
+
+    function share() {
+        if (attached) invoke('share_form', { fields: shared }).catch(() => undefined);
+    }
+
+    $effect(() => {
+        void shared;
+        if (attached && !typing()) untrack(share);
+    });
+
     function chooseMode(mode: string, submode: string) {
         entry = withMode(entry, mode, submode);
         if (rigMode === undefined) return;
@@ -149,10 +170,27 @@
         if (signedIn?.logbooks === null) server.reachable = false;
         void desk.load(signedIn?.logbooks ?? null).then(() => incoming.drain());
         const tick = setInterval(() => (now = new Date()), 1000);
-        const unlisten = listen<EntryMessage>('entry-fields', (e) => receive(e.payload));
+        let queued: EntryMessage[] | undefined = [];
+        let gone = false;
+        const unlisten = listen<EntryMessage>('entry-fields', (e) => {
+            if (queued) queued.push(e.payload);
+            else receive(e.payload);
+        });
+        unlisten
+            .then(() => invoke<Fields>('attach_entry'))
+            .then((held) => {
+                if (gone) return invoke('detach_entry');
+                if (Object.keys(held).length > 0) entry = applyFields(entry, held, area);
+                for (const message of queued ?? []) receive(message);
+                queued = undefined;
+                attached = true;
+            })
+            .catch(() => undefined);
         callInput?.focus();
         return () => {
+            gone = true;
             clearInterval(tick);
+            invoke('detach_entry').catch(() => undefined);
             void unlisten.then((stop) => stop());
         };
     });
@@ -161,6 +199,7 @@
         switch (message.type) {
             case 'set':
                 entry = applyFields(entry, message.fields, area);
+                share();
                 break;
             case 'clear':
                 clear();
@@ -182,6 +221,7 @@
         entry.notes = '';
         entry.extra = [];
         callInput?.focus();
+        share();
     }
 
     async function log(event: Event) {
@@ -203,7 +243,7 @@
     }}
 />
 
-<div class="flex h-dvh flex-col overflow-hidden text-[13px]">
+<div class="flex h-dvh flex-col overflow-hidden text-[13px]" onfocusout={share}>
     <div class="flex min-h-0 flex-1 flex-col gap-2 px-[12px] py-[10px]">
         <EntryHeader {desk} oninstrument={() => (entry.txPwr = '')} />
 

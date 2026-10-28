@@ -1,5 +1,6 @@
 import type { Area, Fields } from '#client/api/types.ts';
 import { extraFieldProblem, type Entry } from '#client/entry/record.ts';
+import { expandExchange, type ContestSettings } from '#client/qso/contest.ts';
 import { withBand, withFreq, withMode } from '#client/qso/tuning.ts';
 
 export type EntryMessage = { type: 'set'; fields: Fields } | { type: 'clear' } | { type: 'log' };
@@ -43,4 +44,18 @@ export function applyFields(entry: Entry, fields: Fields, area: Area): Entry {
         }
     }
     return next;
+}
+
+export function formFields(entry: Entry, contest: ContestSettings): Fields {
+    return {
+        CALL: entry.call.trim().toUpperCase(),
+        RST_SENT: entry.rstSent.trim(),
+        RST_RCVD: entry.rstRcvd.trim(),
+        SRX_STRING: contest.enabled ? entry.received.trim().toUpperCase() : '',
+        STX_STRING: contest.enabled
+            ? expandExchange(contest.exchangeTemplate, contest.nextSerial)
+            : '',
+        NAME: entry.name.trim(),
+        QTH: entry.qth.trim()
+    };
 }
