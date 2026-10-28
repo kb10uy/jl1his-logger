@@ -2084,7 +2084,7 @@ dependencies = [
 
 [[package]]
 name = "jl1his-logger-desktop"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "adif-manip",
  "keyring",
