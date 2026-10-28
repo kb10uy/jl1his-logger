@@ -24,9 +24,9 @@
                 href: '/settings/voice'
             },
             {
-                label: m.settings_language(),
+                label: m.settings_appearance(),
                 scope: m.settings_scope_device(),
-                href: '/settings/language'
+                href: '/settings/appearance'
             },
             logbookId === null
                 ? undefined

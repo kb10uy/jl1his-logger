@@ -38,6 +38,7 @@ fn main() {
                 listeners.start(app.handle(), &loaded.listeners);
             }
             let close_to_tray = loaded.as_ref().is_none_or(|l| l.close_to_tray);
+            settings::apply_theme(app.handle(), loaded.as_ref().and_then(|l| l.theme.as_deref()));
             app.manage(Tray::build(app.handle(), close_to_tray)?);
             app.manage(Paths { config });
             app.manage(Connection::default());

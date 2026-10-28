@@ -150,7 +150,7 @@
     "settings_account": "アカウント",
     "settings_tokens": "API トークン",
     "settings_voice": "音声入力",
-    "settings_language": "言語",
+    "settings_appearance": "外観",
     "settings_logbook": "ログブック",
     "settings_members": "メンバー",
     "settings_server": "サーバー",
@@ -162,6 +162,10 @@
     "language_label": "表示言語",
     "language_browser": "ブラウザーの設定に合わせる",
     "language_hint": "この端末でのアプリの表示言語です。音声入力で認識する言語は、音声入力の設定で別に選びます。",
+    "theme_label": "テーマ",
+    "theme_system": "システムの設定に合わせる",
+    "theme_light": "ライト",
+    "theme_dark": "ダーク",
     "error_unreachable": "サーバーに接続できませんでした。",
     "common_undo": "元に戻す"
 }
