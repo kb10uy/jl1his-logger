@@ -1,6 +1,6 @@
 import * as api from '#lib/api/api.ts';
 import type { Fields, Saved } from '#lib/api/types.ts';
-import { Outbox, type Outgoing, type Sent } from '#lib/entry/outbox.ts';
+import { FIRST_TRY_MS, Outbox, type Outgoing, type Sent } from '#lib/entry/outbox.ts';
 import { uuidv7 } from '#lib/qso/uuid.ts';
 
 class OutboxState {
@@ -8,6 +8,7 @@ class OutboxState {
     sending = $state(false);
     private outbox: Promise<Outbox> | undefined;
     private logbookId: string | undefined;
+    private delivering = new Set<string>();
 
     private open(): Promise<Outbox> {
         this.outbox ??= Outbox.open();
@@ -23,7 +24,8 @@ class OutboxState {
         const logbookId = this.logbookId;
         if (logbookId === undefined) return;
         const items = await (await this.open()).list(logbookId);
-        if (this.logbookId === logbookId) this.items = items;
+        if (this.logbookId === logbookId)
+            this.items = items.filter((i) => !this.delivering.has(i.id));
     }
 
     async log(
@@ -41,11 +43,14 @@ class OutboxState {
             fields,
             createdAt: new Date().toISOString()
         };
-        await outbox.put(item);
-        await this.refresh();
-        const sent = await outbox.send(item, api.createQso);
-        await this.refresh();
-        return sent;
+        this.delivering.add(item.id);
+        try {
+            await outbox.put(item);
+            return await outbox.send(item, api.createQso, FIRST_TRY_MS);
+        } finally {
+            this.delivering.delete(item.id);
+            await this.refresh();
+        }
     }
 
     async send(items: Outgoing[]): Promise<{ saved: Saved[]; failed: number }> {

@@ -1,6 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { ApiError } from '#lib/api/client.ts';
 import type { Fields, Saved } from '#lib/api/types.ts';
+import { m } from '#lib/paraglide/messages.js';
 
 export interface Outgoing {
     id: string;
@@ -30,6 +31,16 @@ export type Create = (
 
 export type Sent = { saved: Saved } | { error: ApiError };
 
+export const FIRST_TRY_MS = 5000;
+
+function within<T>(pending: Promise<T>, wait: number | undefined): Promise<T> {
+    if (wait === undefined) return pending;
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new ApiError(m.error_unreachable(), 0)), wait);
+        pending.then(resolve, reject).finally(() => clearTimeout(timer));
+    });
+}
+
 export class Outbox {
     private constructor(private readonly db: IDBPDatabase<OutboxDb>) {}
 
@@ -58,14 +69,17 @@ export class Outbox {
         await this.db.delete('outbox', id);
     }
 
-    async send(item: Outgoing, create: Create): Promise<Sent> {
+    async send(item: Outgoing, create: Create, wait?: number): Promise<Sent> {
         try {
-            const saved = await create(
-                item.logbookId,
-                item.id,
-                item.stationId,
-                item.instrumentId ?? null,
-                item.fields
+            const saved = await within(
+                create(
+                    item.logbookId,
+                    item.id,
+                    item.stationId,
+                    item.instrumentId ?? null,
+                    item.fields
+                ),
+                wait
             );
             await this.remove(item.id);
             return { saved };

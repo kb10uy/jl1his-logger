@@ -1,3 +1,4 @@
+import { representativeFreq } from '#lib/qso/bands.ts';
 import { defaultContest, type ContestSettings } from '#lib/qso/contest.ts';
 
 export interface EntrySettings {
@@ -14,7 +15,7 @@ export function defaultEntry(): EntrySettings {
     return {
         stationId: '',
         instrumentId: '',
-        freq: '',
+        freq: representativeFreq('40m') ?? '',
         band: '40m',
         mode: 'SSB',
         submode: 'LSB',

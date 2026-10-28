@@ -38,6 +38,20 @@ describe('Outbox', () => {
         ]);
     });
 
+    it('keeps an item whose send is not answered in time as unreachable', async () => {
+        const outbox = await Outbox.open('wait');
+        await outbox.put(item('a', '2026-10-19T09:01:00Z'));
+        const sent = await outbox.send(
+            item('a', '2026-10-19T09:01:00Z'),
+            () => new Promise<Saved>(() => undefined),
+            10
+        );
+        expect('error' in sent && sent.error.retryable).toBe(true);
+        expect(await outbox.list('lb')).toEqual([
+            { ...item('a', '2026-10-19T09:01:00Z'), error: 'The server could not be reached.' }
+        ]);
+    });
+
     it('sends the Instrument, or none for an item queued before Instruments', async () => {
         const outbox = await Outbox.open('instrument');
         const saved = { qso: { id: 'a' }, warnings: [] } as unknown as Saved;

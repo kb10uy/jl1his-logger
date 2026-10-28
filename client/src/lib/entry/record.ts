@@ -8,6 +8,7 @@ import {
     type ContestSettings
 } from '#lib/qso/contest.ts';
 import { utcFields } from '#lib/qso/format.ts';
+import { defaultRst } from '#lib/qso/modes.ts';
 import { isPower, powerRule } from '#lib/qso/power.ts';
 import { qslRequestFields, type QslRequest } from '#lib/qso/qsl.ts';
 
@@ -74,6 +75,24 @@ function filledExtras(entry: Entry): ExtraField[] {
     return entry.extra
         .map(({ name, value }) => ({ name: name.trim().toUpperCase(), value: value.trim() }))
         .filter(({ value }) => value !== '');
+}
+
+export function clearedEntry(entry: Entry): Entry {
+    const rst = defaultRst(entry.mode, entry.submode);
+    return {
+        ...entry,
+        call: '',
+        rstSent: rst,
+        rstRcvd: rst,
+        received: '',
+        name: '',
+        qth: '',
+        area: '',
+        qsl: 'none',
+        comment: '',
+        notes: '',
+        extra: []
+    };
 }
 
 export function entryProblem(
