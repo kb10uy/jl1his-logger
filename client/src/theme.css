@@ -16,8 +16,8 @@
     --border: light-dark(#d0d7de, #30363d);
     --text: light-dark(#1f2328, #e6edf3);
     --muted: light-dark(#59636e, #8b949e);
-    --accent: light-dark(#9a6700, #f0b429);
-    --accent-text: light-dark(#ffffff, #1a1300);
+    --accent: light-dark(#0969da, #58a6ff);
+    --accent-text: light-dark(#ffffff, #051d4d);
     --ok: light-dark(#1a7f37, #3fb950);
     --ok-bg: light-dark(#dafbe1, #1b3a26);
     --warn: light-dark(#9a6700, #f0b429);

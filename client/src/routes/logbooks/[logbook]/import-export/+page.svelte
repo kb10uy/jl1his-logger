@@ -199,7 +199,7 @@
                     class={[
                         'h-10 rounded-md border text-[13px]',
                         tab === id
-                            ? 'border-accent bg-warn-bg font-semibold text-accent'
+                            ? 'border-accent bg-selected font-semibold text-accent'
                             : 'border-border bg-bg'
                     ]}
                     onclick={() => (tab = id as 'import' | 'export')}>{label}</button

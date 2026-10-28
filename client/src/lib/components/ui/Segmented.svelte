@@ -14,7 +14,7 @@
             class={[
                 'h-[34px] rounded-md border px-3.5 text-[13px]',
                 value === option.value
-                    ? 'border-accent bg-warn-bg font-semibold text-accent'
+                    ? 'border-accent bg-selected font-semibold text-accent'
                     : 'border-border bg-bg text-text'
             ]}
             onclick={() => (value = option.value)}>{option.label}</button
