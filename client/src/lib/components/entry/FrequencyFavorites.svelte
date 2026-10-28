@@ -73,15 +73,16 @@
 
 <Popover.Root bind:open onOpenChange={(next) => next && favoriteFrequencies.load()}>
     <Popover.Trigger
-        aria-label={m.favorites_title()}
-        title={m.favorites_title()}
         class={[
-            'inline-flex shrink-0 items-center justify-center gap-0.5 rounded-lg border border-border bg-bg data-[state=open]:border-muted data-[state=open]:bg-surface-2',
-            saved ? 'text-warn' : 'text-muted',
+            'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-bg px-3 text-text data-[state=open]:border-muted data-[state=open]:bg-surface-2',
             className
         ]}
     >
-        <Icon name={saved ? 'starred' : 'star'} size={18} /><Icon name="chevron" size={12} />
+        <Icon
+            name={saved ? 'starred' : 'star'}
+            size={18}
+            class={saved ? 'text-warn' : 'text-muted'}
+        />{m.favorites_title()}<Icon name="chevron" size={12} class="text-muted" />
     </Popover.Trigger>
     <Popover.Portal>
         <Popover.Content
@@ -95,7 +96,7 @@
             {#if savable}
                 <button
                     type="button"
-                    class="mb-1 flex h-9 items-center gap-2 rounded-md border border-dashed border-border px-2.5 text-left text-muted hover:bg-surface-2 hover:text-text md:h-8"
+                    class="mb-1 flex h-9 items-center gap-2 rounded-md border border-dashed border-border bg-none px-2.5 text-left text-muted hover:bg-surface-2 hover:text-text md:h-8"
                     onclick={save}
                 >
                     <Icon name="plus" size={14} />
@@ -116,7 +117,7 @@
                     <button
                         type="button"
                         aria-current={active ? 'true' : undefined}
-                        class="grid h-11 min-w-0 flex-1 grid-cols-[40px_76px_minmax(0,1fr)] items-center gap-2 px-2.5 text-left font-mono text-[15px] md:h-8 md:grid-cols-[36px_68px_minmax(0,1fr)] md:text-[13px]"
+                        class="grid h-11 min-w-0 flex-1 grid-cols-[40px_76px_minmax(0,1fr)] items-center gap-2 bg-none px-2.5 text-left font-mono text-[15px] md:h-8 md:grid-cols-[36px_68px_minmax(0,1fr)] md:text-[13px]"
                         onclick={() => select(favorite)}
                     >
                         <span class="text-[11px] font-normal text-muted"
@@ -129,7 +130,7 @@
                         type="button"
                         aria-label={m.favorites_remove({ favorite: favoriteLabel(favorite) })}
                         title={m.favorites_remove({ favorite: favoriteLabel(favorite) })}
-                        class="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted hover:text-text md:size-8"
+                        class="inline-flex size-11 shrink-0 items-center justify-center rounded-md bg-none text-muted hover:text-text md:size-8"
                         onclick={() => remove(favorite)}><Icon name="close" size={14} /></button
                     >
                 </div>
@@ -143,7 +144,7 @@
                     >
                     <button
                         type="button"
-                        class="h-7 rounded-md px-2 font-semibold text-info hover:bg-surface-2"
+                        class="h-7 rounded-md bg-none px-2 font-semibold text-info hover:bg-surface-2"
                         onclick={() => undo(gone)}>{m.common_undo()}</button
                     >
                 </div>

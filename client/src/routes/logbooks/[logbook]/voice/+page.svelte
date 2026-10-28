@@ -311,7 +311,7 @@
                                         favorite.submode
                                     )
                                 )}
-                            class="size-11"
+                            class="h-11"
                         />
                     </div>
                     <span class="text-xs text-muted">{m.field_rst()}</span>

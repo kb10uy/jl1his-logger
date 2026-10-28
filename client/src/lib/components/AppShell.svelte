@@ -169,7 +169,7 @@
                 type="button"
                 aria-label={collapsed ? m.shell_expand_sidebar() : m.shell_collapse_sidebar()}
                 title={collapsed ? m.shell_expand_sidebar() : m.shell_collapse_sidebar()}
-                class="inline-flex size-8 items-center justify-center rounded-md text-muted hover:bg-surface-2/60 hover:text-text"
+                class="inline-flex size-8 items-center justify-center rounded-md bg-none text-muted hover:bg-surface-2/60 hover:text-text"
                 onclick={toggle}><Icon name={collapsed ? 'expand' : 'collapse'} /></button
             >
         </div>

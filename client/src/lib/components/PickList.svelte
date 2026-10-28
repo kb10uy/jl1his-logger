@@ -65,7 +65,7 @@
             aria-pressed={item.favorite}
             aria-label={m.favorite_item({ name: item.name })}
             onclick={() => onfavorite(item, !item.favorite)}
-            class="flex w-11 shrink-0 items-center justify-center md:w-8"
+            class="flex w-11 shrink-0 items-center justify-center bg-none md:w-8"
         >
             <Icon
                 name={item.favorite ? 'starred' : 'star'}
