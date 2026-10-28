@@ -289,7 +289,8 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 
 ### Desktop Client
 
-- The desktop client is for entry: a small window that sits beside the operator's other radio programs. It opens at 800 by 600, also its minimum, so the form, the lookup and several of the latest QSOs always fit.
+- The desktop client is for entry: a small window that sits beside the operator's other radio programs. It opens at 800 by 600, where the form, the lookup and several of the latest QSOs fit, and shrinks to 640 by 480, where the whole form still fits: below 760 pixels wide the UTC date moves above the time, and the latest QSOs give up their room first.
+- It behaves like a desktop program rather than a page: only the latest QSOs, error messages and the server's URL can be selected, and the context menu opens only on text fields and on that selectable text.
 - It signs in with the server's URL and an API token the user creates in the web client, not with a passkey, which is bound to `public_origin`.
 - The URL is reduced to its origin, so a pasted address of any web client page works. It must be `https`, except on the loopback address or `localhost`, because the token travels with every request.
 - Signing in checks the token with `GET /api/logbooks` from the Rust side, which sends no `Origin` and so passes the server's origin check. A `401` refuses the token; a token that reaches no Logbook is refused as well. `GET /api/me` also takes a native token, so the window title shows whose token it holds (`JL1HIS — JL1HIS Logger`); without an answer it is the app's name alone.

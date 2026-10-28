@@ -257,7 +257,7 @@
             onsubmit={log}
             bind:this={form}
         >
-            <div class="flex h-[32px] items-center gap-1.5">
+            <div class="flex h-[32px] items-center gap-1.5 whitespace-nowrap [&>*]:flex-none">
                 <label for="freq" class="text-[11px] text-muted">{m.entry_freq()}</label>
                 <input
                     id="freq"
@@ -287,7 +287,7 @@
                     <span
                         title={rigTitle}
                         class={[
-                            'inline-flex h-[18px] items-center gap-[3px] rounded-[4px] border px-[5px] font-mono text-[10px] leading-none',
+                            'inline-flex h-[18px] min-w-0 shrink! items-center gap-[3px] overflow-hidden rounded-[4px] border px-[5px] font-mono text-[10px] leading-none',
                             rigFit === 'kept' && 'border-border text-muted',
                             rigFit === 'followed' && 'border-info-strong bg-selected text-info',
                             rigFit === 'mismatch' && 'border-warn bg-warn-bg text-warn'
@@ -307,12 +307,23 @@
                         >{rig.mode}{rigFit === 'mismatch' ? ' ≠' : ''}</span
                     >
                 {/if}
-                <div class="flex-1"></div>
-                <span class="text-[11px] text-muted">UTC</span>
-                <span class="font-mono text-[12px] text-muted tabular">{clock.date}</span>
-                <span class={['font-mono text-[17px] font-semibold tabular', locked && 'text-warn']}
-                    >{clock.time}</span
+                <div class="flex-1!"></div>
+                <div
+                    class="flex items-center gap-1.5 max-[760px]:flex-col max-[760px]:items-end max-[760px]:gap-0.5 max-[760px]:leading-none"
                 >
+                    <span class="flex items-center gap-1.5 text-muted max-[760px]:gap-1">
+                        <span class="text-[11px] max-[760px]:text-[10px]">UTC</span>
+                        <span class="font-mono text-[12px] tabular max-[760px]:text-[10px]"
+                            >{clock.date}</span
+                        >
+                    </span>
+                    <span
+                        class={[
+                            'font-mono text-[17px] font-semibold tabular',
+                            locked && 'text-warn'
+                        ]}>{clock.time}</span
+                    >
+                </div>
                 <button
                     type="button"
                     title={m.entry_lock_title()}

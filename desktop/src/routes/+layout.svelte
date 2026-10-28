@@ -48,7 +48,22 @@
     $effect(() => {
         if (session.current?.state === 'signedIn' && ready) incoming.start();
     });
+
+    const TEXT_INPUTS = new Set(['text', 'search', 'url', 'email', 'tel', 'password', 'number']);
+
+    function hasTextMenu(target: EventTarget | null): boolean {
+        if (target instanceof HTMLInputElement) return TEXT_INPUTS.has(target.type);
+        if (target instanceof HTMLTextAreaElement) return true;
+        if (!(target instanceof HTMLElement) || target instanceof HTMLSelectElement) return false;
+        return target.isContentEditable || getComputedStyle(target).userSelect !== 'none';
+    }
 </script>
+
+<svelte:document
+    oncontextmenu={(e) => {
+        if (!hasTextMenu(e.target)) e.preventDefault();
+    }}
+/>
 
 <svelte:head>
     <title>{title}</title>

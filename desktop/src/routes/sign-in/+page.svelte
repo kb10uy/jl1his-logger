@@ -99,7 +99,10 @@
         </div>
 
         {#if error}
-            <p role="alert" class="rounded-md bg-error-bg px-2.5 py-2 text-xs text-error-text">
+            <p
+                role="alert"
+                class="rounded-md bg-error-bg px-2.5 py-2 text-xs text-error-text select-text"
+            >
                 {errorText(error)}
             </p>
         {:else if saved?.rejected}

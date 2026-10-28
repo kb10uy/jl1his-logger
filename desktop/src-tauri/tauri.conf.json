@@ -15,8 +15,8 @@
                 "title": "JL1HIS Logger",
                 "width": 800,
                 "height": 600,
-                "minWidth": 800,
-                "minHeight": 600
+                "minWidth": 640,
+                "minHeight": 480
             }
         ],
         "security": {

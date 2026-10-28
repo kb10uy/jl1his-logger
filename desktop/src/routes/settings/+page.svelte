@@ -122,7 +122,7 @@
         {#if settings.error}
             <p
                 role="alert"
-                class="m-0 rounded-md bg-error-bg px-2.5 py-2 text-[12px] text-error-text"
+                class="m-0 rounded-md bg-error-bg px-2.5 py-2 text-[12px] text-error-text select-text"
             >
                 {errorText(settings.error)}
             </p>
@@ -213,7 +213,7 @@
                         <button
                             type="button"
                             disabled={!current.rig.enabled}
-                            class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-[12px]"
+                            class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-[12px] whitespace-nowrap"
                             onclick={() => settings.reconnect()}
                             >{m.settings_rig_reconnect()}</button
                         >
@@ -232,7 +232,7 @@
                         <span
                             title={status.text}
                             class={[
-                                'truncate',
+                                'truncate select-text',
                                 status.tone === 'ok' && 'text-text',
                                 status.tone === 'error' && 'text-error-text',
                                 (status.tone === 'off' || status.tone === 'busy') && 'text-muted'
@@ -363,7 +363,7 @@
                             <span
                                 title={status.text}
                                 class={[
-                                    'truncate',
+                                    'truncate select-text',
                                     status.tone === 'ok' && 'text-text',
                                     status.tone === 'error' && 'text-error-text',
                                     status.tone === 'off' && 'text-muted'
@@ -428,7 +428,7 @@
                         class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-[12px]"
                     >
                         <span class="text-muted">{m.settings_server_url()}</span>
-                        <span class="font-mono">{signedIn.url}</span>
+                        <span class="font-mono select-text">{signedIn.url}</span>
                         <span class="text-muted">{m.settings_server_signed_in()}</span>
                         <span
                             ><strong class="font-mono font-semibold"
