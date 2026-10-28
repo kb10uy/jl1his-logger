@@ -72,7 +72,7 @@ jobs:
       - name: Install the Tauri build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf file
+          sudo apt-get install --no-install-recommends -y libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
 
       - uses: pnpm/action-setup@v6
         with:
@@ -95,18 +95,18 @@ jobs:
         working-directory: client
       - run: pnpm install --frozen-lockfile
 
-      - name: Build the AppImage
-        run: pnpm tauri build --bundles appimage
-      - name: Name the AppImage
-        id: appimage
+      - name: Build the Debian package
+        run: pnpm tauri build --bundles deb
+      - name: Name the Debian package
+        id: deb
         run: |
-          name="jl1his-logger-desktop-linux-x64.AppImage"
-          cp src-tauri/target/release/bundle/appimage/*.AppImage "$name"
+          name="jl1his-logger-desktop-linux-x64.deb"
+          cp src-tauri/target/release/bundle/deb/*.deb "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.appimage.outputs.name }}
-          path: desktop/${{ steps.appimage.outputs.name }}
+          name: ${{ steps.deb.outputs.name }}
+          path: desktop/${{ steps.deb.outputs.name }}
           if-no-files-found: error
 
   release:
