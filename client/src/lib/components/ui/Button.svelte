@@ -53,7 +53,7 @@
 </script>
 
 {#if href !== undefined}
-    <a {href} class={classes}>{@render children()}</a>
+    <a {href} data-button class={classes}>{@render children()}</a>
 {:else}
     <button type="button" aria-pressed={pressed} class={classes} {...rest}>
         {@render children()}

@@ -177,23 +177,6 @@
 
 <PageTitle title={m.nav_qsl_management()} />
 
-{#snippet lengthChoice(name: string, value: LengthUnit, set: (v: LengthUnit) => void)}
-    <div role="radiogroup" aria-label={m.transfer_lengths()} class="flex gap-4 text-[13px]">
-        {#each lengths as l (l.value)}
-            <label class="flex cursor-pointer items-center gap-1.5">
-                <input
-                    type="radio"
-                    {name}
-                    class="accent-info"
-                    checked={value === l.value}
-                    onchange={() => set(l.value)}
-                />
-                {l.label}
-            </label>
-        {/each}
-    </div>
-{/snippet}
-
 <PageHeader
     title={m.nav_qsl_management()}
     subtitle={logbook.logbook.name}
@@ -246,7 +229,7 @@
                     ]}
                     bind:value={() => kind, (next) => pick(next as SendKind)}
                 />
-                <div class="flex flex-col gap-1">
+                <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
                     <label for="qsl-query" class="text-xs text-muted">{m.transfer_query()}</label>
                     <input
                         id="qsl-query"
@@ -256,10 +239,12 @@
                         autocapitalize="off"
                         bind:value={q}
                     />
-                </div>
-                <div class="flex flex-wrap items-center gap-3">
-                    <span class="text-xs text-muted">{m.transfer_lengths()}</span>
-                    {@render lengthChoice('qsl-len', exportLength, (v) => (exportLength = v))}
+                    <label for="qsl-len" class="text-xs text-muted">{m.transfer_lengths()}</label>
+                    <select id="qsl-len" class="control h-10" bind:value={exportLength}>
+                        {#each lengths as l (l.value)}
+                            <option value={l.value}>{l.label}</option>
+                        {/each}
+                    </select>
                 </div>
                 {#if matches.error}
                     <Notice tone="error">{matches.error}</Notice>
@@ -322,8 +307,15 @@
                     </select>
                 </div>
                 {#if format === 'adi'}
-                    <div class="flex h-10 items-center">
-                        {@render lengthChoice('rcv-len', importLength, (v) => (importLength = v))}
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <label for="rcv-len" class="text-xs text-muted"
+                            >{m.transfer_lengths()}</label
+                        >
+                        <select id="rcv-len" class="control" bind:value={importLength}>
+                            {#each lengths as l (l.value)}
+                                <option value={l.value}>{l.label}</option>
+                            {/each}
+                        </select>
                     </div>
                 {/if}
                 <div class="flex-1"></div>

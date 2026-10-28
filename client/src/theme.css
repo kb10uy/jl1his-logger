@@ -35,6 +35,7 @@
     --ptt: #1f6feb;
     --ptt-active: #d29922;
     --shadow: rgb(0 0 0 / 0.45);
+    --hover: rgb(255 255 255 / 0.08);
 }
 
 @media (prefers-color-scheme: light) {
@@ -66,6 +67,7 @@
         --ptt: #0969da;
         --ptt-active: #bf8700;
         --shadow: rgb(31 35 40 / 0.15);
+        --hover: rgb(31 35 40 / 0.07);
     }
 }
 
@@ -117,6 +119,12 @@
     button:not(:disabled),
     [role='button']:not(:disabled) {
         cursor: pointer;
+    }
+
+    @media (hover: hover) {
+        :is(button, [role='button'], [data-button]):not(:disabled):hover {
+            background-image: linear-gradient(var(--hover), var(--hover));
+        }
     }
 
     :focus-visible {

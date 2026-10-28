@@ -355,7 +355,11 @@
     {#if canEdit}
         <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
             <span class="mr-auto text-xs text-muted">
-                {station === undefined ? m.stations_new_hint() : m.stations_saving_hint()}
+                {station === undefined
+                    ? m.stations_new_hint()
+                    : changed
+                      ? m.stations_saving_hint()
+                      : ''}
             </span>
             {#if station}
                 <Button disabled={!changed || saving} onclick={() => (draft = draftOf(station))}

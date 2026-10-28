@@ -11,7 +11,6 @@
             "match": { "": "worked before · {n}" }
         }
     ],
-    "voice_carried_over": "Carried over to the next QSO",
     "voice_sent": "Sent",
     "voice_rcvd": "Rcvd",
     "voice_number": "Number",
@@ -26,7 +25,6 @@
     "voice_command": "Command",
     "voice_command_placeholder": "received five seven, or call jh1xyz",
     "voice_freq_mhz": "Freq (MHz)",
-    "voice_hint": "Say “q s o” or press Log. Speaking a field again replaces it.",
     "voice_correct": "Correct",
     "voice_log_qso": "Log QSO",
     "voice_speech_engine": "Speech engine",
@@ -75,7 +73,6 @@
     "voice_ptt_opening": "Opening the microphone…",
     "voice_ptt_listening": "Listening…",
     "voice_ptt_finishing": "Recognizing…",
-    "voice_ptt_or_hold": "or hold {key}",
     "voice_speech_language": "Speech language",
     "voice_speech_language_hint": "Voice entry loads the model of this language. Each model is downloaded once and then kept on this device.",
     "voice_language_en": "English",

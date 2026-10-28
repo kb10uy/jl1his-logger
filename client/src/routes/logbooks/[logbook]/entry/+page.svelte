@@ -573,11 +573,8 @@
                 <div
                     class="mt-1 flex flex-wrap items-center justify-end gap-3 max-md:sticky max-md:bottom-[84px] max-md:z-10 max-md:-mx-4 max-md:flex-nowrap max-md:border-t max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-2.5"
                 >
-                    <span
-                        class={[
-                            'flex-1 text-xs max-md:hidden',
-                            problem && entry.call !== '' ? 'text-info' : 'text-muted'
-                        ]}>{problem && entry.call !== '' ? problem : m.entry_keys_hint()}</span
+                    <span class="flex-1 text-xs text-info max-md:hidden"
+                        >{entry.call !== '' ? problem : ''}</span
                     >
                     <Button size="lg" class="max-md:h-12" onclick={clear}
                         >{m.common_clear()}

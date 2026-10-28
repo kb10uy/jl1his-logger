@@ -293,16 +293,13 @@
                     {/if}
                     <span class="text-xs text-muted">{m.field_band_mode()}</span>
                     <div class="flex min-w-0 items-start gap-2.5">
-                        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span class="flex flex-wrap gap-x-2 font-mono text-lg">
-                                <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
-                                <span>{draft.band} ·</span>
-                                <span
-                                    >{draft.mode}
-                                    <span class="text-muted">{draft.submode}</span></span
-                                >
-                            </span>
-                            <span class="text-xs text-muted">{m.voice_carried_over()}</span>
+                        <span class="flex min-w-0 flex-1 flex-wrap gap-x-2 font-mono text-lg">
+                            <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
+                            <span>{draft.band} ·</span>
+                            <span
+                                >{draft.mode}
+                                <span class="text-muted">{draft.submode}</span></span
+                            >
                         </span>
                         <FrequencyFavorites
                             tuning={draft}
@@ -487,11 +484,8 @@
                 {/if}
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <span
-                        class={[
-                            'flex-[1_1_200px] text-xs',
-                            problem && draft.call !== undefined ? 'text-info' : 'text-muted'
-                        ]}>{problem && draft.call !== undefined ? problem : m.voice_hint()}</span
+                    <span class="flex-[1_1_200px] text-xs text-info"
+                        >{draft.call !== undefined ? problem : ''}</span
                     >
                     <Button
                         size="lg"

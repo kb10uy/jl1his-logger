@@ -111,7 +111,9 @@
 
         {#if canEdit}
             <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-                <span class="mr-auto text-xs text-muted">{m.settings_area_keeps_values()}</span>
+                <span class="mr-auto text-xs text-muted"
+                    >{changed ? m.settings_area_keeps_values() : ''}</span
+                >
                 <Button
                     type="submit"
                     variant="primary"

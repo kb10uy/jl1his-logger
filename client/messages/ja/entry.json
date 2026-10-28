@@ -32,7 +32,6 @@
     "entry_value": "値",
     "entry_remove_field": "このフィールドを削除",
     "entry_add_adif_field": "+ ADIF フィールドを追加",
-    "entry_keys_hint": "Tab で次の行へ移動し、どのフィールドからでも Enter で記録します。",
     "entry_log_qso": "QSO を記録",
     "entry_previous_label": "この局との過去の QSO",
     "entry_before_with": "{call} との過去の交信",

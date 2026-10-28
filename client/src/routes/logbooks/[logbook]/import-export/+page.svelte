@@ -179,32 +179,6 @@
 
 <PageTitle title={m.nav_import_export()} />
 
-{#snippet lengthChoice<T extends string>(
-    name: string,
-    options: { value: T; label: string }[],
-    value: T,
-    set: (v: T) => void
-)}
-    <div
-        role="radiogroup"
-        aria-label={m.transfer_lengths()}
-        class="flex flex-wrap gap-x-4 gap-y-1 text-[13px]"
-    >
-        {#each options as l (l.value)}
-            <label class="flex cursor-pointer items-center gap-1.5">
-                <input
-                    type="radio"
-                    {name}
-                    class="accent-info"
-                    checked={value === l.value}
-                    onchange={() => set(l.value)}
-                />
-                {l.label}
-            </label>
-        {/each}
-    </div>
-{/snippet}
-
 <PageHeader
     title={m.nav_import_export()}
     subtitle={logbook.logbook.name}
@@ -280,13 +254,13 @@
                             <option {value}>{name}</option>
                         {/each}
                     </select>
-                    <span class="text-xs text-muted">{m.transfer_lengths()}</span>
-                    {@render lengthChoice<LengthUnit | 'auto'>(
-                        'imp-len',
-                        [{ value: 'auto', label: m.transfer_length_auto() }, ...lengths],
-                        importLength,
-                        (v) => (importLength = v)
-                    )}
+                    <label for="imp-len" class="text-xs text-muted">{m.transfer_lengths()}</label>
+                    <select id="imp-len" class="control h-10" bind:value={importLength}>
+                        <option value="auto">{m.transfer_length_auto()}</option>
+                        {#each lengths as l (l.value)}
+                            <option value={l.value}>{l.label}</option>
+                        {/each}
+                    </select>
                 {/if}
             </div>
             <LogbookLoadError />
@@ -460,13 +434,14 @@
                         {/each}
                     </select>
                     {#if exportEncoding === 'utf-8'}
-                        <span class="text-xs text-muted">{m.transfer_lengths()}</span>
-                        {@render lengthChoice<LengthUnit>(
-                            'exp-len',
-                            lengths,
-                            exportLength,
-                            (v) => (exportLength = v)
-                        )}
+                        <label for="exp-len" class="text-xs text-muted"
+                            >{m.transfer_lengths()}</label
+                        >
+                        <select id="exp-len" class="control h-10" bind:value={exportLength}>
+                            {#each lengths as l (l.value)}
+                                <option value={l.value}>{l.label}</option>
+                            {/each}
+                        </select>
                     {:else}
                         <label for="exp-unencodable" class="text-xs text-muted"
                             >{m.transfer_unencodable()}</label

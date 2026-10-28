@@ -182,7 +182,11 @@
 
     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
         <span class="mr-auto text-xs text-muted">
-            {instrument === undefined ? m.stations_instrument_new_hint() : m.stations_saving_hint()}
+            {instrument === undefined
+                ? m.stations_instrument_new_hint()
+                : changed
+                  ? m.stations_saving_hint()
+                  : ''}
         </span>
         {#if instrument}
             <Button disabled={!changed || saving} onclick={() => (draft = draftOf(instrument))}

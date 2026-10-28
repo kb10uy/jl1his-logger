@@ -32,7 +32,6 @@
     "entry_value": "Value",
     "entry_remove_field": "Remove this field",
     "entry_add_adif_field": "+ Add ADIF field",
-    "entry_keys_hint": "Tab moves down the rows. Enter logs from any field.",
     "entry_log_qso": "Log QSO",
     "entry_previous_label": "Previous QSOs with this station",
     "entry_before_with": "Before with {call}",
