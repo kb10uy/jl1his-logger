@@ -292,7 +292,7 @@
                         </div>
                     {/if}
                     <span class="text-xs text-muted">{m.field_band_mode()}</span>
-                    <div class="flex min-w-0 items-start gap-2.5">
+                    <div class="flex min-w-0 items-center gap-2.5">
                         <span class="flex min-w-0 flex-1 flex-wrap gap-x-2 font-mono text-lg">
                             <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
                             <span>{draft.band} ·</span>
