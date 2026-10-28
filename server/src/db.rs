@@ -274,7 +274,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
         assert!(migrated.snapshot.unwrap().is_file());
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db).await.unwrap();
         assert_eq!(foreign_keys, 1);

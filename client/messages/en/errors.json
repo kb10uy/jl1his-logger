@@ -68,5 +68,6 @@
     "error_query_missing_value": "{term}: the term has no value.",
     "error_query_bad_date": "\"{value}\" is not a date or a date range.",
     "error_query_bad_number": "\"{value}\" is not a number or a range of numbers.",
-    "error_reference_invalid": "The file was refused: {reason}"
+    "error_reference_invalid": "The file was refused: {reason}",
+    "error_favorite_frequency_invalid": "A favorite needs a frequency in MHz and a known mode."
 }

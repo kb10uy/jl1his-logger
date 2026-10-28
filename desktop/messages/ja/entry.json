@@ -83,5 +83,14 @@
     "entry_incoming_dismiss": "閉じる",
     "notify_logged": "{call} を記録しました",
     "notify_from": "{program} から",
-    "notify_from_unnamed": "他のプログラムから"
+    "notify_from_unnamed": "他のプログラムから",
+    "favorites_title": "お気に入り",
+    "favorites_save": "保存",
+    "favorites_saved": "は保存済み",
+    "favorites_remove": "{favorite} をお気に入りから外す",
+    "favorites_removed": "外しました",
+    "favorites_undo": "元に戻す",
+    "favorites_empty": "お気に入りはまだありません。よく使う周波数とモードを保存しておけます。",
+    "favorites_failed": "お気に入りを読み込めませんでした。",
+    "favorites_rig": "変わるのは入力欄だけで、リグの周波数は変わりません。"
 }

@@ -1,6 +1,16 @@
 import type { Candidate, Search } from '#client/api/api.ts';
 import { query } from '#client/api/client.ts';
-import type { Fields, Instrument, Lookup, Page, Qso, Saved, Station } from '#client/api/types.ts';
+import type {
+    FavoriteFrequency,
+    Fields,
+    FrequencyInput,
+    Instrument,
+    Lookup,
+    Page,
+    Qso,
+    Saved,
+    Station
+} from '#client/api/types.ts';
 import { request } from './request.svelte.ts';
 
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
@@ -32,3 +42,11 @@ export const duplicates = (logbook: string, candidate: Candidate) =>
 
 export const lookup = (logbook: string, call: string) =>
     request<Lookup>('GET', `${base(logbook)}/lookup${query({ call })}`);
+
+export const favoriteFrequencies = () => request<FavoriteFrequency[]>('GET', '/api/frequencies');
+
+export const addFavoriteFrequency = (input: FrequencyInput) =>
+    request<FavoriteFrequency>('POST', '/api/frequencies', input);
+
+export const removeFavoriteFrequency = (id: string) =>
+    request<null>('DELETE', `/api/frequencies/${encodeURIComponent(id)}`);

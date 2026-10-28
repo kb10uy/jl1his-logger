@@ -2,7 +2,7 @@
 
 The API the web client uses, under `/api` on `public_origin`. Bodies are
 JSON. It covers sign-in, the server version and health, reference versions,
-API tokens, Logbooks, Members, Stations, Instruments, QSOs with their event
+API tokens, favorite frequencies, Logbooks, Members, Stations, Instruments, QSOs with their event
 stream, bulk QSL changes, export batches and ADIF import. Responses are
 `Cache-Control: no-store` and carry the security headers listed in
 [decisions.md](../development/decisions.md).
@@ -18,7 +18,7 @@ endpoint takes a token:
 | --- | --- | --- |
 | `GET /api/health` | Not needed | Not needed |
 | `POST /api/auth/login/*`, `POST /api/auth/register/*` | Issued by them | No |
-| `GET /api/me` | Yes | Yes |
+| `GET /api/me`, `/api/frequencies` | Yes | Yes |
 | `GET /api/logbooks` and everything under `/api/logbooks/{logbook_id}`: Logbooks, Members, Stations, Instruments, QSOs, Lookup, Bulk QSL Changes, Export Batches, ADIF Import, the Event Stream | Yes | Yes, for the Logbooks of its scopes |
 | `POST /api/auth/logout`, `/api/passkeys`, `/api/sessions`, `/api/tokens`, `GET /api/version`, `/api/reference` | Yes | No: `401` |
 
@@ -52,7 +52,7 @@ language; `error` stays English.
 
 | `code` | Parameters | When |
 | --- | --- | --- |
-| `not_found` | `what`: `QSO`, `Station`, `Instrument`, `Logbook`, `user`, `passkey`, `API token`, `export batch` or `Membership` | The thing does not exist or is not visible |
+| `not_found` | `what`: `QSO`, `Station`, `Instrument`, `Logbook`, `user`, `passkey`, `API token`, `favorite frequency`, `export batch` or `Membership` | The thing does not exist or is not visible |
 | `qso_missing` | `field` | A required QSO field is absent |
 | `qso_invalid` | `field`, `value` | A QSO field holds a value that is not valid |
 | `qso_field_name` | `field` | Not an ADIF field name |
@@ -74,6 +74,7 @@ language; `error` stays English.
 | `registration_link_invalid` | | The registration link is unknown or used up |
 | `not_a_callsign` | `callsign` | The member's callsign is not a callsign |
 | `token_needs_logbook` | | A token without a Logbook |
+| `favorite_frequency_invalid` | | A favorite frequency without a frequency in MHz or a known mode |
 | `qso_deleted` | `id` | Updating a deleted QSO |
 | `qso_changed` | `id` | The QSO changed while it was being updated |
 | `id_taken` | `id` | The ID belongs to another QSO |
@@ -182,6 +183,25 @@ manage tokens.
 The plaintext is shown only in the response that issues it. Every Logbook in
 `logbook_ids` needs a Membership of the user, or it is `404`. Another user's
 token is `404` for anyone but an admin.
+
+## Favorite Frequencies
+
+A favorite frequency is `{id, freq, mode, submode, created_at}`: a frequency
+in MHz with a mode, kept for the caller's user alone and shared by every
+Logbook. `freq` is formatted by the server (`7.1`, `145`), and `submode` is
+`""` when there is none. These endpoints take the session cookie or an API
+token, which reaches the favorites of its user whatever its scopes.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /api/frequencies` | | The user's favorites by frequency, then mode and submode |
+| `POST /api/frequencies` | `{freq, mode, submode}` | The favorite; the one already kept for the same frequency, mode and submode |
+| `DELETE /api/frequencies/{id}` | | `204` |
+
+`freq` is a number of MHz above zero, `mode` an ADIF mode that is not
+import-only, and `submode`, which may be left out, empty or one of its
+submodes; anything else is `400 favorite_frequency_invalid`. Another user's
+favorite is `404`.
 
 ## Logbooks
 

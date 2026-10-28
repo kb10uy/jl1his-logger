@@ -115,5 +115,11 @@
     "entry_editor_delete_title": "Delete this QSO?",
     "entry_editor_delete_description": "It leaves the log and every export. Nobody can bring it back from the web UI.",
     "entry_editor_needed": "Needed before saving: {fields}.",
-    "entry_editor_list_separator": ", "
+    "entry_editor_list_separator": ", ",
+    "favorites_title": "Favorites",
+    "favorites_save": "Save",
+    "favorites_remove": "Remove {favorite} from favorites",
+    "favorites_removed": "Removed",
+    "favorites_empty": "No favorites yet. Save the frequency and mode you use often.",
+    "favorites_failed": "Could not load the favorites."
 }

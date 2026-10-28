@@ -6,7 +6,9 @@ import type {
     Encoding,
     Exported,
     ExportKind,
+    FavoriteFrequency,
     Fields,
+    FrequencyInput,
     ImportSource,
     Instrument,
     InstrumentInput,
@@ -116,6 +118,14 @@ export const issueToken = (token: TokenRequest) =>
 
 export const revokeToken = (id: string) =>
     request<void>('DELETE', `/api/tokens/${encodeURIComponent(id)}`);
+
+export const favoriteFrequencies = () => request<FavoriteFrequency[]>('GET', '/api/frequencies');
+
+export const addFavoriteFrequency = (input: FrequencyInput) =>
+    request<FavoriteFrequency>('POST', '/api/frequencies', { body: input });
+
+export const removeFavoriteFrequency = (id: string) =>
+    request<void>('DELETE', `/api/frequencies/${encodeURIComponent(id)}`);
 
 export const logbooks = () => request<Logbook[]>('GET', '/api/logbooks');
 

@@ -10,6 +10,7 @@
     import WarningList from '#lib/components/WarningList.svelte';
     import ContestBar from '#lib/components/entry/ContestBar.svelte';
     import EntryEquipment from '#lib/components/entry/EntryEquipment.svelte';
+    import FrequencyFavorites from '#lib/components/entry/FrequencyFavorites.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
@@ -291,15 +292,31 @@
                         </div>
                     {/if}
                     <span class="text-xs text-muted">{m.field_band_mode()}</span>
-                    <span class="flex flex-col gap-0.5">
-                        <span class="flex flex-wrap gap-x-2 font-mono text-lg">
-                            <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
-                            <span>{draft.band} ·</span>
-                            <span>{draft.mode} <span class="text-muted">{draft.submode}</span></span
-                            >
+                    <div class="flex min-w-0 items-start gap-2.5">
+                        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span class="flex flex-wrap gap-x-2 font-mono text-lg">
+                                <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
+                                <span>{draft.band} ·</span>
+                                <span
+                                    >{draft.mode}
+                                    <span class="text-muted">{draft.submode}</span></span
+                                >
+                            </span>
+                            <span class="text-xs text-muted">{m.voice_carried_over()}</span>
                         </span>
-                        <span class="text-xs text-muted">{m.voice_carried_over()}</span>
-                    </span>
+                        <FrequencyFavorites
+                            tuning={draft}
+                            onselect={(favorite) =>
+                                voice.setDraft(
+                                    withMode(
+                                        withFreq(draft, favorite.freq),
+                                        favorite.mode,
+                                        favorite.submode
+                                    )
+                                )}
+                            class="size-11"
+                        />
+                    </div>
                     <span class="text-xs text-muted">{m.field_rst()}</span>
                     <span class="font-mono text-lg"
                         ><span class="font-sans text-xs text-muted">{m.voice_sent()}</span>

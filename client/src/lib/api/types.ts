@@ -168,6 +168,20 @@ export interface Token {
     last_used_at: string | null;
 }
 
+export interface FavoriteFrequency {
+    id: string;
+    freq: string;
+    mode: string;
+    submode: string;
+    created_at: string;
+}
+
+export interface FrequencyInput {
+    freq: string;
+    mode: string;
+    submode: string;
+}
+
 export interface ServerVersion {
     version: string;
     commit: string | null;
