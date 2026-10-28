@@ -4,7 +4,7 @@
     import { listen } from '@tauri-apps/api/event';
     import { goto } from '$app/navigation';
     import type { Fields } from '#client/api/types.ts';
-    import { entryFields, entryProblem, type Entry } from '#client/entry/record.ts';
+    import { clearedEntry, entryFields, entryProblem, type Entry } from '#client/entry/record.ts';
     import { expandExchange } from '#client/qso/contest.ts';
     import { utcClock, utcFields } from '#client/qso/format.ts';
     import { formatMhz } from '#client/qso/bands.ts';
@@ -211,15 +211,7 @@
     }
 
     function clear() {
-        entry.call = '';
-        entry.received = '';
-        entry.name = '';
-        entry.qth = '';
-        entry.area = '';
-        entry.qsl = 'none';
-        entry.comment = '';
-        entry.notes = '';
-        entry.extra = [];
+        entry = clearedEntry(entry);
         callInput?.focus();
         share();
     }
@@ -232,8 +224,8 @@
     async function submit() {
         if (cantLog) return;
         const fields = entryFields(entry, settings.contest, at, area);
-        await desk.log(fields);
         clear();
+        await desk.log(fields);
     }
 </script>
 

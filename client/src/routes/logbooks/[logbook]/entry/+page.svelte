@@ -15,7 +15,13 @@
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
-    import { entryFields, entryProblem, extraFieldNames, type Entry } from '#lib/entry/record.ts';
+    import {
+        clearedEntry,
+        entryFields,
+        entryProblem,
+        extraFieldNames,
+        type Entry
+    } from '#lib/entry/record.ts';
     import { bandOf } from '#lib/qso/bands.ts';
     import { expandExchange } from '#lib/qso/contest.ts';
     import { hhmm, isoDate, utcClock, utcFields } from '#lib/qso/format.ts';
@@ -148,15 +154,7 @@
     }
 
     function clear() {
-        entry.call = '';
-        entry.received = '';
-        entry.name = '';
-        entry.qth = '';
-        entry.area = '';
-        entry.qsl = 'none';
-        entry.comment = '';
-        entry.notes = '';
-        entry.extra = [];
+        entry = clearedEntry(entry);
         warnings = [];
         callInput?.focus();
     }
@@ -165,8 +163,8 @@
         event?.preventDefault();
         if (problem !== undefined || stationId === '' || session.logging) return;
         const fields: Fields = entryFields(entry, settings.contest, at, area);
-        const result = await session.log(fields);
         clear();
+        const result = await session.log(fields);
         if ('saved' in result) {
             warnings = result.saved.warnings;
             toasts.show(m.entry_logged({ call: result.saved.qso.fields.CALL }));

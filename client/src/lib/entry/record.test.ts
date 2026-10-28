@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultContest } from '#lib/qso/contest.ts';
-import { entryFields, entryProblem, type Entry } from './record.ts';
+import { clearedEntry, entryFields, entryProblem, type Entry } from './record.ts';
 
 const entry: Entry = {
     call: ' jh1xyz ',
@@ -110,6 +110,36 @@ describe('entry records', () => {
         ]
     ])('refuses extra fields such as %j', (change, problem) => {
         expect(entryProblem({ ...entry, ...change }, defaultContest())).toBe(problem);
+    });
+
+    it('clears the QSO and resets the reports, keeping the tuning and TX power', () => {
+        const filled: Entry = {
+            ...entry,
+            freq: '7.074',
+            mode: 'FT8',
+            submode: '',
+            rstSent: '-10',
+            rstRcvd: '-15',
+            received: '012',
+            name: 'Taro',
+            area: '100101',
+            qsl: 'requested',
+            comment: 'POTA',
+            txPwr: '50',
+            notes: 'note',
+            extra: [{ name: 'AGE', value: '30' }]
+        };
+        expect(clearedEntry(filled)).toEqual({
+            ...entry,
+            call: '',
+            freq: '7.074',
+            mode: 'FT8',
+            submode: '',
+            rstSent: '-10',
+            rstRcvd: '-10',
+            qth: '',
+            txPwr: '50'
+        });
     });
 
     it('says what blocks logging', () => {
