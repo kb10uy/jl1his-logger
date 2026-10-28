@@ -7,5 +7,9 @@
     "window_title": "{callsign} — JL1HIS Logger",
     "common_unreachable": "Could not reach the server.",
     "tray_show": "Show",
-    "tray_quit": "Quit"
+    "tray_quit": "Quit",
+    "menu_cut": "Cut",
+    "menu_copy": "Copy",
+    "menu_paste": "Paste",
+    "menu_select_all": "Select all"
 }

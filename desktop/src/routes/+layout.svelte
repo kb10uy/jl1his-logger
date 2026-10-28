@@ -11,6 +11,7 @@
     import { incoming } from '#lib/incoming/incoming.svelte.ts';
     import { session } from '#lib/session/session.svelte.ts';
     import { settings } from '#lib/settings/settings.svelte.ts';
+    import { openTextMenu } from '#lib/text-menu.ts';
 
     let { children } = $props();
     let ready = $state(false);
@@ -48,22 +49,9 @@
     $effect(() => {
         if (session.current?.state === 'signedIn' && ready) incoming.start();
     });
-
-    const TEXT_INPUTS = new Set(['text', 'search', 'url', 'email', 'tel', 'password', 'number']);
-
-    function hasTextMenu(target: EventTarget | null): boolean {
-        if (target instanceof HTMLInputElement) return TEXT_INPUTS.has(target.type);
-        if (target instanceof HTMLTextAreaElement) return true;
-        if (!(target instanceof HTMLElement) || target instanceof HTMLSelectElement) return false;
-        return target.isContentEditable || getComputedStyle(target).userSelect !== 'none';
-    }
 </script>
 
-<svelte:document
-    oncontextmenu={(e) => {
-        if (!hasTextMenu(e.target)) e.preventDefault();
-    }}
-/>
+<svelte:document oncontextmenu={openTextMenu} />
 
 <svelte:head>
     <title>{title}</title>
