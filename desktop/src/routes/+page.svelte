@@ -242,7 +242,7 @@
 />
 
 <div class="flex h-dvh flex-col overflow-hidden text-[13px]" onfocusout={share}>
-    <div class="flex min-h-0 flex-1 flex-col gap-2 px-[12px] py-[10px]">
+    <div class="flex min-h-0 flex-1 flex-col gap-2 px-[12px] pt-[6px] pb-[10px]">
         <EntryHeader {desk} oninstrument={() => (entry.txPwr = '')} />
 
         {#if settings.contest.enabled}
