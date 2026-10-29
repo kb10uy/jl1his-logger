@@ -11,8 +11,11 @@
     ];
 </script>
 
-<section aria-label={m.settings_appearance()} class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
+<section
+    aria-label={m.settings_appearance()}
+    class="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4"
+>
+    <div class="flex flex-col gap-1">
         <label for="theme" class="text-xs text-muted">{m.theme_label()}</label>
         <select
             id="theme"
@@ -26,19 +29,20 @@
             {/each}
         </select>
     </div>
-    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
-        <label class="flex cursor-pointer items-center gap-2 text-[13px]">
-            <input
-                type="checkbox"
-                class="size-4 accent-info"
-                checked={storedCompact()}
-                onchange={(e) => chooseCompact(e.currentTarget.checked)}
-            />
-            {m.compact_label()}
-        </label>
-        <span class="text-xs text-muted">{m.compact_hint()}</span>
+    <div class="flex flex-col gap-1">
+        <label for="density" class="text-xs text-muted">{m.density_label()}</label>
+        <select
+            id="density"
+            class="control w-52"
+            value={storedCompact() ? 'compact' : ''}
+            onchange={(e) => chooseCompact(e.currentTarget.value === 'compact')}
+        >
+            <option value="">{m.density_normal()}</option>
+            <option value="compact">{m.density_compact()}</option>
+        </select>
+        <span class="text-xs text-muted">{m.density_hint()}</span>
     </div>
-    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
+    <div class="flex flex-col gap-1">
         <label for="display-language" class="text-xs text-muted">{m.language_label()}</label>
         <select
             id="display-language"

@@ -174,8 +174,10 @@
     "theme_system": "Same as the system",
     "theme_light": "Light",
     "theme_dark": "Dark",
-    "compact_label": "Compact log table",
-    "compact_hint": "Tightens the spacing of the rows of the log list on this device.",
+    "density_label": "Log table density",
+    "density_normal": "Normal",
+    "density_compact": "Compact",
+    "density_hint": "Compact tightens the spacing of the rows of the log list on this device.",
     "error_unreachable": "The server could not be reached.",
     "common_undo": "Undo"
 }
