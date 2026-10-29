@@ -8,7 +8,9 @@ import { entry, load, save } from '#lib/device.ts';
 import type { EntrySettings } from '#lib/entry/settings.ts';
 import { usesSerial } from '#lib/qso/contest.ts';
 import type { LogbookState } from '#lib/state/logbook.svelte.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { outbox } from '#lib/state/outbox.svelte.ts';
+import { toasts } from '#lib/state/toast.svelte.ts';
 
 export interface EntryInputs {
     readonly call: string | undefined;
@@ -120,6 +122,15 @@ export class EntrySession {
         } finally {
             this.logging = false;
         }
+    }
+
+    async sendNow() {
+        const { saved, failed } = await this.sendUnsent();
+        toasts.show(
+            failed > 0
+                ? m.entry_sent_some_unsent({ sent: saved.length, failed })
+                : m.entry_sent({ count: saved.length })
+        );
     }
 
     async sendUnsent(): Promise<{ saved: Saved[]; failed: number }> {

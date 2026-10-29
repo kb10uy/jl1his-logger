@@ -11,6 +11,7 @@
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import ContestBar from '#lib/components/entry/ContestBar.svelte';
+    import LookupSummary from '#lib/components/entry/LookupSummary.svelte';
     import EntryEquipment from '#lib/components/entry/EntryEquipment.svelte';
     import FrequencyFavorites from '#lib/components/entry/FrequencyFavorites.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -178,15 +179,6 @@
         }
     }
 
-    async function sendNow() {
-        const { saved, failed } = await session.sendUnsent();
-        toasts.show(
-            failed > 0
-                ? m.entry_sent_some_unsent({ sent: saved.length, failed })
-                : m.entry_sent({ count: saved.length })
-        );
-    }
-
     const isToday = (q: Qso) => q.fields.QSO_DATE === utcFields(now).QSO_DATE;
 </script>
 
@@ -306,26 +298,7 @@
                     />
                     {#if lookup && call.length >= 3}
                         <span class="max-md:hidden"></span>
-                        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
-                            <span class="font-mono font-semibold">{lookup.call}</span>
-                            <span class="text-muted">
-                                {[
-                                    lookup.entity?.name,
-                                    lookup.entity?.dxcc ? `DXCC ${lookup.entity.dxcc}` : undefined,
-                                    lookup.entity ? `CQ ${lookup.entity.cq_zone}` : undefined,
-                                    lookup.entity ? `ITU ${lookup.entity.itu_zone}` : undefined,
-                                    lookup.previous.fields.NAME,
-                                    lookup.previous.fields.QTH
-                                ]
-                                    .filter((s) => s)
-                                    .join(' · ')}
-                            </span>
-                            {#if lookup.previous.count > 0}
-                                <span class="rounded-full bg-info-bg px-2 py-px text-xs text-info"
-                                    >{m.entry_worked_before({ count: lookup.previous.count })}</span
-                                >
-                            {/if}
-                        </div>
+                        <LookupSummary {lookup} showCall />
                     {/if}
                     {#if duplicates.length > 0}
                         {@const d = duplicates[0]}
@@ -633,7 +606,7 @@
             {unsent}
             {recent}
             contest={settings.contest.enabled}
-            onsendnow={sendNow}
+            onsendnow={() => session.sendNow()}
         />
     </div>
 </main>

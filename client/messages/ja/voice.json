@@ -4,13 +4,6 @@
     "voice_optional": "任意",
     "voice_nothing": "（なし）",
     "voice_parsed_qso": "認識した QSO",
-    "voice_worked_before": [
-        {
-            "declarations": ["input count", "local n = count: number"],
-            "selectors": [],
-            "match": { "": "交信済み · {n}" }
-        }
-    ],
     "voice_sent": "送",
     "voice_rcvd": "受",
     "voice_number": "ナンバー",
@@ -45,25 +38,6 @@
     "voice_still_logging": "まだ前の QSO を記録しています。",
     "voice_logged": "{call} を記録しました",
     "voice_kept_on_device": "{call} はこの端末に保存されました: {error} 送信できるようになったら、もう一度送信してください。",
-    "voice_sent_some_unsent": [
-        {
-            "declarations": [
-                "input saved",
-                "input failed",
-                "local s = saved: number",
-                "local f = failed: number"
-            ],
-            "selectors": [],
-            "match": { "": "{s} 件を送信しました。{f} 件はまだ未送信です。" }
-        }
-    ],
-    "voice_sent_qsos": [
-        {
-            "declarations": ["input count", "local n = count: number"],
-            "selectors": [],
-            "match": { "": "{n} 件の QSO を送信しました。" }
-        }
-    ],
     "voice_ptt_label": "押して話す",
     "voice_ptt_idle": "押して話す",
     "voice_ptt_opening": "マイクを準備中…",

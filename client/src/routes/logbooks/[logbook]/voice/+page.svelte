@@ -9,6 +9,7 @@
     import PageTitle from '#lib/components/PageTitle.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import ContestBar from '#lib/components/entry/ContestBar.svelte';
+    import LookupSummary from '#lib/components/entry/LookupSummary.svelte';
     import EntryEquipment from '#lib/components/entry/EntryEquipment.svelte';
     import FrequencyFavorites from '#lib/components/entry/FrequencyFavorites.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -167,15 +168,6 @@
         correcting = false;
     }
 
-    async function sendNow() {
-        const { saved, failed } = await session.sendUnsent();
-        toasts.show(
-            failed > 0
-                ? m.voice_sent_some_unsent({ saved: saved.length, failed })
-                : m.voice_sent_qsos({ count: saved.length })
-        );
-    }
-
     function submitCommand(event: SubmitEvent) {
         event.preventDefault();
         if (command.trim() === '') return;
@@ -271,25 +263,7 @@
                     >
                     {#if lookup && lookup.call === draft.call}
                         <span></span>
-                        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
-                            <span class="text-muted">
-                                {[
-                                    lookup.entity?.name,
-                                    lookup.entity?.dxcc ? `DXCC ${lookup.entity.dxcc}` : undefined,
-                                    lookup.entity ? `CQ ${lookup.entity.cq_zone}` : undefined,
-                                    lookup.entity ? `ITU ${lookup.entity.itu_zone}` : undefined,
-                                    lookup.previous.fields.NAME,
-                                    lookup.previous.fields.QTH
-                                ]
-                                    .filter((s) => s)
-                                    .join(' · ')}
-                            </span>
-                            {#if lookup.previous.count > 0}
-                                <span class="rounded-full bg-info-bg px-2 py-px text-xs text-info"
-                                    >{m.voice_worked_before({ count: lookup.previous.count })}</span
-                                >
-                            {/if}
-                        </div>
+                        <LookupSummary {lookup} />
                     {/if}
                     <span class="text-xs text-muted">{m.field_band_mode()}</span>
                     <div class="flex min-w-0 items-center gap-2.5">
@@ -615,7 +589,7 @@
             {unsent}
             {recent}
             contest={settings.contest.enabled}
-            onsendnow={sendNow}
+            onsendnow={() => session.sendNow()}
         />
     </div>
 </main>

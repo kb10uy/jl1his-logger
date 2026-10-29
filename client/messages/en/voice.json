@@ -4,13 +4,6 @@
     "voice_optional": "optional",
     "voice_nothing": "(nothing)",
     "voice_parsed_qso": "Parsed QSO",
-    "voice_worked_before": [
-        {
-            "declarations": ["input count", "local n = count: number"],
-            "selectors": [],
-            "match": { "": "worked before · {n}" }
-        }
-    ],
     "voice_sent": "Sent",
     "voice_rcvd": "Rcvd",
     "voice_number": "Number",
@@ -45,29 +38,6 @@
     "voice_still_logging": "Still logging the previous QSO.",
     "voice_logged": "Logged {call}",
     "voice_kept_on_device": "{call} is kept on this device: {error} Send it again when you can.",
-    "voice_sent_some_unsent": [
-        {
-            "declarations": [
-                "input saved",
-                "input failed",
-                "local s = saved: number",
-                "local f = failed: number"
-            ],
-            "selectors": [],
-            "match": { "": "Sent {s}; {f} still unsent." }
-        }
-    ],
-    "voice_sent_qsos": [
-        {
-            "declarations": [
-                "input count",
-                "local countPlural = count: plural",
-                "local n = count: number"
-            ],
-            "selectors": ["countPlural"],
-            "match": { "countPlural=one": "Sent {n} QSO.", "countPlural=other": "Sent {n} QSOs." }
-        }
-    ],
     "voice_ptt_label": "Push to talk",
     "voice_ptt_idle": "Hold to talk",
     "voice_ptt_opening": "Opening the microphone…",
