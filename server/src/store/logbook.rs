@@ -86,13 +86,16 @@ fn normalize_area(area: &AreaField) -> Result<AreaField, StoreError> {
     })
 }
 
-pub async fn set_area(
+pub async fn set_settings(
     tx: &mut WriteTx,
     owner: &OwnerAccess<'_>,
+    name: &str,
     area: Option<&AreaField>,
 ) -> Result<Logbook, StoreError> {
+    let name = store_name("a Logbook", name)?;
     let area = area.map(normalize_area).transpose()?;
-    sqlx::query("UPDATE logbooks SET area_field = ?, area_label = ?, updated_at = ? WHERE id = ?")
+    sqlx::query("UPDATE logbooks SET name = ?, area_field = ?, area_label = ?, updated_at = ? WHERE id = ?")
+        .bind(name)
         .bind(area.as_ref().map(|a| &a.name))
         .bind(area.as_ref().map(|a| &a.label))
         .bind(now())
@@ -393,7 +396,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn owners_set_and_clear_the_area_field() {
+    async fn owners_rename_and_set_and_clear_the_area_field() {
         let world = World::new().await;
         let access = world.access(&world.owner).await;
         let owner = access.owner().unwrap();
@@ -402,7 +405,8 @@ mod tests {
             name: "cnty".to_owned(),
             label: " JCC / JCG ".to_owned(),
         };
-        let logbook = set_area(&mut tx, &owner, Some(&jcx)).await.unwrap();
+        let logbook = set_settings(&mut tx, &owner, " Club 2027 ", Some(&jcx)).await.unwrap();
+        assert_eq!(logbook.name, "Club 2027");
         assert_eq!(
             logbook.area,
             Some(AreaField {
@@ -411,6 +415,10 @@ mod tests {
             })
         );
         assert_eq!(get(&mut tx, &access).await.unwrap(), logbook);
+        assert!(matches!(
+            set_settings(&mut tx, &owner, " ", Some(&jcx)).await,
+            Err(StoreError::Invalid(_))
+        ));
         for (name, label) in [
             ("MY_CNTY", "County"),
             ("CALL", "Call"),
@@ -423,13 +431,13 @@ mod tests {
             };
             assert!(
                 matches!(
-                    set_area(&mut tx, &owner, Some(&bad)).await,
+                    set_settings(&mut tx, &owner, "Club", Some(&bad)).await,
                     Err(StoreError::Invalid(_) | StoreError::Qso(_))
                 ),
                 "{name} / {label}"
             );
         }
-        assert_eq!(set_area(&mut tx, &owner, None).await.unwrap().area, None);
+        assert_eq!(set_settings(&mut tx, &owner, "Club", None).await.unwrap().area, None);
     }
 
     #[tokio::test]

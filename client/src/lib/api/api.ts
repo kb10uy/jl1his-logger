@@ -140,7 +140,7 @@ export const deleteLogbook = (id: string) =>
 
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
 
-export const setLogbookSettings = (logbook: string, settings: { area_field: Area }) =>
+export const setLogbookSettings = (logbook: string, settings: { name: string; area_field: Area }) =>
     request<Logbook>('PUT', `${base(logbook)}/settings`, { body: settings });
 
 export const stations = (logbook: string) => request<Station[]>('GET', `${base(logbook)}/stations`);

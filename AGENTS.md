@@ -101,8 +101,8 @@ shared crate.
   by a personal callsign. Membership: `owner` / `operator` per Logbook.
   `admin` manages users, invitations, Logbooks, owners, tokens, reference data,
   setup and backups, and still needs a Membership to read QSOs; a rescue
-  operation is explicit and records its reason and actor. `owner` manages its
-  Logbook's Stations and Memberships but creates no users. `operator` edits
+  operation is explicit and records its reason and actor. `owner` renames its
+  Logbook and manages its Stations and Memberships but creates no users. `operator` edits
   and deletes anyone's QSOs and manages Instruments; rewriting the past QSOs
   of a Station or an Instrument is for owners. API tokens belong to a User and are scoped to
   Logbooks; the plaintext is shown once.
