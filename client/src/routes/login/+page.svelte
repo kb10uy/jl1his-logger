@@ -21,7 +21,6 @@
         error = undefined;
         try {
             await session.signedIn(await api.signIn());
-            goto(next(), { replace: true });
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
         } finally {
