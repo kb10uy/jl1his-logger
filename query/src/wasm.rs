@@ -47,7 +47,9 @@ pub fn analyze(query: &str) -> String {
 
 struct Row {
     fields: HashMap<String, String>,
+    station_id: Option<String>,
     station: Option<String>,
+    instrument_id: Option<String>,
     instrument: Option<String>,
 }
 
@@ -56,8 +58,16 @@ impl Record for Row {
         self.fields.get(name).map(String::as_str)
     }
 
+    fn station_id(&self) -> Option<&str> {
+        self.station_id.as_deref()
+    }
+
     fn station_name(&self) -> Option<&str> {
         self.station.as_deref()
+    }
+
+    fn instrument_id(&self) -> Option<&str> {
+        self.instrument_id.as_deref()
     }
 
     fn instrument_name(&self) -> Option<&str> {
@@ -85,7 +95,9 @@ impl Matcher {
     pub fn matches(
         &self,
         fields: &js_sys::Object,
+        station_id: Option<String>,
         station_name: Option<String>,
+        instrument_id: Option<String>,
         instrument_name: Option<String>,
     ) -> bool {
         let fields = js_sys::Object::entries(fields)
@@ -97,7 +109,9 @@ impl Matcher {
             .collect();
         self.0.matches(&Row {
             fields,
+            station_id,
             station: station_name,
+            instrument_id,
             instrument: instrument_name,
         })
     }

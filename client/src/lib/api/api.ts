@@ -244,7 +244,6 @@ export const removeMember = (logbook: string, callsign: string) =>
 
 export interface Search {
     q?: string;
-    station_id?: string;
     sort?: string;
     cursor?: string | null;
     limit?: number;

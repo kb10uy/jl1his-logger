@@ -184,11 +184,7 @@ pub enum CallMatch {
 pub struct Filter {
     pub time: TimeRange,
     pub station_ids: Option<Vec<String>>,
-    pub band: Option<String>,
-    pub mode: Option<String>,
     pub call: Option<CallMatch>,
-    pub qsl_sent: Option<Vec<String>>,
-    pub contest_id: Option<String>,
     pub query: text::Query,
 }
 

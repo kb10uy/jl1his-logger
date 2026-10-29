@@ -24,7 +24,7 @@ use crate::{
         api::qso::QsoBody,
         error::ApiError,
         extract::Json,
-        query::{range, text},
+        query::text,
     },
 };
 
@@ -122,13 +122,6 @@ impl From<ExportBatch> for BatchBody {
 #[derive(Debug, Deserialize)]
 pub struct ExportRequest {
     kind: ExportKind,
-    from: Option<String>,
-    until: Option<String>,
-    station_id: Option<String>,
-    band: Option<String>,
-    mode: Option<String>,
-    qsl_sent: Option<Vec<String>>,
-    contest_id: Option<String>,
     q: Option<String>,
     park: Option<String>,
     length: Option<LengthUnit>,
@@ -198,12 +191,6 @@ pub async fn create(
     Json(req): Json<ExportRequest>,
 ) -> Result<(StatusCode, Json<ExportBody>), ApiError> {
     let filter = Filter {
-        time: range(req.from.as_deref(), req.until.as_deref())?,
-        station_ids: req.station_id.map(|id| vec![id]),
-        band: req.band,
-        mode: req.mode,
-        qsl_sent: req.qsl_sent,
-        contest_id: req.contest_id,
         query: text(req.q.as_deref())?,
         ..Filter::default()
     };
@@ -345,7 +332,7 @@ mod tests {
         let second = create_qso(&h, &cookie, "JA1ABC", "0200").await;
         let exports = h.path("/exports");
 
-        let request = json!({ "kind": "qsl_card", "qsl_sent": ["r", "Q"] });
+        let request = json!({ "kind": "qsl_card", "q": "sent:r,Q" });
         let (status, exported) = h
             .send("POST", &exports, Auth::Session(&cookie), Some(request.clone()))
             .await;

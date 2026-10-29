@@ -120,7 +120,7 @@ export class EntryState {
             if (stationId === '') return;
             return later(
                 0,
-                () => api.searchQsos(logbookId, { station_id: stationId, limit: RECENT }),
+                () => api.searchQsos(logbookId, { q: `station-id:${stationId}`, limit: RECENT }),
                 (page) => (this.recent = page.qsos)
             );
         });

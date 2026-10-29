@@ -469,20 +469,9 @@ cursor and starts from 0.
 | `call` | By the call without prefixes and suffixes, A to Z, newest first within a call |
 | `-call` | The same, Z to A, still newest first within a call |
 
-Each filter is optional:
-
-| Parameter | Matches |
-| --- | --- |
-| `from`, `until` | QSO time in `[from, until)`, as RFC 3339 times |
-| `station_id` | The Station |
-| `band`, `mode` | Ignoring case |
-| `call` | The call exactly, ignoring case |
-| `call_base` | The call without prefixes and suffixes (`JA1XYZ` matches `JA1XYZ/P`); not together with `call` |
-| `qsl_sent` | Comma-separated `QSL_SENT` values ignoring case; an empty value matches an absent field |
-| `contest_id` | `CONTEST_ID`, ignoring case |
-| `q` | The text query of [query.md](query.md) (`call:JA1* -mode:FT8 date:2026-10-01..`) |
-
-All the filters given must hold. `next` is an opaque cursor for the following
+The matches are chosen by `q`, the text query of [query.md](query.md)
+(`call:JA1* -mode:FT8 date:2026-10-01..`, `station-id:{station_id}`); without
+it every live QSO matches. `next` is an opaque cursor for the following
 page, passed back as `cursor` with the same `sort`, or `null` on the last page.
 A cursor of another sort order is `400`. The first page, the
 one without a `cursor`, also carries `total`, the number of matches.
@@ -509,7 +498,7 @@ in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
 `unknown_field`, `bad_field_name`, `bad_date` and `bad_number`, and
 `too_many_values` adds `count` and `max`.
 
-`GET /targets` takes the same filters, without `sort`, `cursor` and `limit`, and returns
+`GET /targets` takes the same `q`, without `sort`, `cursor` and `limit`, and returns
 the ID and revision of every match, newest first. Checking every match in the
 log list uses it, and a bulk QSL change takes the result as it is.
 
@@ -563,14 +552,14 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
+| `POST /exports` | `{kind, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk QSL changes |
 
 A batch is `{id, kind, created_by, created_at, applied_at, qso_count}`. `kind`
-is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. The filters match as in
-Search, with `qsl_sent` a list; `park` keeps one park of a `pota` export and is
+is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. `q` chooses the QSOs as in
+Search; `park` keeps one park of a `pota` export and is
 `400` for other kinds. `encoding` is `utf-8` (default), `shift_jis`,
 `windows-1252` or `ascii`. For `utf-8`, `length` is `codepoints`, `bytes` or
 `utf16`, by default the server's `[adif] length`; for the others lengths are

@@ -467,7 +467,7 @@ mod tests {
             .await;
         assert_eq!((&applied["merged"], &applied["skipped"]), (&json!(1), &json!([])));
         let (_, page) = h
-            .send("GET", &h.path("/qsos?call=JA1AAA"), Auth::Session(&cookie), None)
+            .send("GET", &h.path("/qsos?q=call:JA1AAA"), Auth::Session(&cookie), None)
             .await;
         let fields = &page["qsos"][0]["fields"];
         assert_eq!(

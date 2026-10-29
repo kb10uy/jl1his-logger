@@ -65,7 +65,7 @@ export class EntrySession {
             const controller = new AbortController();
             api.searchQsos(
                 this.logbookId,
-                { station_id: station, limit: RECENT },
+                { q: `station-id:${station}`, limit: RECENT },
                 controller.signal
             )
                 .then((page) => (this.recent = page.qsos))

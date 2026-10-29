@@ -27,20 +27,30 @@ export function callBase(call: string): string {
     return callBaseOf(call);
 }
 
+export interface MatchedRow {
+    fields: Fields;
+    stationId?: string;
+    stationName?: string;
+    instrumentId?: string | null;
+    instrumentName?: string;
+}
+
 export interface RowMatcher {
-    matches(
-        fields: Fields,
-        stationName: string | undefined,
-        instrumentName: string | undefined
-    ): boolean;
+    matches(row: MatchedRow): boolean;
 }
 
 export function matcher(query: string): RowMatcher | undefined {
     try {
         const compiled = new Matcher(query);
         return {
-            matches: (fields, stationName, instrumentName) =>
-                compiled.matches(fields, stationName, instrumentName)
+            matches: (row) =>
+                compiled.matches(
+                    row.fields,
+                    row.stationId,
+                    row.stationName,
+                    row.instrumentId ?? undefined,
+                    row.instrumentName
+                )
         };
     } catch {
         return undefined;
