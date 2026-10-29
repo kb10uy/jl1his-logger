@@ -286,20 +286,18 @@ export const deleteQso = (logbook: string, id: string, revision: number) =>
     request<Qso>('DELETE', `${base(logbook)}/qsos/${encodeURIComponent(id)}`, { revision });
 
 export interface Candidate {
-    call: string;
     band: string;
     mode: string;
     qso_date: string;
     time_on: string;
 }
 
-export const duplicates = (logbook: string, candidate: Candidate, signal?: AbortSignal) =>
-    request<{ qsos: Qso[] }>('GET', `${base(logbook)}/duplicates${query({ ...candidate })}`, {
-        signal
-    });
-
-export const lookup = (logbook: string, call: string, signal?: AbortSignal) =>
-    request<Lookup>('GET', `${base(logbook)}/lookup${query({ call })}`, { signal });
+export const lookup = (
+    logbook: string,
+    call: string,
+    candidate?: Candidate,
+    signal?: AbortSignal
+) => request<Lookup>('GET', `${base(logbook)}/lookup${query({ call, ...candidate })}`, { signal });
 
 export const updateQsl = (logbook: string, qsos: Target[], fields: Fields) =>
     request<Outcome>('POST', `${base(logbook)}/qsl`, { body: { qsos, fields } });

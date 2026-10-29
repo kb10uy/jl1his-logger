@@ -15,6 +15,7 @@
     import Field from '#lib/components/ui/Field.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
+    import { LOOKUP_DELAY } from '#lib/entry/lookup.ts';
     import {
         draftOf,
         extraFieldNames,
@@ -74,10 +75,10 @@
         }
         const controller = new AbortController();
         const timer = setTimeout(() => {
-            api.lookup(logbookId, call, controller.signal)
+            api.lookup(logbookId, call, undefined, controller.signal)
                 .then((found) => (entity = found.entity))
                 .catch(() => undefined);
-        }, 300);
+        }, LOOKUP_DELAY);
         return () => {
             clearTimeout(timer);
             controller.abort();

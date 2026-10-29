@@ -59,7 +59,7 @@ describe('lookupLine', () => {
                 latitude: 0,
                 longitude: 0
             },
-            previous: { count: 3, last_qso_at: null, fields: { NAME: 'Taro', QTH: 'Tokyo' } }
+            previous: { count: 3, last: null, fields: { NAME: 'Taro', QTH: 'Tokyo' } }
         };
         expect(lookupLine(lookup)).toBe('Japan · DXCC 339 · CQ 25 · ITU 45 · Taro · Tokyo');
     });
@@ -69,7 +69,7 @@ describe('lookupLine', () => {
             lookupLine({
                 call: 'X',
                 entity: null,
-                previous: { count: 0, last_qso_at: null, fields: {} }
+                previous: { count: 0, last: null, fields: {} }
             })
         ).toBe('');
     });

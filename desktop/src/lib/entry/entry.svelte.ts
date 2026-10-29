@@ -15,7 +15,7 @@ import type { EntrySettings } from '#client/entry/settings.ts';
 import type { Sent } from '#client/entry/outbox.ts';
 import { RECENT, mergeRecent } from '#client/entry/recent.ts';
 import { usesSerial } from '#client/qso/contest.ts';
-import { utcFields } from '#client/qso/format.ts';
+import { LOOKUP_DELAY, candidateOf } from '#client/entry/lookup.ts';
 import * as api from '#lib/api/api.ts';
 import { server } from '#lib/api/request.svelte.ts';
 import type { Logbook } from '#lib/session/types.ts';
@@ -59,7 +59,7 @@ export class EntryState {
     instruments = $state.raw<Record<string, Instrument[]>>({});
     recent = $state.raw<Qso[]>([]);
     lookup = $state.raw<Lookup | undefined>(undefined);
-    last = $state.raw<Qso | undefined>(undefined);
+    last = $derived(this.lookup?.previous.last ?? undefined);
     duplicates = $state.raw<Qso[]>([]);
     logging = $state(false);
     loaded = $state(false);
@@ -128,44 +128,27 @@ export class EntryState {
         $effect(() => {
             const logbookId = this.logbookId;
             const call = inputs.call;
-            this.lookup = undefined;
-            this.last = undefined;
-            if (call === undefined || logbookId === '') return;
-            const lookup = later(
-                250,
-                () => api.lookup(logbookId, call),
-                (found) => (this.lookup = found)
-            );
-            const last = later(
-                250,
-                () => api.searchQsos(logbookId, { q: `base:"${call}"`, limit: 1 }),
-                (page) => (this.last = page.qsos[0])
-            );
-            return () => {
-                lookup();
-                last();
-            };
-        });
-
-        $effect(() => {
-            const logbookId = this.logbookId;
-            const call = inputs.call;
             const band = inputs.band;
             const mode = inputs.mode;
+            this.lookup = undefined;
             this.duplicates = [];
             if (call === undefined || logbookId === '') return;
-            const at = utcFields(untrack(() => inputs.at));
             return later(
-                300,
+                LOOKUP_DELAY,
                 () =>
-                    api.duplicates(logbookId, {
+                    api.lookup(
+                        logbookId,
                         call,
-                        band,
-                        mode,
-                        qso_date: at.QSO_DATE,
-                        time_on: at.TIME_ON
-                    }),
-                (found) => (this.duplicates = found.qsos)
+                        candidateOf(
+                            band,
+                            mode,
+                            untrack(() => inputs.at)
+                        )
+                    ),
+                (found) => {
+                    this.lookup = found;
+                    this.duplicates = found.duplicates ?? [];
+                }
             );
         });
     }

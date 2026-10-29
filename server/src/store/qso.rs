@@ -255,7 +255,7 @@ const PREVIOUS_FIELDS: [&str; 7] = ["NAME", "GRIDSQUARE", "QTH", "STATE", "CNTY"
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Previous {
     pub count: u64,
-    pub last_qso_time: Option<i64>,
+    pub last: Option<StoredQso>,
     pub fields: BTreeMap<&'static str, String>,
 }
 
@@ -692,14 +692,15 @@ pub async fn previous(
         ..Filter::default()
     };
     let conditions = Conditions::of(access, &filter)?;
-    let sql = format!("SELECT count(*), max(qso_time) FROM qsos WHERE {}", conditions.sql());
-    let row = conditions
+    let sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
+    let count: i64 = conditions
         .bind(sqlx::query(AssertSqlSafe(sql)))
         .fetch_one(&mut *conn)
-        .await?;
+        .await?
+        .try_get(0)?;
     let mut previous = Previous {
-        count: row.try_get::<i64, _>(0)? as u64,
-        last_qso_time: row.try_get(1)?,
+        count: count as u64,
+        last: None,
         fields: BTreeMap::new(),
     };
 
@@ -707,6 +708,9 @@ pub async fn previous(
     while previous.count > 0 {
         let page = page(conn, access, &filter, Order::Newest, after.as_ref(), PAGE).await?;
         for row in page.rows {
+            if previous.last.is_none() {
+                previous.last = Some(row.clone());
+            }
             for name in PREVIOUS_FIELDS {
                 if !previous.fields.contains_key(name)
                     && let Some(value) = row.qso.get(name).map(str::trim).filter(|v| !v.is_empty())
@@ -1241,7 +1245,7 @@ mod tests {
             Err(StoreError::NotFound(_))
         ));
         assert!(matches!(
-            possible_duplicates(&mut tx, &access, &input.qso, None).await,
+            possible_duplicates(&mut tx, &access, &input.qso).await,
             Err(StoreError::NotFound(_))
         ));
         assert!(matches!(

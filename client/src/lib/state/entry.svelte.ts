@@ -1,11 +1,11 @@
 import { untrack } from 'svelte';
 import * as api from '#lib/api/api.ts';
 import type { Fields, Lookup, Qso, Saved } from '#lib/api/types.ts';
+import { LOOKUP_DELAY, candidateOf } from '#lib/entry/lookup.ts';
 import type { Sent } from '#lib/entry/outbox.ts';
 import { RECENT, mergeRecent } from '#lib/entry/recent.ts';
 import { loadEntry, saveEntry, type EntrySettings } from '#lib/entry/settings.ts';
 import { usesSerial } from '#lib/qso/contest.ts';
-import { utcFields } from '#lib/qso/format.ts';
 import type { LogbookState } from '#lib/state/logbook.svelte.ts';
 import { outbox } from '#lib/state/outbox.svelte.ts';
 
@@ -75,37 +75,25 @@ export class EntrySession {
 
         $effect(() => {
             const call = inputs.call;
-            this.lookup = undefined;
-            if (call === undefined) return;
-            const controller = new AbortController();
-            const timer = setTimeout(() => {
-                api.lookup(this.logbookId, call, controller.signal)
-                    .then((found) => (this.lookup = found))
-                    .catch(() => undefined);
-            }, 250);
-            return () => {
-                clearTimeout(timer);
-                controller.abort();
-            };
-        });
-
-        $effect(() => {
-            const call = inputs.call;
             const band = inputs.band;
             const mode = inputs.mode;
+            this.lookup = undefined;
             this.duplicates = [];
             if (call === undefined) return;
-            const at = utcFields(untrack(() => inputs.at));
             const controller = new AbortController();
             const timer = setTimeout(() => {
-                api.duplicates(
-                    this.logbookId,
-                    { call, band, mode, qso_date: at.QSO_DATE, time_on: at.TIME_ON },
-                    controller.signal
-                )
-                    .then((found) => (this.duplicates = found.qsos))
+                const candidate = candidateOf(
+                    band,
+                    mode,
+                    untrack(() => inputs.at)
+                );
+                api.lookup(this.logbookId, call, candidate, controller.signal)
+                    .then((found) => {
+                        this.lookup = found;
+                        this.duplicates = found.duplicates ?? [];
+                    })
                     .catch(() => undefined);
-            }, 300);
+            }, LOOKUP_DELAY);
             return () => {
                 clearTimeout(timer);
                 controller.abort();

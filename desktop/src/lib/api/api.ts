@@ -37,11 +37,8 @@ export const createQso = (
         fields
     });
 
-export const duplicates = (logbook: string, candidate: Candidate) =>
-    request<{ qsos: Qso[] }>('GET', `${base(logbook)}/duplicates${query({ ...candidate })}`);
-
-export const lookup = (logbook: string, call: string) =>
-    request<Lookup>('GET', `${base(logbook)}/lookup${query({ call })}`);
+export const lookup = (logbook: string, call: string, candidate?: Candidate) =>
+    request<Lookup>('GET', `${base(logbook)}/lookup${query({ call, ...candidate })}`);
 
 export const favoriteFrequencies = () => request<FavoriteFrequency[]>('GET', '/api/frequencies');
 

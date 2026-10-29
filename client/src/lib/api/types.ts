@@ -130,9 +130,10 @@ export interface Lookup {
     entity: Entity | null;
     previous: {
         count: number;
-        last_qso_at: string | null;
+        last: Qso | null;
         fields: Fields;
     };
+    duplicates?: Qso[];
 }
 
 export interface Hello {

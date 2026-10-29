@@ -157,21 +157,6 @@ pub struct TargetsBody {
     qsos: Vec<TargetBody>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct DuplicatesQuery {
-    call: Option<String>,
-    band: Option<String>,
-    mode: Option<String>,
-    qso_date: Option<String>,
-    time_on: Option<String>,
-    except: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DuplicatesBody {
-    qsos: Vec<QsoBody>,
-}
-
 pub async fn create(
     State(state): State<Arc<AppState>>,
     member: Member,
@@ -339,34 +324,6 @@ pub async fn targets(
     let targets = qso::targets(&mut conn, &member.access, &filter).await?;
     Ok(Json(TargetsBody {
         qsos: targets.into_iter().map(TargetBody::from).collect(),
-    }))
-}
-
-pub async fn duplicates(
-    State(state): State<Arc<AppState>>,
-    member: Member,
-    Query(query): Query<DuplicatesQuery>,
-) -> Result<Json<DuplicatesBody>, ApiError> {
-    let candidate = Qso::from_fields(
-        [
-            ("CALL", query.call),
-            ("BAND", query.band),
-            ("MODE", query.mode),
-            ("QSO_DATE", query.qso_date),
-            ("TIME_ON", query.time_on),
-        ]
-        .into_iter()
-        .filter_map(|(name, value)| Some((name, value?))),
-    )?;
-    let except = query
-        .except
-        .as_deref()
-        .map(|id| id.parse::<QsoId>().map_err(|e| ApiError::bad_request(e.to_string())))
-        .transpose()?;
-    let mut conn = state.db.acquire().await?;
-    let rows = qso::possible_duplicates(&mut conn, &member.access, &candidate, except.as_ref()).await?;
-    Ok(Json(DuplicatesBody {
-        qsos: rows.into_iter().map(QsoBody::from).collect(),
     }))
 }
 
@@ -639,15 +596,6 @@ mod tests {
                 &json!("QSO")
             )
         );
-        let (status, _) = h
-            .send(
-                "GET",
-                &h.path("/duplicates?call=JA1XYZ&band=40m&mode=CW&qso_date=20261022&time_on=0100&except=x"),
-                Auth::Session(&cookie),
-                None,
-            )
-            .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -722,17 +670,23 @@ mod tests {
             json!([{ "kind": "possible_duplicate", "ids": [first_id] }])
         );
 
-        let uri = h.path("/duplicates?call=JA1XYZ&band=40m&mode=cw&qso_date=20261022&time_on=0415");
+        let uri = h.path("/lookup?call=JA1XYZ&band=40m&mode=cw&qso_date=20261022&time_on=0415");
         let (status, body) = h.send("GET", &uri, Auth::Session(&cookie), None).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body, json!({ "qsos": [first["qso"], second["qso"]] }));
+        assert_eq!(body["duplicates"], json!([first["qso"], second["qso"]]));
 
-        let except = format!("{uri}&except={}", first_id.as_str().unwrap());
-        let (_, body) = h.send("GET", &except, Auth::Session(&cookie), None).await;
-        assert_eq!(body, json!({ "qsos": [second["qso"]] }));
+        let (_, body) = h
+            .send("GET", &h.path("/lookup?call=JA1XYZ"), Auth::Session(&cookie), None)
+            .await;
+        assert!(body.get("duplicates").is_none(), "{body}");
 
         let (status, _) = h
-            .send("GET", &h.path("/duplicates?call=JA1XYZ"), Auth::Session(&cookie), None)
+            .send(
+                "GET",
+                &h.path("/lookup?call=JA1XYZ&band=40m"),
+                Auth::Session(&cookie),
+                None,
+            )
             .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
     }

@@ -1,15 +1,14 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use axum::extract::State;
-use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    domain::reference::Entity,
-    store::{qso, timestamp},
+    domain::{qso::Qso, reference::Entity},
+    store::qso,
     web::{
         AppState,
-        api::logbook::member::Member,
+        api::{logbook::member::Member, qso::QsoBody},
         error::ApiError,
         extract::{Json, Query},
     },
@@ -19,6 +18,10 @@ use crate::{
 pub struct LookupQuery {
     call: Option<String>,
     station_ids: Option<String>,
+    band: Option<String>,
+    mode: Option<String>,
+    qso_date: Option<String>,
+    time_on: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -26,12 +29,14 @@ pub struct LookupBody {
     call: String,
     entity: Option<Entity>,
     previous: PreviousBody,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    duplicates: Option<Vec<QsoBody>>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct PreviousBody {
     count: u64,
-    last_qso_at: Option<String>,
+    last: Option<QsoBody>,
     fields: BTreeMap<&'static str, String>,
 }
 
@@ -50,9 +55,30 @@ pub async fn get(
         .as_deref()
         .filter(|s| !s.trim().is_empty())
         .map(|list| list.split(',').map(|id| id.trim().to_owned()).collect());
+    let asked = [&query.band, &query.mode, &query.qso_date, &query.time_on]
+        .iter()
+        .any(|value| value.is_some());
+    let candidate = match asked {
+        true => Some(Qso::from_fields(
+            [
+                ("CALL", Some(call.clone())),
+                ("BAND", query.band),
+                ("MODE", query.mode),
+                ("QSO_DATE", query.qso_date),
+                ("TIME_ON", query.time_on),
+            ]
+            .into_iter()
+            .filter_map(|(name, value)| Some((name, value?))),
+        )?),
+        false => None,
+    };
 
     let mut conn = state.db.acquire().await?;
     let previous = qso::previous(&mut conn, &member.access, &call, station_ids).await?;
+    let duplicates = match &candidate {
+        Some(candidate) => Some(qso::possible_duplicates(&mut conn, &member.access, candidate).await?),
+        None => None,
+    };
     drop(conn);
     let entity = state
         .references
@@ -63,12 +89,10 @@ pub async fn get(
         entity,
         previous: PreviousBody {
             count: previous.count,
-            last_qso_at: previous
-                .last_qso_time
-                .and_then(|time| DateTime::from_timestamp(time, 0))
-                .map(timestamp),
+            last: previous.last.map(QsoBody::from),
             fields: previous.fields,
         },
+        duplicates: duplicates.map(|rows| rows.into_iter().map(QsoBody::from).collect()),
         call,
     }))
 }
@@ -133,6 +157,11 @@ mod tests {
             .send("GET", &uri(&h, "call=ja1xyz"), Auth::Session(&session), None)
             .await;
         assert_eq!(status, StatusCode::OK, "{body}");
+        let last = body["previous"]["last"].clone();
+        assert_eq!(
+            (&last["fields"]["CALL"], &last["fields"]["TIME_ON"]),
+            (&json!("JA1XYZ/P"), &json!("030000"))
+        );
         assert_eq!(
             body,
             json!({
@@ -143,7 +172,7 @@ mod tests {
                 },
                 "previous": {
                     "count": 2,
-                    "last_qso_at": "2026-10-22T03:00:00Z",
+                    "last": last,
                     "fields": { "NAME": "Hanako", "QTH": "Chiba", "GRIDSQUARE": "PM95" }
                 }
             })
@@ -151,13 +180,10 @@ mod tests {
 
         let narrowed = uri(&h, &format!("call=JA1XYZ&station_ids={}", portable.id));
         let (_, body) = h.send("GET", &narrowed, Auth::Session(&session), None).await;
+        assert_eq!(body["previous"]["last"]["fields"]["TIME_ON"], "010000");
         assert_eq!(
-            body["previous"],
-            json!({
-                "count": 1,
-                "last_qso_at": "2026-10-22T01:00:00Z",
-                "fields": { "NAME": "Taro", "GRIDSQUARE": "PM95" }
-            })
+            (&body["previous"]["count"], &body["previous"]["fields"]),
+            (&json!(1), &json!({ "NAME": "Taro", "GRIDSQUARE": "PM95" }))
         );
 
         let (_, unknown) = h
@@ -165,7 +191,7 @@ mod tests {
             .await;
         assert_eq!(
             (&unknown["entity"], &unknown["previous"]),
-            (&Value::Null, &json!({ "count": 0, "last_qso_at": null, "fields": {} }))
+            (&Value::Null, &json!({ "count": 0, "last": null, "fields": {} }))
         );
     }
 

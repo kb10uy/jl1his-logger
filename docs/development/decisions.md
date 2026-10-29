@@ -37,7 +37,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 ### IDs and Duplicate Detection
 
 - The QSO ID is a client-generated UUID v7. `POST` is idempotent: resending the same ID returns the existing row.
-- Heuristic duplicate detection (same call, same band, same mode, compared ignoring case, and `TIME_ON` within 15 minutes) never refuses a record and only warns. It is returned both by a dedicated endpoint (checking a candidate during entry) and in the `warnings` of the `POST` response, with the detection shared between them.
+- Heuristic duplicate detection (same call, same band, same mode, compared ignoring case, and `TIME_ON` within 15 minutes) never refuses a record and only warns. It is returned both by the lookup, given the band, mode and time of a QSO being entered, and in the `warnings` of the `POST` response, with the detection shared between them.
 - Each Logbook has server-assigned integers `seq` (insertion order) and `updated_seq` (update order). They are never reused, even after deletion.
 
 ### Change History
@@ -284,7 +284,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 
 ### Lookup
 
-- The native lookup, `GET /api/logbooks/{id}/lookup?call=`, returns the `cty.dat` entity (name, ADIF DXCC code when `dxcc` is installed, continent, CQ and ITU zones, position) and the previous contacts in that Logbook matched by `call_base`: the latest non-empty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA` and `QSL_VIA` under their ADIF names, the number of QSOs and the time of the last one. It can be narrowed to Stations.
+- The native lookup, `GET /api/logbooks/{id}/lookup?call=`, returns the `cty.dat` entity (name, ADIF DXCC code when `dxcc` is installed, continent, CQ and ITU zones, position) and the previous contacts in that Logbook matched by `call_base`: the latest non-empty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA` and `QSL_VIA` under their ADIF names, the number of QSOs and the latest of them. It can be narrowed to Stations. Given the band, mode, date and time of the QSO being entered, it also returns its possible duplicates, so the entry screens make one request for a callsign rather than one for the lookup, one for the duplicates and one for the latest QSO; they send it once typing has paused for 500 ms.
 - The work lives in `domain` and `store`.
 - The client asks the server. It keeps no copy of the Logbook, so it has no previous contacts to show while offline (see Offline Entry).
 

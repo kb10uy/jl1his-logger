@@ -403,7 +403,6 @@ Paths below are relative to `/api/logbooks/{logbook_id}`.
 | `GET /qsos?...` | | `{qsos, next, total}`, see Search |
 | `GET /targets?...` | | `{qsos: [{id, revision}]}` of every match, see Search |
 | `GET /changes?after=N&limit=L` | | `{cursor_generation, last_updated_seq, qsos, has_more}` |
-| `GET /duplicates?call=&band=&mode=&qso_date=&time_on=&except=` | | `{qsos}` |
 
 `id` is a UUID v7 the client generates; anything else is `400`.
 `instrument_id` is optional and `null` means none; an Instrument or Station
@@ -444,9 +443,7 @@ is generated from `assets/adif/enumerations_mode.csv` and
 `PSK31` is accepted and stands for the mode it is a submode of
 (`DIGITALVOICE`, `PSK`), so `MODE` `DSTAR` with no `SUBMODE` warns of nothing.
 
-`/duplicates` runs the same check for a QSO being entered and returns the
-matching QSOs by QSO time; `except` leaves out the QSO being edited and must be
-a QSO ID.
+The lookup runs the same check for a QSO being entered (see Lookup).
 
 ### Changes
 
@@ -504,8 +501,8 @@ log list uses it, and a bulk QSL change takes the result as it is.
 
 ## Lookup
 
-`GET /api/logbooks/{logbook_id}/lookup?call=&station_ids=` answers what the
-reference data and the Logbook know about a callsign:
+`GET /api/logbooks/{logbook_id}/lookup?call=&station_ids=&band=&mode=&qso_date=&time_on=`
+answers what the reference data and the Logbook know about a callsign:
 
 ```json
 {
@@ -516,9 +513,10 @@ reference data and the Logbook know about a callsign:
   },
   "previous": {
     "count": 2,
-    "last_qso_at": "2026-10-22T03:00:00Z",
+    "last": { "id": "...", "fields": { "CALL": "JA1XYZ/P", "QSO_DATE": "20261022", "TIME_ON": "030000" } },
     "fields": { "NAME": "Hanako", "QTH": "Chiba", "GRIDSQUARE": "PM95" }
-  }
+  },
+  "duplicates": []
 }
 ```
 
@@ -527,9 +525,15 @@ resolves the call to, with the overrides of the matching alias and longitude
 growing towards the east, and `dxcc` is the entity code from `cty.csv`; it is
 `null` when `cty` is not installed or `cty.dat` does not know the call. `previous` covers the live QSOs whose call has the same base
 (`JA1XYZ` matches `JA1XYZ/P`), optionally narrowed by `station_ids`, a
-comma-separated list of Station IDs: their number, the QSO time of the latest,
-and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`
+comma-separated list of Station IDs: their number, the latest of them as a QSO
+(`null` without one), and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`
 and `QSL_VIA` across all of them.
+
+`band`, `mode`, `qso_date` (`YYYYMMDD`) and `time_on` (`HHMM` or `HHMMSS`)
+describe a QSO being entered. Given any of them, the answer adds `duplicates`,
+the live QSOs that the duplicate check of `POST /qsos` would name, by QSO time;
+all four are then required, and a missing or invalid one is `400`. Without
+them there is no `duplicates`.
 
 ## Bulk QSL Changes
 
