@@ -24,9 +24,10 @@ class Session {
         }
     }
 
-    signedIn(me: Me) {
+    async signedIn(me: Me) {
+        this.logbooks = await api.logbooks();
         this.me = me;
-        return this.load();
+        this.error = undefined;
     }
 
     async signOut() {
