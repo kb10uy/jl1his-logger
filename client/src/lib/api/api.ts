@@ -135,6 +135,9 @@ export const adminLogbooks = () => request<AdminLogbook[]>('GET', '/api/admin/lo
 export const createLogbook = (input: { name: string; owner: string }) =>
     request<AdminLogbook>('POST', '/api/admin/logbooks', { body: input });
 
+export const deleteLogbook = (id: string) =>
+    request<void>('DELETE', `/api/admin/logbooks/${encodeURIComponent(id)}`);
+
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
 
 export const setLogbookSettings = (logbook: string, settings: { area_field: Area }) =>

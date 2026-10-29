@@ -4,6 +4,7 @@
     "common_save": "Save",
     "common_saving": "Saving…",
     "common_cancel": "Cancel",
+    "common_type_to_confirm": "Type {name} to confirm.",
     "common_delete": "Delete",
     "common_discard": "Discard",
     "common_dismiss": "Dismiss",

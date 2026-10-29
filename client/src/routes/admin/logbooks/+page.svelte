@@ -5,6 +5,7 @@
     import SettingsField from '#lib/components/SettingsField.svelte';
     import SettingsSection from '#lib/components/SettingsSection.svelte';
     import Button from '#lib/components/ui/Button.svelte';
+    import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import { formatNumber } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { session } from '#lib/state/session.svelte.ts';
@@ -14,6 +15,8 @@
     let name = $state('');
     let owner = $state(session.me?.callsign ?? '');
     let creating = $state(false);
+    let removing = $state<AdminLogbook | undefined>(undefined);
+    let confirming = $state(false);
 
     const ready = $derived(name.trim() !== '' && owner.trim() !== '');
 
@@ -44,6 +47,18 @@
             toasts.error(status === 404 ? m.admin_logbooks_no_user() : (e as Error).message);
         } finally {
             creating = false;
+        }
+    }
+
+    async function remove() {
+        const logbook = removing;
+        if (logbook === undefined) return;
+        try {
+            await api.deleteLogbook(logbook.id);
+            toasts.show(m.admin_logbooks_deleted({ name: logbook.name }));
+            await Promise.all([load(), session.load()]);
+        } catch (e) {
+            toasts.error((e as Error).message);
         }
     }
 </script>
@@ -94,6 +109,9 @@
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                     >{m.admin_logbooks_qsos()}</th
                 >
+                <th scope="col" class="border-b border-border px-3 py-2"
+                    ><span class="sr-only">{m.admin_logbooks_actions()}</span></th
+                >
             </tr>
         </thead>
         <tbody>
@@ -110,10 +128,20 @@
                             : logbook.owners.join(', ')}</td
                     >
                     <td class="px-3 py-2.5 font-mono tabular">{formatNumber(logbook.last_seq)}</td>
+                    <td class="px-3 py-2 text-right">
+                        <Button
+                            size="sm"
+                            variant="danger"
+                            onclick={() => {
+                                removing = logbook;
+                                confirming = true;
+                            }}>{m.admin_logbooks_delete()}</Button
+                        >
+                    </td>
                 </tr>
             {:else}
                 <tr>
-                    <td colspan="3" class="px-3 py-4 text-muted"
+                    <td colspan="4" class="px-3 py-4 text-muted"
                         >{logbooks === undefined ? m.common_loading() : m.admin_logbooks_none()}</td
                     >
                 </tr>
@@ -121,3 +149,17 @@
         </tbody>
     </table>
 </SettingsSection>
+
+<ConfirmDialog
+    bind:open={confirming}
+    title={removing
+        ? m.admin_logbooks_delete_title({ name: removing.name })
+        : m.admin_logbooks_delete_title_unnamed()}
+    description={m.admin_logbooks_delete_description({
+        count: formatNumber(removing?.last_seq ?? 0)
+    })}
+    confirm={m.admin_logbooks_delete()}
+    challenge={removing?.name}
+    danger
+    onconfirm={remove}
+/>

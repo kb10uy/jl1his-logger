@@ -4,6 +4,7 @@
     "common_save": "保存",
     "common_saving": "保存中…",
     "common_cancel": "キャンセル",
+    "common_type_to_confirm": "確認のため {name} と入力してください。",
     "common_delete": "削除",
     "common_discard": "破棄",
     "common_dismiss": "閉じる",

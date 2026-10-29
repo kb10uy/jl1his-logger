@@ -1,9 +1,13 @@
 use std::sync::Arc;
 
-use axum::{extract::State, http::StatusCode};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    db,
     store::{
         StoreError, WriteTx,
         account::user,
@@ -68,12 +72,38 @@ pub async fn create_logbook(
     ))
 }
 
+pub async fn delete_logbook(
+    State(state): State<Arc<AppState>>,
+    Admin(admin): Admin,
+    Path(logbook_id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let known = logbook::list_all(&mut conn, &admin).await?;
+    drop(conn);
+    if !known.iter().any(|l| l.id == logbook_id) {
+        return Err(StoreError::NotFound("Logbook").into());
+    }
+    let dir = db::snapshot_dir(&state.config.database.path);
+    db::snapshot(&state.db, &dir, "before-delete")
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut tx = WriteTx::begin(&state.db).await?;
+    logbook::delete(&mut tx, &admin, &logbook_id).await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::web::testing::{Auth, Harness};
+    use crate::{
+        config::{Config, DatabaseConfig},
+        web::testing::{Auth, Harness},
+    };
 
     #[tokio::test]
     async fn admins_list_and_create_logbooks() {
@@ -139,5 +169,45 @@ mod tests {
             (status, &body["code"]),
             (StatusCode::BAD_REQUEST, &json!("name_required"))
         );
+    }
+
+    #[tokio::test]
+    async fn admins_delete_a_logbook_after_a_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            database: DatabaseConfig {
+                path: dir.path().join("live.db"),
+            },
+            ..Config::default()
+        };
+        let h = Harness::with_config(config).await;
+        let admin = h.session(&h.world.admin).await;
+        let owner = h.session(&h.world.owner).await;
+        let path = format!("/api/admin/logbooks/{}", h.world.logbook.id);
+        let snapshots = dir.path().join("snapshots");
+
+        let (status, _) = h.send("DELETE", &path, Auth::Session(&owner), None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, _) = h
+            .send("DELETE", "/api/admin/logbooks/nope", Auth::Session(&admin), None)
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(!snapshots.exists());
+
+        let (status, _) = h.send("DELETE", &path, Auth::Session(&admin), None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let written: Vec<_> = fs::read_dir(&snapshots)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(written.len(), 1);
+        assert!(written[0].ends_with("-before-delete.db"));
+
+        let (status, body) = h.send("GET", "/api/admin/logbooks", Auth::Session(&admin), None).await;
+        assert_eq!((status, body), (StatusCode::OK, json!([])));
+        let (status, body) = h.send("GET", "/api/logbooks", Auth::Session(&owner), None).await;
+        assert_eq!((status, body), (StatusCode::OK, json!([])));
+        let (status, _) = h.send("DELETE", &path, Auth::Session(&admin), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }

@@ -218,10 +218,13 @@ callsign.
 | --- | --- | --- |
 | `GET /api/admin/logbooks` | | Every Logbook, by name |
 | `POST /api/admin/logbooks` | `{name, owner}` | `201` with the Logbook; `owner` is the callsign of an active user, who becomes its first owner |
+| `DELETE /api/admin/logbooks/{logbook_id}` | | `204` after writing a snapshot of the database to `snapshots` next to it; everything the Logbook owns goes with it |
 
 A blank `name` is `400` with `name_required`, and an `owner` no active user
-has is `404` with `what` `user`. Deleting a Logbook and adding an owner as a
-rescue stay with the CLI.
+has is `404` with `what` `user`. The deletion has no confirmation step of its
+own: the web client asks for the Logbook's name before calling it. A snapshot
+that cannot be written is `500` and deletes nothing. Adding an owner as a
+rescue stays with the CLI.
 
 ## Logbooks
 
