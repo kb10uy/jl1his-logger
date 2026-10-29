@@ -6,6 +6,7 @@
     import { goto } from '$app/navigation';
     import { page } from '$app/state';
     import { onUnauthorized } from '#lib/api/client.ts';
+    import { applyCompact, storedCompact } from '#lib/compact.ts';
     import Toaster from '#lib/components/ui/Toaster.svelte';
     import { m } from '#lib/paraglide/messages.js';
     import { getLocale } from '#lib/paraglide/runtime.js';
@@ -15,6 +16,7 @@
     let { children } = $props();
 
     document.documentElement.lang = getLocale();
+    applyCompact(storedCompact());
 
     const open = $derived(
         page.url.pathname.startsWith('/login') || page.url.pathname.startsWith('/register')
