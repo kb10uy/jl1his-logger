@@ -602,7 +602,7 @@
                         {#each before as q (q.id)}
                             <a
                                 href={`/logbooks/${logbookId}?qso=${q.id}&q=${encodeURIComponent(`base:"${call}"`)}`}
-                                class="flex items-center gap-3 border-b border-surface-2 px-3 py-2.5 text-[13px] text-text no-underline last:border-b-0"
+                                class="flex items-center gap-3 border-b border-surface-2 px-3 py-2 text-[13px] text-text no-underline last:border-b-0 compact:px-2 compact:py-0.5"
                             >
                                 <span class="font-mono text-muted"
                                     >{isoDate(q.fields.QSO_DATE)} {hhmm(q.fields.TIME_ON)}</span

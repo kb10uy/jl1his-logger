@@ -177,7 +177,7 @@
     "density_label": "Log table density",
     "density_normal": "Normal",
     "density_compact": "Compact",
-    "density_hint": "Compact tightens the spacing of the rows of the log list and of Latest at this Station on this device.",
+    "density_hint": "Compact tightens the spacing of the rows of the log tables on this device.",
     "error_unreachable": "The server could not be reached.",
     "common_undo": "Undo"
 }
