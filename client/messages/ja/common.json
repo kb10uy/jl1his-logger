@@ -169,7 +169,7 @@
     "density_label": "ログ一覧の表示密度",
     "density_normal": "標準",
     "density_compact": "コンパクト",
-    "density_hint": "コンパクトにすると、この端末でのログ一覧の表の行の余白を詰めます。",
+    "density_hint": "コンパクトにすると、この端末でのログ一覧と「この運用地の最新 QSO」の表の行の余白を詰めます。",
     "error_unreachable": "サーバーに接続できませんでした。",
     "common_undo": "元に戻す"
 }
