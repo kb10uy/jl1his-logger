@@ -1,7 +1,7 @@
 {
     "name": "jl1his-logger-client",
     "private": true,
-    "version": "0.5.4",
+    "version": "0.6.0",
     "type": "module",
     "packageManager": "pnpm@12.15.0",
     "scripts": {
@@ -42,7 +42,7 @@
     "dependencies": {
         "@fontsource-variable/geist": "5.3.0",
         "@fontsource-variable/m-plus-2": "5.3.1",
-        "@tabler/icons-svelte-runes": "^3.49.0",
+        "@tabler/icons-svelte-runes": "^3.50.0",
         "bits-ui": "^2.20.2",
         "idb": "^8.0.4",
         "vosk-browser": "0.0.8"
