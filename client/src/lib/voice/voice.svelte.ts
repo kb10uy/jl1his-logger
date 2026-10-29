@@ -15,7 +15,8 @@ import {
     type Draft,
     type FreeTextField
 } from './draft.ts';
-import { MODEL_PATHS, WORKER_PATH, loadVoice, saveVoice, type VoiceSettings } from './settings.ts';
+import { load, save, voice } from '#lib/device.ts';
+import { MODEL_PATHS, WORKER_PATH, type VoiceSettings } from './settings.ts';
 
 export type PttState = 'idle' | 'opening' | 'listening' | 'finishing';
 export type EngineState = 'unloaded' | 'loading' | 'ready' | 'error';
@@ -66,7 +67,7 @@ async function checkModel(url: string) {
 }
 
 export class VoiceState {
-    settings = $state<VoiceSettings>(loadVoice());
+    settings = $state<VoiceSettings>(load(voice));
     engine = $state<EngineState>('unloaded');
     engineError = $state<string | undefined>(undefined);
     ptt = $state<PttState>('idle');
@@ -148,7 +149,7 @@ export class VoiceState {
 
     #save(settings: VoiceSettings) {
         this.settings = settings;
-        saveVoice(settings);
+        save(voice, settings);
     }
 
     async pttPress() {

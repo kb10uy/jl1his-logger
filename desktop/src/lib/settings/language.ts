@@ -1,6 +1,5 @@
+import { load, save, type DeviceSetting } from '#client/device.ts';
 import { defineCustomClientStrategy, locales, type Locale } from '#lib/paraglide/runtime.js';
-
-const KEY = 'jl1his-logger-desktop.language';
 
 export const LOCALE_NAMES: Readonly<Record<Locale, string>> = {
     en: 'English',
@@ -11,13 +10,13 @@ export function asLocale(value: string | null | undefined): Locale | null {
     return locales.find((l) => l === value) ?? null;
 }
 
-export function storedLanguage(): Locale | null {
-    try {
-        return asLocale(localStorage.getItem(KEY));
-    } catch {
-        return null;
-    }
-}
+const language: DeviceSetting<Locale | null> = {
+    key: 'jl1his-logger-desktop.language',
+    read: asLocale,
+    write: (value) => value
+};
+
+export const storedLanguage = () => load(language);
 
 export function systemLanguage(preferred: readonly string[]): Locale {
     for (const tag of preferred) {
@@ -34,14 +33,9 @@ export function defineLanguageStrategy() {
     });
 }
 
-export function applyLanguage(language: Locale | null): boolean {
-    if (storedLanguage() === language) return false;
-    try {
-        if (language === null) localStorage.removeItem(KEY);
-        else localStorage.setItem(KEY, language);
-    } catch {
-        return false;
-    }
+export function applyLanguage(value: Locale | null): boolean {
+    if (storedLanguage() === value) return false;
+    save(language, value);
     location.reload();
     return true;
 }

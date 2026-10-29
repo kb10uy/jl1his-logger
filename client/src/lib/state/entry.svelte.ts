@@ -4,7 +4,8 @@ import type { Fields, Lookup, Qso, Saved } from '#lib/api/types.ts';
 import { LOOKUP_DELAY, candidateOf } from '#lib/entry/lookup.ts';
 import type { Sent } from '#lib/entry/outbox.ts';
 import { RECENT, mergeRecent } from '#lib/entry/recent.ts';
-import { loadEntry, saveEntry, type EntrySettings } from '#lib/entry/settings.ts';
+import { entry, load, save } from '#lib/device.ts';
+import type { EntrySettings } from '#lib/entry/settings.ts';
 import { usesSerial } from '#lib/qso/contest.ts';
 import type { LogbookState } from '#lib/state/logbook.svelte.ts';
 import { outbox } from '#lib/state/outbox.svelte.ts';
@@ -38,7 +39,7 @@ export class EntrySession {
     constructor(logbook: LogbookState, inputs: EntryInputs) {
         this.logbook = logbook;
         this.logbookId = logbook.logbook.id;
-        this.settings = loadEntry(this.logbookId);
+        this.settings = load(entry(this.logbookId));
 
         $effect(() =>
             logbook.onQso((qso) => {
@@ -47,7 +48,7 @@ export class EntrySession {
         );
 
         $effect(() => {
-            saveEntry(this.logbookId, {
+            save(entry(this.logbookId), {
                 stationId: this.settings.stationId,
                 instrumentId: this.settings.instrumentId,
                 freq: inputs.freq,

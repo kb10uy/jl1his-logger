@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { asTheme, chooseTheme, type Theme } from '#client/theme.ts';
+import { chooseTheme } from '#client/appearance.ts';
+import { asTheme, type Theme } from '#client/device.ts';
 import type { Locale } from '#lib/paraglide/runtime.js';
 import { asCommandError } from '#lib/session/errors.ts';
 import type { CommandError } from '#lib/session/types.ts';

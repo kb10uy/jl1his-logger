@@ -1,10 +1,7 @@
 import type { Instrument, Station } from '#client/api/types.ts';
-import { defaultEntry, type EntrySettings } from '#client/entry/settings.ts';
-import { defaultContest } from '#client/qso/contest.ts';
+import { json, load, save, withEntryDefaults } from '#client/device.ts';
+import type { EntrySettings } from '#client/entry/settings.ts';
 import type { Logbook } from '#lib/session/types.ts';
-
-const SETTINGS = 'jl1his-logger-desktop.entry';
-const CACHE = 'jl1his-logger-desktop.logbooks';
 
 export interface Cache {
     logbooks: Logbook[];
@@ -12,41 +9,18 @@ export interface Cache {
     instruments: Record<string, Instrument[]>;
 }
 
-function read<T>(key: string): Partial<T> {
-    try {
-        const stored = localStorage.getItem(key);
-        return stored === null ? {} : (JSON.parse(stored) as Partial<T>);
-    } catch {
-        return {};
-    }
-}
+const settings = json<EntrySettings>('jl1his-logger-desktop.entry', withEntryDefaults);
 
-function write(key: string, value: unknown) {
-    try {
-        localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-        return;
-    }
-}
+const cache = json<Cache>('jl1his-logger-desktop.logbooks', (stored) => ({
+    logbooks: stored.logbooks ?? [],
+    stations: stored.stations ?? {},
+    instruments: stored.instruments ?? {}
+}));
 
-export function loadSettings(): EntrySettings {
-    const stored = read<EntrySettings>(SETTINGS);
-    return {
-        ...defaultEntry(),
-        ...stored,
-        contest: { ...defaultContest(), ...stored.contest }
-    };
-}
+export const loadSettings = () => load(settings);
 
-export const saveSettings = (settings: EntrySettings) => write(SETTINGS, settings);
+export const saveSettings = (value: EntrySettings) => save(settings, value);
 
-export function loadCache(): Cache {
-    const stored = read<Cache>(CACHE);
-    return {
-        logbooks: stored.logbooks ?? [],
-        stations: stored.stations ?? {},
-        instruments: stored.instruments ?? {}
-    };
-}
+export const loadCache = () => load(cache);
 
-export const saveCache = (cache: Cache) => write(CACHE, cache);
+export const saveCache = (value: Cache) => save(cache, value);

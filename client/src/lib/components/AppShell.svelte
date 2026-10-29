@@ -9,7 +9,7 @@
     import type { StreamStatus } from '#lib/state/logbook.svelte.ts';
     import { outbox } from '#lib/state/outbox.svelte.ts';
     import { session } from '#lib/state/session.svelte.ts';
-    import { loadCollapsed, saveCollapsed } from '#lib/shell/settings.ts';
+    import { load, save, sidebarCollapsed } from '#lib/device.ts';
 
     let {
         logbookId,
@@ -136,11 +136,11 @@
         status === 'live' && outbox.items.length === 0 ? 'bg-ok' : 'bg-warn'
     );
 
-    let collapsed = $state(loadCollapsed());
+    let collapsed = $state(load(sidebarCollapsed));
 
     function toggle() {
         collapsed = !collapsed;
-        saveCollapsed(collapsed);
+        save(sidebarCollapsed, collapsed);
     }
 
     const who = $derived(

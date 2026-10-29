@@ -1,15 +1,16 @@
 <script lang="ts">
     import SettingsField from '#lib/components/SettingsField.svelte';
     import SettingsSection from '#lib/components/SettingsSection.svelte';
+    import { load, save, voice } from '#lib/device.ts';
     import { m } from '#lib/paraglide/messages.js';
     import type { SpeechLanguage } from '#lib/voice/dsl/lexicon.ts';
-    import { LANGUAGE_LABELS, loadVoice, saveVoice } from '#lib/voice/settings.ts';
+    import { LANGUAGE_LABELS } from '#lib/voice/settings.ts';
 
-    let language = $state(loadVoice().language);
+    let language = $state(load(voice).language);
 
     function setLanguage(value: SpeechLanguage) {
         language = value;
-        saveVoice({ ...loadVoice(), language });
+        save(voice, { ...load(voice), language });
     }
 </script>
 

@@ -26,32 +26,3 @@ export function speechLanguageFor(browserLanguage: string | undefined): SpeechLa
 export function defaultVoice(browserLanguage?: string): VoiceSettings {
     return { language: speechLanguageFor(browserLanguage), autoLoad: false, keepScreenOn: true };
 }
-
-const KEY = 'jl1his-logger.voice';
-
-export function loadVoice(): VoiceSettings {
-    const defaults = defaultVoice(globalThis.navigator?.language);
-    try {
-        const stored = localStorage.getItem(KEY);
-        if (stored === null) return defaults;
-        const parsed = JSON.parse(stored) as Partial<VoiceSettings>;
-        return {
-            ...defaults,
-            ...parsed,
-            language:
-                parsed.language === 'ja' || parsed.language === 'en'
-                    ? parsed.language
-                    : defaults.language
-        };
-    } catch {
-        return defaults;
-    }
-}
-
-export function saveVoice(settings: VoiceSettings) {
-    try {
-        localStorage.setItem(KEY, JSON.stringify(settings));
-    } catch {
-        return;
-    }
-}

@@ -1,8 +1,7 @@
 import * as api from '#lib/api/api.ts';
 import { ApiError } from '#lib/api/client.ts';
 import type { Logbook, Me } from '#lib/api/types.ts';
-
-const LAST_LOGBOOK = 'jl1his-logger.logbook';
+import { lastLogbook as lastLogbookSetting, load, save } from '#lib/device.ts';
 
 class Session {
     me = $state<Me | null | undefined>(undefined);
@@ -47,18 +46,6 @@ class Session {
 
 export const session = new Session();
 
-export function lastLogbook(): string | null {
-    try {
-        return localStorage.getItem(LAST_LOGBOOK);
-    } catch {
-        return null;
-    }
-}
+export const lastLogbook = () => load(lastLogbookSetting);
 
-export function rememberLogbook(id: string) {
-    try {
-        localStorage.setItem(LAST_LOGBOOK, id);
-    } catch {
-        return;
-    }
-}
+export const rememberLogbook = (id: string) => save(lastLogbookSetting, id);

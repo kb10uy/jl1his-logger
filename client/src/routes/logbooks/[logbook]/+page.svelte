@@ -17,9 +17,9 @@
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
+    import { load, logColumns, save } from '#lib/device.ts';
     import { adifFieldOf, column, type Column } from '#lib/log/columns.ts';
     import { applyEvent, replaceRows, undoOf, type Row } from '#lib/log/rows.ts';
-    import { loadColumns, saveColumns } from '#lib/log/settings.ts';
     import {
         SORTS,
         comparator,
@@ -60,7 +60,7 @@
     let fetched = $state<Qso | undefined>(undefined);
     let scroller = $state<HTMLElement>();
     let sentinel = $state<HTMLElement>();
-    let columns = $state(loadColumns());
+    let columns = $state(load(logColumns));
     let run = 0;
     let held: Qso[] = [];
 
@@ -338,7 +338,7 @@
 
     function changeColumns(next: string[]) {
         columns = next;
-        saveColumns(next);
+        save(logColumns, next);
     }
 
     const checkHalo =

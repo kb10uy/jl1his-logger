@@ -1,7 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { MODE_CHOICES, modeKey } from '#client/qso/modes.ts';
-    import { asTheme } from '#client/theme.ts';
+    import { asTheme } from '#client/device.ts';
     import { server } from '#lib/api/request.svelte.ts';
     import StatusBar from '#lib/components/StatusBar.svelte';
     import { outbox } from '#lib/entry/outbox.svelte.ts';
