@@ -117,7 +117,7 @@
         <tbody>
             {#each logbooks ?? [] as logbook (logbook.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-2.5 font-mono font-semibold">{logbook.name}</td>
+                    <td class="px-3 py-2.5 font-semibold">{logbook.name}</td>
                     <td
                         class={[
                             'px-3 py-2.5 font-mono',

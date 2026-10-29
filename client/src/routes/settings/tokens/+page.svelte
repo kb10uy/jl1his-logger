@@ -104,7 +104,7 @@
                             checked={logbookIds.includes(logbook.id)}
                             onchange={(e) => toggle(logbook.id, e.currentTarget.checked)}
                         />
-                        <span class="font-mono font-semibold">{logbook.name}</span>
+                        <span class="font-semibold">{logbook.name}</span>
                         <span class="text-xs text-muted">{roleLabel(logbook.role)}</span>
                     </label>
                 {/each}
@@ -157,7 +157,7 @@
             {#each tokens ?? [] as token (token.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
                     <td class="px-3 py-2.5">{token.name}</td>
-                    <td class="px-3 py-2.5 font-mono">{logbookNames(token.logbook_ids)}</td>
+                    <td class="px-3 py-2.5">{logbookNames(token.logbook_ids)}</td>
                     <td class="px-3 py-2.5 font-mono text-muted"
                         >{token.last_used_at?.slice(0, 10) ?? m.settings_never()}</td
                     >
