@@ -1,3 +1,4 @@
+mod holder;
 pub mod instrument;
 pub mod membership;
 pub mod station;

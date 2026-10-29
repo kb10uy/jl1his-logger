@@ -8,6 +8,7 @@ use crate::{
         Fault, StoreError, WriteTx,
         access::{LogbookAccess, OwnerAccess},
         account::user::normalize_callsign,
+        logbook::holder,
         name as store_name, new_id, now,
         qso::{self, Holder, StoredQso, TimeRange},
     },
@@ -167,21 +168,7 @@ pub async fn set_archived(
     archived: bool,
 ) -> Result<Station, StoreError> {
     owner.revalidate(tx).await?;
-    let now = now();
-    let updated = sqlx::query(
-        "UPDATE stations SET archived_at = CASE WHEN ? THEN coalesce(archived_at, ?) END, updated_at = ? \
-         WHERE logbook_id = ? AND id = ?",
-    )
-    .bind(archived)
-    .bind(&now)
-    .bind(&now)
-    .bind(owner.logbook_id())
-    .bind(id)
-    .execute(&mut **tx)
-    .await?;
-    if updated.rows_affected() == 0 {
-        return Err(StoreError::NotFound("Station"));
-    }
+    holder::archive(tx, owner, Holder::Station(id), archived).await?;
     fetch(tx, owner, id).await
 }
 
@@ -193,20 +180,7 @@ pub async fn set_favorite(
 ) -> Result<Station, StoreError> {
     access.revalidate(tx).await?;
     fetch(tx, access, id).await?;
-    let query = match favorite {
-        true => sqlx::query(
-            "INSERT INTO station_favorites (logbook_id, user_id, station_id, created_at) VALUES (?, ?, ?, ?) \
-             ON CONFLICT DO NOTHING",
-        )
-        .bind(access.logbook_id())
-        .bind(access.user_id())
-        .bind(id)
-        .bind(now()),
-        false => sqlx::query("DELETE FROM station_favorites WHERE user_id = ? AND station_id = ?")
-            .bind(access.user_id())
-            .bind(id),
-    };
-    query.execute(&mut **tx).await?;
+    holder::favorite(tx, access, Holder::Station(id), favorite).await?;
     fetch(tx, access, id).await
 }
 
@@ -239,18 +213,16 @@ async fn rewrite_plan(
     range: TimeRange,
 ) -> Result<Vec<(StoredQso, Qso)>, StoreError> {
     let station = fetch(conn, access, id).await?;
-    let mut plan = vec![];
-    for current in qso::held_by(conn, access, Holder::Station(&station.id), range).await? {
-        let mut rewritten = current.qso.clone();
-        rewritten.set("STATION_CALLSIGN", Some(station.callsign.clone()))?;
-        for (name, value) in &station.fields {
-            rewritten.set(name, Some(value.clone()))?;
-        }
-        if rewritten != current.qso {
-            plan.push((current, rewritten));
-        }
-    }
-    Ok(plan)
+    let values: Vec<(&str, &str)> = [("STATION_CALLSIGN", station.callsign.as_str())]
+        .into_iter()
+        .chain(
+            station
+                .fields
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.as_str())),
+        )
+        .collect();
+    holder::rewrite_plan(conn, access, Holder::Station(&station.id), range, &values).await
 }
 
 pub async fn get(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<Station, StoreError> {
