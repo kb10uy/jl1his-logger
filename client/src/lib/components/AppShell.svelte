@@ -97,6 +97,7 @@
             page.url.pathname === `${root}/settings` ||
             page.url.pathname === `${root}/members`
     );
+    const onAdmin = $derived(page.url.pathname.startsWith('/admin'));
     const onMore = $derived(
         root !== null &&
             !items.some((i) => i.mobile && current(i.href)) &&
@@ -193,6 +194,17 @@
         >
             <Icon name="settings" />{#if !collapsed}{m.nav_settings()}{/if}
         </a>
+        {#if session.me?.role === 'admin'}
+            <a
+                href="/admin/server"
+                aria-current={onAdmin ? 'page' : undefined}
+                aria-label={collapsed ? m.nav_admin() : undefined}
+                title={collapsed ? m.nav_admin() : undefined}
+                class={linkClass(onAdmin)}
+            >
+                <Icon name="admin" />{#if !collapsed}{m.nav_admin()}{/if}
+            </a>
+        {/if}
         <div class="flex-1"></div>
         {#if collapsed}
             <div class="flex flex-col items-center gap-3 border-t border-border pt-3 text-muted">

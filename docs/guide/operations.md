@@ -216,7 +216,8 @@ running server picks up a new version without a restart.
 `cty` is a CTY zip archive from [country-files.com](https://www.country-files.com/),
 either Big CTY (`bigcty-YYYYMMDD.zip`) or the contest files (`cty-NNNN.zip`),
 installed as downloaded: the server takes `cty.dat` and `cty.csv` from it. An
-admin can also upload it on the server settings screen of the web app.
+admin can also upload it on the Server section of the web app's Administration
+screen.
 
 ```sh
 jl1his-logger --as JL1HIS reference install cty bigcty-20261023.zip   # version from the =VER entry of its cty.dat
@@ -235,7 +236,7 @@ after the upgrade lookups answer without the entity and new QSOs get no `DXCC`,
    `cty` at `reference/cty.zip`, the new default.
 2. Start the new version (or run `migrate`).
 3. Install a CTY archive with `reference install cty <archive>.zip` or from the
-   server settings screen.
+   Server section of the web app's Administration screen.
 4. Delete the old `cty.dat` and `dxcc.toml` from the reference directory if
    `cty` no longer points at them.
 

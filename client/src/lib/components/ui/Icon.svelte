@@ -24,6 +24,7 @@
     import Radio from '@tabler/icons-svelte-runes/icons/radio';
     import Search from '@tabler/icons-svelte-runes/icons/search';
     import Settings from '@tabler/icons-svelte-runes/icons/settings';
+    import ShieldCog from '@tabler/icons-svelte-runes/icons/shield-cog';
     import Star from '@tabler/icons-svelte-runes/icons/star';
     import StarFilled from '@tabler/icons-svelte-runes/icons/star-filled';
     import TransferVertical from '@tabler/icons-svelte-runes/icons/transfer-vertical';
@@ -40,6 +41,7 @@
         qsl: Mail,
         transfer: TransferVertical,
         settings: Settings,
+        admin: ShieldCog,
         members: Users,
         more: Dots,
         close: X,

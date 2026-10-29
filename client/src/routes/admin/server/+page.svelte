@@ -8,7 +8,6 @@
     import Notice from '#lib/components/ui/Notice.svelte';
     import { m } from '#lib/paraglide/messages.js';
     import { ctyArchiveProblem } from '#lib/reference/cty.ts';
-    import { session } from '#lib/state/session.svelte.ts';
 
     const KINDS: { kind: ReferenceKind; label: () => string }[] = [
         { kind: 'cty', label: () => 'CTY' }
@@ -59,36 +58,36 @@
     <Notice tone="error">{error}</Notice>
 {/if}
 
-<SettingsSection title={m.settings_server_build()}>
+<SettingsSection title={m.admin_server_build()}>
     <dl class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 text-[13px]">
-        <dt class="text-muted">{m.settings_server_version()}</dt>
+        <dt class="text-muted">{m.admin_server_version()}</dt>
         <dd class="font-mono">{server?.version ?? '…'}</dd>
-        <dt class="text-muted">{m.settings_server_commit()}</dt>
+        <dt class="text-muted">{m.admin_server_commit()}</dt>
         <dd
             class={['truncate font-mono', server?.commit === null && 'text-muted']}
             title={server?.commit ?? undefined}
         >
             {server === undefined
                 ? '…'
-                : (server.commit?.slice(0, 12) ?? m.settings_server_commit_unknown())}
+                : (server.commit?.slice(0, 12) ?? m.admin_server_commit_unknown())}
         </dd>
-        <dt class="text-muted">{m.settings_server_adif()}</dt>
+        <dt class="text-muted">{m.admin_server_adif()}</dt>
         <dd class="font-mono">{server?.adif ?? '…'}</dd>
     </dl>
 </SettingsSection>
 
-<SettingsSection title={m.settings_reference()} padded={false}>
+<SettingsSection title={m.admin_reference()} padded={false}>
     <table class="w-full border-collapse text-[13px]">
         <thead>
             <tr class="text-left text-xs text-muted">
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                    >{m.settings_kind()}</th
+                    >{m.admin_reference_kind()}</th
                 >
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                    >{m.settings_reference_version()}</th
+                    >{m.admin_reference_version()}</th
                 >
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                    >{m.settings_reference_installed()}</th
+                    >{m.admin_reference_installed()}</th
                 >
             </tr>
         </thead>
@@ -100,7 +99,7 @@
                     <td class={['px-3 py-2.5 font-mono', !found && 'text-muted']}
                         >{versions === undefined
                             ? '…'
-                            : (found?.version ?? m.settings_reference_not_installed())}</td
+                            : (found?.version ?? m.admin_reference_not_installed())}</td
                     >
                     <td class="px-3 py-2.5 font-mono text-muted"
                         >{found?.updated_at.slice(0, 10) ?? '—'}</td
@@ -111,30 +110,27 @@
     </table>
 </SettingsSection>
 
-{#if session.me?.role === 'admin'}
-    <SettingsSection title={m.settings_reference_cty_install()}>
-        <FileDrop
-            bind:file={archive}
-            accept=".zip,application/zip"
-            hint={m.settings_reference_cty_hint()}
-        />
-        {#if problem}
-            <Notice tone="error">{problem}</Notice>
-        {:else if refused}
-            <Notice tone="error">{refused}</Notice>
-        {:else if installed}
-            <Notice tone="info">{m.settings_reference_cty_installed({ version: installed })}</Notice
-            >
-        {/if}
-        <div class="flex flex-wrap items-center justify-end gap-3">
-            <Button
-                variant="primary"
-                disabled={archive === undefined || problem !== undefined || installing}
-                onclick={install}
-                >{installing
-                    ? m.settings_reference_cty_uploading()
-                    : m.settings_reference_cty_upload()}</Button
-            >
-        </div>
-    </SettingsSection>
-{/if}
+<SettingsSection title={m.admin_reference_cty_install()}>
+    <FileDrop
+        bind:file={archive}
+        accept=".zip,application/zip"
+        hint={m.admin_reference_cty_hint()}
+    />
+    {#if problem}
+        <Notice tone="error">{problem}</Notice>
+    {:else if refused}
+        <Notice tone="error">{refused}</Notice>
+    {:else if installed}
+        <Notice tone="info">{m.admin_reference_cty_installed({ version: installed })}</Notice>
+    {/if}
+    <div class="flex flex-wrap items-center justify-end gap-3">
+        <Button
+            variant="primary"
+            disabled={archive === undefined || problem !== undefined || installing}
+            onclick={install}
+            >{installing
+                ? m.admin_reference_cty_uploading()
+                : m.admin_reference_cty_upload()}</Button
+        >
+    </div>
+</SettingsSection>

@@ -11,7 +11,8 @@
             "./messages/{locale}/voice.json",
             "./messages/{locale}/stations.json",
             "./messages/{locale}/transfer.json",
-            "./messages/{locale}/settings.json"
+            "./messages/{locale}/settings.json",
+            "./messages/{locale}/admin.json"
         ]
     }
 }
