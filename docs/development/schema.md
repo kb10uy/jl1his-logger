@@ -40,12 +40,6 @@ decisions.md.
 
 ## Tables
 
-### `settings`
-
-Instance-wide key / value settings edited by an admin. No feature reads one
-yet; the table exists so that the CLI has one place for them. Only an admin
-writes them; the server reads them without an access.
-
 ### `users`, `passkeys`, `registration_tokens`, `sessions`
 
 - `users.callsign` is the personal callsign, uppercase, and identifies the
@@ -267,7 +261,9 @@ row changes, and the web UI reads this table to show the versions.
 - **ADIF tables** (bands, modes, QSL values, DXCC entities, subdivisions):
   compiled into the server from `assets/adif/`, from which the
   client generates its own.
-- **Import staging**: an import previews and applies within one CLI run or
-  one request; the web UI sends the file again to apply what it previewed.
+- **Import staging**: an import previews and applies within one request; the
+  web UI sends the file again to apply what it previewed.
+- **Instance settings**: migration 14 dropped the `settings` key / value
+  table, which only the former CLI wrote and nothing read.
 - **Change history**: none, by decision. Triggers that stack the previous
   JSON of a row can be added later without changing this shape.

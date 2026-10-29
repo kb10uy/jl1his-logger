@@ -2,7 +2,7 @@
 
 The log list, the native API (`q` on `GET /qsos`, `GET /targets` and the
 export filters; see "Search" in [api.md](api.md)) and the web client's chips
-all take one text query. The CLI does not yet.
+all take one text query.
 
 A query is a list of terms separated by spaces, all of which must hold. A term
 is `key:value` or a bare word. Keys are read ignoring case. A value with a

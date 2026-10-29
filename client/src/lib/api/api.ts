@@ -150,6 +150,11 @@ export const createLogbook = (input: { name: string; owner: string }) =>
 export const deleteLogbook = (id: string) =>
     request<void>('DELETE', `/api/admin/logbooks/${encodeURIComponent(id)}`);
 
+export const addOwner = (id: string, input: { callsign: string; reason: string }) =>
+    request<AdminLogbook>('POST', `/api/admin/logbooks/${encodeURIComponent(id)}/owners`, {
+        body: input
+    });
+
 export const adminUsers = () => request<AdminUser[]>('GET', '/api/admin/users');
 
 const adminUser = (id: string) => `/api/admin/users/${encodeURIComponent(id)}`;

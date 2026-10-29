@@ -272,15 +272,15 @@ mod tests {
         (dir, path, db)
     }
 
-    async fn settings(db: &Db) -> Vec<String> {
-        sqlx::query_scalar("SELECT key FROM settings ORDER BY key")
+    async fn marks(db: &Db) -> Vec<String> {
+        sqlx::query_scalar("SELECT callsign FROM users WHERE id = callsign ORDER BY callsign")
             .fetch_all(db)
             .await
             .unwrap()
     }
 
-    async fn set(db: &Db, key: &str) {
-        sqlx::query("INSERT INTO settings (key, value, updated_at) VALUES (?, 'v', ?)")
+    async fn mark(db: &Db, key: &str) {
+        sqlx::query("INSERT INTO users (id, callsign, role, created_at, updated_at) VALUES (?1, ?1, 'user', ?2, ?2)")
             .bind(key)
             .bind(NOW)
             .execute(db)
@@ -301,7 +301,7 @@ mod tests {
     #[tokio::test]
     async fn backs_up_while_open_and_prunes_old_backups() {
         let (dir, path, db) = database().await;
-        set(&db, "before").await;
+        mark(&db, "before").await;
         let backups = backup_dir(&path);
         for name in [
             "jl1his-logger-20261001T000000Z.db",
@@ -316,7 +316,7 @@ mod tests {
         assert!(matches!(backup(&db, &target).await, Err(BackupError::Exists { .. })));
 
         let copy = db::open(&target).await.unwrap();
-        assert_eq!(settings(&copy).await, ["before"]);
+        assert_eq!(marks(&copy).await, ["before"]);
         copy.close().await;
 
         let removed = prune(&backups, 2).unwrap();
@@ -335,11 +335,11 @@ mod tests {
     #[tokio::test]
     async fn restores_a_backup_and_forces_a_resync() {
         let (dir, path, db) = database().await;
-        set(&db, "in backup").await;
+        mark(&db, "in backup").await;
         let source = dir.path().join("saved.db");
         backup(&db, &source).await.unwrap();
         let saved = fs::read(&source).unwrap();
-        set(&db, "after backup").await;
+        mark(&db, "after backup").await;
         db.close().await;
 
         let held = lock(&path).unwrap();
@@ -363,7 +363,7 @@ mod tests {
         assert!(!sibling(&path, ".restoring").exists());
 
         let db = db::open(&path).await.unwrap();
-        assert_eq!(settings(&db).await, ["in backup"]);
+        assert_eq!(marks(&db).await, ["in backup"]);
         let generation: String = sqlx::query_scalar("SELECT cursor_generation FROM logbooks")
             .fetch_one(&db)
             .await
@@ -377,7 +377,7 @@ mod tests {
         assert_eq!(left, (0, 1));
 
         let snapshot = db::open(restored.snapshot.as_ref().unwrap()).await.unwrap();
-        assert_eq!(settings(&snapshot).await, ["after backup", "in backup"]);
+        assert_eq!(marks(&snapshot).await, ["after backup", "in backup"]);
     }
 
     #[rstest]
@@ -387,7 +387,7 @@ mod tests {
     #[tokio::test]
     async fn preserves_the_database_when_restore_fails(#[case] phase: &str) {
         let (dir, path, db) = database().await;
-        set(&db, "current").await;
+        mark(&db, "current").await;
         db.close().await;
         let saved = fs::read(&path).unwrap();
         let source = dir.path().join("saved.db");
@@ -408,7 +408,7 @@ mod tests {
                 fs::write(db::snapshot_dir(&path), b"blocked").unwrap();
             }
         }
-        set(&copy, "backup").await;
+        mark(&copy, "backup").await;
         copy.close().await;
         let source_saved = fs::read(&source).unwrap();
 
@@ -425,7 +425,7 @@ mod tests {
             assert!(!sibling(&path, suffix).exists());
         }
         let current = db::open(&path).await.unwrap();
-        assert_eq!(settings(&current).await, ["current"]);
+        assert_eq!(marks(&current).await, ["current"]);
         let state: (String, i64, i64) = sqlx::query_as(
             "SELECT cursor_generation, (SELECT count(*) FROM sessions), \
              (SELECT count(*) FROM registration_tokens) FROM logbooks",
@@ -440,32 +440,32 @@ mod tests {
     #[tokio::test]
     async fn restores_a_backup_with_pending_migrations() {
         let (dir, path, db) = database().await;
-        set(&db, "current").await;
+        mark(&db, "current").await;
         db.close().await;
         let source = dir.path().join("old.db");
         let old = db::open(&source).await.unwrap();
         let initial = Migrator::with_migrations(vec![db::MIGRATOR.iter().next().unwrap().clone()]);
         initial.run(&old).await.unwrap();
-        set(&old, "backup").await;
+        mark(&old, "backup").await;
         old.close().await;
         let saved = fs::read(&source).unwrap();
 
         let held = lock(&path).unwrap();
         let restored = restore(&held, &path, &source).await.unwrap();
-        assert_eq!(restored.migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+        assert_eq!(restored.migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
         assert!(restored.migrated.snapshot.unwrap().is_file());
         assert!(restored.snapshot.unwrap().is_file());
         assert_eq!(fs::read(&source).unwrap(), saved);
         let current = db::open(&path).await.unwrap();
         assert!(db::migration_status(&current).await.unwrap().pending.is_empty());
-        assert_eq!(settings(&current).await, ["backup"]);
+        assert_eq!(marks(&current).await, ["backup"]);
         current.close().await;
     }
 
     #[tokio::test]
     async fn refuses_a_file_that_is_not_a_logger_database() {
         let (dir, path, db) = database().await;
-        set(&db, "current").await;
+        mark(&db, "current").await;
         db.close().await;
 
         let other = dir.path().join("other.db");
@@ -494,6 +494,6 @@ mod tests {
         assert!(!sibling(&path, ".restoring").exists());
 
         let db = db::open(&path).await.unwrap();
-        assert_eq!(settings(&db).await, ["current"]);
+        assert_eq!(marks(&db).await, ["current"]);
     }
 }

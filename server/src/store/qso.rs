@@ -3,7 +3,6 @@ mod filter;
 
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use chrono::{NaiveDate, NaiveTime};
 use jl1his_query as text;
 use sqlx::{AssertSqlSafe, Connection, Row, SqliteConnection, sqlite::SqliteRow};
 
@@ -167,16 +166,6 @@ impl StoredQso {
 pub struct TimeRange {
     pub from: Option<i64>,
     pub until: Option<i64>,
-}
-
-impl TimeRange {
-    pub fn days(from: Option<NaiveDate>, until: Option<NaiveDate>) -> TimeRange {
-        let start = |day: NaiveDate| day.and_time(NaiveTime::MIN).and_utc().timestamp();
-        TimeRange {
-            from: from.map(start),
-            until: until.and_then(|day| day.succ_opt()).map(start),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1283,14 +1272,5 @@ mod tests {
         assert_eq!(get(&mut conn, &owner, &id).await.unwrap(), stored);
         let book = logbook::get(&mut conn, &owner).await.unwrap();
         assert_eq!((book.last_seq, book.last_updated_seq), (1, 1));
-    }
-
-    #[test]
-    fn turns_days_into_a_time_range() {
-        let day = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
-        let range = TimeRange::days(Some(day("2026-10-01")), Some(day("2026-10-31")));
-        assert_eq!(range.from, Some(1_790_812_800));
-        assert_eq!(range.until, Some(1_790_812_800 + 31 * 86_400));
-        assert_eq!(TimeRange::days(None, None), TimeRange::default());
     }
 }

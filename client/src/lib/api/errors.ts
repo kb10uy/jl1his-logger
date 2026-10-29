@@ -22,6 +22,8 @@ export function errorText(body: Record<string, unknown>): string | undefined {
             return Object.hasOwn(NOT_FOUND, text('what')) ? NOT_FOUND[text('what')]() : undefined;
         case 'name_required':
             return m.error_name_required();
+        case 'reason_required':
+            return m.error_reason_required();
         case 'name_too_long':
             return m.error_name_too_long({ bytes: text('bytes'), max: text('max') });
         case 'batch_empty':

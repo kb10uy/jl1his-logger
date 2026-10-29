@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection};
 
-use crate::store::{StoreError, WriteTx, account::user::Role, new_id, now};
+use crate::store::{Fault, StoreError, WriteTx, account::user::Role, new_id, now};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Principal {
@@ -263,7 +263,10 @@ pub async fn rescue(
     let admin = admin.revalidate(tx).await?;
     let reason = reason.trim();
     if reason.is_empty() {
-        return Err(StoreError::Invalid("a rescue needs a reason".into()));
+        return Err(StoreError::Invalid(Fault::coded(
+            "reason_required",
+            "a rescue needs a reason",
+        )));
     }
     let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM logbooks WHERE id = ?)")
         .bind(logbook_id)

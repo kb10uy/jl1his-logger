@@ -17,8 +17,15 @@
     let creating = $state(false);
     let removing = $state<AdminLogbook | undefined>(undefined);
     let confirming = $state(false);
+    let rescueId = $state('');
+    let rescueCallsign = $state('');
+    let reason = $state('');
+    let rescuing = $state(false);
 
     const ready = $derived(name.trim() !== '' && owner.trim() !== '');
+    const rescueReady = $derived(
+        rescueId !== '' && rescueCallsign.trim() !== '' && reason.trim() !== ''
+    );
 
     onMount(load);
 
@@ -47,6 +54,24 @@
             toasts.error(status === 404 ? m.admin_logbooks_no_user() : (e as Error).message);
         } finally {
             creating = false;
+        }
+    }
+
+    async function rescue(event: Event) {
+        event.preventDefault();
+        if (!rescueReady || rescuing) return;
+        rescuing = true;
+        try {
+            const callsign = rescueCallsign.trim().toUpperCase();
+            const updated = await api.addOwner(rescueId, { callsign, reason: reason.trim() });
+            rescueCallsign = '';
+            reason = '';
+            toasts.show(m.admin_logbooks_rescue_added({ callsign, name: updated.name }));
+            await Promise.all([load(), session.load()]);
+        } catch (e) {
+            toasts.error((e as Error).message);
+        } finally {
+            rescuing = false;
         }
     }
 
@@ -148,6 +173,44 @@
             {/each}
         </tbody>
     </table>
+</SettingsSection>
+
+<SettingsSection title={m.admin_logbooks_rescue_title()} form onsubmit={rescue}>
+    <p class="text-[13px] text-muted">{m.admin_logbooks_rescue_hint()}</p>
+    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+        <SettingsField label={m.admin_logbooks_rescue_logbook()} for="rescue-logbook">
+            <select id="rescue-logbook" class="control h-10 w-full md:w-60" bind:value={rescueId}>
+                <option value=""></option>
+                {#each logbooks ?? [] as logbook (logbook.id)}
+                    <option value={logbook.id}>{logbook.name}</option>
+                {/each}
+            </select>
+        </SettingsField>
+        <SettingsField label={m.admin_logbooks_rescue_callsign()} for="rescue-callsign">
+            <input
+                id="rescue-callsign"
+                class="control h-10 w-full font-mono uppercase md:w-60"
+                placeholder="JA1ABC"
+                autocomplete="off"
+                spellcheck="false"
+                bind:value={rescueCallsign}
+            />
+        </SettingsField>
+        <SettingsField label={m.admin_logbooks_rescue_reason()} for="rescue-reason">
+            <input
+                id="rescue-reason"
+                class="control h-10 w-full"
+                placeholder={m.admin_logbooks_rescue_reason_placeholder()}
+                autocomplete="off"
+                bind:value={reason}
+            />
+        </SettingsField>
+    </div>
+    <div class="flex flex-wrap items-center justify-end gap-3">
+        <Button type="submit" disabled={!rescueReady || rescuing}
+            >{rescuing ? m.admin_logbooks_rescue_adding() : m.admin_logbooks_rescue_add()}</Button
+        >
+    </div>
 </SettingsSection>
 
 <ConfirmDialog

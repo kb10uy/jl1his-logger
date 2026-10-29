@@ -40,6 +40,12 @@ impl From<Owned> for LogbookBody {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AddOwnerRequest {
+    callsign: String,
+    reason: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateLogbookRequest {
     name: String,
     owner: String,
@@ -95,6 +101,26 @@ pub async fn delete_logbook(
     logbook::delete(&mut tx, &admin, &logbook_id).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn add_owner(
+    State(state): State<Arc<AppState>>,
+    Admin(admin): Admin,
+    Path(logbook_id): Path<String>,
+    Json(req): Json<AddOwnerRequest>,
+) -> Result<Json<LogbookBody>, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let owner = user::find_by_callsign(&mut tx, &req.callsign)
+        .await?
+        .ok_or(StoreError::NotFound("user"))?;
+    logbook::add_owner(&mut tx, &admin, &logbook_id, &owner.id, &req.reason).await?;
+    let added = logbook::list_all_with_owners(&mut tx, &admin)
+        .await?
+        .into_iter()
+        .find(|owned| owned.logbook.id == logbook_id)
+        .ok_or(StoreError::NotFound("Logbook"))?;
+    tx.commit().await?;
+    Ok(Json(added.into()))
 }
 
 #[derive(Debug, Serialize)]
@@ -298,6 +324,49 @@ mod tests {
             (status, &body["code"]),
             (StatusCode::BAD_REQUEST, &json!("name_required"))
         );
+    }
+
+    #[tokio::test]
+    async fn admins_add_an_owner_as_a_rescue() {
+        let h = Harness::new().await;
+        let admin = h.session(&h.world.admin).await;
+        let owner = h.session(&h.world.owner).await;
+        let path = format!("/api/admin/logbooks/{}/owners", h.world.logbook.id);
+        let add = |reason: &str| Some(json!({ "callsign": "ja1out", "reason": reason }));
+
+        let (status, _) = h
+            .send("POST", &path, Auth::Session(&owner), add("the owner left"))
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, body) = h.send("POST", &path, Auth::Session(&admin), add(" ")).await;
+        assert_eq!(
+            (status, &body["code"]),
+            (StatusCode::BAD_REQUEST, &json!("reason_required"))
+        );
+        let (status, body) = h
+            .send(
+                "POST",
+                &path,
+                Auth::Session(&admin),
+                Some(json!({ "callsign": "JA1NONE", "reason": "the owner left" })),
+            )
+            .await;
+        assert_eq!((status, &body["what"]), (StatusCode::NOT_FOUND, &json!("user")));
+        let (status, _) = h
+            .send(
+                "POST",
+                "/api/admin/logbooks/nope/owners",
+                Auth::Session(&admin),
+                add("the owner left"),
+            )
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        let (status, body) = h
+            .send("POST", &path, Auth::Session(&admin), add("the owner left"))
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["owners"], json!(["JA1OUT", "JA1OWN"]));
     }
 
     #[tokio::test]

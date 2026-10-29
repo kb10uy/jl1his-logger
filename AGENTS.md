@@ -12,7 +12,7 @@ The repository contains:
 
 - `server/`: Rust (edition 2024) + axum + sqlx (SQLite). The native API, the
   SSE stream, ADIF import and export, passkey sign-in (webauthn-rs), and the
-  admin CLI (`setup`, reference data, backup). Serves `client/build` on one
+  CLI (`migrate`, `setup`, `backup`, `restore`). Serves `client/build` on one
   origin.
 - `client/`: SvelteKit + Svelte 5 (runes) + TypeScript, built with
   `adapter-static` as a client-only SPA/PWA. Log list and search, QSO editing,
@@ -87,7 +87,7 @@ shared crate.
   list sends one text query syntax (`call:JA1*`, `band:40m,20m`, `-mode:FT8`,
   `date:2026-10-01..`, `no:freq`, `adif.TX_PWR:10`, bare words) and pages
   newest first on `(qso_time, id)`, or by `sort` oldest first or by `call_base`. The native API and export filters take the
-  same syntax; the CLI does not yet. An invalid term is `400`, never dropped.
+  same syntax. An invalid term is `400`, never dropped.
   The terms are listed in `docs/guide/query.md`. The syntax
   is one implementation, the `query/` crate: the server turns its terms into
   SQL, and the client runs it as WASM for the chips and to re-test SSE rows.
@@ -107,8 +107,7 @@ shared crate.
   of a Station or an Instrument is for owners. API tokens belong to a User and are scoped to
   Logbooks; the plaintext is shown once.
 - **Reference data** (a CTY zip archive holding `cty.dat` and `cty.csv`) is
-  installed by an admin with a CLI subcommand or by an upload on the server
-  settings screen; the web UI shows versions.
+  installed by an admin with an upload on the server settings screen; the web UI shows versions.
   Updating it never rewrites DXCC or zones already recorded on QSOs.
 - **ADIF tables are built in** (bands, modes, QSL values, QSO field names, DXCC
   entities, subdivisions): generated at build time from the ADIF

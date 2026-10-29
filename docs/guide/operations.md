@@ -1,7 +1,7 @@
 # Operations
 
-How to build, configure and run jl1his-logger, and what the administration CLI
-does. The reasons behind these choices are in [decisions.md](../development/decisions.md),
+How to build, configure and run jl1his-logger, and what its small CLI does.
+The reasons behind these choices are in [decisions.md](../development/decisions.md),
 mostly under "Migrations and Deployment", "Backup and Restore" and "Reference
 Data".
 
@@ -153,6 +153,18 @@ jl1his-logger migrate         # apply pending migrations explicitly
 
 ## The CLI
 
+The CLI does only what the web app cannot: creating the first admin, and the
+database work that needs the server's files. Everything else (users, Logbooks,
+members, Stations, Instruments, tokens, imports, exports and reference data) is
+on the web app and the native API. `jl1his-logger help <command>` lists the
+options of each.
+
+| Command | Does |
+| --- | --- |
+| `migrate` | Applies pending migrations after snapshotting the database |
+| `setup` | Creates the first admin, or lets an existing admin register a passkey again, and prints a registration link |
+| `backup`, `restore` | Copies the database, or replaces it with a copy |
+
 The first admin is created by `setup`, which prints a one-time registration
 URL:
 
@@ -161,71 +173,21 @@ jl1his-logger setup --callsign JL1HIS
 ```
 
 Signed in with that passkey, the admin creates the first Logbook on the
-Administration screen of the web app (Logbooks), or with `logbook add` below.
-
-The other commands act as the user named with `--as`, and go through the same
-permission checks as the web app. `--logbook`, `--station` and `--instrument`
-take an ID or a name; `--logbook` and `--station` may be left out when there is
-only one. `jl1his-logger help <command>` lists the options of each.
-
-| Command | Does |
-| --- | --- |
-| `user` | Adds, lists, invites, disables and enables users and changes their instance role (admin); the web app's Administration screen does the same under Users |
-| `logbook` | Creates, lists and deletes Logbooks, and makes a user an owner as a recorded rescue |
-| `member` | Lists the members of a Logbook; sets and removes them (owner) |
-| `station` | Manages the Stations of a Logbook and rewrites their past QSOs (owner); marks your favorites |
-| `instrument` | Manages the Instruments of a Logbook and marks your favorites; rewriting their past QSOs is for owners |
-| `token` | Issues, lists and revokes your API tokens |
-| `import` | Imports new QSOs or merges QSL confirmations from an ADIF file |
-| `export` | Writes ADIF as an export batch, lists batches and applies their results |
-| `settings` | Reads and writes instance settings (admin) |
-| `reference` | Lists and installs reference data |
-| `backup`, `restore` | Copies the database, or replaces it with a copy |
-
-```sh
-jl1his-logger --as JL1HIS logbook add JL1HIS --owner JL1HIS
-jl1his-logger --as JL1HIS member set JA1OPR operator --logbook JL1HIS
-jl1his-logger --as JL1HIS member list --logbook JL1HIS
-jl1his-logger --as JL1HIS station add Home --callsign JL1HIS --field MY_GRIDSQUARE=PM95
-jl1his-logger --as JL1HIS instrument add "IC-705 QRP" --rig IC-705 --antenna EFHW --power 5
-jl1his-logger --as JL1HIS instrument favorite "IC-705 QRP"                   # listed first for JL1HIS
-jl1his-logger --as JL1HIS import log.adi --source new --station Home          # preview
-jl1his-logger --as JL1HIS import log.adi --source new --station Home --apply
-jl1his-logger --as JL1HIS import portable.adi --source new --station Home --instrument "IC-705 QRP" --apply
-jl1his-logger --as JL1HIS import lotwreport.adi --source lotw --apply --rejects rejects.adi
-jl1his-logger --as JL1HIS import hamlog.adi --source new --station Home --encoding shift_jis
-jl1his-logger --as JL1HIS export write pota --park JP-0001 --from 2026-10-22 --until 2026-10-22 -o pota.adi
-jl1his-logger --as JL1HIS export write qsl-card --qsl-sent R,Q -o cards.adi
-jl1his-logger --as JL1HIS export write lotw --encoding ascii --unencodable replace -o lotw.adi
-jl1his-logger --as JL1HIS export apply <batch>                                # mark them sent
-jl1his-logger --as JL1HIS token issue logger --logbook JL1HIS
-jl1his-logger --as JL1HIS settings list                                       # instance settings (admin)
-```
-
-### Import
-
-An import previews unless given `--apply`. New QSOs get IDs derived from their
-records, so rerunning an interrupted import adds only what is missing. A QSL
-merge (`lotw`, `eqsl`, `card`) only marks matched QSOs as received and reports
-unmatched and ambiguous records instead of guessing. See "ADIF Import" in
-[decisions.md](../development/decisions.md) for the matching rules.
+Administration screen of the web app (Logbooks). An admin who has lost every
+passkey runs `setup` with their callsign again for a new link; the passkeys
+they still have stay registered.
 
 ### Reference Data
 
-Reference data (`cty`, the one kind) is installed from a local file
-by an admin and goes where `[reference]` in the configuration points. The
-running server picks up a new version without a restart.
+Reference data (`cty`, the one kind) is uploaded by an admin on the Server
+section of the web app's Administration screen and goes where `[reference]` in
+the configuration points. The running server picks up a new version without a
+restart.
 
 `cty` is a CTY zip archive from [country-files.com](https://www.country-files.com/),
 either Big CTY (`bigcty-YYYYMMDD.zip`) or the contest files (`cty-NNNN.zip`),
-installed as downloaded: the server takes `cty.dat` and `cty.csv` from it. An
-admin can also upload it on the Server section of the web app's Administration
-screen.
-
-```sh
-jl1his-logger --as JL1HIS reference install cty bigcty-20261023.zip   # version from the =VER entry of its cty.dat
-jl1his-logger --as JL1HIS reference list
-```
+uploaded as downloaded: the server takes `cty.dat` and `cty.csv` from it, and
+its version from the `=VER` entry of `cty.dat`.
 
 #### Upgrading from a plain cty.dat
 
@@ -238,8 +200,8 @@ after the upgrade lookups answer without the entity and new QSOs get no `DXCC`,
    longer accepted and the server refuses to start with it. Optionally point
    `cty` at `reference/cty.zip`, the new default.
 2. Start the new version (or run `migrate`).
-3. Install a CTY archive with `reference install cty <archive>.zip` or from the
-   Server section of the web app's Administration screen.
+3. Upload a CTY archive on the Server section of the web app's Administration
+   screen.
 4. Delete the old `cty.dat` and `dxcc.toml` from the reference directory if
    `cty` no longer points at them.
 
@@ -304,6 +266,7 @@ printf '[server]\npublic_origin = "https://log.example.com"\n' > config.toml
 docker cp config.toml jl1his-logger:/data/config.toml
 docker start jl1his-logger
 docker exec jl1his-logger jl1his-logger setup --callsign JL1HIS
-docker cp bigcty-20261023.zip jl1his-logger:/data/bigcty-20261023.zip
-docker exec jl1his-logger jl1his-logger --as JL1HIS reference install cty /data/bigcty-20261023.zip
 ```
+
+Then sign in, create the first Logbook and upload a CTY archive on the
+Administration screen.

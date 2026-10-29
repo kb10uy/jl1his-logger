@@ -147,7 +147,7 @@ container runtime to probe.
 
 `GET /api/reference` returns the versions of the reference data in use,
 `[{kind, version, updated_at}]` with `kind` `cty`, the one kind. It takes the session cookie only. Reference data is updated with the
-CLI or with the endpoint below.
+endpoint below.
 
 `PUT /api/reference/cty` installs a CTY zip archive from country-files.com (Big
 CTY or the contest files), sent as the raw request body, and answers the
@@ -243,8 +243,13 @@ callsign.
 A blank `name` is `400` with `name_required`, and an `owner` no active user
 has is `404` with `what` `user`. The deletion has no confirmation step of its
 own: the web client asks for the Logbook's name before calling it. A snapshot
-that cannot be written is `500` and deletes nothing. Adding an owner as a
-rescue stays with the CLI.
+that cannot be written is `500` and deletes nothing.
+
+`POST /api/admin/logbooks/{logbook_id}/owners` with `{callsign, reason}` makes
+an active user an owner of the Logbook as a rescue and returns the Logbook. The
+existing owners stay owners, and the reason is recorded with the admin in
+`rescue_operations`. A blank `reason` is `400` with `reason_required`, and a
+callsign no active user has is `404` with `what` `user`.
 
 ## Logbooks
 
@@ -587,8 +592,8 @@ rows still at their recorded revisions. A batch is applied once; again is
 ## ADIF Import
 
 `POST /api/logbooks/{logbook_id}/imports?source=&station_id=&instrument_id=&format=&length=&encoding=&apply=`
-takes the file itself as the body, up to 64 MiB. It works as the CLI
-`import` does (see [decisions.md](../development/decisions.md), "ADIF Import"):
+takes the file itself as the body, up to 64 MiB (see
+[decisions.md](../development/decisions.md), "ADIF Import"):
 
 | Parameter | Meaning |
 | --- | --- |
@@ -657,8 +662,8 @@ state. A client syncs from scratch by reading `/changes` up to its
 `last_updated_seq` H and then opening the stream with `after=H`; rows seen twice
 are upserts. Comments are sent every 15 seconds to keep the connection open.
 
-Writes through the server reach the streams at once; writes by the CLI in
-another process reach them within 10 seconds. The stream ends when the caller
+Writes through the server reach the streams at once; a stream also checks its
+caller every 10 seconds. The stream ends when the caller
 loses the Logbook (its Membership, its user or its token), its session expires
 or is deleted, and when the server shuts down; the browser then reconnects
 with `Last-Event-ID`, and a `404` or `401` stops it. Session checks do not renew

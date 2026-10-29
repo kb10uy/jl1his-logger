@@ -24,9 +24,9 @@ pub async fn issue(tx: &mut WriteTx, admin: &AdminAccess, user_id: &str, ttl: Ti
 
 pub async fn issue_for_setup(tx: &mut WriteTx, user_id: &str, ttl: TimeDelta) -> Result<String, StoreError> {
     let user = user::find(tx, user_id).await?.ok_or(StoreError::NotFound("user"))?;
-    if user.role != Role::Admin || !passkey::of_user(tx, user_id).await?.is_empty() {
+    if user.role != Role::Admin {
         return Err(StoreError::Conflict(
-            format!("{} is not an admin waiting for a first passkey", user.callsign).into(),
+            format!("{} is not an admin", user.callsign).into(),
         ));
     }
     insert(tx, user_id, None, ttl).await
@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn issues_setup_links_only_for_an_admin_without_passkeys() {
+    async fn issues_setup_links_only_for_an_admin() {
         let world = World::new().await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         assert!(matches!(
@@ -169,9 +169,8 @@ mod tests {
         ));
         let link = issue_for_setup(&mut tx, &world.admin.id, DEFAULT_TTL).await.unwrap();
         complete(&mut tx, &link, &new_passkey(1)).await.unwrap();
-        assert!(matches!(
-            issue_for_setup(&mut tx, &world.admin.id, DEFAULT_TTL).await,
-            Err(StoreError::Conflict(_))
-        ));
+        let again = issue_for_setup(&mut tx, &world.admin.id, DEFAULT_TTL).await.unwrap();
+        complete(&mut tx, &again, &new_passkey(2)).await.unwrap();
+        assert_eq!(passkey::of_user(&mut tx, &world.admin.id).await.unwrap().len(), 2);
     }
 }

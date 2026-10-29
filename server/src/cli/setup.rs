@@ -15,7 +15,10 @@ use crate::{
 
 #[derive(Args)]
 pub struct SetupArgs {
-    #[arg(long, help = "Personal callsign of the first admin")]
+    #[arg(
+        long,
+        help = "Personal callsign of the first admin, or of an admin who lost their passkeys"
+    )]
     callsign: String,
     #[command(flatten)]
     link: LinkArgs,
