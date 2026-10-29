@@ -166,6 +166,10 @@
     "theme_system": "システム設定",
     "theme_light": "ライト",
     "theme_dark": "ダーク",
+    "density_label": "ログ一覧の表示密度",
+    "density_normal": "標準",
+    "density_compact": "コンパクト",
+    "density_hint": "コンパクトにすると、この端末でのログの表の行の余白を詰めます。",
     "error_unreachable": "サーバーに接続できませんでした。",
     "common_undo": "元に戻す"
 }

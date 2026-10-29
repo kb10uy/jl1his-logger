@@ -86,7 +86,7 @@
     <div class="overflow-x-auto rounded-lg border border-border bg-surface">
         <table class="w-full border-collapse text-[13px]">
             <thead>
-                <tr class="text-left text-xs text-muted">
+                <tr class="text-left text-xs text-muted compact:[&>th]:px-2 compact:[&>th]:py-1">
                     {#each headers as c (c.h)}
                         <th
                             scope="col"
@@ -110,7 +110,7 @@
                 {#each rows as row (row.id)}
                     {@const f = row.fields}
                     <tr
-                        class="align-top [&>td]:border-b [&>td]:border-surface-2 [&>td]:px-3 [&>td]:py-2"
+                        class="align-top [&>td]:border-b [&>td]:border-surface-2 [&>td]:px-3 [&>td]:py-2 compact:[&>td]:px-2 compact:[&>td]:py-0.5"
                     >
                         <td class="font-mono whitespace-nowrap"
                             ><span class="text-muted">{isoDate(f.QSO_DATE).slice(5)}</span>

@@ -1,2 +1,4 @@
 @import 'tailwindcss';
 @import './theme.css';
+
+@custom-variant compact (&:where([data-compact] *));

@@ -342,7 +342,7 @@
     }
 
     const checkHalo =
-        '-m-2 inline-flex size-8 items-center justify-center rounded-full align-middle group-hover/check:bg-surface-2';
+        '-m-2 inline-flex size-8 items-center justify-center rounded-full align-middle group-hover/check:bg-surface-2 compact:-m-1 compact:size-6';
 
     const stationOf = (qso: Qso) =>
         [qso.fields.STATION_CALLSIGN, logbook.stationName(qso.station_id)]
@@ -515,7 +515,7 @@
                 <table class="w-full border-collapse text-[13px]">
                     <thead class="sticky top-0 z-[1] bg-bg">
                         <tr
-                            class="text-left text-xs text-muted [&>th:last-child]:pr-6 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2"
+                            class="text-left text-xs text-muted compact:[&>th]:py-1 [&>th:last-child]:pr-6 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2 compact:[&>th:not(:first-child,:last-child)]:px-2"
                         >
                             <th
                                 scope="col"
@@ -584,7 +584,7 @@
                                 aria-current={isOpen ? 'true' : undefined}
                                 title={row.stale ? m.log_row_stale() : undefined}
                                 class={[
-                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l',
+                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap compact:[&>td]:py-0.5 [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l compact:[&>td:not(:first-child,:last-child)]:px-2',
                                     isChecked
                                         ? 'bg-selected'
                                         : isOpen
