@@ -51,6 +51,17 @@ pub(super) fn router() -> Router<Arc<AppState>> {
             get(admin::list_logbooks).post(admin::create_logbook),
         )
         .route("/api/admin/logbooks/{logbook_id}", delete(admin::delete_logbook))
+        .route("/api/admin/users", get(admin::list_users).post(admin::create_user))
+        .route("/api/admin/users/{user_id}", get(admin::get_user))
+        .route("/api/admin/users/{user_id}/role", put(admin::set_role))
+        .route(
+            "/api/admin/users/{user_id}/disable",
+            post(admin::disable_user).delete(admin::enable_user),
+        )
+        .route(
+            "/api/admin/users/{user_id}/registration",
+            post(admin::issue_registration),
+        )
         .route("/api/logbooks", get(logbook::list))
         .route("/api/logbooks/{logbook_id}", get(logbook::get))
         .route("/api/logbooks/{logbook_id}/settings", put(logbook::set_settings))

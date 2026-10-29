@@ -1,4 +1,16 @@
 <script lang="ts" module>
+    import { getContext, setContext } from 'svelte';
+
+    const DETAIL = Symbol('section-detail');
+
+    export interface Detail {
+        name?: string;
+    }
+
+    export function sectionDetail(): Detail {
+        return getContext(DETAIL);
+    }
+
     export interface Section {
         label: string;
         href: string;
@@ -38,23 +50,45 @@
         children: Snippet;
     } = $props();
 
+    const detail = $state<Detail>({});
+    setContext(DETAIL, detail);
+
     const current = $derived(
         groups
             .flatMap((group) => group.sections.map((section) => ({ group, section })))
-            .find((entry) => page.url.pathname === entry.section.href)
+            .find(
+                (entry) =>
+                    page.url.pathname === entry.section.href ||
+                    page.url.pathname.startsWith(`${entry.section.href}/`)
+            )
+    );
+    const inner = $derived(
+        current !== undefined && page.url.pathname !== current.section.href ? current : undefined
     );
 </script>
 
-<PageTitle title={current === undefined ? title : sectionTitle(current.section.label)} />
+<PageTitle
+    title={current === undefined
+        ? title
+        : inner && detail.name
+          ? `${detail.name} - ${sectionTitle(current.section.label)}`
+          : sectionTitle(current.section.label)}
+/>
 
 <PageHeader
-    title={current?.section.label ?? title}
-    subtitle={current ? `${title} · ${current.group.label}` : session.me?.callsign}
-    back={logbookId === null
-        ? undefined
+    title={inner ? (detail.name ?? '') : (current?.section.label ?? title)}
+    subtitle={inner
+        ? `${title} · ${inner.section.label}`
         : current
-          ? { href: index, label: back }
-          : { href: `/logbooks/${logbookId}/more`, label: m.settings_back_more() }}
+          ? `${title} · ${current.group.label}`
+          : session.me?.callsign}
+    back={inner
+        ? { href: inner.section.href, label: inner.section.label }
+        : logbookId === null
+          ? undefined
+          : current
+            ? { href: index, label: back }
+            : { href: `/logbooks/${logbookId}/more`, label: m.settings_back_more() }}
 />
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">

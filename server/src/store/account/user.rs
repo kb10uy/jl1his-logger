@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
 
 const SELECT: &str = "SELECT id, callsign, role, disabled_at FROM users";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     Admin,
@@ -55,6 +55,23 @@ impl User {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Account {
+    pub user: User,
+    pub passkeys: i64,
+}
+
+impl Account {
+    fn from_row(row: &SqliteRow) -> Result<Account, StoreError> {
+        Ok(Account {
+            user: User::from_row(row)?,
+            passkeys: row.try_get("passkeys")?,
+        })
+    }
+}
+
+const SELECT_ACCOUNT: &str = "SELECT id, callsign, role, disabled_at,      (SELECT count(*) FROM passkeys p WHERE p.user_id = users.id) AS passkeys FROM users";
+
 pub(crate) fn normalize_callsign(callsign: &str) -> Result<String, StoreError> {
     callsign::normalize(callsign).ok_or_else(|| {
         StoreError::Invalid(
@@ -88,14 +105,25 @@ pub async fn find_by_callsign(conn: &mut SqliteConnection, callsign: &str) -> Re
         .transpose()
 }
 
-pub async fn list(conn: &mut SqliteConnection, admin: &AdminAccess) -> Result<Vec<User>, StoreError> {
+pub async fn list(conn: &mut SqliteConnection, admin: &AdminAccess) -> Result<Vec<Account>, StoreError> {
     admin.revalidate(conn).await?;
-    sqlx::query(AssertSqlSafe(format!("{SELECT} ORDER BY callsign")))
+    sqlx::query(AssertSqlSafe(format!("{SELECT_ACCOUNT} ORDER BY callsign")))
         .fetch_all(conn)
         .await?
         .iter()
-        .map(User::from_row)
+        .map(Account::from_row)
         .collect()
+}
+
+pub async fn account(conn: &mut SqliteConnection, admin: &AdminAccess, user_id: &str) -> Result<Account, StoreError> {
+    admin.revalidate(conn).await?;
+    sqlx::query(AssertSqlSafe(format!("{SELECT_ACCOUNT} WHERE id = ?")))
+        .bind(user_id)
+        .fetch_optional(conn)
+        .await?
+        .map(|row| Account::from_row(&row))
+        .transpose()?
+        .ok_or(StoreError::NotFound("user"))
 }
 
 pub async fn set_disabled(
@@ -237,7 +265,13 @@ mod tests {
     use sqlx::AssertSqlSafe;
 
     use super::*;
-    use crate::store::{account::registration, account::session, account::token, testing::World};
+    use crate::store::{
+        account::{
+            passkey::{self, tests::new_passkey},
+            registration, session, token,
+        },
+        testing::World,
+    };
 
     #[tokio::test]
     async fn creates_the_initial_admin_only_once() {
@@ -324,6 +358,37 @@ mod tests {
         let enabled = set_disabled(&mut tx, &admin, &world.operator.id, false).await.unwrap();
         assert_eq!(enabled, world.operator);
         assert_eq!(list(&mut tx, &admin).await.unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn counts_the_passkeys_of_each_account() {
+        let world = World::new().await;
+        let admin = world.admin_access().await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        passkey::insert(&mut tx, &world.operator.id, &new_passkey(1))
+            .await
+            .unwrap();
+        let counts: Vec<_> = list(&mut tx, &admin)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|a| (a.user.id, a.passkeys))
+            .collect();
+        assert_eq!(counts.len(), 4);
+        for (id, passkeys) in counts {
+            assert_eq!(passkeys, i64::from(id == world.operator.id), "{id}");
+        }
+        assert_eq!(
+            account(&mut tx, &admin, &world.operator.id).await.unwrap(),
+            Account {
+                user: world.operator.clone(),
+                passkeys: 1
+            }
+        );
+        assert!(matches!(
+            account(&mut tx, &admin, "nobody").await,
+            Err(StoreError::NotFound("user"))
+        ));
     }
 
     #[tokio::test]

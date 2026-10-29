@@ -2,6 +2,7 @@ import { m } from '#lib/paraglide/messages.js';
 import { query, request } from './client.ts';
 import type {
     AdminLogbook,
+    AdminUser,
     Area,
     Batch,
     Encoding,
@@ -28,6 +29,7 @@ import type {
     ReferenceVersion,
     Saved,
     ServerVersion,
+    Session,
     Station,
     StationInput,
     Subdivision,
@@ -81,7 +83,11 @@ export async function finishRegistration(
 
 export const signOut = () => request<void>('POST', '/api/auth/logout');
 
-export const passkeys = () => request<Passkey[]>('GET', '/api/passkeys');
+const ofUser = (path: string, userId?: string) =>
+    userId === undefined ? path : `${path}?user_id=${encodeURIComponent(userId)}`;
+
+export const passkeys = (userId?: string) =>
+    request<Passkey[]>('GET', ofUser('/api/passkeys', userId));
 
 export async function addPasskey(name: string): Promise<Passkey> {
     const { ceremony, options } = await request<Ceremony>('POST', '/api/passkeys/register/start');
@@ -97,6 +103,12 @@ export async function addPasskey(name: string): Promise<Passkey> {
 export const deletePasskey = (id: string) =>
     request<void>('DELETE', `/api/passkeys/${encodeURIComponent(id)}`);
 
+export const sessions = (userId?: string) =>
+    request<Session[]>('GET', ofUser('/api/sessions', userId));
+
+export const revokeSession = (id: string) =>
+    request<void>('DELETE', `/api/sessions/${encodeURIComponent(id)}`);
+
 export const version = () => request<ServerVersion>('GET', '/api/version');
 
 export const references = () => request<ReferenceVersion[]>('GET', '/api/reference');
@@ -107,7 +119,7 @@ export const installCty = (archive: Blob) =>
 export const subdivisions = (dxcc: number) =>
     request<Subdivision[]>('GET', `/api/reference/subdivisions/${dxcc}`);
 
-export const tokens = () => request<Token[]>('GET', '/api/tokens');
+export const tokens = (userId?: string) => request<Token[]>('GET', ofUser('/api/tokens', userId));
 
 export interface TokenRequest {
     name: string;
@@ -137,6 +149,24 @@ export const createLogbook = (input: { name: string; owner: string }) =>
 
 export const deleteLogbook = (id: string) =>
     request<void>('DELETE', `/api/admin/logbooks/${encodeURIComponent(id)}`);
+
+export const adminUsers = () => request<AdminUser[]>('GET', '/api/admin/users');
+
+const adminUser = (id: string) => `/api/admin/users/${encodeURIComponent(id)}`;
+
+export const getAdminUser = (id: string) => request<AdminUser>('GET', adminUser(id));
+
+export const createUser = (input: { callsign: string; role: AdminUser['role'] }) =>
+    request<AdminUser>('POST', '/api/admin/users', { body: input });
+
+export const setUserRole = (id: string, role: AdminUser['role']) =>
+    request<AdminUser>('PUT', `${adminUser(id)}/role`, { body: { role } });
+
+export const setUserDisabled = (id: string, disabled: boolean) =>
+    request<AdminUser>(disabled ? 'POST' : 'DELETE', `${adminUser(id)}/disable`);
+
+export const issueRegistration = (id: string) =>
+    request<{ url: string }>('POST', `${adminUser(id)}/registration`);
 
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
 

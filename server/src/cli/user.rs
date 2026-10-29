@@ -68,7 +68,10 @@ pub async fn user(context: &Context<'_>, command: UserCommand) -> CliResult<()> 
         UserCommand::List => {
             let mut conn = context.db.acquire().await?;
             let admin = access::admin(&mut conn, &principal).await?;
-            user::list(&mut conn, &admin).await?.iter().for_each(print_user);
+            user::list(&mut conn, &admin)
+                .await?
+                .iter()
+                .for_each(|account| print_user(&account.user));
         }
         UserCommand::Add {
             callsign,
