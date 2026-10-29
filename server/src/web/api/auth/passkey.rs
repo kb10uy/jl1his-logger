@@ -23,7 +23,11 @@ use crate::{
             registration, session,
         },
     },
-    web::{AppState, error::ApiError, extract::Json},
+    web::{
+        AppState,
+        error::ApiError,
+        extract::{Json, Query},
+    },
 };
 
 const DEFAULT_PASSKEY_NAME: &str = "Passkey";
@@ -163,12 +167,19 @@ pub async fn link_finish(
     Ok((jar.add(session_cookie(token)), Json(Me::from(&user))))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ListQuery {
+    user_id: Option<String>,
+}
+
 pub async fn list_passkeys(
     State(state): State<Arc<AppState>>,
     SignedIn(user): SignedIn,
+    Query(query): Query<ListQuery>,
 ) -> Result<Json<Vec<PasskeyInfo>>, ApiError> {
+    let user_id = query.user_id.as_deref().unwrap_or(user.user_id());
     let mut conn = state.db.acquire().await?;
-    let passkeys = passkey::list(&mut conn, &user, user.user_id()).await?;
+    let passkeys = passkey::list(&mut conn, &user, user_id).await?;
     Ok(Json(passkeys.into_iter().map(PasskeyInfo::from).collect()))
 }
 
@@ -697,6 +708,26 @@ mod tests {
             send(&h, "DELETE", &first, Some(&cookie), None).await.status,
             StatusCode::CONFLICT
         );
+    }
+
+    #[tokio::test]
+    async fn admins_list_and_delete_the_last_passkey_of_another_user() {
+        let h = Harness::new().await;
+        signed_in_operator(&h).await;
+        let others = format!("/api/passkeys?user_id={}", h.world.operator.id);
+        let outsider = h.session(&h.world.outsider).await;
+        let (status, _) = h.send("GET", &others, Auth::Session(&outsider), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        let admin = h.session(&h.world.admin).await;
+        let (status, body) = h.send("GET", &others, Auth::Session(&admin), None).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body.as_array().unwrap().len(), 1);
+        let only = format!("/api/passkeys/{}", body[0]["id"].as_str().unwrap());
+        let (status, _) = h.send("DELETE", &only, Auth::Session(&admin), None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (_, body) = h.send("GET", &others, Auth::Session(&admin), None).await;
+        assert_eq!(body, json!([]));
     }
 
     #[tokio::test]

@@ -109,10 +109,10 @@ work with the session cookie alone.
 | `POST /api/auth/logout` | | `204`, deleting the session and the cookie |
 | `POST /api/auth/register/start` | `{token}` from the registration link | `{ceremony, options, callsign}` |
 | `POST /api/auth/register/finish` | `{ceremony, credential, name?}` | The user, with the session cookie; the link is used up |
-| `GET /api/passkeys` | | The signed-in user's passkeys `[{id, name, created_at, last_used_at}]` |
+| `GET /api/passkeys?user_id=` | | The signed-in user's passkeys `[{id, name, created_at, last_used_at}]`, or those of `user_id` for an admin |
 | `POST /api/passkeys/register/start` | | `{ceremony, options}`, excluding the user's passkeys |
 | `POST /api/passkeys/register/finish` | `{ceremony, credential, name?}` | `201` with the new passkey |
-| `DELETE /api/passkeys/{id}` | | `204`; `409` for the user's last passkey |
+| `DELETE /api/passkeys/{id}` | | `204`; the passkey's user or an admin; `409` for the user's own last passkey |
 
 `role` is `admin` or `user`. A passkey `name` left out or blank becomes
 `Passkey`.
@@ -209,6 +209,26 @@ favorite is `404`.
 The instance's administration takes the session cookie of an admin only
 (`403` for other users, `401` for API tokens). What an owner does inside a
 Logbook is under Members.
+
+A user here is `{id, callsign, role, disabled_at, passkeys}`: `role` is
+`admin` or `user`, `disabled_at` is `null` for an active user, and `passkeys`
+counts the user's passkeys, `0` until the first registration link is used.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /api/admin/users` | | Every user, by callsign |
+| `POST /api/admin/users` | `{callsign, role}` | `201` with the user, without a passkey |
+| `GET /api/admin/users/{user_id}` | | The user |
+| `PUT /api/admin/users/{user_id}/role` | `{role}` | The user |
+| `POST /api/admin/users/{user_id}/disable` | | The user, disabled: their sessions, API tokens and unused registration link are deleted |
+| `DELETE /api/admin/users/{user_id}/disable` | | The user, enabled again, with none of those back |
+| `POST /api/admin/users/{user_id}/registration` | | `201 {url}`: a registration link valid for 24 hours, replacing the user's unused one |
+
+A callsign that is not one is `400` with `not_a_callsign`, and one that
+already has a user `409`. Disabling or demoting the last active admin and
+disabling the only active owner of a Logbook are `409`; these carry no code.
+A registration link is not issued for a disabled user (`404`). The user's
+passkeys, sessions and tokens are listed and removed with `user_id` above.
 
 A Logbook here is `{id, name, last_seq, owners}`: `last_seq` counts the QSOs
 ever inserted, and `owners` lists the callsigns of its active owners, by

@@ -170,7 +170,7 @@ only one. `jl1his-logger help <command>` lists the options of each.
 
 | Command | Does |
 | --- | --- |
-| `user` | Adds, lists, invites, disables and enables users and changes their instance role (admin) |
+| `user` | Adds, lists, invites, disables and enables users and changes their instance role (admin); the web app's Administration screen does the same under Users |
 | `logbook` | Creates, lists and deletes Logbooks, and makes a user an owner as a recorded rescue |
 | `member` | Lists the members of a Logbook; sets and removes them (owner) |
 | `station` | Manages the Stations of a Logbook and rewrites their past QSOs (owner); marks your favorites |

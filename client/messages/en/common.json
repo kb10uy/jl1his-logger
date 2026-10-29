@@ -13,6 +13,7 @@
     "common_remove": "Remove",
     "common_archive": "Archive",
     "common_back": "Back",
+    "common_back_to": "Back to {section}",
     "common_try_again": "Try again",
     "common_load_failed": "Could not load Stations and Instruments: {error}",
     "common_loading": "Loading…",

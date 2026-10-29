@@ -32,6 +32,14 @@ export interface AdminLogbook {
     owners: string[];
 }
 
+export interface AdminUser {
+    id: string;
+    callsign: string;
+    role: Me['role'];
+    disabled_at: string | null;
+    passkeys: number;
+}
+
 export interface Station {
     id: string;
     name: string;
@@ -164,6 +172,16 @@ export interface Passkey {
     name: string;
     created_at: string;
     last_used_at: string | null;
+}
+
+export interface Session {
+    id: string;
+    user_id: string;
+    user_agent: string | null;
+    created_at: string;
+    last_used_at: string;
+    expires_at: string;
+    current: boolean;
 }
 
 export interface Token {
