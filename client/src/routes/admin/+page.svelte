@@ -4,7 +4,7 @@
 
     onMount(() => {
         if (window.matchMedia('(min-width: 48rem)').matches) {
-            goto('/admin/server', { replace: true });
+            goto('/admin/logbooks', { replace: true });
         }
     });
 </script>

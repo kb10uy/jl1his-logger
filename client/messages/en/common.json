@@ -125,6 +125,8 @@
     "logbook_not_found_link": "Open your last Logbook",
     "no_logbook_title": "No Logbook yet",
     "no_logbook_body": "You are signed in as {callsign}, but no Logbook has you as a member. An owner of a Logbook can add you.",
+    "no_logbook_admin_body": "You are signed in as {callsign}, but no Logbook has you as a member. As an admin you can create one.",
+    "no_logbook_admin_link": "Create a Logbook",
     "latest_title": "Latest at this Station",
     "latest_label": "Latest QSOs at this Station",
     "latest_unsent_label": "Unsent",

@@ -160,6 +160,9 @@ URL:
 jl1his-logger setup --callsign JL1HIS
 ```
 
+Signed in with that passkey, the admin creates the first Logbook on the
+Administration screen of the web app (Logbooks), or with `logbook add` below.
+
 The other commands act as the user named with `--as`, and go through the same
 permission checks as the web app. `--logbook`, `--station` and `--instrument`
 take an ID or a name; `--logbook` and `--station` may be left out when there is

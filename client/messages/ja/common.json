@@ -117,6 +117,8 @@
     "logbook_not_found_link": "最後に使ったログブックを開く",
     "no_logbook_title": "ログブックがありません",
     "no_logbook_body": "{callsign} でサインインしていますが、どのログブックのメンバーにもなっていません。ログブックのオーナーがあなたを追加できます。",
+    "no_logbook_admin_body": "{callsign} でサインインしていますが、どのログブックのメンバーにもなっていません。admin なので新しく作れます。",
+    "no_logbook_admin_link": "ログブックを作成",
     "latest_title": "この運用地の最新 QSO",
     "latest_label": "この運用地の最新 QSO",
     "latest_unsent_label": "未送信",

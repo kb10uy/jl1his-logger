@@ -2,6 +2,8 @@ pub mod instrument;
 pub mod membership;
 pub mod station;
 
+use std::collections::BTreeMap;
+
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
 
 use crate::{
@@ -41,6 +43,12 @@ pub struct Logbook {
     pub last_updated_seq: i64,
     pub cursor_generation: String,
     pub area: Option<AreaField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Owned {
+    pub logbook: Logbook,
+    pub owners: Vec<String>,
 }
 
 impl Logbook {
@@ -159,6 +167,31 @@ pub async fn list_all(conn: &mut SqliteConnection, admin: &AdminAccess) -> Resul
         .iter()
         .map(Logbook::from_row)
         .collect()
+}
+
+pub async fn list_all_with_owners(conn: &mut SqliteConnection, admin: &AdminAccess) -> Result<Vec<Owned>, StoreError> {
+    let logbooks = list_all(conn, admin).await?;
+    let mut owners: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for row in sqlx::query(
+        "SELECT m.logbook_id, u.callsign FROM memberships m JOIN users u ON u.id = m.user_id \
+         WHERE m.role = ? AND u.disabled_at IS NULL ORDER BY u.callsign",
+    )
+    .bind(LogbookRole::Owner.as_str())
+    .fetch_all(conn)
+    .await?
+    {
+        owners
+            .entry(row.try_get("logbook_id")?)
+            .or_default()
+            .push(row.try_get("callsign")?);
+    }
+    Ok(logbooks
+        .into_iter()
+        .map(|logbook| {
+            let owners = owners.remove(&logbook.id).unwrap_or_default();
+            Owned { logbook, owners }
+        })
+        .collect())
 }
 
 pub async fn list(conn: &mut SqliteConnection, user: &UserAccess) -> Result<Vec<(Logbook, LogbookRole)>, StoreError> {

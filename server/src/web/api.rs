@@ -1,3 +1,4 @@
+mod admin;
 pub(super) mod auth;
 mod frequency;
 mod logbook;
@@ -45,6 +46,10 @@ pub(super) fn router() -> Router<Arc<AppState>> {
         .route("/api/tokens/{id}", delete(auth::token::revoke))
         .route("/api/frequencies", get(frequency::list).post(frequency::add))
         .route("/api/frequencies/{id}", delete(frequency::remove))
+        .route(
+            "/api/admin/logbooks",
+            get(admin::list_logbooks).post(admin::create_logbook),
+        )
         .route("/api/logbooks", get(logbook::list))
         .route("/api/logbooks/{logbook_id}", get(logbook::get))
         .route("/api/logbooks/{logbook_id}/settings", put(logbook::set_settings))

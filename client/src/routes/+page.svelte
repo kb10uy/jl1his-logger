@@ -19,8 +19,15 @@
 {#if !target}
     <main class="flex min-h-dvh flex-col items-center justify-center gap-2 p-6 text-center">
         <h1 class="text-xl font-semibold">{m.no_logbook_title()}</h1>
-        <p class="max-w-sm text-muted">
-            {m.no_logbook_body({ callsign: session.me?.callsign ?? '' })}
-        </p>
+        {#if session.me?.role === 'admin'}
+            <p class="max-w-sm text-muted">
+                {m.no_logbook_admin_body({ callsign: session.me.callsign })}
+            </p>
+            <a href="/admin/logbooks">{m.no_logbook_admin_link()}</a>
+        {:else}
+            <p class="max-w-sm text-muted">
+                {m.no_logbook_body({ callsign: session.me?.callsign ?? '' })}
+            </p>
+        {/if}
     </main>
 {/if}

@@ -196,7 +196,7 @@
         </a>
         {#if session.me?.role === 'admin'}
             <a
-                href="/admin/server"
+                href="/admin/logbooks"
                 aria-current={onAdmin ? 'page' : undefined}
                 aria-label={collapsed ? m.nav_admin() : undefined}
                 title={collapsed ? m.nav_admin() : undefined}

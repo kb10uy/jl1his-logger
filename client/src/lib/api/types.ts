@@ -25,6 +25,13 @@ export interface Logbook {
     area_field: Area;
 }
 
+export interface AdminLogbook {
+    id: string;
+    name: string;
+    last_seq: number;
+    owners: string[];
+}
+
 export interface Station {
     id: string;
     name: string;

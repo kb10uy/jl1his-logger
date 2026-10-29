@@ -28,7 +28,10 @@
             groups={[
                 {
                     label: m.admin_scope_instance(),
-                    sections: [{ label: m.admin_server(), href: '/admin/server' }]
+                    sections: [
+                        { label: m.admin_logbooks(), href: '/admin/logbooks' },
+                        { label: m.admin_server(), href: '/admin/server' }
+                    ]
                 }
             ]}
             {logbookId}
