@@ -80,10 +80,7 @@ pub async fn get(
         None => None,
     };
     drop(conn);
-    let entity = state
-        .references
-        .entity(&state.db, &state.config.reference, &call)
-        .await?;
+    let entity = state.references.entity(&state.db, &state.config.reference, &call).await;
 
     Ok(Json(LookupBody {
         entity,
@@ -108,7 +105,7 @@ mod tests {
     use super::*;
     use crate::{
         domain::reference::tests::CTY,
-        store::logbook::station::StationInput,
+        store::{logbook::station::StationInput, reference::ReferenceKind},
         web::testing::{Auth, Harness},
     };
 
@@ -209,6 +206,20 @@ mod tests {
             (&body["entity"]["name"], &body["entity"]["dxcc"]),
             (&json!("Ogasawara"), &json!(192))
         );
+    }
+
+    #[tokio::test]
+    async fn answers_without_an_entity_when_cty_cannot_be_read() {
+        let (h, _dir) = Harness::with_references().await;
+        h.record_reference(ReferenceKind::Cty, "20260915", b"gone").await;
+        let session = h.session(&h.world.operator).await;
+        let created = h.create_qso(&session, &h.station.id, "JA1XYZ", "041000", &[]).await;
+        let query = "call=JA1XYZ&band=40m&mode=CW&qso_date=20261022&time_on=0415";
+        let (status, body) = h.send("GET", &uri(&h, query), Auth::Session(&session), None).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["entity"], Value::Null);
+        assert_eq!(body["previous"]["count"], 1);
+        assert_eq!(body["duplicates"], json!([created["qso"]]));
     }
 
     #[rstest]

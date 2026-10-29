@@ -523,7 +523,8 @@ answers what the reference data and the Logbook know about a callsign:
 `call` is required and answered upper-cased. `entity` is what `cty.dat`
 resolves the call to, with the overrides of the matching alias and longitude
 growing towards the east, and `dxcc` is the entity code from `cty.csv`; it is
-`null` when `cty` is not installed or `cty.dat` does not know the call. `previous` covers the live QSOs whose call has the same base
+`null` when `cty` is not installed, cannot be read (the server logs why) or
+does not know the call. `previous` covers the live QSOs whose call has the same base
 (`JA1XYZ` matches `JA1XYZ/P`), optionally narrowed by `station_ids`, a
 comma-separated list of Station IDs: their number, the latest of them as a QSO
 (`null` without one), and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`
