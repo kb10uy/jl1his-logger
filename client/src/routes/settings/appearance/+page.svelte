@@ -1,5 +1,6 @@
 <script lang="ts">
     import { chooseLocale, LOCALE_NAMES, locales, storedLocale, type Locale } from '#lib/i18n.ts';
+    import { chooseCompact, storedCompact } from '#lib/compact.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { asTheme, chooseTheme, storedTheme } from '#lib/theme.ts';
 
@@ -24,6 +25,18 @@
                 <option value={theme.value}>{theme.label}</option>
             {/each}
         </select>
+    </div>
+    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
+        <label class="flex cursor-pointer items-center gap-2 text-[13px]">
+            <input
+                type="checkbox"
+                class="size-4 accent-info"
+                checked={storedCompact()}
+                onchange={(e) => chooseCompact(e.currentTarget.checked)}
+            />
+            {m.compact_label()}
+        </label>
+        <span class="text-xs text-muted">{m.compact_hint()}</span>
     </div>
     <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
         <label for="display-language" class="text-xs text-muted">{m.language_label()}</label>
