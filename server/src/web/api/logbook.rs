@@ -74,6 +74,7 @@ impl LogbookBody {
 
 #[derive(Debug, Deserialize)]
 pub struct SettingsRequest {
+    name: String,
     area_field: Option<AreaFieldBody>,
 }
 
@@ -137,7 +138,7 @@ pub async fn set_settings(
     let owner = member.access.owner()?;
     let area = req.area_field.map(AreaField::from);
     let mut tx = WriteTx::begin(&state.db).await?;
-    let logbook = logbook::set_area(&mut tx, &owner, area.as_ref()).await?;
+    let logbook = logbook::set_settings(&mut tx, &owner, &req.name, area.as_ref()).await?;
     tx.commit().await?;
     Ok(Json(LogbookBody::new(logbook, member.access.role())))
 }
@@ -223,26 +224,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn owners_set_the_area_field() {
+    async fn owners_set_the_name_and_the_area_field() {
         let h = Harness::new().await;
         let settings = h.path("/settings");
         let owner = h.session(&h.world.owner).await;
         let operator = h.session(&h.world.operator).await;
-        let jcx = Some(json!({ "area_field": { "name": "cnty", "label": "JCC / JCG" } }));
+        let jcx = Some(json!({ "name": "Club 2027", "area_field": { "name": "cnty", "label": "JCC / JCG" } }));
 
         let (status, _) = h.send("PUT", &settings, Auth::Session(&operator), jcx.clone()).await;
         assert_eq!(status, StatusCode::FORBIDDEN);
         let (status, body) = h.send("PUT", &settings, Auth::Session(&owner), jcx).await;
         assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["name"], "Club 2027");
         assert_eq!(body["area_field"], json!({ "name": "CNTY", "label": "JCC / JCG" }));
         let (_, body) = h.send("GET", &h.path(""), Auth::Session(&operator), None).await;
-        assert_eq!(body["area_field"]["name"], "CNTY");
+        assert_eq!(
+            (&body["name"], &body["area_field"]["name"]),
+            (&json!("Club 2027"), &json!("CNTY"))
+        );
 
-        let bad = Some(json!({ "area_field": { "name": "MY_CNTY", "label": "County" } }));
+        let bad = Some(json!({ "name": "Club", "area_field": { "name": "MY_CNTY", "label": "County" } }));
         let (status, _) = h.send("PUT", &settings, Auth::Session(&owner), bad).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
+        let blank = Some(json!({ "name": " ", "area_field": null }));
+        let (status, body) = h.send("PUT", &settings, Auth::Session(&owner), blank).await;
+        assert_eq!(
+            (status, &body["code"]),
+            (StatusCode::BAD_REQUEST, &json!("name_required"))
+        );
+        let unnamed = Some(json!({ "area_field": null }));
+        let (status, _) = h.send("PUT", &settings, Auth::Session(&owner), unnamed).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
-        let none = Some(json!({ "area_field": null }));
+        let none = Some(json!({ "name": "Club", "area_field": null }));
         let (status, body) = h.send("PUT", &settings, Auth::Session(&owner), none).await;
         assert_eq!((status, &body["area_field"]), (StatusCode::OK, &json!(null)));
     }

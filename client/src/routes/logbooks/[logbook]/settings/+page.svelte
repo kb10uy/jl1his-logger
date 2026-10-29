@@ -16,6 +16,29 @@
     const logbook = $derived(session.logbook(logbookId));
     const canEdit = $derived(logbook?.role === 'owner');
 
+    let name = $state(untrack(() => session.logbook(logbookId)?.name ?? ''));
+    let renaming = $state(false);
+    const nameChanged = $derived(name.trim() !== (logbook?.name ?? ''));
+
+    async function rename(event?: Event) {
+        event?.preventDefault();
+        if (!canEdit || logbook === undefined || !nameChanged || renaming) return;
+        renaming = true;
+        try {
+            await api.setLogbookSettings(logbookId, {
+                name,
+                area_field: logbook.area_field ?? null
+            });
+            await session.load();
+            name = session.logbook(logbookId)?.name ?? '';
+            toasts.show(m.settings_logbook_renamed({ name }));
+        } catch (e) {
+            toasts.error(e instanceof Error ? e.message : String(e));
+        } finally {
+            renaming = false;
+        }
+    }
+
     let draft = $state(areaDraftOf(untrack(() => session.logbook(logbookId)?.area_field ?? null)));
     let saving = $state(false);
 
@@ -25,10 +48,11 @@
 
     async function save(event?: Event) {
         event?.preventDefault();
-        if (!canEdit || problem !== undefined || !changed || saving) return;
+        if (!canEdit || logbook === undefined || problem !== undefined || !changed || saving)
+            return;
         saving = true;
         try {
-            await api.setLogbookSettings(logbookId, { area_field: input });
+            await api.setLogbookSettings(logbookId, { name: logbook.name, area_field: input });
             await session.load();
             draft = areaDraftOf(session.logbook(logbookId)?.area_field ?? null);
             toasts.show(
@@ -48,6 +72,32 @@
     {#if !canEdit}
         <Notice tone="info">{m.settings_area_owners_only()}</Notice>
     {/if}
+
+    <SettingsSection title={m.settings_logbook_name()} form onsubmit={rename}>
+        <fieldset
+            disabled={!canEdit}
+            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]"
+        >
+            <SettingsField label={m.settings_logbook_name_label()} for="logbook-name">
+                <input
+                    id="logbook-name"
+                    autocomplete="off"
+                    class="control h-10 w-full md:w-80"
+                    bind:value={name}
+                />
+            </SettingsField>
+        </fieldset>
+        {#if canEdit}
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={!nameChanged || name.trim() === '' || renaming}
+                    >{renaming ? m.common_saving() : m.common_save()}</Button
+                >
+            </div>
+        {/if}
+    </SettingsSection>
 
     <SettingsSection title={m.settings_area_field()} form onsubmit={save}>
         <p class="text-[13px] text-muted">{m.settings_area_help()}</p>

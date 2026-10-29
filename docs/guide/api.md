@@ -239,9 +239,11 @@ the session cookie or a `native` API token.
 | --- | --- | --- |
 | `GET /api/logbooks` | | The caller's Logbooks, by name |
 | `GET /api/logbooks/{logbook_id}` | | One Logbook |
-| `PUT /api/logbooks/{logbook_id}/settings` | `{area_field}`, `{name, label}` or `null` | The Logbook; owners only |
+| `PUT /api/logbooks/{logbook_id}/settings` | `{name, area_field}`, `area_field` `{name, label}` or `null` | The Logbook; owners only |
 
-The area code field's name is an ADIF field name, read ignoring case and
+Both are required: the settings are replaced as a whole. The Logbook's name
+is trimmed, and a blank one is `400` with `name_required`. The area code
+field's name is an ADIF field name, read ignoring case and
 stored upper-cased, and its label is required. `CALL`, `QSO_DATE`, `TIME_ON`,
 `BAND`, `MODE`, `STATION_CALLSIGN`, `OPERATOR` or a `MY_*` field is `400` with
 `area_field_not_allowed`. Changing
