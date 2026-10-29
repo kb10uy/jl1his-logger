@@ -9,6 +9,8 @@ use thiserror::Error;
 const MAXIMUM_RESPONSE_LINES: usize = 512;
 const MAXIMUM_RESPONSE_LINE_BYTES: u64 = 4_096;
 const REPORT_GRACE: Duration = Duration::from_millis(150);
+const NOT_IMPLEMENTED: i32 = -4;
+const NOT_AVAILABLE: i32 = -11;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RigStatus {
@@ -22,6 +24,7 @@ pub struct Rigctld {
     writer: TcpStream,
     timeout: Duration,
     requires_vfo: bool,
+    follows_vfo: bool,
 }
 
 impl Rigctld {
@@ -45,6 +48,7 @@ impl Rigctld {
             writer,
             timeout,
             requires_vfo: false,
+            follows_vfo: true,
         };
         rig.requires_vfo = rig.asks_for_a_vfo()?;
         Ok(rig)
@@ -73,10 +77,26 @@ impl Rigctld {
     }
 
     pub fn status(&mut self) -> Result<RigStatus, RigError> {
+        self.follow_vfo()?;
         Ok(RigStatus {
             frequency_hz: self.frequency()?,
             mode: self.mode()?,
         })
+    }
+
+    fn follow_vfo(&mut self) -> Result<(), RigError> {
+        if !self.follows_vfo {
+            return Ok(());
+        }
+        match self.send("\\get_vfo") {
+            Err(RigError::Refused {
+                code: NOT_IMPLEMENTED | NOT_AVAILABLE,
+                ..
+            }) => self.follows_vfo = false,
+            Err(e) if e.is_fatal() => return Err(e),
+            _ => {}
+        }
+        Ok(())
     }
 
     fn query(&mut self, name: &str) -> Result<Vec<String>, RigError> {
@@ -324,6 +344,7 @@ mod tests {
     fn reads_the_frequency_and_the_mode_together() {
         let fake = FakeRig::spawn(&[
             NO_VFO,
+            "get_vfo:\nVFO: VFOA\nRPRT 0\n",
             "get_freq:\nFreq: 14074000\nRPRT 0\n",
             "get_mode:\nMode: PKTUSB\nPassband: 3000\nRPRT 0\n",
         ]);
@@ -336,6 +357,57 @@ mod tests {
                 mode: "PKTUSB".to_owned(),
             })
         );
+        assert_eq!(
+            fake.received(),
+            ["+\\chk_vfo", "+\\get_vfo", "+\\get_freq", "+\\get_mode"]
+        );
+    }
+
+    #[rstest]
+    #[case::not_available("RPRT -11\n")]
+    #[case::not_implemented("RPRT -4\n")]
+    fn stops_asking_for_the_vfo_a_rig_cannot_report(#[case] refusal: &str) {
+        let fake = FakeRig::spawn(&[
+            NO_VFO,
+            refusal,
+            "get_freq:\nFreq: 7041000\nRPRT 0\n",
+            "get_mode:\nMode: CW\nPassband: 500\nRPRT 0\n",
+            "get_freq:\nFreq: 7042000\nRPRT 0\n",
+            "get_mode:\nMode: CW\nPassband: 500\nRPRT 0\n",
+        ]);
+        let mut rig = Rigctld::connect(&fake.address, TEST_TIMEOUT).unwrap();
+
+        assert_eq!(rig.status().map(|status| status.frequency_hz), Ok(7_041_000));
+        assert_eq!(rig.status().map(|status| status.frequency_hz), Ok(7_042_000));
+        assert_eq!(
+            fake.received(),
+            [
+                "+\\chk_vfo",
+                "+\\get_vfo",
+                "+\\get_freq",
+                "+\\get_mode",
+                "+\\get_freq",
+                "+\\get_mode"
+            ]
+        );
+    }
+
+    #[test]
+    fn keeps_asking_for_the_vfo_after_a_passing_failure() {
+        let fake = FakeRig::spawn(&[
+            NO_VFO,
+            "RPRT -5\n",
+            "get_freq:\nFreq: 7041000\nRPRT 0\n",
+            "get_mode:\nMode: CW\nPassband: 500\nRPRT 0\n",
+            "get_vfo:\nVFO: VFOB\nRPRT 0\n",
+            "get_freq:\nFreq: 7042000\nRPRT 0\n",
+            "get_mode:\nMode: CW\nPassband: 500\nRPRT 0\n",
+        ]);
+        let mut rig = Rigctld::connect(&fake.address, TEST_TIMEOUT).unwrap();
+
+        assert_eq!(rig.status().map(|status| status.frequency_hz), Ok(7_041_000));
+        assert_eq!(rig.status().map(|status| status.frequency_hz), Ok(7_042_000));
+        assert_eq!(fake.received().iter().filter(|line| *line == "+\\get_vfo").count(), 2);
     }
 
     #[test]
