@@ -280,7 +280,7 @@
                 <DropdownMenu.Trigger
                     class="mb-1 flex h-8 items-center justify-between gap-2 rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
                 >
-                    <span class="min-w-0 truncate font-mono font-semibold"
+                    <span class="min-w-0 truncate font-semibold"
                         >{logbook?.name ?? m.nav_logbook()}</span
                     >
                     <span
@@ -301,7 +301,7 @@
                             onSelect={() => switchTo(l.id)}
                             class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
                         >
-                            <span class="font-mono font-semibold">{l.name}</span>
+                            <span class="font-semibold">{l.name}</span>
                             <span class="text-xs text-muted">{roleLabel(l.role)}</span>
                         </DropdownMenu.Item>
                     {/each}
