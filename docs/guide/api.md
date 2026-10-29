@@ -21,6 +21,7 @@ endpoint takes a token:
 | `GET /api/me`, `/api/frequencies` | Yes | Yes |
 | `GET /api/logbooks` and everything under `/api/logbooks/{logbook_id}`: Logbooks, Members, Stations, Instruments, QSOs, Lookup, Bulk QSL Changes, Export Batches, ADIF Import, the Event Stream | Yes | Yes, for the Logbooks of its scopes |
 | `POST /api/auth/logout`, `/api/passkeys`, `/api/sessions`, `/api/tokens`, `GET /api/version`, `/api/reference` | Yes | No: `401` |
+| `/api/admin/*` | Yes, of an admin: `403` for other users | No: `401` |
 
 A token reaches only the Logbooks of its scopes where its user still has a
 Membership. Under
@@ -202,6 +203,28 @@ token, which reaches the favorites of its user whatever its scopes.
 import-only, and `submode`, which may be left out, empty or one of its
 submodes; anything else is `400 favorite_frequency_invalid`. Another user's
 favorite is `404`.
+
+## Administration
+
+The instance's administration takes the session cookie of an admin only
+(`403` for other users, `401` for API tokens). What an owner does inside a
+Logbook is under Members.
+
+A Logbook here is `{id, name, last_seq, owners}`: `last_seq` counts the QSOs
+ever inserted, and `owners` lists the callsigns of its active owners, by
+callsign.
+
+| Request | Body | Response |
+| --- | --- | --- |
+| `GET /api/admin/logbooks` | | Every Logbook, by name |
+| `POST /api/admin/logbooks` | `{name, owner}` | `201` with the Logbook; `owner` is the callsign of an active user, who becomes its first owner |
+| `DELETE /api/admin/logbooks/{logbook_id}` | | `204` after writing a snapshot of the database to `snapshots` next to it; everything the Logbook owns goes with it |
+
+A blank `name` is `400` with `name_required`, and an `owner` no active user
+has is `404` with `what` `user`. The deletion has no confirmation step of its
+own: the web client asks for the Logbook's name before calling it. A snapshot
+that cannot be written is `500` and deletes nothing. Adding an owner as a
+rescue stays with the CLI.
 
 ## Logbooks
 

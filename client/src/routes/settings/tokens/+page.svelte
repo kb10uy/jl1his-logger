@@ -2,6 +2,8 @@
     import { onMount } from 'svelte';
     import * as api from '#lib/api/api.ts';
     import type { Token } from '#lib/api/types.ts';
+    import SettingsField from '#lib/components/SettingsField.svelte';
+    import SettingsSection from '#lib/components/SettingsSection.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
@@ -81,25 +83,19 @@
     }
 </script>
 
-<section aria-label={m.settings_tokens()} class="flex flex-col gap-4">
-    <form
-        class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
-        onsubmit={issue}
-    >
-        <h2 class="text-[15px] font-semibold">{m.settings_tokens_issue_title()}</h2>
-        <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[120px_minmax(0,1fr)]">
-            <label for="tok-name" class="text-xs text-muted md:pt-2.5"
-                >{m.settings_tokens_name()}</label
-            >
+<SettingsSection title={m.settings_tokens_issue_title()} form onsubmit={issue}>
+    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+        <SettingsField label={m.settings_tokens_name()} for="tok-name">
             <input
                 id="tok-name"
-                class="control h-10"
+                class="control h-10 w-full md:w-60"
                 placeholder={m.settings_tokens_name_placeholder()}
                 autocomplete="off"
                 bind:value={name}
             />
-            <span class="text-xs text-muted md:pt-0.5">{m.settings_tokens_logbooks()}</span>
-            <div class="flex flex-col gap-2">
+        </SettingsField>
+        <SettingsField label={m.settings_tokens_logbooks()}>
+            <div class="flex flex-col gap-2 md:pt-2.5">
                 {#each session.logbooks as logbook (logbook.id)}
                     <label class="flex cursor-pointer items-center gap-2 text-[13px]">
                         <input
@@ -113,81 +109,79 @@
                     </label>
                 {/each}
             </div>
-        </div>
-        <div class="flex flex-wrap items-center justify-end gap-3">
-            {#if problem && name !== ''}
-                <span class="mr-auto text-xs text-muted">{problem}</span>
-            {/if}
-            <Button type="submit" variant="primary" disabled={problem !== undefined || issuing}
-                >{issuing ? m.settings_tokens_issuing() : m.settings_tokens_issue()}</Button
-            >
-        </div>
-        {#if plaintext}
-            <Notice tone="info">
-                <div class="flex flex-col gap-2">
-                    <span class="font-semibold">{m.settings_tokens_shown_once()}</span>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <code
-                            class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-[13px] break-all text-text select-all"
-                            >{plaintext}</code
-                        >
-                        <Button size="sm" onclick={copy}>{m.common_copy()}</Button>
-                    </div>
-                </div>
-            </Notice>
+        </SettingsField>
+    </div>
+    <div class="flex flex-wrap items-center justify-end gap-3">
+        {#if problem && name !== ''}
+            <span class="mr-auto text-xs text-muted">{problem}</span>
         {/if}
-    </form>
+        <Button type="submit" variant="primary" disabled={problem !== undefined || issuing}
+            >{issuing ? m.settings_tokens_issuing() : m.settings_tokens_issue()}</Button
+        >
+    </div>
+    {#if plaintext}
+        <Notice tone="info">
+            <div class="flex flex-col gap-2">
+                <span class="font-semibold">{m.settings_tokens_shown_once()}</span>
+                <div class="flex flex-wrap items-center gap-2">
+                    <code
+                        class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-[13px] break-all text-text select-all"
+                        >{plaintext}</code
+                    >
+                    <Button size="sm" onclick={copy}>{m.common_copy()}</Button>
+                </div>
+            </div>
+        </Notice>
+    {/if}
+</SettingsSection>
 
-    <div class="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table class="w-full border-collapse text-[13px]">
-            <thead>
-                <tr class="text-left text-xs text-muted">
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                        >{m.settings_tokens_name()}</th
+<SettingsSection title={m.settings_tokens_list_title()} padded={false}>
+    <table class="w-full border-collapse text-[13px]">
+        <thead>
+            <tr class="text-left text-xs text-muted">
+                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                    >{m.settings_tokens_name()}</th
+                >
+                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                    >{m.settings_tokens_logbooks()}</th
+                >
+                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                    >{m.settings_tokens_last_used()}</th
+                >
+                <th scope="col" class="border-b border-border px-3 py-2"
+                    ><span class="sr-only">{m.settings_tokens_actions()}</span></th
+                >
+            </tr>
+        </thead>
+        <tbody>
+            {#each tokens ?? [] as token (token.id)}
+                <tr class="border-b border-surface-2 last:border-b-0">
+                    <td class="px-3 py-2.5">{token.name}</td>
+                    <td class="px-3 py-2.5 font-mono">{logbookNames(token.logbook_ids)}</td>
+                    <td class="px-3 py-2.5 font-mono text-muted"
+                        >{token.last_used_at?.slice(0, 10) ?? m.settings_never()}</td
                     >
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                        >{m.settings_tokens_logbooks()}</th
-                    >
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
-                        >{m.settings_tokens_last_used()}</th
-                    >
-                    <th scope="col" class="border-b border-border px-3 py-2"
-                        ><span class="sr-only">{m.settings_tokens_actions()}</span></th
+                    <td class="px-3 py-2 text-right">
+                        <Button
+                            size="sm"
+                            variant="danger"
+                            onclick={() => {
+                                revoking = token;
+                                confirming = true;
+                            }}>{m.settings_tokens_revoke()}</Button
+                        >
+                    </td>
+                </tr>
+            {:else}
+                <tr>
+                    <td colspan="4" class="px-3 py-4 text-muted"
+                        >{tokens === undefined ? m.common_loading() : m.settings_tokens_none()}</td
                     >
                 </tr>
-            </thead>
-            <tbody>
-                {#each tokens ?? [] as token (token.id)}
-                    <tr class="border-b border-surface-2 last:border-b-0">
-                        <td class="px-3 py-2.5">{token.name}</td>
-                        <td class="px-3 py-2.5 font-mono">{logbookNames(token.logbook_ids)}</td>
-                        <td class="px-3 py-2.5 font-mono text-muted"
-                            >{token.last_used_at?.slice(0, 10) ?? m.settings_never()}</td
-                        >
-                        <td class="px-3 py-2 text-right">
-                            <Button
-                                size="sm"
-                                variant="danger"
-                                onclick={() => {
-                                    revoking = token;
-                                    confirming = true;
-                                }}>{m.settings_tokens_revoke()}</Button
-                            >
-                        </td>
-                    </tr>
-                {:else}
-                    <tr>
-                        <td colspan="4" class="px-3 py-4 text-muted"
-                            >{tokens === undefined
-                                ? m.common_loading()
-                                : m.settings_tokens_none()}</td
-                        >
-                    </tr>
-                {/each}
-            </tbody>
-        </table>
-    </div>
-</section>
+            {/each}
+        </tbody>
+    </table>
+</SettingsSection>
 
 <ConfirmDialog
     bind:open={confirming}

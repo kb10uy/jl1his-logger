@@ -4,7 +4,9 @@
     import { page } from '$app/state';
     import * as api from '#lib/api/api.ts';
     import type { LogbookRole, Member } from '#lib/api/types.ts';
+    import SettingsField from '#lib/components/SettingsField.svelte';
     import SettingsFrame from '#lib/components/SettingsFrame.svelte';
+    import SettingsSection from '#lib/components/SettingsSection.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
@@ -102,89 +104,79 @@
 </script>
 
 <SettingsFrame {logbookId}>
-    <section aria-label={m.settings_members()} class="flex flex-col gap-4">
-        {#if canEdit}
-            <form
-                class="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
-                onsubmit={add}
-            >
-                <div class="flex flex-col gap-1">
-                    <label for="mem-call" class="text-xs text-muted"
-                        >{m.settings_members_callsign()}</label
-                    >
+    {#if canEdit}
+        <SettingsSection title={m.settings_members_add_title()} form onsubmit={add}>
+            <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+                <SettingsField label={m.settings_members_callsign()} for="mem-call">
                     <input
                         id="mem-call"
-                        class="control h-10 w-40 font-mono uppercase"
+                        class="control h-10 w-full font-mono uppercase md:w-60"
                         placeholder="JA1ABC"
                         autocomplete="off"
                         spellcheck="false"
                         bind:value={callsign}
                     />
-                </div>
-                <div class="flex flex-col gap-1">
-                    <label for="mem-role" class="text-xs text-muted"
-                        >{m.settings_members_role()}</label
-                    >
-                    <select id="mem-role" class="control h-10" bind:value={role}>
+                </SettingsField>
+                <SettingsField label={m.settings_members_role()} for="mem-role">
+                    <select id="mem-role" class="control h-10 w-full md:w-60" bind:value={role}>
                         <option value="operator">{roleLabel('operator')}</option>
                         <option value="owner">{roleLabel('owner')}</option>
                     </select>
-                </div>
-                <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    disabled={adding || callsign.trim() === ''}>{m.settings_members_add()}</Button
+                </SettingsField>
+            </div>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <span class="mr-auto text-xs text-muted">{m.settings_members_must_exist()}</span>
+                <Button type="submit" variant="primary" disabled={adding || callsign.trim() === ''}
+                    >{m.settings_members_add()}</Button
                 >
-                <span class="basis-full text-xs text-muted">{m.settings_members_must_exist()}</span>
-            </form>
-        {:else}
-            <Notice tone="info">{m.settings_members_owners_only()}</Notice>
-        {/if}
+            </div>
+        </SettingsSection>
+    {:else}
+        <Notice tone="info">{m.settings_members_owners_only()}</Notice>
+    {/if}
 
-        <div class="flex flex-col rounded-lg border border-border bg-surface">
-            {#each members ?? [] as member (member.user_id)}
-                <div
-                    class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-2 px-4 py-3 last:border-b-0"
+    <SettingsSection title={m.settings_members()} padded={false}>
+        {#each members ?? [] as member (member.user_id)}
+            <div
+                class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-2 px-4 py-3 last:border-b-0"
+            >
+                <span class={['font-mono font-semibold', member.disabled && 'text-muted']}
+                    >{member.callsign}</span
                 >
-                    <span class={['font-mono font-semibold', member.disabled && 'text-muted']}
-                        >{member.callsign}</span
+                <span class="min-w-0 flex-1 text-xs text-muted">{note(member)}</span>
+                {#if canEdit}
+                    <label for={`role-${member.user_id}`} class="sr-only"
+                        >{m.settings_members_role_of({ callsign: member.callsign })}</label
                     >
-                    <span class="min-w-0 flex-1 text-xs text-muted">{note(member)}</span>
-                    {#if canEdit}
-                        <label for={`role-${member.user_id}`} class="sr-only"
-                            >{m.settings_members_role_of({ callsign: member.callsign })}</label
-                        >
-                        <select
-                            id={`role-${member.user_id}`}
-                            class="control h-9"
-                            disabled={locked(member)}
-                            value={member.role}
-                            onchange={(e) => setRole(member, e.currentTarget.value as LogbookRole)}
-                        >
-                            <option value="owner">{roleLabel('owner')}</option>
-                            <option value="operator">{roleLabel('operator')}</option>
-                        </select>
-                        <Button
-                            size="sm"
-                            variant="danger"
-                            disabled={locked(member)}
-                            onclick={() => {
-                                removing = member;
-                                confirming = true;
-                            }}>{m.common_remove()}</Button
-                        >
-                    {:else}
-                        <span class="text-[13px]">{roleLabel(member.role)}</span>
-                    {/if}
-                </div>
-            {:else}
-                <p class="px-4 py-3 text-muted">
-                    {members === undefined ? m.common_loading() : ''}
-                </p>
-            {/each}
-        </div>
-    </section>
+                    <select
+                        id={`role-${member.user_id}`}
+                        class="control h-9"
+                        disabled={locked(member)}
+                        value={member.role}
+                        onchange={(e) => setRole(member, e.currentTarget.value as LogbookRole)}
+                    >
+                        <option value="owner">{roleLabel('owner')}</option>
+                        <option value="operator">{roleLabel('operator')}</option>
+                    </select>
+                    <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={locked(member)}
+                        onclick={() => {
+                            removing = member;
+                            confirming = true;
+                        }}>{m.common_remove()}</Button
+                    >
+                {:else}
+                    <span class="text-[13px]">{roleLabel(member.role)}</span>
+                {/if}
+            </div>
+        {:else}
+            <p class="px-4 py-3 text-muted">
+                {members === undefined ? m.common_loading() : ''}
+            </p>
+        {/each}
+    </SettingsSection>
 </SettingsFrame>
 
 <ConfirmDialog

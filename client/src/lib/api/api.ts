@@ -1,6 +1,7 @@
 import { m } from '#lib/paraglide/messages.js';
 import { query, request } from './client.ts';
 import type {
+    AdminLogbook,
     Area,
     Batch,
     Encoding,
@@ -128,6 +129,14 @@ export const removeFavoriteFrequency = (id: string) =>
     request<void>('DELETE', `/api/frequencies/${encodeURIComponent(id)}`);
 
 export const logbooks = () => request<Logbook[]>('GET', '/api/logbooks');
+
+export const adminLogbooks = () => request<AdminLogbook[]>('GET', '/api/admin/logbooks');
+
+export const createLogbook = (input: { name: string; owner: string }) =>
+    request<AdminLogbook>('POST', '/api/admin/logbooks', { body: input });
+
+export const deleteLogbook = (id: string) =>
+    request<void>('DELETE', `/api/admin/logbooks/${encodeURIComponent(id)}`);
 
 const base = (logbook: string) => `/api/logbooks/${encodeURIComponent(logbook)}`;
 

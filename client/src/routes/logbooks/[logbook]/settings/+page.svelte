@@ -2,7 +2,9 @@
     import { untrack } from 'svelte';
     import { page } from '$app/state';
     import * as api from '#lib/api/api.ts';
+    import SettingsField from '#lib/components/SettingsField.svelte';
     import SettingsFrame from '#lib/components/SettingsFrame.svelte';
+    import SettingsSection from '#lib/components/SettingsSection.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import Notice from '#lib/components/ui/Notice.svelte';
     import { AREA_PRESETS, areaDraftOf, areaInput, areaProblem } from '#lib/logbook/area.ts';
@@ -43,45 +45,38 @@
 </script>
 
 <SettingsFrame {logbookId}>
-    <form
-        aria-label={m.settings_area_field()}
-        class="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4"
-        onsubmit={save}
-    >
-        <div class="flex flex-col gap-1">
-            <h2 class="text-base font-semibold">{m.settings_area_field()}</h2>
-            <p class="text-[13px] text-muted">
-                {m.settings_area_help()}
-            </p>
-        </div>
+    {#if !canEdit}
+        <Notice tone="info">{m.settings_area_owners_only()}</Notice>
+    {/if}
+
+    <SettingsSection title={m.settings_area_field()} form onsubmit={save}>
+        <p class="text-[13px] text-muted">{m.settings_area_help()}</p>
 
         <fieldset
             disabled={!canEdit}
-            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[168px_minmax(0,1fr)]"
+            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]"
         >
-            <label for="area-name" class="flex flex-col text-xs text-muted md:pt-2">
-                <span>{m.settings_area_adif_field()}</span>
-            </label>
-            <input
-                id="area-name"
-                list="area-fields"
-                placeholder="—"
-                autocomplete="off"
-                autocapitalize="characters"
-                spellcheck="false"
-                class="control h-10 w-full font-mono uppercase md:w-60"
-                bind:value={draft.name}
-            />
-            <label for="area-label" class="flex flex-col text-xs text-muted md:pt-2">
-                <span>{m.settings_area_label()}</span>
-            </label>
-            <input
-                id="area-label"
-                placeholder={m.settings_area_label_placeholder()}
-                autocomplete="off"
-                class="control h-10 w-full md:w-60"
-                bind:value={draft.label}
-            />
+            <SettingsField label={m.settings_area_adif_field()} for="area-name">
+                <input
+                    id="area-name"
+                    list="area-fields"
+                    placeholder="—"
+                    autocomplete="off"
+                    autocapitalize="characters"
+                    spellcheck="false"
+                    class="control h-10 w-full font-mono uppercase md:w-60"
+                    bind:value={draft.name}
+                />
+            </SettingsField>
+            <SettingsField label={m.settings_area_label()} for="area-label">
+                <input
+                    id="area-label"
+                    placeholder={m.settings_area_label_placeholder()}
+                    autocomplete="off"
+                    class="control h-10 w-full md:w-60"
+                    bind:value={draft.label}
+                />
+            </SettingsField>
             {#if canEdit}
                 <span class="hidden md:block"></span>
                 <div class="flex flex-wrap gap-2">
@@ -110,10 +105,10 @@
         {/if}
 
         {#if canEdit}
-            <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-                <span class="mr-auto text-xs text-muted"
-                    >{changed ? m.settings_area_keeps_values() : ''}</span
-                >
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                {#if changed}
+                    <span class="mr-auto text-xs text-muted">{m.settings_area_keeps_values()}</span>
+                {/if}
                 <Button
                     type="submit"
                     variant="primary"
@@ -121,8 +116,6 @@
                     >{saving ? m.common_saving() : m.common_save()}</Button
                 >
             </div>
-        {:else}
-            <p class="text-xs text-muted">{m.settings_area_owners_only()}</p>
         {/if}
-    </form>
+    </SettingsSection>
 </SettingsFrame>

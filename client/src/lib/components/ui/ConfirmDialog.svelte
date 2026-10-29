@@ -1,5 +1,7 @@
 <script lang="ts">
     import { AlertDialog } from 'bits-ui';
+    import Slotted from '#lib/components/ui/Slotted.svelte';
+    import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
 
     let {
@@ -8,6 +10,7 @@
         description,
         confirm,
         danger = false,
+        challenge,
         onconfirm
     }: {
         open?: boolean;
@@ -15,8 +18,16 @@
         description: string;
         confirm: string;
         danger?: boolean;
+        challenge?: string;
         onconfirm: () => void;
     } = $props();
+
+    let typed = $state('');
+    const ready = $derived(challenge === undefined || typed.trim() === challenge);
+
+    $effect(() => {
+        if (!open) typed = '';
+    });
 </script>
 
 <AlertDialog.Root bind:open>
@@ -29,14 +40,30 @@
             <AlertDialog.Description class="text-[13px] text-muted">
                 {description}
             </AlertDialog.Description>
+            {#if challenge !== undefined}
+                <label class="flex flex-col gap-1 text-xs text-muted">
+                    <span
+                        ><Slotted text={m.common_type_to_confirm({ name: SLOT })}
+                            ><span class="font-mono text-text">{challenge}</span></Slotted
+                        ></span
+                    >
+                    <input
+                        class="control h-10 font-mono"
+                        autocomplete="off"
+                        spellcheck="false"
+                        bind:value={typed}
+                    />
+                </label>
+            {/if}
             <div class="mt-2 flex justify-end gap-2">
                 <AlertDialog.Cancel
                     class="h-9 rounded-md border border-border bg-transparent px-3.5 text-text"
                     >{m.common_cancel()}</AlertDialog.Cancel
                 >
                 <AlertDialog.Action
+                    disabled={!ready}
                     class={[
-                        'h-9 rounded-md px-3.5 font-semibold',
+                        'h-9 rounded-md px-3.5 font-semibold disabled:opacity-50',
                         danger ? 'border border-error text-error' : 'bg-accent text-accent-text'
                     ]}
                     onclick={() => {

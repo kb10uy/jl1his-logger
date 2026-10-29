@@ -82,7 +82,8 @@ cargo run --release -- -c data/config.toml serve
 ```
 
 `setup` prints a one-time link to register the first admin's passkey. Passkeys
-need HTTPS or `http://localhost`. See [docs/guide/operations.md](docs/guide/operations.md)
+need HTTPS or `http://localhost`. Once signed in, create the first Logbook on
+the Administration screen. See [docs/guide/operations.md](docs/guide/operations.md)
 for the rest, including the container image.
 
 ## Development

@@ -1,4 +1,6 @@
 <script lang="ts">
+    import SettingsField from '#lib/components/SettingsField.svelte';
+    import SettingsSection from '#lib/components/SettingsSection.svelte';
     import { m } from '#lib/paraglide/messages.js';
     import type { SpeechLanguage } from '#lib/voice/dsl/lexicon.ts';
     import { LANGUAGE_LABELS, loadVoice, saveVoice } from '#lib/voice/settings.ts';
@@ -11,19 +13,23 @@
     }
 </script>
 
-<section aria-label={m.settings_voice()} class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1 rounded-lg border border-border bg-surface p-4">
-        <label for="voice-language" class="text-xs text-muted">{m.voice_speech_language()}</label>
-        <select
-            id="voice-language"
-            class="control w-52"
-            value={language}
-            onchange={(e) => setLanguage(e.currentTarget.value as SpeechLanguage)}
+<SettingsSection title={m.settings_voice_recognition()}>
+    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+        <SettingsField
+            label={m.voice_speech_language()}
+            for="voice-language"
+            hint={m.voice_speech_language_hint()}
         >
-            {#each Object.entries(LANGUAGE_LABELS) as [value, label] (value)}
-                <option {value}>{label()}</option>
-            {/each}
-        </select>
-        <span class="text-xs text-muted">{m.voice_speech_language_hint()}</span>
+            <select
+                id="voice-language"
+                class="control h-10 w-full md:w-60"
+                value={language}
+                onchange={(e) => setLanguage(e.currentTarget.value as SpeechLanguage)}
+            >
+                {#each Object.entries(LANGUAGE_LABELS) as [value, label] (value)}
+                    <option {value}>{label()}</option>
+                {/each}
+            </select>
+        </SettingsField>
     </div>
-</section>
+</SettingsSection>

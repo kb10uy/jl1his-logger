@@ -29,7 +29,10 @@
         { label: m.nav_qsl_management(), icon: 'qsl', href: `${root}/qsl-management` },
         { label: m.nav_import_export(), icon: 'transfer', href: `${root}/import-export` },
         { label: m.nav_members(), icon: 'members', href: `${root}/members` },
-        { label: m.nav_settings(), icon: 'settings', href: '/settings' }
+        { label: m.nav_settings(), icon: 'settings', href: '/settings' },
+        ...(session.me?.role === 'admin'
+            ? [{ label: m.nav_admin(), icon: 'admin' as const, href: '/admin' }]
+            : [])
     ];
 
     async function signOut() {
