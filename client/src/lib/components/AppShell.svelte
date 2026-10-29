@@ -34,61 +34,66 @@
         mobile: boolean;
     }
 
-    const items = $derived<Item[]>(
+    const groups = $derived<Item[][]>(
         root === null
             ? []
             : [
-                  {
-                      label: m.nav_logbook(),
-                      short: m.nav_logbook_short(),
-                      icon: 'log',
-                      href: root,
-                      mobile: true
-                  },
-                  {
-                      label: m.nav_live_entry(),
-                      short: m.nav_live_entry_short(),
-                      icon: 'entry',
-                      href: `${root}/entry`,
-                      mobile: true
-                  },
-                  {
-                      label: m.nav_voice_entry(),
-                      short: m.nav_voice_entry_short(),
-                      icon: 'voice',
-                      href: `${root}/voice`,
-                      mobile: true
-                  },
-                  {
-                      label: m.nav_stations(),
-                      short: m.nav_stations(),
-                      icon: 'stations',
-                      href: `${root}/stations`,
-                      mobile: false
-                  },
-                  {
-                      label: m.nav_instruments(),
-                      short: m.nav_instruments(),
-                      icon: 'instruments',
-                      href: `${root}/instruments`,
-                      mobile: false
-                  },
-                  {
-                      label: m.nav_qsl_management(),
-                      short: m.nav_qsl_management_short(),
-                      icon: 'qsl',
-                      href: `${root}/qsl-management`,
-                      mobile: false
-                  },
-                  {
-                      label: m.nav_import_export(),
-                      short: m.nav_import_export_short(),
-                      icon: 'transfer',
-                      href: `${root}/import-export`,
-                      mobile: false
-                  }
+                  [
+                      {
+                          label: m.nav_logbook(),
+                          short: m.nav_logbook_short(),
+                          icon: 'log',
+                          href: root,
+                          mobile: true
+                      },
+                      {
+                          label: m.nav_live_entry(),
+                          short: m.nav_live_entry_short(),
+                          icon: 'entry',
+                          href: `${root}/entry`,
+                          mobile: true
+                      },
+                      {
+                          label: m.nav_voice_entry(),
+                          short: m.nav_voice_entry_short(),
+                          icon: 'voice',
+                          href: `${root}/voice`,
+                          mobile: true
+                      }
+                  ],
+                  [
+                      {
+                          label: m.nav_stations(),
+                          short: m.nav_stations(),
+                          icon: 'stations',
+                          href: `${root}/stations`,
+                          mobile: false
+                      },
+                      {
+                          label: m.nav_instruments(),
+                          short: m.nav_instruments(),
+                          icon: 'instruments',
+                          href: `${root}/instruments`,
+                          mobile: false
+                      },
+                      {
+                          label: m.nav_qsl_management(),
+                          short: m.nav_qsl_management_short(),
+                          icon: 'qsl',
+                          href: `${root}/qsl-management`,
+                          mobile: false
+                      },
+                      {
+                          label: m.nav_import_export(),
+                          short: m.nav_import_export_short(),
+                          icon: 'transfer',
+                          href: `${root}/import-export`,
+                          mobile: false
+                      }
+                  ]
               ]
     );
+    const items = $derived(groups.flat());
 
     const current = (href: string) =>
         page.url.pathname === href || (href !== root && page.url.pathname.startsWith(`${href}/`));
@@ -174,16 +179,19 @@
                 onclick={toggle}><Icon name={collapsed ? 'expand' : 'collapse'} /></button
             >
         </div>
-        {#each items as item (item.href)}
-            <a
-                href={item.href}
-                aria-current={current(item.href) ? 'page' : undefined}
-                aria-label={collapsed ? item.label : undefined}
-                title={collapsed ? item.label : undefined}
-                class={linkClass(current(item.href))}
-            >
-                <Icon name={item.icon} />{#if !collapsed}{item.label}{/if}
-            </a>
+        {#each groups as group, i (i)}
+            {#each group as item (item.href)}
+                <a
+                    href={item.href}
+                    aria-current={current(item.href) ? 'page' : undefined}
+                    aria-label={collapsed ? item.label : undefined}
+                    title={collapsed ? item.label : undefined}
+                    class={linkClass(current(item.href))}
+                >
+                    <Icon name={item.icon} />{#if !collapsed}{item.label}{/if}
+                </a>
+            {/each}
+            {@render separator()}
         {/each}
         <a
             href="/settings/account"
@@ -252,6 +260,10 @@
             </div>
         {/if}
     </nav>
+
+    {#snippet separator()}
+        <hr class={['my-1.5 border-border', collapsed ? 'mx-2' : 'mx-3']} />
+    {/snippet}
 
     {#snippet logbookMenu()}
         <DropdownMenu.Root>
