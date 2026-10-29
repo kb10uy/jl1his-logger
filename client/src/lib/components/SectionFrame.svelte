@@ -83,7 +83,11 @@
           ? `${title} · ${current.group.label}`
           : session.me?.callsign}
     back={inner
-        ? { href: inner.section.href, label: inner.section.label }
+        ? {
+              href: inner.section.href,
+              label: m.common_back_to({ section: inner.section.label }),
+              always: true
+          }
         : logbookId === null
           ? undefined
           : current
