@@ -17,10 +17,12 @@
     let {
         tuning,
         onselect,
+        iconOnly = false,
         class: className = ''
     }: {
         tuning: FrequencyInput;
         onselect: (favorite: FavoriteFrequency) => void;
+        iconOnly?: boolean;
         class?: string;
     } = $props();
 
@@ -73,8 +75,11 @@
 
 <Popover.Root bind:open onOpenChange={(next) => next && favoriteFrequencies.load()}>
     <Popover.Trigger
+        aria-label={iconOnly ? m.favorites_title() : undefined}
+        title={iconOnly ? m.favorites_title() : undefined}
         class={[
-            'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-bg px-3 text-text data-[state=open]:border-muted data-[state=open]:bg-surface-2',
+            'inline-flex shrink-0 items-center justify-center rounded-lg border border-border bg-bg text-text data-[state=open]:border-muted data-[state=open]:bg-surface-2',
+            iconOnly ? 'gap-0.5 px-2.5' : 'gap-1.5 px-3',
             className
         ]}
     >
@@ -82,7 +87,11 @@
             name={saved ? 'starred' : 'star'}
             size={18}
             class={saved ? 'text-warn' : 'text-muted'}
-        />{m.favorites_title()}<Icon name="chevron" size={12} class="text-muted" />
+        />{#if !iconOnly}{m.favorites_title()}{/if}<Icon
+            name="chevron"
+            size={12}
+            class="text-muted"
+        />
     </Popover.Trigger>
     <Popover.Portal>
         <Popover.Content
