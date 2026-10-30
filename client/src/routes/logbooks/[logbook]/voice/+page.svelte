@@ -286,6 +286,7 @@
                                         favorite.submode
                                     )
                                 )}
+                            iconOnly
                             class="h-11"
                         />
                     </div>
