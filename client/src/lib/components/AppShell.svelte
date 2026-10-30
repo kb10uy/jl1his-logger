@@ -13,11 +13,13 @@
 
     let {
         logbookId,
+        logHref,
         status,
         lastUpdatedSeq,
         children
     }: {
         logbookId: string | null;
+        logHref?: string;
         status?: StreamStatus;
         lastUpdatedSeq?: number;
         children: Snippet;
@@ -43,7 +45,7 @@
                           label: m.nav_logbook(),
                           short: m.nav_logbook_short(),
                           icon: 'log',
-                          href: root,
+                          href: logHref ?? root,
                           mobile: true
                       },
                       {
@@ -95,8 +97,13 @@
     );
     const items = $derived(groups.flat());
 
-    const current = (href: string) =>
-        page.url.pathname === href || (href !== root && page.url.pathname.startsWith(`${href}/`));
+    const current = (href: string) => {
+        const path = href.split('?')[0];
+        return (
+            page.url.pathname === path ||
+            (path !== root && page.url.pathname.startsWith(`${path}/`))
+        );
+    };
     const onSettings = $derived(
         page.url.pathname.startsWith('/settings') ||
             page.url.pathname === `${root}/settings` ||
