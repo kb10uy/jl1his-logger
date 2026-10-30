@@ -265,16 +265,17 @@
                         <span></span>
                         <LookupSummary {lookup} />
                     {/if}
-                    <span class="text-xs text-muted">{m.field_band_mode()}</span>
+                    <span class="text-xs text-muted">{m.entry_freq_band()}</span>
+                    <span class="flex min-w-0 flex-wrap gap-x-2 font-mono text-lg">
+                        <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
+                        <span>{draft.band}</span>
+                    </span>
+                    <span class="text-xs text-muted">{m.field_mode()}</span>
                     <div class="flex min-w-0 items-center gap-2.5">
-                        <span class="flex min-w-0 flex-1 flex-wrap gap-x-2 font-mono text-lg">
-                            <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
-                            <span>{draft.band} ·</span>
-                            <span
-                                >{draft.mode}
-                                <span class="text-muted">{draft.submode}</span></span
-                            >
-                        </span>
+                        <span class="min-w-0 flex-1 font-mono text-lg"
+                            >{draft.mode}
+                            <span class="text-muted">{draft.submode}</span></span
+                        >
                         <FrequencyFavorites
                             tuning={draft}
                             onselect={(favorite) =>
@@ -458,22 +459,26 @@
                 {/if}
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="flex-[1_1_200px] text-xs text-info"
+                    <span class="flex-[1_1_200px] text-xs text-info max-md:basis-full"
                         >{draft.call !== undefined ? problem : ''}</span
                     >
                     <Button
                         size="lg"
                         variant="toggle"
+                        class="max-md:order-2 max-md:flex-1"
                         pressed={correcting}
                         onclick={() => (correcting = !correcting)}>{m.voice_correct()}</Button
                     >
-                    <Button size="lg" variant="ghost" class="border border-border" onclick={discard}
-                        >{m.common_discard()}</Button
+                    <Button
+                        size="lg"
+                        variant="ghost"
+                        class="border! border-border max-md:order-1 max-md:flex-1"
+                        onclick={discard}>{m.common_discard()}</Button
                     >
                     <Button
                         variant="primary"
                         size="xl"
-                        class="font-bold max-md:flex-1"
+                        class="font-bold max-md:order-3 max-md:basis-full"
                         disabled={problem !== undefined || stationId === '' || session.logging}
                         onclick={() => void logDraft()}>{m.voice_log_qso()}</Button
                     >

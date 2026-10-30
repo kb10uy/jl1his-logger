@@ -609,7 +609,9 @@
     </PageHeader>
     <main class="flex flex-col">
         {#each groups as group (group.key)}
-            <div class="flex items-center justify-between px-4 pt-2.5 pb-1 text-xs text-muted">
+            <div
+                class="flex items-center justify-between px-4 pt-2.5 pb-1 text-xs text-muted compact:pt-1.5 compact:pb-0.5"
+            >
                 <span class="font-mono">{group.date}</span>
                 <span>{group.where}</span>
             </div>
@@ -618,13 +620,14 @@
                 <a
                     href={`/logbooks/${logbookId}/qsos/${row.qso.id}`}
                     class={[
-                        'flex min-h-[60px] items-center gap-3 border-b border-surface-2 px-4 py-2 text-text no-underline',
+                        'flex min-h-[60px] items-center gap-3 border-b border-surface-2 px-4 py-2 text-text no-underline compact:min-h-11 compact:py-1',
                         row.stale && 'opacity-50'
                     ]}
                 >
                     <span class="w-11 font-mono text-[13px] text-muted">{hhmm(f.TIME_ON)}</span>
                     <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span class="font-mono text-[17px] font-semibold tracking-wide"
+                        <span
+                            class="font-mono text-[17px] font-semibold tracking-wide compact:text-[15px]"
                             >{f.CALL}</span
                         >
                         <span class="truncate text-xs text-muted"
