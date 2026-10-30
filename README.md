@@ -35,7 +35,7 @@ scoped to Logbooks.
 ## Layout
 
 - `server/` — Rust (axum, SQLite). The native API, the SSE stream, ADIF
-  import and export, and the admin CLI (setup, reference data, backup). Serves
+  import and export, and a small CLI (setup, migrations, backup). Serves
   `client/build` on the same origin.
 - `client/` — SvelteKit + TypeScript PWA, built with `adapter-static` as a
   client-only app with offline entry.

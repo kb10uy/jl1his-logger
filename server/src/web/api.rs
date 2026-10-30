@@ -51,6 +51,7 @@ pub(super) fn router() -> Router<Arc<AppState>> {
             get(admin::list_logbooks).post(admin::create_logbook),
         )
         .route("/api/admin/logbooks/{logbook_id}", delete(admin::delete_logbook))
+        .route("/api/admin/logbooks/{logbook_id}/owners", post(admin::add_owner))
         .route("/api/admin/users", get(admin::list_users).post(admin::create_user))
         .route("/api/admin/users/{user_id}", get(admin::get_user))
         .route("/api/admin/users/{user_id}/role", put(admin::set_role))
@@ -126,7 +127,6 @@ pub(super) fn router() -> Router<Arc<AppState>> {
         )
         .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
         .route("/api/logbooks/{logbook_id}/events", get(qso::events::stream))
-        .route("/api/logbooks/{logbook_id}/duplicates", get(qso::duplicates))
         .route("/api/logbooks/{logbook_id}/lookup", get(qso::lookup::get))
         .route("/api/logbooks/{logbook_id}/qsos", get(qso::search).post(qso::create))
         .route("/api/logbooks/{logbook_id}/targets", get(qso::targets))

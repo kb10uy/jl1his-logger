@@ -150,6 +150,11 @@ export const createLogbook = (input: { name: string; owner: string }) =>
 export const deleteLogbook = (id: string) =>
     request<void>('DELETE', `/api/admin/logbooks/${encodeURIComponent(id)}`);
 
+export const addOwner = (id: string, input: { callsign: string; reason: string }) =>
+    request<AdminLogbook>('POST', `/api/admin/logbooks/${encodeURIComponent(id)}/owners`, {
+        body: input
+    });
+
 export const adminUsers = () => request<AdminUser[]>('GET', '/api/admin/users');
 
 const adminUser = (id: string) => `/api/admin/users/${encodeURIComponent(id)}`;
@@ -239,7 +244,6 @@ export const removeMember = (logbook: string, callsign: string) =>
 
 export interface Search {
     q?: string;
-    station_id?: string;
     sort?: string;
     cursor?: string | null;
     limit?: number;
@@ -282,20 +286,18 @@ export const deleteQso = (logbook: string, id: string, revision: number) =>
     request<Qso>('DELETE', `${base(logbook)}/qsos/${encodeURIComponent(id)}`, { revision });
 
 export interface Candidate {
-    call: string;
     band: string;
     mode: string;
     qso_date: string;
     time_on: string;
 }
 
-export const duplicates = (logbook: string, candidate: Candidate, signal?: AbortSignal) =>
-    request<{ qsos: Qso[] }>('GET', `${base(logbook)}/duplicates${query({ ...candidate })}`, {
-        signal
-    });
-
-export const lookup = (logbook: string, call: string, signal?: AbortSignal) =>
-    request<Lookup>('GET', `${base(logbook)}/lookup${query({ call })}`, { signal });
+export const lookup = (
+    logbook: string,
+    call: string,
+    candidate?: Candidate,
+    signal?: AbortSignal
+) => request<Lookup>('GET', `${base(logbook)}/lookup${query({ call, ...candidate })}`, { signal });
 
 export const updateQsl = (logbook: string, qsos: Target[], fields: Fields) =>
     request<Outcome>('POST', `${base(logbook)}/qsl`, { body: { qsos, fields } });

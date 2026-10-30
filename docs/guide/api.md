@@ -147,7 +147,7 @@ container runtime to probe.
 
 `GET /api/reference` returns the versions of the reference data in use,
 `[{kind, version, updated_at}]` with `kind` `cty`, the one kind. It takes the session cookie only. Reference data is updated with the
-CLI or with the endpoint below.
+endpoint below.
 
 `PUT /api/reference/cty` installs a CTY zip archive from country-files.com (Big
 CTY or the contest files), sent as the raw request body, and answers the
@@ -243,8 +243,13 @@ callsign.
 A blank `name` is `400` with `name_required`, and an `owner` no active user
 has is `404` with `what` `user`. The deletion has no confirmation step of its
 own: the web client asks for the Logbook's name before calling it. A snapshot
-that cannot be written is `500` and deletes nothing. Adding an owner as a
-rescue stays with the CLI.
+that cannot be written is `500` and deletes nothing.
+
+`POST /api/admin/logbooks/{logbook_id}/owners` with `{callsign, reason}` makes
+an active user an owner of the Logbook as a rescue and returns the Logbook. The
+existing owners stay owners, and the reason is recorded with the admin in
+`rescue_operations`. A blank `reason` is `400` with `reason_required`, and a
+callsign no active user has is `404` with `what` `user`.
 
 ## Logbooks
 
@@ -398,7 +403,6 @@ Paths below are relative to `/api/logbooks/{logbook_id}`.
 | `GET /qsos?...` | | `{qsos, next, total}`, see Search |
 | `GET /targets?...` | | `{qsos: [{id, revision}]}` of every match, see Search |
 | `GET /changes?after=N&limit=L` | | `{cursor_generation, last_updated_seq, qsos, has_more}` |
-| `GET /duplicates?call=&band=&mode=&qso_date=&time_on=&except=` | | `{qsos}` |
 
 `id` is a UUID v7 the client generates; anything else is `400`.
 `instrument_id` is optional and `null` means none; an Instrument or Station
@@ -439,9 +443,7 @@ is generated from `assets/adif/enumerations_mode.csv` and
 `PSK31` is accepted and stands for the mode it is a submode of
 (`DIGITALVOICE`, `PSK`), so `MODE` `DSTAR` with no `SUBMODE` warns of nothing.
 
-`/duplicates` runs the same check for a QSO being entered and returns the
-matching QSOs by QSO time; `except` leaves out the QSO being edited and must be
-a QSO ID.
+The lookup runs the same check for a QSO being entered (see Lookup).
 
 ### Changes
 
@@ -464,20 +466,9 @@ cursor and starts from 0.
 | `call` | By the call without prefixes and suffixes, A to Z, newest first within a call |
 | `-call` | The same, Z to A, still newest first within a call |
 
-Each filter is optional:
-
-| Parameter | Matches |
-| --- | --- |
-| `from`, `until` | QSO time in `[from, until)`, as RFC 3339 times |
-| `station_id` | The Station |
-| `band`, `mode` | Ignoring case |
-| `call` | The call exactly, ignoring case |
-| `call_base` | The call without prefixes and suffixes (`JA1XYZ` matches `JA1XYZ/P`); not together with `call` |
-| `qsl_sent` | Comma-separated `QSL_SENT` values ignoring case; an empty value matches an absent field |
-| `contest_id` | `CONTEST_ID`, ignoring case |
-| `q` | The text query of [query.md](query.md) (`call:JA1* -mode:FT8 date:2026-10-01..`) |
-
-All the filters given must hold. `next` is an opaque cursor for the following
+The matches are chosen by `q`, the text query of [query.md](query.md)
+(`call:JA1* -mode:FT8 date:2026-10-01..`, `station-id:{station_id}`); without
+it every live QSO matches. `next` is an opaque cursor for the following
 page, passed back as `cursor` with the same `sort`, or `null` on the last page.
 A cursor of another sort order is `400`. The first page, the
 one without a `cursor`, also carries `total`, the number of matches.
@@ -504,14 +495,14 @@ in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
 `unknown_field`, `bad_field_name`, `bad_date` and `bad_number`, and
 `too_many_values` adds `count` and `max`.
 
-`GET /targets` takes the same filters, without `sort`, `cursor` and `limit`, and returns
+`GET /targets` takes the same `q`, without `sort`, `cursor` and `limit`, and returns
 the ID and revision of every match, newest first. Checking every match in the
 log list uses it, and a bulk QSL change takes the result as it is.
 
 ## Lookup
 
-`GET /api/logbooks/{logbook_id}/lookup?call=&station_ids=` answers what the
-reference data and the Logbook know about a callsign:
+`GET /api/logbooks/{logbook_id}/lookup?call=&station_ids=&band=&mode=&qso_date=&time_on=`
+answers what the reference data and the Logbook know about a callsign:
 
 ```json
 {
@@ -522,20 +513,28 @@ reference data and the Logbook know about a callsign:
   },
   "previous": {
     "count": 2,
-    "last_qso_at": "2026-10-22T03:00:00Z",
+    "last": { "id": "...", "fields": { "CALL": "JA1XYZ/P", "QSO_DATE": "20261022", "TIME_ON": "030000" } },
     "fields": { "NAME": "Hanako", "QTH": "Chiba", "GRIDSQUARE": "PM95" }
-  }
+  },
+  "duplicates": []
 }
 ```
 
 `call` is required and answered upper-cased. `entity` is what `cty.dat`
 resolves the call to, with the overrides of the matching alias and longitude
 growing towards the east, and `dxcc` is the entity code from `cty.csv`; it is
-`null` when `cty` is not installed or `cty.dat` does not know the call. `previous` covers the live QSOs whose call has the same base
+`null` when `cty` is not installed, cannot be read (the server logs why) or
+does not know the call. `previous` covers the live QSOs whose call has the same base
 (`JA1XYZ` matches `JA1XYZ/P`), optionally narrowed by `station_ids`, a
-comma-separated list of Station IDs: their number, the QSO time of the latest,
-and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`
+comma-separated list of Station IDs: their number, the latest of them as a QSO
+(`null` without one), and the newest nonempty `NAME`, `GRIDSQUARE`, `QTH`, `STATE`, `CNTY`, `IOTA`
 and `QSL_VIA` across all of them.
+
+`band`, `mode`, `qso_date` (`YYYYMMDD`) and `time_on` (`HHMM` or `HHMMSS`)
+describe a QSO being entered. Given any of them, the answer adds `duplicates`,
+the live QSOs that the duplicate check of `POST /qsos` would name, by QSO time;
+all four are then required, and a missing or invalid one is `400`. Without
+them there is no `duplicates`.
 
 ## Bulk QSL Changes
 
@@ -558,14 +557,14 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 
 | Request | Body | Response |
 | --- | --- | --- |
-| `POST /exports` | `{kind, from?, until?, station_id?, band?, mode?, qsl_sent?, contest_id?, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
+| `POST /exports` | `{kind, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk QSL changes |
 
 A batch is `{id, kind, created_by, created_at, applied_at, qso_count}`. `kind`
-is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. The filters match as in
-Search, with `qsl_sent` a list; `park` keeps one park of a `pota` export and is
+is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. `q` chooses the QSOs as in
+Search; `park` keeps one park of a `pota` export and is
 `400` for other kinds. `encoding` is `utf-8` (default), `shift_jis`,
 `windows-1252` or `ascii`. For `utf-8`, `length` is `codepoints`, `bytes` or
 `utf16`, by default the server's `[adif] length`; for the others lengths are
@@ -587,8 +586,8 @@ rows still at their recorded revisions. A batch is applied once; again is
 ## ADIF Import
 
 `POST /api/logbooks/{logbook_id}/imports?source=&station_id=&instrument_id=&format=&length=&encoding=&apply=`
-takes the file itself as the body, up to 64 MiB. It works as the CLI
-`import` does (see [decisions.md](../development/decisions.md), "ADIF Import"):
+takes the file itself as the body, up to 64 MiB (see
+[decisions.md](../development/decisions.md), "ADIF Import"):
 
 | Parameter | Meaning |
 | --- | --- |
@@ -657,8 +656,8 @@ state. A client syncs from scratch by reading `/changes` up to its
 `last_updated_seq` H and then opening the stream with `after=H`; rows seen twice
 are upserts. Comments are sent every 15 seconds to keep the connection open.
 
-Writes through the server reach the streams at once; writes by the CLI in
-another process reach them within 10 seconds. The stream ends when the caller
+Writes through the server reach the streams at once; a stream also checks its
+caller every 10 seconds. The stream ends when the caller
 loses the Logbook (its Membership, its user or its token), its session expires
 or is deleted, and when the server shuts down; the browser then reconnects
 with `Last-Event-ID`, and a `404` or `401` stops it. Session checks do not renew

@@ -20,13 +20,6 @@ struct Cli {
         help = "TOML configuration (see assets/config.example.toml); relative paths in it are relative to its directory"
     )]
     config: PathBuf,
-    #[arg(
-        long = "as",
-        global = true,
-        value_name = "CALLSIGN",
-        help = "Callsign of the user the CLI acts as"
-    )]
-    actor: Option<String>,
     #[command(subcommand)]
     command: Command,
 }
@@ -105,7 +98,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
             .await?;
             db.close().await;
         }
-        Command::Cli(command) => cli::run(&database, &config, cli.actor.as_deref(), command).await?,
+        Command::Cli(command) => cli::run(&database, &config, command).await?,
     }
     Ok(())
 }

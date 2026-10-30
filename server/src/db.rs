@@ -274,7 +274,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
         assert!(migrated.snapshot.unwrap().is_file());
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db).await.unwrap();
         assert_eq!(foreign_keys, 1);
@@ -369,7 +369,9 @@ mod tests {
         let (dir, db) = temp_db().await;
         let snapshots = dir.path().join("snapshots");
         migrate(&db, &snapshots).await.unwrap();
-        sqlx::query("INSERT INTO settings (key, value, updated_at) VALUES ('k', 'v', '2026-10-22T00:00:00Z')")
+        sqlx::query(
+            "INSERT INTO users (id, callsign, role, created_at, updated_at)              VALUES ('k', 'JA1K', 'user', '2026-10-22T00:00:00Z', '2026-10-22T00:00:00Z')",
+        )
             .execute(&db)
             .await
             .unwrap();
@@ -381,7 +383,7 @@ mod tests {
         assert!(snapshot.to_str().unwrap().ends_with("-before-9999.db"));
 
         let old = open(&snapshot).await.unwrap();
-        let value: String = sqlx::query_scalar("SELECT value FROM settings WHERE key = 'k'")
+        let value: String = sqlx::query_scalar("SELECT callsign FROM users WHERE id = 'k'")
             .fetch_one(&old)
             .await
             .unwrap();
@@ -389,7 +391,7 @@ mod tests {
             .fetch_one(&old)
             .await
             .unwrap();
-        assert_eq!((value.as_str(), added), ("v", 0));
+        assert_eq!((value.as_str(), added), ("JA1K", 0));
     }
 
     #[tokio::test]

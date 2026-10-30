@@ -134,22 +134,18 @@ impl References {
         .await
     }
 
-    pub async fn entity(&self, db: &Db, paths: &ReferenceConfig, call: &str) -> Result<Option<Entity>, LoadError> {
-        let Some(cty) = self.cty(db, paths).await? else {
-            return Ok(None);
-        };
-        Ok(reference::entity(&cty, call))
-    }
-
-    pub async fn entity_of(&self, db: &Db, paths: &ReferenceConfig, qso: &Qso) -> Option<Entity> {
-        let call = qso.get("CALL")?;
-        match self.entity(db, paths, call).await {
-            Ok(entity) => entity,
+    pub async fn entity(&self, db: &Db, paths: &ReferenceConfig, call: &str) -> Option<Entity> {
+        match self.cty(db, paths).await {
+            Ok(cty) => reference::entity(cty.as_deref()?, call),
             Err(e) => {
-                tracing::warn!("recording {call} without entity fields: {e}");
+                tracing::warn!("no entity for {call}: {e}");
                 None
             }
         }
+    }
+
+    pub async fn entity_of(&self, db: &Db, paths: &ReferenceConfig, qso: &Qso) -> Option<Entity> {
+        self.entity(db, paths, qso.get("CALL")?).await
     }
 }
 

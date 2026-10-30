@@ -84,11 +84,13 @@ export class LogbookState {
     }
 
     matches(qso: Qso, query: RowMatcher | undefined): boolean | undefined {
-        return query?.matches(
-            qso.fields,
-            this.stationName(qso.station_id),
-            this.instrumentName(qso.instrument_id)
-        );
+        return query?.matches({
+            fields: qso.fields,
+            stationId: qso.station_id,
+            stationName: this.stationName(qso.station_id),
+            instrumentId: qso.instrument_id,
+            instrumentName: this.instrumentName(qso.instrument_id)
+        });
     }
 
     start() {

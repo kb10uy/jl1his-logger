@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Lookup, Qso } from '#client/api/types.ts';
     import { hhmm, isoDate } from '#client/qso/format.ts';
-    import { lookupLine } from '#lib/entry/choice.ts';
+    import { lookupLine } from '#client/entry/lookup.ts';
     import { m } from '#lib/paraglide/messages.js';
 
     let {

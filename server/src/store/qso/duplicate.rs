@@ -14,10 +14,9 @@ pub async fn possible_duplicates(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
     qso: &Qso,
-    except: Option<&QsoId>,
 ) -> Result<Vec<StoredQso>, StoreError> {
     access.revalidate(conn).await?;
-    duplicates_of(conn, access, qso, except).await
+    duplicates_of(conn, access, qso, None).await
 }
 
 async fn duplicates_of(
@@ -97,15 +96,8 @@ mod tests {
         let mut conn = world.db.acquire().await.unwrap();
         let candidate = entry(&station, "JA1XYZ", "0415").qso;
         assert_eq!(
-            possible_duplicates(&mut conn, &access, &candidate, None).await.unwrap(),
-            [first.clone(), second]
-        );
-        assert_eq!(
-            possible_duplicates(&mut conn, &access, &candidate, Some(&first.id))
-                .await
-                .unwrap()
-                .len(),
-            1
+            possible_duplicates(&mut conn, &access, &candidate).await.unwrap(),
+            [first, second]
         );
     }
 }

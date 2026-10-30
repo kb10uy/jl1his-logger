@@ -1,13 +1,16 @@
 import { untrack } from 'svelte';
 import * as api from '#lib/api/api.ts';
 import type { Fields, Lookup, Qso, Saved } from '#lib/api/types.ts';
+import { LOOKUP_DELAY, candidateOf } from '#lib/entry/lookup.ts';
 import type { Sent } from '#lib/entry/outbox.ts';
 import { RECENT, mergeRecent } from '#lib/entry/recent.ts';
-import { loadEntry, saveEntry, type EntrySettings } from '#lib/entry/settings.ts';
+import { entry, load, save } from '#lib/device.ts';
+import type { EntrySettings } from '#lib/entry/settings.ts';
 import { usesSerial } from '#lib/qso/contest.ts';
-import { utcFields } from '#lib/qso/format.ts';
 import type { LogbookState } from '#lib/state/logbook.svelte.ts';
+import { m } from '#lib/paraglide/messages.js';
 import { outbox } from '#lib/state/outbox.svelte.ts';
+import { toasts } from '#lib/state/toast.svelte.ts';
 
 export interface EntryInputs {
     readonly call: string | undefined;
@@ -38,7 +41,7 @@ export class EntrySession {
     constructor(logbook: LogbookState, inputs: EntryInputs) {
         this.logbook = logbook;
         this.logbookId = logbook.logbook.id;
-        this.settings = loadEntry(this.logbookId);
+        this.settings = load(entry(this.logbookId));
 
         $effect(() =>
             logbook.onQso((qso) => {
@@ -47,7 +50,7 @@ export class EntrySession {
         );
 
         $effect(() => {
-            saveEntry(this.logbookId, {
+            save(entry(this.logbookId), {
                 stationId: this.settings.stationId,
                 instrumentId: this.settings.instrumentId,
                 freq: inputs.freq,
@@ -65,7 +68,7 @@ export class EntrySession {
             const controller = new AbortController();
             api.searchQsos(
                 this.logbookId,
-                { station_id: station, limit: RECENT },
+                { q: `station-id:${station}`, limit: RECENT },
                 controller.signal
             )
                 .then((page) => (this.recent = page.qsos))
@@ -75,37 +78,25 @@ export class EntrySession {
 
         $effect(() => {
             const call = inputs.call;
-            this.lookup = undefined;
-            if (call === undefined) return;
-            const controller = new AbortController();
-            const timer = setTimeout(() => {
-                api.lookup(this.logbookId, call, controller.signal)
-                    .then((found) => (this.lookup = found))
-                    .catch(() => undefined);
-            }, 250);
-            return () => {
-                clearTimeout(timer);
-                controller.abort();
-            };
-        });
-
-        $effect(() => {
-            const call = inputs.call;
             const band = inputs.band;
             const mode = inputs.mode;
+            this.lookup = undefined;
             this.duplicates = [];
             if (call === undefined) return;
-            const at = utcFields(untrack(() => inputs.at));
             const controller = new AbortController();
             const timer = setTimeout(() => {
-                api.duplicates(
-                    this.logbookId,
-                    { call, band, mode, qso_date: at.QSO_DATE, time_on: at.TIME_ON },
-                    controller.signal
-                )
-                    .then((found) => (this.duplicates = found.qsos))
+                const candidate = candidateOf(
+                    band,
+                    mode,
+                    untrack(() => inputs.at)
+                );
+                api.lookup(this.logbookId, call, candidate, controller.signal)
+                    .then((found) => {
+                        this.lookup = found;
+                        this.duplicates = found.duplicates ?? [];
+                    })
                     .catch(() => undefined);
-            }, 300);
+            }, LOOKUP_DELAY);
             return () => {
                 clearTimeout(timer);
                 controller.abort();
@@ -131,6 +122,15 @@ export class EntrySession {
         } finally {
             this.logging = false;
         }
+    }
+
+    async sendNow() {
+        const { saved, failed } = await this.sendUnsent();
+        toasts.show(
+            failed > 0
+                ? m.entry_sent_some_unsent({ sent: saved.length, failed })
+                : m.entry_sent({ count: saved.length })
+        );
     }
 
     async sendUnsent(): Promise<{ saved: Saved[]; failed: number }> {

@@ -2,7 +2,7 @@
 
 The log list, the native API (`q` on `GET /qsos`, `GET /targets` and the
 export filters; see "Search" in [api.md](api.md)) and the web client's chips
-all take one text query. The CLI does not yet.
+all take one text query.
 
 A query is a list of terms separated by spaces, all of which must hold. A term
 is `key:value` or a bare word. Keys are read ignoring case. A value with a
@@ -25,7 +25,9 @@ call:JA1* band:40m,20m -mode:FT8 date:2026-10-01.. station:"Mt Takao" yokohama
 | `sent:R,Q`, `rcvd:Y,V` | `QSL_SENT` or `QSL_RCVD` is one of the values, ignoring case |
 | `lotw-sent:Y`, `lotw-rcvd:Y`, `eqsl-sent:Y`, `eqsl-rcvd:Y,V` | `LOTW_QSL_SENT`, `LOTW_QSL_RCVD`, `EQSL_QSL_SENT` or `EQSL_QSL_RCVD` is one of the values, ignoring case |
 | `station:Takao` | The Station's name or the QSO's `STATION_CALLSIGN` contains the value, ignoring case |
+| `station-id:0192…` | The QSO's Station is one of the IDs |
 | `instrument:IC-705` | The Instrument's name or the QSO's `MY_RIG` contains the value, ignoring case |
+| `instrument-id:0192…` | The QSO's Instrument is one of the IDs; a QSO without one never holds |
 | `park:JP-0012` | One of the references in `MY_POTA_REF` is the value, ignoring case and spaces |
 | `dxcc:339` | `DXCC` is one of the entity codes |
 | `date:2026-10-18`, `date:2026-10-01..2026-10-19`, `date:>=2026-10-18` | The UTC date of the QSO time is the day, is in the range (both ends included, either may be left open: `date:2026-10-01..`) or compares with `>`, `>=`, `<`, `<=`; one value only |

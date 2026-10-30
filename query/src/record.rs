@@ -7,8 +7,14 @@ use crate::{
 
 pub trait Record {
     fn field(&self, name: &str) -> Option<&str>;
+    fn station_id(&self) -> Option<&str>;
     fn station_name(&self) -> Option<&str>;
+    fn instrument_id(&self) -> Option<&str>;
     fn instrument_name(&self) -> Option<&str>;
+}
+
+fn one_of(id: Option<&str>, ids: &[String]) -> bool {
+    id.is_some_and(|id| ids.iter().any(|x| x.eq_ignore_ascii_case(id)))
 }
 
 fn value<'r>(record: &'r impl Record, name: &str) -> Option<&'r str> {
@@ -44,6 +50,8 @@ impl Condition {
             Condition::Station(needles) => needles.iter().any(|needle| {
                 contains(record.station_name(), needle) || contains(record.field("STATION_CALLSIGN"), needle)
             }),
+            Condition::StationId(ids) => one_of(record.station_id(), ids),
+            Condition::InstrumentId(ids) => one_of(record.instrument_id(), ids),
             Condition::Instrument(needles) => needles
                 .iter()
                 .any(|needle| contains(record.instrument_name(), needle) || contains(record.field("MY_RIG"), needle)),
@@ -118,8 +126,16 @@ mod tests {
             self.fields.get(name).copied()
         }
 
+        fn station_id(&self) -> Option<&str> {
+            Some("0192b2f0-0000-7000-8000-00000000000a")
+        }
+
         fn station_name(&self) -> Option<&str> {
             self.station
+        }
+
+        fn instrument_id(&self) -> Option<&str> {
+            self.instrument.map(|_| "0192b2f0-0000-7000-8000-00000000000b")
         }
 
         fn instrument_name(&self) -> Option<&str> {
@@ -175,6 +191,12 @@ mod tests {
     #[case("instrument:FT-817,705", true)]
     #[case("-instrument:ft-817", true)]
     #[case("instrument:ft-817", false)]
+    #[case("station-id:0192b2f0-0000-7000-8000-00000000000a", true)]
+    #[case("station-id:0192B2F0-0000-7000-8000-00000000000A", true)]
+    #[case("station-id:0192b2f0-0000-7000-8000-00000000000b", false)]
+    #[case("-station-id:0192b2f0-0000-7000-8000-00000000000b", true)]
+    #[case("instrument-id:x,0192b2f0-0000-7000-8000-00000000000b", true)]
+    #[case("instrument-id:0192b2f0-0000-7000-8000-00000000000a", false)]
     #[case("park:JP-0345", true)]
     #[case("park:JP-034", false)]
     #[case("date:2026-10-19", true)]

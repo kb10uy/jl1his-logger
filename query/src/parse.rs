@@ -10,7 +10,9 @@ pub enum Condition {
     Base(Vec<String>),
     Field { name: String, values: Vec<String> },
     Station(Vec<String>),
+    StationId(Vec<String>),
     Instrument(Vec<String>),
+    InstrumentId(Vec<String>),
     Park(Vec<String>),
     Date { from: Option<Day>, until: Option<Day> },
     Freq(Range),
@@ -228,7 +230,18 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
     let known = field_of_key.is_some()
         || matches!(
             key,
-            "call" | "base" | "station" | "instrument" | "park" | "date" | "freq" | "pwr" | "has" | "no"
+            "call"
+                | "base"
+                | "station"
+                | "station-id"
+                | "instrument"
+                | "instrument-id"
+                | "park"
+                | "date"
+                | "freq"
+                | "pwr"
+                | "has"
+                | "no"
         );
     if !known {
         return Err(ErrorKind::UnknownField(key.to_owned()));
@@ -248,7 +261,9 @@ fn condition(key: &str, written: &str, values: &[String], field: &mut Option<Str
         ("call", None) => Condition::Call(mapped(|v| v.to_ascii_uppercase())),
         ("base", None) => Condition::Base(mapped(callsign::base)),
         ("station", None) => Condition::Station(mapped(|v| v.to_ascii_lowercase())),
+        ("station-id", None) => Condition::StationId(mapped(|v| v.to_ascii_lowercase())),
         ("instrument", None) => Condition::Instrument(mapped(|v| v.to_ascii_lowercase())),
+        ("instrument-id", None) => Condition::InstrumentId(mapped(|v| v.to_ascii_lowercase())),
         ("park", None) => Condition::Park(mapped(|v| v.replace(' ', "").to_ascii_uppercase())),
         ("date", None) => date(values)?,
         ("freq", None) => Condition::Freq(range(values)?),

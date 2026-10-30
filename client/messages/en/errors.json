@@ -28,6 +28,7 @@
     "error_not_found_batch": "The export batch was not found.",
     "error_not_found_membership": "The member was not found.",
     "error_name_required": "Give it a name.",
+    "error_reason_required": "Give a reason.",
     "error_name_too_long": "The name is {bytes} bytes long; at most {max} are kept.",
     "error_batch_empty": "An export batch needs a QSO.",
     "error_batch_applied": "This export batch has already been applied.",

@@ -16,7 +16,7 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
-        qso::{self, CallMatch, Created, Cursor, Filter, Order, QsoInput, StoredQso},
+        qso::{self, Created, Cursor, Filter, Order, QsoInput, StoredQso},
     },
     web::{
         AppState,
@@ -24,7 +24,7 @@ use crate::{
         api::qso::export::TargetBody,
         error::ApiError,
         extract::{Json, Query},
-        query::{range, text},
+        query::text,
     },
 };
 
@@ -138,15 +138,6 @@ pub struct ChangesBody {
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
-    from: Option<String>,
-    until: Option<String>,
-    station_id: Option<String>,
-    band: Option<String>,
-    mode: Option<String>,
-    call: Option<String>,
-    call_base: Option<String>,
-    qsl_sent: Option<String>,
-    contest_id: Option<String>,
     q: Option<String>,
     sort: Option<String>,
     cursor: Option<String>,
@@ -164,21 +155,6 @@ pub struct PageBody {
 #[derive(Debug, Serialize)]
 pub struct TargetsBody {
     qsos: Vec<TargetBody>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DuplicatesQuery {
-    call: Option<String>,
-    band: Option<String>,
-    mode: Option<String>,
-    qso_date: Option<String>,
-    time_on: Option<String>,
-    except: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DuplicatesBody {
-    qsos: Vec<QsoBody>,
 }
 
 pub async fn create(
@@ -298,24 +274,11 @@ pub async fn changes(
     }))
 }
 
-fn search_filter(query: SearchQuery) -> Result<Filter, ApiError> {
-    let call = match (query.call, query.call_base) {
-        (Some(_), Some(_)) => return Err(ApiError::bad_request("give call or call_base, not both")),
-        (Some(call), None) => Some(CallMatch::Exact(call)),
-        (None, Some(call)) => Some(CallMatch::Base(call)),
-        (None, None) => None,
-    };
-    let filter = Filter {
-        time: range(query.from.as_deref(), query.until.as_deref())?,
-        station_ids: query.station_id.map(|id| vec![id]),
-        band: query.band,
-        mode: query.mode,
-        call,
-        qsl_sent: query.qsl_sent.map(|v| v.split(',').map(str::to_owned).collect()),
-        contest_id: query.contest_id,
-        query: text(query.q.as_deref())?,
-    };
-    Ok(filter)
+fn search_filter(q: Option<&str>) -> Result<Filter, ApiError> {
+    Ok(Filter {
+        query: text(q)?,
+        ..Filter::default()
+    })
 }
 
 pub async fn search(
@@ -331,7 +294,7 @@ pub async fn search(
         .as_deref()
         .map(|cursor| parse_cursor(cursor, order))
         .transpose()?;
-    let filter = search_filter(query)?;
+    let filter = search_filter(query.q.as_deref())?;
     let mut conn = state.db.acquire().await?;
     let page = qso::search(&mut conn, &member.access, &filter, order, after.as_ref(), limit).await?;
     let total = match after {
@@ -356,39 +319,11 @@ pub async fn targets(
     if query.cursor.take().is_some() || query.limit.take().is_some() || query.sort.take().is_some() {
         return Err(ApiError::bad_request("targets take no sort, cursor or limit"));
     }
-    let filter = search_filter(query)?;
+    let filter = search_filter(query.q.as_deref())?;
     let mut conn = state.db.acquire().await?;
     let targets = qso::targets(&mut conn, &member.access, &filter).await?;
     Ok(Json(TargetsBody {
         qsos: targets.into_iter().map(TargetBody::from).collect(),
-    }))
-}
-
-pub async fn duplicates(
-    State(state): State<Arc<AppState>>,
-    member: Member,
-    Query(query): Query<DuplicatesQuery>,
-) -> Result<Json<DuplicatesBody>, ApiError> {
-    let candidate = Qso::from_fields(
-        [
-            ("CALL", query.call),
-            ("BAND", query.band),
-            ("MODE", query.mode),
-            ("QSO_DATE", query.qso_date),
-            ("TIME_ON", query.time_on),
-        ]
-        .into_iter()
-        .filter_map(|(name, value)| Some((name, value?))),
-    )?;
-    let except = query
-        .except
-        .as_deref()
-        .map(|id| id.parse::<QsoId>().map_err(|e| ApiError::bad_request(e.to_string())))
-        .transpose()?;
-    let mut conn = state.db.acquire().await?;
-    let rows = qso::possible_duplicates(&mut conn, &member.access, &candidate, except.as_ref()).await?;
-    Ok(Json(DuplicatesBody {
-        qsos: rows.into_iter().map(QsoBody::from).collect(),
     }))
 }
 
@@ -661,15 +596,6 @@ mod tests {
                 &json!("QSO")
             )
         );
-        let (status, _) = h
-            .send(
-                "GET",
-                &h.path("/duplicates?call=JA1XYZ&band=40m&mode=CW&qso_date=20261022&time_on=0100&except=x"),
-                Auth::Session(&cookie),
-                None,
-            )
-            .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -744,17 +670,23 @@ mod tests {
             json!([{ "kind": "possible_duplicate", "ids": [first_id] }])
         );
 
-        let uri = h.path("/duplicates?call=JA1XYZ&band=40m&mode=cw&qso_date=20261022&time_on=0415");
+        let uri = h.path("/lookup?call=JA1XYZ&band=40m&mode=cw&qso_date=20261022&time_on=0415");
         let (status, body) = h.send("GET", &uri, Auth::Session(&cookie), None).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body, json!({ "qsos": [first["qso"], second["qso"]] }));
+        assert_eq!(body["duplicates"], json!([first["qso"], second["qso"]]));
 
-        let except = format!("{uri}&except={}", first_id.as_str().unwrap());
-        let (_, body) = h.send("GET", &except, Auth::Session(&cookie), None).await;
-        assert_eq!(body, json!({ "qsos": [second["qso"]] }));
+        let (_, body) = h
+            .send("GET", &h.path("/lookup?call=JA1XYZ"), Auth::Session(&cookie), None)
+            .await;
+        assert!(body.get("duplicates").is_none(), "{body}");
 
         let (status, _) = h
-            .send("GET", &h.path("/duplicates?call=JA1XYZ"), Auth::Session(&cookie), None)
+            .send(
+                "GET",
+                &h.path("/lookup?call=JA1XYZ&band=40m"),
+                Auth::Session(&cookie),
+                None,
+            )
             .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
     }
@@ -978,14 +910,11 @@ mod tests {
     }
 
     #[rstest]
-    #[case::band("band=20M", &[1])]
-    #[case::call("call=ja1xyz", &[0])]
-    #[case::call_base("call_base=JA1XYZ", &[1, 0])]
-    #[case::time("from=2026-10-22T01:30:00Z&until=2026-10-22T03:00:00Z", &[1])]
-    #[case::qsl_sent_empty("qsl_sent=", &[2, 1, 0])]
-    #[case::qsl_sent("qsl_sent=Y", &[])]
+    #[case::band("q=band:20M", &[1])]
+    #[case::call("q=call:ja1xyz", &[0])]
+    #[case::call_base("q=base:JA1XYZ", &[1, 0])]
     #[case::text("q=-band:20m%20call:JA1*", &[2, 0])]
-    #[case::text_and_filter("q=call:JA1XYZ*&band=40m", &[0])]
+    #[case::ignored("q=call:JA1XYZ*&band=20m", &[1, 0])]
     #[tokio::test]
     async fn filters_searches(#[case] query: &str, #[case] expected: &[usize]) {
         let h = Harness::new().await;
@@ -999,8 +928,7 @@ mod tests {
     }
 
     #[rstest]
-    #[case("call=A&call_base=A")]
-    #[case("from=20261022")]
+    #[case("q=date:20261022x")]
     #[case("cursor=nope")]
     #[case("sort=band")]
     #[case("sort=call&cursor=0_x")]
@@ -1018,10 +946,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refuses_a_filter_list_longer_than_a_hundred_values() {
+    async fn refuses_a_term_listing_more_than_a_hundred_values() {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
-        let query = format!("qsl_sent={}", vec!["Y"; 101].join(","));
+        let query = format!("q=sent:{}", vec!["Y"; 101].join(","));
         let (status, body) = h
             .send("GET", &h.path(&format!("/qsos?{query}")), Auth::Session(&cookie), None)
             .await;

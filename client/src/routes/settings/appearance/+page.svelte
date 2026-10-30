@@ -2,9 +2,9 @@
     import SettingsField from '#lib/components/SettingsField.svelte';
     import SettingsSection from '#lib/components/SettingsSection.svelte';
     import { chooseLocale, LOCALE_NAMES, locales, storedLocale, type Locale } from '#lib/i18n.ts';
-    import { chooseCompact, storedCompact } from '#lib/compact.ts';
+    import { chooseCompact, chooseTheme, storedCompact, storedTheme } from '#lib/appearance.ts';
     import { m } from '#lib/paraglide/messages.js';
-    import { asTheme, chooseTheme, storedTheme } from '#lib/theme.ts';
+    import { asTheme } from '#lib/device.ts';
 
     const chosen = storedLocale();
     const themes = [

@@ -1,4 +1,4 @@
-import type { Lookup, Station } from '#client/api/types.ts';
+import type { Station } from '#client/api/types.ts';
 import { splitFavorites } from '#client/favorite.ts';
 import type { Logbook } from '#lib/session/types.ts';
 
@@ -30,18 +30,4 @@ export function chooseStation(groups: StationGroup[], wanted: string): Choice | 
     if (found !== undefined) return { logbookId: found.logbook.id, stationId: wanted };
     const first = groups[0];
     return first && { logbookId: first.logbook.id, stationId: first.stations[0].id };
-}
-
-export function lookupLine(lookup: Lookup): string {
-    const entity = lookup.entity;
-    return [
-        entity?.name,
-        entity?.dxcc ? `DXCC ${entity.dxcc}` : undefined,
-        entity ? `CQ ${entity.cq_zone}` : undefined,
-        entity ? `ITU ${entity.itu_zone}` : undefined,
-        lookup.previous.fields.NAME,
-        lookup.previous.fields.QTH
-    ]
-        .filter((s) => s)
-        .join(' · ');
 }

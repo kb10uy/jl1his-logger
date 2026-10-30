@@ -6,7 +6,6 @@ pub mod logbook;
 pub mod qsl;
 pub mod qso;
 pub mod reference;
-pub mod settings;
 
 use std::{
     fmt,

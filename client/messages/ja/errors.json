@@ -23,6 +23,7 @@
     "error_not_found_batch": "エクスポートバッチが見つかりません。",
     "error_not_found_membership": "メンバーが見つかりません。",
     "error_name_required": "名前を入力してください。",
+    "error_reason_required": "理由を入力してください。",
     "error_name_too_long": "名前が {bytes} バイトあります。保存できるのは {max} バイトまでです。",
     "error_batch_empty": "エクスポートバッチには QSO が必要です。",
     "error_batch_applied": "このエクスポートバッチは適用済みです。",

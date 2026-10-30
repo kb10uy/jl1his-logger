@@ -33,25 +33,10 @@ impl Conditions {
         if let Some(station_ids) = &filter.station_ids {
             conditions.any_of("station_id", station_ids.iter().cloned())?;
         }
-        if let Some(band) = &filter.band {
-            conditions.push("trim(band) = ? COLLATE NOCASE", text(band));
-        }
-        if let Some(mode) = &filter.mode {
-            conditions.push("trim(mode) = ? COLLATE NOCASE", text(mode));
-        }
         match &filter.call {
             Some(CallMatch::Exact(call)) => conditions.push("trim(call) = ? COLLATE NOCASE", text(call)),
             Some(CallMatch::Base(call)) => conditions.push("call_base = ?", [Bind::Text(callsign::base(call))]),
             None => {}
-        }
-        if let Some(contest_id) = &filter.contest_id {
-            conditions.push("trim(contest_id) = ? COLLATE NOCASE", text(contest_id));
-        }
-        if let Some(values) = &filter.qsl_sent {
-            conditions.any_of(
-                "upper(trim(coalesce(qsl_sent, '')))",
-                values.iter().map(|v| v.trim().to_ascii_uppercase()),
-            )?;
         }
         if let Some(from) = filter.time.from {
             conditions.push("qso_time >= ?", [Bind::Int(from)]);
@@ -104,6 +89,14 @@ impl Conditions {
                     })
                     .collect(),
             ),
+            Condition::StationId(ids) => {
+                binds.extend(ids.iter().cloned().map(Bind::Text));
+                format!("lower(station_id) IN ({})", vec!["?"; ids.len()].join(", "))
+            }
+            Condition::InstrumentId(ids) => {
+                binds.extend(ids.iter().cloned().map(Bind::Text));
+                format!("lower(coalesce(instrument_id, '')) IN ({})", vec!["?"; ids.len()].join(", "))
+            }
             Condition::Instrument(needles) => any(
                 needles
                     .iter()
@@ -257,17 +250,14 @@ mod tests {
 
     #[rstest]
     #[case::base_call_and_mode(
-        |_: &Station| Filter { call: Some(CallMatch::Base("JA1AAA/1".into())), mode: Some(" Cw".into()), ..Filter::default() },
+        |_: &Station| Filter { call: Some(CallMatch::Base("JA1AAA/1".into())), ..Filter::default() },
         &[1, 0]
     )]
     #[case::exact_call(|_: &Station| Filter { call: Some(CallMatch::Exact("ja1aaa".into())), ..Filter::default() }, &[0])]
-    #[case::qsl_sent(|_: &Station| Filter { qsl_sent: Some(vec!["r".into(), "".into()]), ..Filter::default() }, &[1, 0])]
-    #[case::no_qsl_sent(|_: &Station| Filter { qsl_sent: Some(vec![]), ..Filter::default() }, &[])]
     #[case::time_station_and_band(
         |station: &Station| Filter {
             time: TimeRange { from: Some(1792634400), until: Some(1792638000) },
             station_ids: Some(vec![station.id.clone()]),
-            band: Some("40M".into()),
             ..Filter::default()
         },
         &[1]
@@ -292,8 +282,16 @@ mod tests {
             self.0.qso.get(name)
         }
 
+        fn station_id(&self) -> Option<&str> {
+            Some(&self.0.station_id)
+        }
+
         fn station_name(&self) -> Option<&str> {
             Some(self.1)
+        }
+
+        fn instrument_id(&self) -> Option<&str> {
+            self.0.instrument_id.as_deref()
         }
 
         fn instrument_name(&self) -> Option<&str> {
@@ -424,7 +422,14 @@ mod tests {
             false => None,
         };
         let mut conn = world.db.acquire().await.unwrap();
-        for q in [
+        let ids = [
+            format!("station-id:{}", park.id),
+            format!("station-id:{},{}", home.id.to_ascii_uppercase(), park.id),
+            format!("-station-id:{}", home.id),
+            format!("instrument-id:{}", rig.id),
+            format!("-instrument-id:{}", rig.id),
+        ];
+        for q in ids.iter().map(String::as_str).chain([
             "call:JA1*",
             "call:ja1aaa",
             "call:*XYZ",
@@ -492,7 +497,7 @@ mod tests {
             "-xyz",
             "\"[pile]\"",
             "call:JA1* band:40m -sent:R",
-        ] {
+        ]) {
             let filter = Filter {
                 query: text::Query::parse(q).unwrap(),
                 ..Filter::default()

@@ -3,7 +3,6 @@ mod filter;
 
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use chrono::{NaiveDate, NaiveTime};
 use jl1his_query as text;
 use sqlx::{AssertSqlSafe, Connection, Row, SqliteConnection, sqlite::SqliteRow};
 
@@ -169,16 +168,6 @@ pub struct TimeRange {
     pub until: Option<i64>,
 }
 
-impl TimeRange {
-    pub fn days(from: Option<NaiveDate>, until: Option<NaiveDate>) -> TimeRange {
-        let start = |day: NaiveDate| day.and_time(NaiveTime::MIN).and_utc().timestamp();
-        TimeRange {
-            from: from.map(start),
-            until: until.and_then(|day| day.succ_opt()).map(start),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     pub id: QsoId,
@@ -195,11 +184,7 @@ pub enum CallMatch {
 pub struct Filter {
     pub time: TimeRange,
     pub station_ids: Option<Vec<String>>,
-    pub band: Option<String>,
-    pub mode: Option<String>,
     pub call: Option<CallMatch>,
-    pub qsl_sent: Option<Vec<String>>,
-    pub contest_id: Option<String>,
     pub query: text::Query,
 }
 
@@ -270,7 +255,7 @@ const PREVIOUS_FIELDS: [&str; 7] = ["NAME", "GRIDSQUARE", "QTH", "STATE", "CNTY"
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Previous {
     pub count: u64,
-    pub last_qso_time: Option<i64>,
+    pub last: Option<StoredQso>,
     pub fields: BTreeMap<&'static str, String>,
 }
 
@@ -707,14 +692,15 @@ pub async fn previous(
         ..Filter::default()
     };
     let conditions = Conditions::of(access, &filter)?;
-    let sql = format!("SELECT count(*), max(qso_time) FROM qsos WHERE {}", conditions.sql());
-    let row = conditions
+    let sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
+    let count: i64 = conditions
         .bind(sqlx::query(AssertSqlSafe(sql)))
         .fetch_one(&mut *conn)
-        .await?;
+        .await?
+        .try_get(0)?;
     let mut previous = Previous {
-        count: row.try_get::<i64, _>(0)? as u64,
-        last_qso_time: row.try_get(1)?,
+        count: count as u64,
+        last: None,
         fields: BTreeMap::new(),
     };
 
@@ -722,6 +708,9 @@ pub async fn previous(
     while previous.count > 0 {
         let page = page(conn, access, &filter, Order::Newest, after.as_ref(), PAGE).await?;
         for row in page.rows {
+            if previous.last.is_none() {
+                previous.last = Some(row.clone());
+            }
             for name in PREVIOUS_FIELDS {
                 if !previous.fields.contains_key(name)
                     && let Some(value) = row.qso.get(name).map(str::trim).filter(|v| !v.is_empty())
@@ -1256,7 +1245,7 @@ mod tests {
             Err(StoreError::NotFound(_))
         ));
         assert!(matches!(
-            possible_duplicates(&mut tx, &access, &input.qso, None).await,
+            possible_duplicates(&mut tx, &access, &input.qso).await,
             Err(StoreError::NotFound(_))
         ));
         assert!(matches!(
@@ -1283,14 +1272,5 @@ mod tests {
         assert_eq!(get(&mut conn, &owner, &id).await.unwrap(), stored);
         let book = logbook::get(&mut conn, &owner).await.unwrap();
         assert_eq!((book.last_seq, book.last_updated_seq), (1, 1));
-    }
-
-    #[test]
-    fn turns_days_into_a_time_range() {
-        let day = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
-        let range = TimeRange::days(Some(day("2026-10-01")), Some(day("2026-10-31")));
-        assert_eq!(range.from, Some(1_790_812_800));
-        assert_eq!(range.until, Some(1_790_812_800 + 31 * 86_400));
-        assert_eq!(TimeRange::days(None, None), TimeRange::default());
     }
 }

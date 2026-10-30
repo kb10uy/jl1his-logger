@@ -23,7 +23,7 @@
         const call = qso.fields.CALL ?? '';
         const controller = new AbortController();
         entity = undefined;
-        api.lookup(logbook.logbook.id, call, controller.signal)
+        api.lookup(logbook.logbook.id, call, undefined, controller.signal)
             .then((found) => (entity = found.entity))
             .catch(() => (entity = null));
         return () => controller.abort();

@@ -24,8 +24,8 @@ path = "jl1his-logger.db"
 
 [reference]
 # The CTY zip archive (Big CTY or the contest files from country-files.com)
-# whose cty.dat and cty.csv lookup and callsign resolution use; installed by an
-# admin with the CLI or from the web app.
+# whose cty.dat and cty.csv lookup and callsign resolution use; uploaded by an
+# admin on the web app's Administration screen.
 cty = "reference/cty.zip"
 
 [adif]
