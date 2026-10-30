@@ -2,6 +2,7 @@ import { getContext, setContext } from 'svelte';
 import * as api from '#lib/api/api.ts';
 import type { RowMatcher } from '#lib/query/index.ts';
 import type { Area, Hello, Instrument, Logbook, Qso, QsoEvent, Station } from '#lib/api/types.ts';
+import { LogList } from '#lib/state/log.svelte.ts';
 
 export type StreamStatus = 'connecting' | 'live' | 'offline';
 
@@ -16,6 +17,7 @@ export class LogbookState {
     loadError = $state<string | undefined>(undefined);
     status = $state<StreamStatus>('connecting');
     lastUpdatedSeq = $state(0);
+    readonly log: LogList;
     private generation: string | undefined;
     private source: EventSource | undefined;
     private retry: ReturnType<typeof setTimeout> | undefined;
@@ -25,6 +27,7 @@ export class LogbookState {
 
     constructor(logbook: Logbook) {
         this.logbook = logbook;
+        this.log = new LogList(this);
     }
 
     get area(): Area {
@@ -95,7 +98,11 @@ export class LogbookState {
 
     start() {
         void this.load();
-        this.connect(undefined);
+        this.connect(this.cursor);
+    }
+
+    private get cursor(): number | undefined {
+        return this.generation === undefined ? undefined : this.lastUpdatedSeq;
     }
 
     private connect(after: number | undefined) {
@@ -132,12 +139,12 @@ export class LogbookState {
 
     private reconnect() {
         clearTimeout(this.retry);
-        const after = this.generation === undefined ? undefined : this.lastUpdatedSeq;
-        this.retry = setTimeout(() => this.connect(after), this.delay);
+        this.retry = setTimeout(() => this.connect(this.cursor), this.delay);
         this.delay = Math.min(this.delay * 2, RETRY_MAX);
     }
 
     stop() {
+        this.status = 'connecting';
         clearTimeout(this.retry);
         this.retry = undefined;
         this.source?.close();
@@ -153,6 +160,21 @@ export class LogbookState {
         this.resetListeners.add(listener);
         return () => this.resetListeners.delete(listener);
     }
+}
+
+const states = new Map<string, LogbookState>();
+
+export function logbookState(logbook: Logbook): LogbookState {
+    let state = states.get(logbook.id);
+    if (state === undefined) {
+        state = new LogbookState(logbook);
+        states.set(logbook.id, state);
+    }
+    return state;
+}
+
+export function forgetLogbooks() {
+    states.clear();
 }
 
 const KEY = Symbol('logbook');

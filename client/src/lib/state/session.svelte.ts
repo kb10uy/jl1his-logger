@@ -2,6 +2,7 @@ import * as api from '#lib/api/api.ts';
 import { ApiError } from '#lib/api/client.ts';
 import type { Logbook, Me } from '#lib/api/types.ts';
 import { lastLogbook as lastLogbookSetting, load, save } from '#lib/device.ts';
+import { forgetLogbooks } from '#lib/state/logbook.svelte.ts';
 
 class Session {
     me = $state<Me | null | undefined>(undefined);
@@ -33,10 +34,12 @@ class Session {
         await api.signOut();
         this.me = null;
         this.logbooks = [];
+        forgetLogbooks();
     }
 
     expire() {
         this.me = null;
+        forgetLogbooks();
     }
 
     logbook(id: string): Logbook | undefined {

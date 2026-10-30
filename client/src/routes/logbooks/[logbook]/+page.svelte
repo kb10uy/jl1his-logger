@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, untrack } from 'svelte';
+    import { untrack } from 'svelte';
     import { MediaQuery } from 'svelte/reactivity';
     import { DropdownMenu } from 'bits-ui';
     import { goto } from '$app/navigation';
@@ -19,10 +19,9 @@
     import QslBadge from '#lib/components/ui/QslBadge.svelte';
     import { load, logColumns, save } from '#lib/device.ts';
     import { adifFieldOf, column, type Column } from '#lib/log/columns.ts';
-    import { applyEvent, replaceRows, undoOf, type Row } from '#lib/log/rows.ts';
+    import { undoOf, type Row } from '#lib/log/rows.ts';
     import {
         SORTS,
-        comparator,
         directionOf,
         isSortColumn,
         parseSort,
@@ -31,29 +30,17 @@
     } from '#lib/log/sort.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { adifDate, hhmm, isoDate, parks, rst, utcClock } from '#lib/qso/format.ts';
-    import { loadQuery, matcher } from '#lib/query/index.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
 
-    const PAGE = 100;
-
     const logbook = useLogbook();
     const logbookId = logbook.logbook.id;
+    const log = logbook.log;
     const desktop = new MediaQuery('min-width: 768px');
     const subtitle = $derived(
         `${logbook.logbook.name} · ${m.common_qso_count({ count: logbook.logbook.last_seq })}`
     );
 
-    let ready = $state(false);
-    let rows = $state<Row[]>([]);
-    let next = $state<string | null>(null);
-    let total = $state<number | undefined>(undefined);
-    let loading = $state(false);
-    let loaded = $state(false);
-    let serverError = $state<string | undefined>(undefined);
-    let outside = $state(0);
-    let checked = $state<Record<string, number>>({});
-    let anchor = $state<string | undefined>(undefined);
     let bulkOpen = $state(false);
     let busy = $state(false);
     let confirmDelete = $state(false);
@@ -61,37 +48,26 @@
     let scroller = $state<HTMLElement>();
     let sentinel = $state<HTMLElement>();
     let columns = $state(load(logColumns));
-    let run = 0;
-    let held: Qso[] = [];
 
     const q = $derived(page.url.searchParams.get('q') ?? '');
     const sort = $derived(parseSort(page.url.searchParams.get('sort')));
     const openId = $derived(page.url.searchParams.get('qso'));
-    const compiled = $derived(ready ? matcher(q) : undefined);
-    const checkedIds = $derived(Object.keys(checked));
-    const n = $derived(checkedIds.length);
-    const allLoadedChecked = $derived(rows.length > 0 && rows.every((r) => r.qso.id in checked));
+    const rows = $derived(log.rows);
+    const next = $derived(log.next);
+    const total = $derived(log.total);
+    const loading = $derived(log.loading);
+    const loaded = $derived(log.loaded);
+    const serverError = $derived(log.serverError);
+    const outside = $derived(log.outside);
+    const checked = $derived(log.checked);
+    const ready = $derived(log.ready);
+    const n = $derived(Object.keys(checked).length);
+    const allLoadedChecked = $derived(log.allLoadedChecked);
     const openRow = $derived(rows.find((r) => r.qso.id === openId));
     const openQso = $derived(openRow?.qso ?? (fetched?.id === openId ? fetched : undefined));
     const today = $derived(utcClock(new Date()).date);
     const showBulk = $derived(bulkOpen && n > 0 && desktop.current);
     const shown = $derived(columns.map(column).filter((c): c is Column => c !== undefined));
-
-    onMount(() => {
-        loadQuery().then(() => {
-            ready = true;
-            release();
-        });
-        const offQso = logbook.onQso((qso) => {
-            if (!ready || loading) held.push(qso);
-            else receive(qso);
-        });
-        const offReset = logbook.onReset(() => search(q, sort));
-        return () => {
-            offQso();
-            offReset();
-        };
-    });
 
     $effect(() => {
         toasts.lifted = n > 0 && desktop.current;
@@ -101,7 +77,7 @@
     $effect(() => {
         const query = q;
         const order = sort;
-        untrack(() => search(query, order));
+        untrack(() => log.show(query, order));
     });
 
     $effect(() => {
@@ -124,20 +100,12 @@
         return () => observer.disconnect();
     });
 
-    function receive(qso: Qso) {
-        const matches = logbook.matches(qso, compiled) ?? false;
-        const applied = applyEvent(rows, qso, matches, next === null, comparator(sort));
-        if (applied.kind === 'outside') outside += 1;
-        if ('rows' in applied) rows = applied.rows;
-        if (applied.kind === 'inserted' && qso.revision === 1 && total !== undefined) total += 1;
-    }
-
-    function release() {
-        if (!ready || loading) return;
-        const queued = held;
-        held = [];
-        queued.forEach(receive);
-    }
+    $effect(() => {
+        void log.searches;
+        const element = scroller;
+        if (!element) return;
+        untrack(() => element.scrollTo({ top: log.scrollTop }));
+    });
 
     function replaceUrl(change: { q?: string; sort?: Sort; qso?: string | null }) {
         const url = new URL(page.url.href);
@@ -156,104 +124,27 @@
         goto(url, { replace: true, reset: false });
     }
 
-    async function search(query: string, order: Sort) {
-        const mine = ++run;
-        loading = true;
-        try {
-            const found = await api.searchQsos(logbookId, { q: query, sort: order, limit: PAGE });
-            if (mine !== run) return;
-            rows = found.qsos.map((qso) => ({ qso, stale: false }));
-            next = found.next;
-            total = found.total;
-            outside = 0;
-            serverError = undefined;
-            loaded = true;
-            scroller?.scrollTo({ top: 0 });
-        } catch (e) {
-            if (mine !== run) return;
-            serverError = e instanceof Error ? e.message : String(e);
-        } finally {
-            if (mine === run) {
-                loading = false;
-                release();
-            }
-        }
-    }
-
     async function more() {
-        if (next === null || loading) return;
-        const mine = run;
-        loading = true;
-        try {
-            const found = await api.searchQsos(logbookId, {
-                q,
-                sort,
-                cursor: next,
-                limit: PAGE
-            });
-            if (mine !== run) return;
-            const known = new Set(rows.map((r) => r.qso.id));
-            rows = [
-                ...rows,
-                ...found.qsos
-                    .filter((qso) => !known.has(qso.id))
-                    .map((qso) => ({ qso, stale: false }))
-            ];
-            next = found.next;
-        } catch (e) {
-            toasts.error(e instanceof Error ? e.message : String(e));
-        } finally {
-            if (mine === run) {
-                loading = false;
-                release();
-            }
-        }
+        const failed = await log.more();
+        if (failed !== undefined) toasts.error(failed);
     }
 
     function toggle(event: MouseEvent, qso: Qso) {
         event.stopPropagation();
-        const next = { ...checked };
-        const ids = rows.map((r) => r.qso.id);
-        const a = anchor === undefined ? -1 : ids.indexOf(anchor);
-        const b = ids.indexOf(qso.id);
-        if (event.shiftKey && a >= 0 && b >= 0) {
-            for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
-                next[ids[i]] = rows[i].qso.revision;
-            }
-        } else if (qso.id in next) {
-            delete next[qso.id];
-        } else {
-            next[qso.id] = qso.revision;
-        }
-        checked = next;
-        anchor = qso.id;
-    }
-
-    function toggleAll() {
-        if (allLoadedChecked) {
-            const next = { ...checked };
-            rows.forEach((r) => delete next[r.qso.id]);
-            checked = next;
-        } else {
-            checked = {
-                ...checked,
-                ...Object.fromEntries(rows.map((r) => [r.qso.id, r.qso.revision]))
-            };
-        }
+        log.toggle(qso, event.shiftKey);
     }
 
     async function checkAllMatching() {
         try {
             const { qsos } = await api.targets(logbookId, q);
-            checked = Object.fromEntries(qsos.map((t) => [t.id, t.revision]));
+            log.checked = Object.fromEntries(qsos.map((t) => [t.id, t.revision]));
         } catch (e) {
             toasts.error(e instanceof Error ? e.message : String(e));
         }
     }
 
     function clearChecked() {
-        checked = {};
-        anchor = undefined;
+        log.clearChecked();
         bulkOpen = false;
     }
 
@@ -262,19 +153,12 @@
         else goto(`/logbooks/${logbookId}/qsos/${qso.id}`);
     }
 
-    function applied(updated: Qso[]) {
-        rows = replaceRows(rows, updated, (qso) => logbook.matches(qso, compiled) ?? true);
-        const next = { ...checked };
-        for (const qso of updated) if (qso.id in next) next[qso.id] = qso.revision;
-        checked = next;
-    }
-
     async function changeQsl(targets: Target[], fields: Fields, done: (count: number) => string) {
         const before = rows.filter((r) => checked[r.qso.id] !== undefined).map((r) => r.qso);
         busy = true;
         try {
             const outcome = await api.updateQsl(logbookId, targets, fields);
-            applied(outcome.updated);
+            log.applied(outcome.updated);
             const undo = undoOf(before, outcome.updated, Object.keys(fields));
             const skipped = outcome.skipped.length;
             const text = `${done(outcome.updated.length)}${
@@ -294,7 +178,7 @@
                                               group.qsos,
                                               group.fields
                                           );
-                                          applied(back.updated);
+                                          log.applied(back.updated);
                                       }
                                   } catch (e) {
                                       toasts.error(e instanceof Error ? e.message : String(e));
@@ -325,11 +209,8 @@
                 if (!(e instanceof ApiError) || e.retryable) break;
             }
         }
-        rows = rows.filter((r) => !deleted.has(r.qso.id));
-        if (total !== undefined) total -= deleted.size;
-        const left = Object.entries(checked).filter(([id]) => !deleted.has(id));
-        if (left.length === 0) clearChecked();
-        else checked = Object.fromEntries(left);
+        log.removed(deleted);
+        if (n === 0) bulkOpen = false;
         busy = false;
         toasts.show(
             `${m.log_deleted({ count: deleted.size })}${failed > 0 ? m.log_delete_failed({ count: failed }) : ''}`
@@ -377,7 +258,7 @@
 
 {#snippet counts()}
     {#if outside > 0}
-        <button type="button" class="text-xs text-info" onclick={() => search(q, sort)}
+        <button type="button" class="text-xs text-info" onclick={() => log.search()}
             >{m.log_new_outside({ count: outside })}</button
         >
     {/if}
@@ -511,7 +392,11 @@
         </PageHeader>
 
         <main class="relative flex min-h-0 flex-1">
-            <div bind:this={scroller} class="min-w-0 flex-1 overflow-auto">
+            <div
+                bind:this={scroller}
+                class="min-w-0 flex-1 overflow-auto"
+                onscroll={() => (log.scrollTop = scroller?.scrollTop ?? 0)}
+            >
                 <table class="w-full border-collapse text-[13px]">
                     <thead class="sticky top-0 z-[1] bg-bg">
                         <tr
@@ -520,7 +405,7 @@
                             <th
                                 scope="col"
                                 class="group/check w-14 cursor-pointer border-b border-border py-2 pr-3 pl-6"
-                                onclick={toggleAll}
+                                onclick={() => log.toggleAll()}
                             >
                                 <span class={checkHalo}>
                                     <input
@@ -529,7 +414,7 @@
                                         checked={allLoadedChecked}
                                         onclick={(e) => {
                                             e.stopPropagation();
-                                            toggleAll();
+                                            log.toggleAll();
                                         }}
                                         class="size-4 cursor-pointer accent-info"
                                     />

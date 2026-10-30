@@ -127,7 +127,9 @@ shared crate.
 - **Every screen has a path**, under `/logbooks/{logbook_id}/...` for a
   Logbook's screens, so it enters the browser history. The log keeps its
   query in `?q=` and the open QSO in `?qso=`, replacing the history entry
-  rather than adding one.
+  rather than adding one. The loaded list, its query, checked rows and
+  scroll stay in memory while the browser tab lives; the state of a Logbook
+  is kept per Logbook and its stream reopens with `?after=` on return.
 - **Secrets stay on the server.** No CSRF tokens: the session is a `__Host-`
   `SameSite=Lax` cookie and state-changing requests must come from
   `public_origin`.
