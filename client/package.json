@@ -1,7 +1,7 @@
 {
     "name": "jl1his-logger-client",
     "private": true,
-    "version": "0.6.0",
+    "version": "0.7.0",
     "type": "module",
     "packageManager": "pnpm@12.15.0",
     "scripts": {
@@ -21,7 +21,7 @@
         "test": "pnpm run wasm && pnpm run adif && pnpm run messages && vitest --run"
     },
     "devDependencies": {
-        "@inlang/paraglide-js": "^2.29.2",
+        "@inlang/paraglide-js": "^2.29.3",
         "@inlang/plugin-message-format": "^4.5.5",
         "@sveltejs/adapter-static": "^4.0.0",
         "@sveltejs/kit": "^3.1.0",
