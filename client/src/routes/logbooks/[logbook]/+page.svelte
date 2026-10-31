@@ -359,7 +359,7 @@
         role="status"
         aria-live="polite"
         class={[
-            'sticky left-0 flex items-center justify-center gap-2 px-6 py-4 text-sm text-muted',
+            'sticky left-0 flex items-center justify-center gap-2 px-5 py-4 text-sm text-muted',
             n > 0 && desktop.current && 'pb-24'
         ]}
     >
@@ -404,11 +404,11 @@
                 <table class="w-full border-collapse text-sm">
                     <thead class="sticky top-0 z-[1] bg-bg">
                         <tr
-                            class="text-left text-2xs text-muted compact:[&>th]:py-1 [&>th:last-child]:pr-6 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2 compact:[&>th:not(:first-child,:last-child)]:px-2"
+                            class="text-left text-2xs text-muted compact:[&>th]:py-1 [&>th:last-child]:pr-5 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2 compact:[&>th:not(:first-child,:last-child)]:px-2"
                         >
                             <th
                                 scope="col"
-                                class="group/check w-14 cursor-pointer border-b border-border py-2 pr-3 pl-6"
+                                class="group/check w-14 cursor-pointer border-b border-border py-2 pr-3 pl-5"
                                 onclick={() => log.toggleAll()}
                             >
                                 <span class={checkHalo}>
@@ -473,7 +473,7 @@
                                 aria-current={isOpen ? 'true' : undefined}
                                 title={row.stale ? m.log_row_stale() : undefined}
                                 class={[
-                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-1.5 [&>td]:whitespace-nowrap compact:[&>td]:py-px [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l compact:[&>td:not(:first-child,:last-child)]:px-2',
+                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-1.5 [&>td]:whitespace-nowrap compact:[&>td]:py-px [&>td:last-child]:pr-5 [&>td:not(:first-child)]:border-l compact:[&>td:not(:first-child,:last-child)]:px-2',
                                     isChecked
                                         ? 'bg-selected'
                                         : isOpen
@@ -485,7 +485,7 @@
                                 onclick={() => open(row.qso)}
                             >
                                 <td
-                                    class="group/check pr-3 pl-6"
+                                    class="group/check pr-3 pl-5"
                                     onclick={(e) => toggle(e, row.qso)}
                                     onmousedown={(e) => {
                                         if (e.shiftKey) e.preventDefault();
@@ -521,7 +521,7 @@
                     role="toolbar"
                     aria-label={m.log_checked_qsos()}
                     class={[
-                        'absolute bottom-4 left-6 z-[4] flex flex-wrap items-center gap-2 rounded-[10px] border border-info-strong bg-selected px-2.5 py-2 text-sm shadow-lg shadow-shadow',
+                        'absolute bottom-4 left-5 z-[4] flex flex-wrap items-center gap-2 rounded-[10px] border border-info-strong bg-selected px-2.5 py-2 text-sm shadow-lg shadow-shadow',
                         showBulk || openQso ? 'right-[404px]' : 'right-6'
                     ]}
                 >

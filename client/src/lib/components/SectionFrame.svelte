@@ -95,7 +95,7 @@
             : { href: `/logbooks/${logbookId}/more`, label: m.settings_back_more() }}
 />
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
     <div class="flex items-start gap-6">
         <nav
             aria-label={label}

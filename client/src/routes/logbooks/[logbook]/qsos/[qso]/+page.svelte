@@ -191,7 +191,7 @@
     {/snippet}
 </PageHeader>
 
-<main class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:px-6">
+<main class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-4 md:px-5">
     {#if loadError}
         <Notice tone="error">{loadError}</Notice>
     {:else if qso && draft}

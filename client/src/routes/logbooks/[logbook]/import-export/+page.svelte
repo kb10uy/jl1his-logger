@@ -150,7 +150,7 @@
     {/snippet}
 </PageHeader>
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
     <div class="flex flex-wrap items-start gap-4">
         <section
             aria-label={m.transfer_import()}

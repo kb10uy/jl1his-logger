@@ -49,7 +49,7 @@
 </script>
 
 <header class="sticky top-0 z-20 shrink-0 border-b border-border bg-surface">
-    <div class="flex h-14 items-center gap-2 px-4 md:gap-3 md:px-6">
+    <div class="flex h-14 items-center gap-2 px-4 md:gap-3 md:px-5">
         {#if back}
             {#if back.href !== undefined}
                 <a
@@ -93,7 +93,7 @@
         {/if}
     </div>
     {#if toolbar}
-        <div class={['px-4 pb-3 md:px-6', toolbarClass]}>
+        <div class={['px-4 pb-3 md:px-5', toolbarClass]}>
             {@render toolbar()}
         </div>
     {/if}

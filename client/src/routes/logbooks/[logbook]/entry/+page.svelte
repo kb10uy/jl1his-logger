@@ -204,7 +204,7 @@
     {/snippet}
 </PageHeader>
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
     <LogbookLoadError />
     {#if logbook.noActiveStation}
         <Notice>{m.entry_no_station()}</Notice>
