@@ -12,18 +12,11 @@
     import { distribution, tally } from '#lib/log/rows.ts';
     import { m } from '#lib/paraglide/messages.js';
     import { ADIF_QSO_FIELDS } from '#lib/qso/adif-fields.ts';
-    import { adifDate } from '#lib/qso/format.ts';
-    import {
-        QSL_RCVD_VALUES,
-        QSL_SENT_VALUES,
-        QSL_VIA_VALUES,
-        type QslChoice
-    } from '#lib/qso/qsl.ts';
+    import { enumerationOf, fieldChoices } from '#lib/qso/enumerations.ts';
 
     let {
         count,
         known,
-        today,
         busy,
         stations,
         instruments,
@@ -32,7 +25,6 @@
     }: {
         count: number;
         known: Qso[];
-        today: string;
         busy: boolean;
         stations: Station[];
         instruments: Instrument[];
@@ -40,28 +32,9 @@
         onclose: () => void;
     } = $props();
 
-    type Choice = { name: string; label: string; options: QslChoice[]; date?: boolean };
-    const groups: { legend: string; choices: Choice[] }[] = [
-        {
-            legend: m.field_qsl_sent(),
-            choices: [
-                { name: 'QSL_SENT', label: m.log_sent(), options: QSL_SENT_VALUES },
-                { name: 'QSL_SENT_VIA', label: m.log_via(), options: QSL_VIA_VALUES },
-                { name: 'QSLSDATE', label: m.log_sent_date(), options: [], date: true }
-            ]
-        },
-        {
-            legend: m.log_qsl_received(),
-            choices: [
-                { name: 'QSL_RCVD', label: m.log_received(), options: QSL_RCVD_VALUES },
-                { name: 'QSL_RCVD_VIA', label: m.log_via(), options: QSL_VIA_VALUES },
-                { name: 'QSLRDATE', label: m.log_received_date(), options: [], date: true }
-            ]
-        }
-    ];
+    const blank = (): FieldEdit => ({ name: '', value: '', clear: false });
 
-    let values = $state<Record<string, string>>({});
-    let edits = $state<FieldEdit[]>([]);
+    let edits = $state<FieldEdit[]>([blank()]);
     let station = $state(KEEP);
     let instrument = $state(KEEP);
 
@@ -70,18 +43,8 @@
     const instrumentName = (id: string | null | undefined) =>
         id === null ? m.common_none() : (instruments.find((i) => i.id === id)?.name ?? id);
 
-    const fixed = $derived(
-        Object.fromEntries(
-            Object.entries(values)
-                .filter(([, v]) => v !== '')
-                .map(([name, v]) => [
-                    name,
-                    v === 'today' ? adifDate(today) : v === 'clear' ? '' : v
-                ])
-        )
-    );
-    const problems = $derived(fieldProblems(fixed, edits));
-    const change = $derived(bulkChange(fixed, edits, station, instrument));
+    const problems = $derived(fieldProblems(edits));
+    const change = $derived(bulkChange(edits, station, instrument));
     const summary = $derived([
         ...(change.station_id === undefined
             ? []
@@ -93,9 +56,13 @@
     ]);
     const blocked = $derived(problems.some((p) => p !== undefined));
 
+    function rename(edit: FieldEdit, name: string) {
+        if (enumerationOf(name) !== enumerationOf(edit.name)) edit.value = '';
+        edit.name = name;
+    }
+
     function reset() {
-        values = {};
-        edits = [];
+        edits = [blank()];
         station = KEEP;
         instrument = KEEP;
     }
@@ -150,42 +117,11 @@
         <span class="text-[11px] text-muted">{m.log_bulk_place_help()}</span>
     </fieldset>
 
-    {#each groups as group (group.legend)}
-        <fieldset class="m-0 flex flex-col gap-2.5 rounded-lg border border-border p-3">
-            <legend class="px-1.5 eyebrow">{group.legend}</legend>
-            {#each group.choices as choice (choice.name)}
-                <div class="flex flex-col gap-1">
-                    <label for={`bulk-${choice.name}`} class="flex flex-col text-xs text-muted">
-                        <span>{choice.label}</span>
-                        <span class="font-mono text-[10px] opacity-75">{choice.name}</span>
-                    </label>
-                    <select
-                        id={`bulk-${choice.name}`}
-                        class="control"
-                        value={values[choice.name] ?? ''}
-                        onchange={(e) => (values[choice.name] = e.currentTarget.value)}
-                    >
-                        <option value="">{m.log_bulk_keep()}</option>
-                        {#if choice.date}
-                            <option value="today">{m.log_bulk_today({ date: today })}</option>
-                            <option value="clear">{m.common_clear()}</option>
-                        {:else}
-                            {#each choice.options as [code, label] (code)}
-                                <option value={code}>{code} · {label()}</option>
-                            {/each}
-                            <option value="clear">{m.common_clear()}</option>
-                        {/if}
-                    </select>
-                    {@render now(distribution(known, choice.name))}
-                </div>
-            {/each}
-        </fieldset>
-    {/each}
-
     <fieldset class="m-0 flex flex-col gap-2.5 rounded-lg border border-border p-3">
-        <legend class="px-1.5 eyebrow">{m.log_bulk_other_fields()}</legend>
+        <legend class="px-1.5 eyebrow">{m.log_bulk_fields()}</legend>
         {#each edits as edit, i (i)}
             {@const name = edit.name.trim().toUpperCase()}
+            {@const choices = fieldChoices(name)}
             <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-2">
                     <input
@@ -197,7 +133,8 @@
                         autocapitalize="characters"
                         spellcheck="false"
                         class="control h-9 min-w-0 flex-1 font-mono text-xs uppercase"
-                        bind:value={edit.name}
+                        value={edit.name}
+                        oninput={(e) => rename(edit, e.currentTarget.value)}
                     />
                     <button
                         type="button"
@@ -208,12 +145,26 @@
                     >
                 </div>
                 <div class="flex items-center gap-2">
-                    <input
-                        aria-label={m.log_bulk_field_value({ name: name || 'FIELD_NAME' })}
-                        disabled={edit.clear}
-                        class="control h-9 min-w-0 flex-1 disabled:opacity-50"
-                        bind:value={edit.value}
-                    />
+                    {#if choices}
+                        <select
+                            aria-label={m.log_bulk_field_value({ name })}
+                            disabled={edit.clear}
+                            class="control h-9 min-w-0 flex-1 disabled:opacity-50"
+                            bind:value={edit.value}
+                        >
+                            <option value="">{m.log_bulk_keep()}</option>
+                            {#each choices as [value, label] (value)}
+                                <option {value}>{label ? `${value} · ${label}` : value}</option>
+                            {/each}
+                        </select>
+                    {:else}
+                        <input
+                            aria-label={m.log_bulk_field_value({ name: name || 'FIELD_NAME' })}
+                            disabled={edit.clear}
+                            class="control h-9 min-w-0 flex-1 disabled:opacity-50"
+                            bind:value={edit.value}
+                        />
+                    {/if}
                     <label class="flex shrink-0 items-center gap-1.5 text-xs">
                         <input type="checkbox" class="accent-info" bind:checked={edit.clear} />
                         {m.log_bulk_clear_field()}
@@ -233,7 +184,7 @@
         <button
             type="button"
             class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-[13px] text-muted hover:text-text"
-            onclick={() => edits.push({ name: '', value: '', clear: false })}
+            onclick={() => edits.push(blank())}
         >
             <Icon name="plus" size={14} />
             {m.log_bulk_add_field()}

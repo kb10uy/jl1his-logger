@@ -577,7 +577,6 @@
                 <BulkEdit
                     count={n}
                     known={rows.filter((r) => r.qso.id in checked).map((r) => r.qso)}
-                    {today}
                     {busy}
                     stations={logbook.stations}
                     instruments={logbook.instruments}

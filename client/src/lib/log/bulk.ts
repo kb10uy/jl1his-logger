@@ -15,8 +15,8 @@ const NAME = /^[A-Z][A-Z0-9_]*$/;
 
 const normalized = (name: string) => name.trim().toUpperCase();
 
-export function fieldProblems(fixed: Fields, edits: FieldEdit[]): (FieldProblem | undefined)[] {
-    const seen = new Set(Object.keys(fixed));
+export function fieldProblems(edits: FieldEdit[]): (FieldProblem | undefined)[] {
+    const seen = new Set<string>();
     return edits.map((edit) => {
         const name = normalized(edit.name);
         if (name === '') return undefined;
@@ -27,13 +27,8 @@ export function fieldProblems(fixed: Fields, edits: FieldEdit[]): (FieldProblem 
     });
 }
 
-export function bulkChange(
-    fixed: Fields,
-    edits: FieldEdit[],
-    station: string,
-    instrument: string
-): BulkChange {
-    const fields: Fields = { ...fixed };
+export function bulkChange(edits: FieldEdit[], station: string, instrument: string): BulkChange {
+    const fields: Fields = {};
     for (const edit of edits) {
         const name = normalized(edit.name);
         if (name === '' || (!edit.clear && edit.value === '')) continue;

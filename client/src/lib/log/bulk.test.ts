@@ -6,8 +6,13 @@ const edit = (name: string, value = '', clear = false) => ({ name, value, clear 
 describe('bulkChange', () => {
     it('sets, clears and skips fields and keeps the Station and Instrument by default', () => {
         const change = bulkChange(
-            { QSL_SENT: 'Y' },
-            [edit(' name ', 'Taro'), edit('comment', '', true), edit('qth'), edit('', 'x')],
+            [
+                edit('qsl_sent', 'Y'),
+                edit(' name ', 'Taro'),
+                edit('comment', '', true),
+                edit('qth'),
+                edit('', 'x')
+            ],
             KEEP,
             KEEP
         );
@@ -16,23 +21,24 @@ describe('bulkChange', () => {
     });
 
     it('names a Station and an Instrument or no Instrument', () => {
-        expect(bulkChange({}, [], 'st', 'in')).toEqual({
+        expect(bulkChange([], 'st', 'in')).toEqual({
             fields: {},
             station_id: 'st',
             instrument_id: 'in'
         });
-        expect(bulkChange({}, [], KEEP, NO_INSTRUMENT)).toEqual({
+        expect(bulkChange([], KEEP, NO_INSTRUMENT)).toEqual({
             fields: {},
             instrument_id: null
         });
-        expect(isEmpty(bulkChange({}, [edit('NAME')], KEEP, KEEP))).toBe(true);
+        expect(isEmpty(bulkChange([edit('NAME')], KEEP, KEEP))).toBe(true);
     });
 });
 
 describe('fieldProblems', () => {
     it('finds invalid and repeated names', () => {
         expect(
-            fieldProblems({ QSL_SENT: 'Y' }, [
+            fieldProblems([
+                edit('QSL_SENT'),
                 edit('qsl_sent'),
                 edit('MY RIG'),
                 edit('eor'),
@@ -40,6 +46,6 @@ describe('fieldProblems', () => {
                 edit('NAME'),
                 edit('')
             ])
-        ).toEqual(['repeated', 'name', 'name', undefined, 'repeated', undefined]);
+        ).toEqual([undefined, 'repeated', 'name', 'name', undefined, 'repeated', undefined]);
     });
 });
