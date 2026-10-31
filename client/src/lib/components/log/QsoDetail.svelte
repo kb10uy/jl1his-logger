@@ -80,7 +80,7 @@
 
 <aside
     aria-label={m.log_detail_label()}
-    class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-4 overflow-y-auto border-l border-border bg-surface px-6 pt-4 pb-6 shadow-[-12px_0_32px] shadow-shadow"
+    class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-3 overflow-y-auto border-l border-border bg-surface px-4 pt-3 pb-4 shadow-[-12px_0_32px] shadow-shadow"
 >
     <div class="flex items-center justify-between gap-2">
         <span class="eyebrow">QSO</span>
@@ -99,7 +99,7 @@
         </div>
     </div>
     {#if stale}
-        <p class="rounded-md bg-warn-bg px-3 py-2 text-2xs text-warn">
+        <p class="rounded-md bg-warn-bg px-2.5 py-1.5 text-2xs text-warn">
             {qso.deleted_at ? m.log_detail_deleted() : m.log_detail_stale()}
         </p>
     {/if}
@@ -109,7 +109,7 @@
             >{entity?.name ?? f.COUNTRY ?? (entity === undefined ? '…' : '—')}</span
         >
     </div>
-    <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 text-sm wrap-anywhere">
+    <dl class="m-0 grid grid-cols-2 gap-x-3 gap-y-2 text-sm wrap-anywhere">
         <div class="flex flex-col gap-0.5">
             <dt class="text-2xs text-muted">{m.field_date_utc()}</dt>
             <dd class="m-0 font-mono">{isoDate(f.QSO_DATE)} {hhmmss(f.TIME_ON)}</dd>
@@ -181,7 +181,7 @@
             </div>
         {/if}
     </dl>
-    <div class="flex flex-col gap-2 rounded-lg border border-border bg-bg p-3 text-sm">
+    <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-bg p-2.5 text-sm">
         <span class="eyebrow">QSL</span>
         <div class="flex items-center justify-between">
             <span>{m.log_sent()}</span>
@@ -219,7 +219,7 @@
         </div>
     {/if}
     {#if others.length > 0}
-        <details class="rounded-lg border border-border bg-bg p-3 text-sm">
+        <details class="rounded-lg border border-border bg-bg p-2.5 text-sm">
             <summary class="cursor-pointer"
                 >{m.log_detail_other_fields({ count: others.length })}</summary
             >
