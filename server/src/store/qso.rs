@@ -403,22 +403,29 @@ pub async fn update(
     access.revalidate(tx).await?;
     let current = fetch(tx, access, id).await?;
     current.require_revision(base_revision)?;
-    let station = station::fetch(tx, access, &input.station_id).await?;
-    let instrument_id = match &input.instrument_id {
-        Some(id) => Some(instrument::fetch(tx, access, id).await?.id),
-        None => None,
-    };
-    let checked = duplicate::check(tx, access, &input.qso, Some(id)).await?;
-    let stored = write_update(
-        tx,
-        access,
-        &current,
-        (&station.id, instrument_id.as_deref()),
-        &input.qso,
-        &checked,
-    )
-    .await?;
+    let (station_id, instrument_id) = (input.station_id.as_str(), input.instrument_id.as_deref());
+    let after = baked(tx, access, station_id, instrument_id).await?;
+    let mut qso = input.qso;
+    if (station_id, instrument_id) != (current.station_id.as_str(), current.instrument_id.as_deref()) {
+        let before = baked(tx, access, &current.station_id, current.instrument_id.as_deref()).await?;
+        qso.rebake(&current.qso, &before, &after)?;
+    }
+    let checked = duplicate::check(tx, access, &qso, Some(id)).await?;
+    let stored = write_update(tx, access, &current, (station_id, instrument_id), &qso, &checked).await?;
     Ok((stored, checked.warnings))
+}
+
+async fn baked(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    station_id: &str,
+    instrument_id: Option<&str>,
+) -> Result<BTreeMap<String, String>, StoreError> {
+    let mut values = station::fetch(conn, access, station_id).await?.values();
+    if let Some(id) = instrument_id {
+        values.extend(instrument::fetch(conn, access, id).await?.defaults());
+    }
+    Ok(values)
 }
 
 pub(crate) async fn rewrite_all(
@@ -853,7 +860,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bakes_the_instrument_before_the_station_and_not_again_on_update() {
+    async fn bakes_the_instrument_before_the_station_and_again_when_an_update_changes_them() {
         let world = World::new().await;
         let owner = world.access(&world.owner).await;
         let access = world.access(&world.operator).await;
@@ -895,7 +902,22 @@ mod tests {
         };
         let (updated, _) = update(&mut tx, &access, &id, 1, moved).await.unwrap();
         assert_eq!(updated.instrument_id.as_deref(), Some(other.id.as_str()));
-        assert_eq!(updated.qso.get("MY_RIG"), Some("IC-705"));
+        let baked = |qso: &Qso| -> Vec<Option<String>> {
+            ["MY_RIG", "MY_ANTENNA", "TX_PWR", "MY_SIG", "MY_CITY"]
+                .iter()
+                .map(|name| qso.get(name).map(str::to_owned))
+                .collect()
+        };
+        assert_eq!(
+            baked(&updated.qso),
+            [
+                Some("FT-817".into()),
+                None,
+                Some("5".into()),
+                Some("JCC".into()),
+                Some("Minato".into())
+            ]
+        );
         let cleared = QsoInput {
             station_id: station.id.clone(),
             instrument_id: None,
@@ -903,6 +925,26 @@ mod tests {
         };
         let (cleared, _) = update(&mut tx, &access, &id, 2, cleared).await.unwrap();
         assert_eq!(cleared.instrument_id, None);
+        assert_eq!(
+            baked(&cleared.qso),
+            [None, None, Some("5".into()), Some("JCC".into()), Some("Minato".into())]
+        );
+        tx.commit().await.unwrap();
+
+        let away = world.station("Away").await;
+        let mut tx = WriteTx::begin(&world.db).await.unwrap();
+        let mut moved = QsoInput {
+            station_id: away.id.clone(),
+            instrument_id: None,
+            qso: cleared.qso.clone(),
+        };
+        moved.qso.set("MY_CITY", Some("Shiba".into())).unwrap();
+        let (moved, _) = update(&mut tx, &access, &id, 3, moved).await.unwrap();
+        assert_eq!(moved.station_id, away.id);
+        assert_eq!(
+            baked(&moved.qso),
+            [None, None, Some("5".into()), None, Some("Shiba".into())]
+        );
         tx.commit().await.unwrap();
 
         let (_, elsewhere) = world.other_logbook().await;

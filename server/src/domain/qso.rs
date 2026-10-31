@@ -135,6 +135,30 @@ impl Qso {
         Ok(())
     }
 
+    pub fn rebake(
+        &mut self,
+        current: &Qso,
+        before: &BTreeMap<String, String>,
+        after: &BTreeMap<String, String>,
+    ) -> Result<(), QsoError> {
+        let names: Vec<&String> = before
+            .keys()
+            .chain(after.keys().filter(|n| !before.contains_key(*n)))
+            .collect();
+        for name in names {
+            let (old, new) = (before.get(name), after.get(name));
+            if old == new || self.get(name) != current.get(name) {
+                continue;
+            }
+            match new {
+                Some(value) => self.set(name, Some(value.clone()))?,
+                None if current.get(name) == old.map(String::as_str) => self.set(name, None)?,
+                None => {}
+            }
+        }
+        Ok(())
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
         let columns = Columns::NAMES
             .iter()
@@ -560,6 +584,56 @@ pub(crate) mod tests {
         let mut given = sample();
         given.bake_station("JL1HIS/1", &BTreeMap::new()).unwrap();
         assert_eq!(given.get("STATION_CALLSIGN"), Some("JL1HIS"));
+    }
+
+    #[test]
+    fn rebakes_values_that_change_and_keeps_those_edited_in_the_request() {
+        let mut current = sample();
+        for (name, value) in [
+            ("MY_CITY", "Minato"),
+            ("MY_CNTY", "100103"),
+            ("MY_SIG", "POTA"),
+            ("MY_GRIDSQUARE", "PM95"),
+            ("TX_PWR", "5"),
+        ] {
+            current.set(name, Some(value.into())).unwrap();
+        }
+        let map = |pairs: &[(&str, &str)]| -> BTreeMap<String, String> {
+            pairs.iter().map(|(n, v)| ((*n).to_owned(), (*v).to_owned())).collect()
+        };
+        let before = map(&[
+            ("STATION_CALLSIGN", "JL1HIS"),
+            ("MY_CITY", "Minato"),
+            ("MY_CNTY", "100101"),
+            ("MY_SIG", "POTA"),
+            ("TX_PWR", "5"),
+        ]);
+        let after = map(&[("STATION_CALLSIGN", "JL1HIS/1"), ("MY_CITY", "Shiba"), ("TX_PWR", "10")]);
+        let mut qso = current.clone();
+        qso.set("MY_CITY", Some("Edited".into())).unwrap();
+        qso.rebake(&current, &before, &after).unwrap();
+        let values: Vec<_> = [
+            "STATION_CALLSIGN",
+            "MY_CITY",
+            "MY_CNTY",
+            "MY_SIG",
+            "MY_GRIDSQUARE",
+            "TX_PWR",
+        ]
+        .iter()
+        .map(|name| qso.get(name))
+        .collect();
+        assert_eq!(
+            values,
+            [
+                Some("JL1HIS/1"),
+                Some("Edited"),
+                Some("100103"),
+                None,
+                Some("PM95"),
+                Some("10")
+            ]
+        );
     }
 
     #[rstest]

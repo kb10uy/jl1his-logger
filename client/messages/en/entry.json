@@ -107,7 +107,7 @@
     "entry_editor_eqsl": "eQSL sent / rcvd",
     "entry_editor_station_at_time": "Station at the time",
     "entry_editor_read_only": "read only",
-    "entry_editor_baked": "Baked at creation. Editing the Station or the Instrument, or choosing another Instrument here, does not change these values.",
+    "entry_editor_baked": "Baked at creation. Editing the Station or the Instrument does not change these values; choosing another Station or Instrument here replaces them with its current values when saved, except fields you changed.",
     "entry_editor_other_fields": "Other ADIF fields",
     "entry_editor_none": "None.",
     "entry_editor_delete_qso": "Delete QSO",

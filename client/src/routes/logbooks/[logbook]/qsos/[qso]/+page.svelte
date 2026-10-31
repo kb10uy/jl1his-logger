@@ -9,6 +9,7 @@
     import ModeSelect from '#lib/components/ModeSelect.svelte';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
+    import StationSelect from '#lib/components/StationSelect.svelte';
     import WarningList from '#lib/components/WarningList.svelte';
     import Button from '#lib/components/ui/Button.svelte';
     import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
@@ -37,6 +38,7 @@
 
     let qso = $state<Qso | undefined>(undefined);
     let draft = $state<Draft | undefined>(undefined);
+    let stationId = $state('');
     let instrumentId = $state('');
     let loadError = $state<string | undefined>(undefined);
     let saveError = $state<string | undefined>(undefined);
@@ -88,6 +90,7 @@
     function reset(found: Qso) {
         qso = found;
         draft = draftOf(found.fields, logbook.area);
+        stationId = found.station_id;
         instrumentId = found.instrument_id ?? '';
         conflict = undefined;
         saveError = undefined;
@@ -99,6 +102,9 @@
     }
 
     const problem = $derived(draft === undefined ? undefined : problemOf(draft, logbook.area));
+    const stations = $derived(
+        logbook.stations.filter((s) => s.archived_at === null || s.id === qso?.station_id)
+    );
     const instruments = $derived(
         logbook.instruments.filter((i) => i.archived_at === null || i.id === qso?.instrument_id)
     );
@@ -115,7 +121,7 @@
                 logbookId,
                 qso.id,
                 qso.revision,
-                qso.station_id,
+                stationId,
                 instrumentId || null,
                 fieldsOf(draft, qso.fields, logbook.area)
             );
@@ -408,6 +414,16 @@
                 </div>
                 <span class="text-xs text-muted">{m.entry_editor_baked()}</span>
             </div>
+
+            <Field label={m.field_station()} for="e-station">
+                <StationSelect
+                    id="e-station"
+                    class="h-11"
+                    value={stationId}
+                    {stations}
+                    onchange={(id) => (stationId = id)}
+                />
+            </Field>
 
             <Field label={m.field_instrument()} for="e-instrument">
                 <InstrumentSelect

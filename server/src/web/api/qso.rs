@@ -428,7 +428,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bakes_the_named_instrument_and_keeps_its_id() {
+    async fn bakes_the_named_instrument_and_unbakes_it_when_cleared() {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
         let rig = h.world.instrument("IC-705").await;
@@ -457,7 +457,10 @@ mod tests {
             .await;
         assert_eq!(status, StatusCode::OK, "{updated}");
         assert_eq!(updated["qso"]["instrument_id"], Value::Null);
-        assert_eq!(updated["qso"]["fields"]["MY_RIG"], "IC-705");
+        assert_eq!(
+            (&updated["qso"]["fields"]["MY_RIG"], &updated["qso"]["fields"]["TX_PWR"]),
+            (&Value::Null, &Value::Null)
+        );
 
         let mut unknown = entry(&h, &QsoId::generate(), "JA1ZZZ", "40m", "050000");
         unknown["instrument_id"] = json!("nothing");
