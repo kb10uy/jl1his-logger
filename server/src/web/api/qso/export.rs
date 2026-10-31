@@ -5,7 +5,7 @@ use axum::{
     http::StatusCode,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     domain::{
@@ -14,8 +14,8 @@ use crate::{
     },
     store::{
         WriteTx,
+        bulk::{self, Change, Outcome, SkipReason, Skipped},
         export::{self, ExportBatch, ExportKind},
-        qsl::{self, Outcome, SkipReason, Skipped},
         qso::{Filter, Target},
     },
     web::{
@@ -50,9 +50,17 @@ impl From<Target> for TargetBody {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct QslRequest {
+pub struct BulkRequest {
     qsos: Vec<TargetRequest>,
+    station_id: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    instrument_id: Option<Option<String>>,
+    #[serde(default)]
     fields: BTreeMap<String, String>,
+}
+
+fn present<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Serialize)]
@@ -154,14 +162,19 @@ fn targets(requests: Vec<TargetRequest>) -> Result<Vec<Target>, ApiError> {
         .collect()
 }
 
-pub async fn update_qsl(
+pub async fn bulk(
     State(state): State<Arc<AppState>>,
     member: Member,
-    Json(req): Json<QslRequest>,
+    Json(req): Json<BulkRequest>,
 ) -> Result<Json<OutcomeBody>, ApiError> {
     let targets = targets(req.qsos)?;
+    let change = Change {
+        station_id: req.station_id,
+        instrument_id: req.instrument_id,
+        fields: req.fields,
+    };
     let mut tx = WriteTx::begin(&state.db).await?;
-    let outcome = qsl::update(&mut tx, &member.access, &targets, &req.fields).await?;
+    let outcome = bulk::update(&mut tx, &member.access, &targets, &change).await?;
     tx.commit().await?;
     Ok(Json(outcome.into()))
 }
@@ -272,7 +285,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn changes_qsl_fields_of_rows_at_their_revisions() {
+    async fn changes_fields_of_rows_at_their_revisions() {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
         let first = create_qso(&h, &cookie, "JA1XYZ", "0100").await;
@@ -285,14 +298,15 @@ mod tests {
                 { "id": second["id"], "revision": 9 },
                 { "id": missing, "revision": 1 },
             ],
-            "fields": { "qsl_sent": "y", "QSLSDATE": "20261023" },
+            "fields": { "qsl_sent": "y", "QSLSDATE": "20261023", "NAME": "" },
         });
         let (status, outcome) = h
-            .send("POST", &h.path("/qsl"), Auth::Session(&cookie), Some(request))
+            .send("POST", &h.path("/bulk"), Auth::Session(&cookie), Some(request))
             .await;
         assert_eq!(status, StatusCode::OK, "{outcome}");
         assert_eq!(outcome["updated"][0]["fields"]["QSL_SENT"], "y");
         assert_eq!(outcome["updated"][0]["fields"]["QSLSDATE"], "20261023");
+        assert_eq!(outcome["updated"][0]["fields"].get("NAME"), None);
         assert_eq!(outcome["updated"][0]["revision"], 2);
         assert_eq!(
             outcome["skipped"],
@@ -304,12 +318,12 @@ mod tests {
     }
 
     #[rstest]
-    #[case::not_a_qsl_field(json!({ "CALL": "JA1ZZZ" }), json!(null))]
+    #[case::required_cleared(json!({ "CALL": "" }), json!(null))]
     #[case::invalid_value(json!({ "QSL_SENT": "Z" }), json!(null))]
     #[case::no_field(json!({}), json!(null))]
     #[case::invalid_id(json!({ "QSL_SENT": "Y" }), json!("not-a-uuid"))]
     #[tokio::test]
-    async fn refuses_qsl_changes_it_cannot_apply(#[case] fields: Value, #[case] id: Value) {
+    async fn refuses_changes_it_cannot_apply(#[case] fields: Value, #[case] id: Value) {
         let h = Harness::new().await;
         let cookie = h.session(&h.world.operator).await;
         let created = create_qso(&h, &cookie, "JA1XYZ", "0100").await;
@@ -319,9 +333,40 @@ mod tests {
         };
         let request = json!({ "qsos": [{ "id": id, "revision": 1 }], "fields": fields });
         let (status, body) = h
-            .send("POST", &h.path("/qsl"), Auth::Session(&cookie), Some(request))
+            .send("POST", &h.path("/bulk"), Auth::Session(&cookie), Some(request))
             .await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    }
+
+    #[tokio::test]
+    async fn keeps_the_instrument_unless_the_request_names_one_or_null() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let rig = h.world.instrument("IC-705").await;
+        let created = create_qso(&h, &cookie, "JA1XYZ", "0100").await;
+        let mut expected = vec![];
+        for (revision, change) in [
+            (1, json!({ "instrument_id": rig.id })),
+            (2, json!({ "fields": { "NAME": "Hanako" } })),
+            (3, json!({ "instrument_id": null })),
+        ] {
+            let mut request = change;
+            request["qsos"] = json!([{ "id": created["id"], "revision": revision }]);
+            let (status, outcome) = h
+                .send("POST", &h.path("/bulk"), Auth::Session(&cookie), Some(request))
+                .await;
+            assert_eq!(status, StatusCode::OK, "{outcome}");
+            let updated = &outcome["updated"][0];
+            expected.push((updated["instrument_id"].clone(), updated["fields"]["MY_RIG"].clone()));
+        }
+        assert_eq!(
+            expected,
+            [
+                (json!(rig.id), json!("IC-705")),
+                (json!(rig.id), json!("IC-705")),
+                (Value::Null, Value::Null),
+            ]
+        );
     }
 
     #[tokio::test]

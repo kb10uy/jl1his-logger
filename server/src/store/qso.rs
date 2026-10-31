@@ -403,16 +403,38 @@ pub async fn update(
     access.revalidate(tx).await?;
     let current = fetch(tx, access, id).await?;
     current.require_revision(base_revision)?;
-    let (station_id, instrument_id) = (input.station_id.as_str(), input.instrument_id.as_deref());
-    let after = baked(tx, access, station_id, instrument_id).await?;
-    let mut qso = input.qso;
+    let place = (input.station_id.as_str(), input.instrument_id.as_deref());
+    let qso = rebaked(tx, access, &current, place, input.qso).await?;
+    let checked = duplicate::check(tx, access, &qso, Some(id)).await?;
+    let stored = write_update(tx, access, &current, place, &qso, &checked).await?;
+    Ok((stored, checked.warnings))
+}
+
+pub(crate) async fn relocate(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    current: &StoredQso,
+    place: (&str, Option<&str>),
+    qso: Qso,
+) -> Result<StoredQso, StoreError> {
+    let qso = rebaked(tx, access, current, place, qso).await?;
+    let checked = qso.check()?;
+    write_update(tx, access, current, place, &qso, &checked).await
+}
+
+async fn rebaked(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    current: &StoredQso,
+    (station_id, instrument_id): (&str, Option<&str>),
+    mut qso: Qso,
+) -> Result<Qso, StoreError> {
+    let after = baked(conn, access, station_id, instrument_id).await?;
     if (station_id, instrument_id) != (current.station_id.as_str(), current.instrument_id.as_deref()) {
-        let before = baked(tx, access, &current.station_id, current.instrument_id.as_deref()).await?;
+        let before = baked(conn, access, &current.station_id, current.instrument_id.as_deref()).await?;
         qso.rebake(&current.qso, &before, &after)?;
     }
-    let checked = duplicate::check(tx, access, &qso, Some(id)).await?;
-    let stored = write_update(tx, access, &current, (station_id, instrument_id), &qso, &checked).await?;
-    Ok((stored, checked.warnings))
+    Ok(qso)
 }
 
 async fn baked(

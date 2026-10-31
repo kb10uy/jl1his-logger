@@ -111,7 +111,7 @@ pub(super) fn router() -> Router<Arc<AppState>> {
             "/api/logbooks/{logbook_id}/instruments/{id}/rewrite",
             get(logbook::instrument::preview_rewrite).post(logbook::instrument::rewrite),
         )
-        .route("/api/logbooks/{logbook_id}/qsl", post(qso::export::update_qsl))
+        .route("/api/logbooks/{logbook_id}/bulk", post(qso::export::bulk))
         .route(
             "/api/logbooks/{logbook_id}/imports",
             post(qso::import::import).layer(DefaultBodyLimit::max(qso::import::MAX_FILE)),

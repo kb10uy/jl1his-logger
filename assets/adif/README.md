@@ -8,7 +8,7 @@ generate their ADIF tables from them at build time:
 | --- | --- |
 | `enumerations_band.csv` | Bands and their frequency ranges |
 | `enumerations_mode.csv`, `enumerations_submode.csv` | Modes, submodes and import-only modes |
-| `fields.csv` | The QSO fields the client offers by name (header and import-only fields left out) |
+| `fields.csv` | The QSO fields the client offers by name and the enumeration each takes (header and import-only fields left out) |
 | `enumerations_qsl_sent.csv`, `enumerations_qsl_rcvd.csv`, `enumerations_qsl_via.csv` | The values the server accepts for the QSL fields |
 | `enumerations_dxcc_entity_code.csv` | DXCC entity names and deleted flags |
 | `enumerations_primary_administrative_subdivision.csv` | `STATE` / `MY_STATE` choices, without deleted and import-only rows |

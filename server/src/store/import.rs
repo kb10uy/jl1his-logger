@@ -13,8 +13,8 @@ use crate::{
     store::{
         StoreError, WriteTx,
         access::LogbookAccess,
+        bulk::{self, Skipped},
         logbook::{instrument::Instrument, station::Station},
-        qsl::{self, Skipped},
         qso::{self, CallMatch, Created, Filter, QsoInput, Target, TimeRange},
     },
 };
@@ -250,7 +250,7 @@ pub async fn merge(
         let mut tx = WriteTx::begin(db).await?;
         let access = access.revalidate(&mut tx).await?;
         for (changes, targets) in groups {
-            let outcome = qsl::apply(&mut tx, &access, &targets, changes).await?;
+            let outcome = bulk::apply(&mut tx, &access, &targets, changes).await?;
             report.merged += outcome.updated.len();
             report.skipped.extend(outcome.skipped);
         }

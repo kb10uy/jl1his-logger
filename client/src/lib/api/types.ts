@@ -104,6 +104,12 @@ export interface Target {
     revision: number;
 }
 
+export interface BulkChange {
+    station_id?: string;
+    instrument_id?: string | null;
+    fields?: Fields;
+}
+
 export interface Skipped {
     id: string;
     reason: 'missing' | 'deleted' | 'revision';

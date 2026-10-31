@@ -162,13 +162,18 @@ function modes() {
 
 function fields() {
     const names = [];
+    const enumerations = {};
     for (const row of read('fields')) {
         if (row.flag('Import-only') || row.get('Header Field') === 'Y') continue;
         const name = row.required('Field Name');
         if (names.includes(name)) row.fail(`${name} is listed twice`);
         names.push(name);
+        const enumeration = row.get('Enumeration');
+        if (row.get('Data Type') === 'Enumeration' && enumeration !== '') {
+            enumerations[name] = enumeration;
+        }
     }
-    return names;
+    return { names, enumerations };
 }
 
 function dxccEntities() {
@@ -185,11 +190,13 @@ function dxccEntities() {
 const values = (name, column) => read(name).map((row) => row.required(column));
 
 const { modes: modeTable, importOnly } = modes();
+const { names: fieldNames, enumerations: fieldEnumerations } = fields();
 const tables = [
     ['ADIF_BANDS', 'readonly AdifBand[]', bands()],
     ['ADIF_MODES', 'readonly AdifMode[]', modeTable],
     ['ADIF_IMPORT_ONLY_MODES', 'readonly string[]', importOnly],
-    ['ADIF_QSO_FIELDS', 'readonly string[]', fields()],
+    ['ADIF_QSO_FIELDS', 'readonly string[]', fieldNames],
+    ['ADIF_FIELD_ENUMERATIONS', 'Readonly<Record<string, string>>', fieldEnumerations],
     ['ADIF_DXCC_ENTITIES', 'readonly AdifDxccEntity[]', dxccEntities()],
     ['ADIF_QSL_SENT', 'readonly string[]', values('enumerations_qsl_sent', 'Status')],
     ['ADIF_QSL_RCVD', 'readonly string[]', values('enumerations_qsl_rcvd', 'Status')],

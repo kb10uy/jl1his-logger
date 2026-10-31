@@ -3,7 +3,7 @@
 The API the web client uses, under `/api` on `public_origin`. Bodies are
 JSON. It covers sign-in, the server version and health, reference versions,
 API tokens, favorite frequencies, Logbooks, Members, Stations, Instruments, QSOs with their event
-stream, bulk QSL changes, export batches and ADIF import. Responses are
+stream, bulk changes, export batches and ADIF import. Responses are
 `Cache-Control: no-store` and carry the security headers listed in
 [decisions.md](../development/decisions.md).
 
@@ -19,7 +19,7 @@ endpoint takes a token:
 | `GET /api/health` | Not needed | Not needed |
 | `POST /api/auth/login/*`, `POST /api/auth/register/*` | Issued by them | No |
 | `GET /api/me`, `/api/frequencies` | Yes | Yes |
-| `GET /api/logbooks` and everything under `/api/logbooks/{logbook_id}`: Logbooks, Members, Stations, Instruments, QSOs, Lookup, Bulk QSL Changes, Export Batches, ADIF Import, the Event Stream | Yes | Yes, for the Logbooks of its scopes |
+| `GET /api/logbooks` and everything under `/api/logbooks/{logbook_id}`: Logbooks, Members, Stations, Instruments, QSOs, Lookup, Bulk Changes, Export Batches, ADIF Import, the Event Stream | Yes | Yes, for the Logbooks of its scopes |
 | `POST /api/auth/logout`, `/api/passkeys`, `/api/sessions`, `/api/tokens`, `GET /api/version`, `/api/reference` | Yes | No: `401` |
 | `/api/admin/*` | Yes, of an admin: `403` for other users | No: `401` |
 
@@ -503,7 +503,7 @@ in Unicode scalar values. `code` is one of `unknown_field`, `bad_field_name`,
 
 `GET /targets` takes the same `q`, without `sort`, `cursor` and `limit`, and returns
 the ID and revision of every match, newest first. Checking every match in the
-log list uses it, and a bulk QSL change takes the result as it is.
+log list uses it, and a bulk change takes the result as it is.
 
 ## Lookup
 
@@ -542,14 +542,21 @@ the live QSOs that the duplicate check of `POST /qsos` would name, by QSO time;
 all four are then required, and a missing or invalid one is `400`. Without
 them there is no `duplicates`.
 
-## Bulk QSL Changes
+## Bulk Changes
 
-`POST /api/logbooks/{logbook_id}/qsl` takes
-`{qsos: [{id, revision}], fields: {...}}` and sets the given QSL fields on each
-QSO at its revision. Only the QSL fields (`QSL_SENT`, `QSL_RCVD`, `*_VIA`,
-`QSLSDATE`, `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`) are accepted, with values
-checked against the ADIF enumerations ignoring case and dates as `YYYYMMDD`, and
-stored as given. Any other field or value is `400` and changes nothing.
+`POST /api/logbooks/{logbook_id}/bulk` takes
+`{qsos: [{id, revision}], station_id?, instrument_id?, fields?: {...}}` and
+changes each QSO at its revision. `fields` sets the given fields, and an empty
+value removes one; names are read as in a QSO, and the QSL fields (`QSL_SENT`,
+`QSL_RCVD`, `*_VIA`, `QSLSDATE`, `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`) are
+checked against the ADIF enumerations ignoring case and dates as `YYYYMMDD`.
+Values are stored as given. `station_id` moves the QSOs to that Station and
+`instrument_id` to that Instrument, or to none with `null`; left out, each QSO
+keeps its own. The new values are baked in as for `PUT`, with the fields of
+the same request winning. A request that changes nothing, a name or value that
+cannot be read, or a change that leaves a QSO invalid (removing `CALL`, a
+`BAND` that is not a band) is `400` and changes nothing; a Station or
+Instrument outside the Logbook is `404`.
 
 The response is `{updated, skipped}`: `updated` holds the changed QSOs, and
 `skipped` the others as `{id, reason}` with `reason` `missing`, `deleted` or
@@ -566,7 +573,7 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 | `POST /exports` | `{kind, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
-| `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk QSL changes |
+| `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk changes |
 
 A batch is `{id, kind, created_by, created_at, applied_at, qso_count}`. `kind`
 is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. `q` chooses the QSOs as in
@@ -623,7 +630,7 @@ and for a merge
   warnings of QSOs, `invalid` is `[{record, error}]` and `unmatched` is a list
   of record numbers, counted from 1 in file order.
 - `skipped` lists the QSOs that changed between matching and writing, as in bulk
-  QSL changes.
+  changes.
 - `differences` counts, per field, the matched QSOs whose `DXCC`, `CQZ`, `ITUZ`,
   `STATE`, `CNTY`, `GRIDSQUARE` or `IOTA` differ from the confirmation; they are
   never applied.
