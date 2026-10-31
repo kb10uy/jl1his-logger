@@ -76,7 +76,7 @@
     <SettingsSection title={m.settings_logbook_name()} form onsubmit={rename}>
         <fieldset
             disabled={!canEdit}
-            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]"
+            class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]"
         >
             <SettingsField label={m.settings_logbook_name_label()} for="logbook-name">
                 <input
@@ -104,7 +104,7 @@
 
         <fieldset
             disabled={!canEdit}
-            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]"
+            class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]"
         >
             <SettingsField label={m.settings_area_adif_field()} for="area-name">
                 <input

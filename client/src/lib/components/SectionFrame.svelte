@@ -96,11 +96,11 @@
 />
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
-    <div class="flex items-start gap-6">
+    <div class="flex items-start gap-5">
         <nav
             aria-label={label}
             class={[
-                'flex shrink-0 flex-col gap-4 max-md:w-full md:w-[220px]',
+                'flex shrink-0 flex-col gap-3 max-md:w-full md:w-[220px]',
                 current && 'max-md:hidden'
             ]}
         >
@@ -115,7 +115,7 @@
                                 href={section.href}
                                 aria-current={section === current?.section ? 'page' : undefined}
                                 class={[
-                                    'flex items-center px-3 no-underline max-md:min-h-12 max-md:border-b max-md:border-surface-2 max-md:last:border-b-0 md:h-9 md:rounded-md',
+                                    'flex items-center px-3 no-underline max-md:min-h-12 max-md:border-b max-md:border-surface-2 max-md:last:border-b-0 md:h-8 md:rounded-md',
                                     section === current?.section
                                         ? 'bg-surface-2 font-semibold text-accent'
                                         : 'text-text hover:bg-surface-2/60'
@@ -126,7 +126,7 @@
                 </section>
             {/each}
         </nav>
-        <div class={['flex max-w-3xl min-w-0 flex-1 flex-col gap-4', !current && 'max-md:hidden']}>
+        <div class={['flex max-w-3xl min-w-0 flex-1 flex-col gap-3', !current && 'max-md:hidden']}>
             {@render children()}
         </div>
     </div>

@@ -14,7 +14,7 @@
 </script>
 
 <SettingsSection title={m.settings_appearance_display()}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.theme_label()} for="theme">
             <select
                 id="theme"

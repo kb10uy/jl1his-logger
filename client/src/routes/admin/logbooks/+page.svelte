@@ -89,7 +89,7 @@
 </script>
 
 <SettingsSection title={m.admin_logbooks_create_title()} form onsubmit={create}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.admin_logbooks_name()} for="lb-name">
             <input
                 id="lb-name"
@@ -125,16 +125,16 @@
     <table class="w-full border-collapse text-sm">
         <thead>
             <tr class="text-left text-2xs text-muted">
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_logbooks_name()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_logbooks_owners()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_logbooks_qsos()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2"
+                <th scope="col" class="border-b border-border px-3 py-1.5"
                     ><span class="sr-only">{m.admin_logbooks_actions()}</span></th
                 >
             </tr>
@@ -142,18 +142,18 @@
         <tbody>
             {#each logbooks ?? [] as logbook (logbook.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-2.5 font-semibold">{logbook.name}</td>
+                    <td class="px-3 py-1.5 font-semibold">{logbook.name}</td>
                     <td
                         class={[
-                            'px-3 py-2.5 font-mono',
+                            'px-3 py-1.5 font-mono',
                             logbook.owners.length === 0 && 'text-muted'
                         ]}
                         >{logbook.owners.length === 0
                             ? m.admin_logbooks_no_owner()
                             : logbook.owners.join(', ')}</td
                     >
-                    <td class="px-3 py-2.5 font-mono tabular">{formatNumber(logbook.last_seq)}</td>
-                    <td class="px-3 py-2 text-right">
+                    <td class="px-3 py-1.5 font-mono tabular">{formatNumber(logbook.last_seq)}</td>
+                    <td class="px-3 py-1 text-right">
                         <Button
                             size="sm"
                             variant="danger"
@@ -177,7 +177,7 @@
 
 <SettingsSection title={m.admin_logbooks_rescue_title()} form onsubmit={rescue}>
     <p class="text-sm text-muted">{m.admin_logbooks_rescue_hint()}</p>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.admin_logbooks_rescue_logbook()} for="rescue-logbook">
             <select id="rescue-logbook" class="control h-9 w-full md:w-60" bind:value={rescueId}>
                 <option value=""></option>

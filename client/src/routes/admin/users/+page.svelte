@@ -56,7 +56,7 @@
 </script>
 
 <SettingsSection title={m.admin_users_add_title()} form onsubmit={add}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField
             label={m.admin_users_callsign()}
             for="user-call"
@@ -96,16 +96,16 @@
     <table class="w-full border-collapse text-sm">
         <thead>
             <tr class="text-left text-2xs text-muted">
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_users_callsign()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_users_role()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_users_state()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 text-right font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-right font-medium"
                     >{m.admin_users_passkeys()}</th
                 >
             </tr>
@@ -113,7 +113,7 @@
         <tbody>
             {#each users ?? [] as user (user.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-2.5">
+                    <td class="px-3 py-1.5">
                         <a
                             href={`/admin/users/${user.id}`}
                             class={[
@@ -125,15 +125,15 @@
                             <span class="ml-1 text-2xs text-muted">{m.admin_users_you()}</span>
                         {/if}
                     </td>
-                    <td class="px-3 py-2.5">{roleLabel(user.role)}</td>
+                    <td class="px-3 py-1.5">{roleLabel(user.role)}</td>
                     <td
                         class={[
-                            'px-3 py-2.5',
+                            'px-3 py-1.5',
                             user.disabled_at !== null && 'text-muted',
                             user.disabled_at === null && user.passkeys === 0 && 'text-warn'
                         ]}>{stateOf(user)}</td
                     >
-                    <td class="px-3 py-2.5 text-right font-mono tabular">{user.passkeys}</td>
+                    <td class="px-3 py-1.5 text-right font-mono tabular">{user.passkeys}</td>
                 </tr>
             {:else}
                 <tr>

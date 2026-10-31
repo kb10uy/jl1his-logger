@@ -80,13 +80,13 @@
     <table class="w-full border-collapse text-sm">
         <thead>
             <tr class="text-left text-2xs text-muted">
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_reference_kind()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_reference_version()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.admin_reference_installed()}</th
                 >
             </tr>
@@ -95,13 +95,13 @@
             {#each KINDS as { kind, label } (kind)}
                 {@const found = versions?.find((v) => v.kind === kind)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-2.5">{label()}</td>
-                    <td class={['px-3 py-2.5 font-mono', !found && 'text-muted']}
+                    <td class="px-3 py-1.5">{label()}</td>
+                    <td class={['px-3 py-1.5 font-mono', !found && 'text-muted']}
                         >{versions === undefined
                             ? '…'
                             : (found?.version ?? m.admin_reference_not_installed())}</td
                     >
-                    <td class="px-3 py-2.5 font-mono text-muted"
+                    <td class="px-3 py-1.5 font-mono text-muted"
                         >{found?.updated_at.slice(0, 10) ?? '—'}</td
                     >
                 </tr>

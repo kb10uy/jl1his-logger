@@ -106,7 +106,7 @@
 <SettingsFrame {logbookId}>
     {#if canEdit}
         <SettingsSection title={m.settings_members_add_title()} form onsubmit={add}>
-            <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+            <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
                 <SettingsField label={m.settings_members_callsign()} for="mem-call">
                     <input
                         id="mem-call"
@@ -138,7 +138,7 @@
     <SettingsSection title={m.settings_members()} padded={false}>
         {#each members ?? [] as member (member.user_id)}
             <div
-                class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-2 px-4 py-3 last:border-b-0"
+                class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-2 px-3 py-2 last:border-b-0"
             >
                 <span class={['font-mono font-semibold', member.disabled && 'text-muted']}
                     >{member.callsign}</span
@@ -172,7 +172,7 @@
                 {/if}
             </div>
         {:else}
-            <p class="px-4 py-3 text-muted">
+            <p class="px-3 py-3 text-muted">
                 {members === undefined ? m.common_loading() : ''}
             </p>
         {/each}

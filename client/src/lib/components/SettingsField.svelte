@@ -12,7 +12,7 @@
 <svelte:element
     this={id === undefined ? 'span' : 'label'}
     for={id}
-    class="text-2xs text-muted md:pt-3">{label}</svelte:element
+    class="text-2xs text-muted md:pt-2.5">{label}</svelte:element
 >
 <div class="flex min-w-0 flex-col gap-1">
     {@render children()}

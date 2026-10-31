@@ -76,7 +76,7 @@
 </SettingsSection>
 
 <SettingsSection title={m.settings_account_add_title()} form onsubmit={add}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.settings_account_passkey_name()} for="pk-name">
             <input
                 id="pk-name"
@@ -97,7 +97,7 @@
 <SettingsSection title={m.settings_account_passkeys()} padded={false}>
     {#each passkeys ?? [] as passkey (passkey.id)}
         <div
-            class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-4 py-3 last:border-b-0"
+            class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-3 py-2 last:border-b-0"
         >
             <span class="min-w-0 flex-1 truncate font-medium">{passkey.name}</span>
             <span class="text-2xs text-muted"
@@ -118,7 +118,7 @@
             >
         </div>
     {:else}
-        <p class="px-4 py-3 text-muted">
+        <p class="px-3 py-3 text-muted">
             {passkeys === undefined ? m.common_loading() : m.settings_account_no_passkeys()}
         </p>
     {/each}

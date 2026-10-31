@@ -84,7 +84,7 @@
 </script>
 
 <SettingsSection title={m.settings_tokens_issue_title()} form onsubmit={issue}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.settings_tokens_name()} for="tok-name">
             <input
                 id="tok-name"
@@ -139,16 +139,16 @@
     <table class="w-full border-collapse text-sm">
         <thead>
             <tr class="text-left text-2xs text-muted">
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.settings_tokens_name()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.settings_tokens_logbooks()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.settings_tokens_last_used()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2"
+                <th scope="col" class="border-b border-border px-3 py-1.5"
                     ><span class="sr-only">{m.settings_tokens_actions()}</span></th
                 >
             </tr>
@@ -156,12 +156,12 @@
         <tbody>
             {#each tokens ?? [] as token (token.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-2.5">{token.name}</td>
-                    <td class="px-3 py-2.5">{logbookNames(token.logbook_ids)}</td>
-                    <td class="px-3 py-2.5 font-mono text-muted"
+                    <td class="px-3 py-1.5">{token.name}</td>
+                    <td class="px-3 py-1.5">{logbookNames(token.logbook_ids)}</td>
+                    <td class="px-3 py-1.5 font-mono text-muted"
                         >{token.last_used_at?.slice(0, 10) ?? m.settings_never()}</td
                     >
-                    <td class="px-3 py-2 text-right">
+                    <td class="px-3 py-1 text-right">
                         <Button
                             size="sm"
                             variant="danger"
