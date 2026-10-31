@@ -91,7 +91,7 @@
         <label for="log-query" class="sr-only">{m.log_query()}</label>
         <div
             class={[
-                'flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2.5',
+                'flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-info',
                 compact ? 'h-10 rounded-lg bg-bg' : 'h-9 bg-surface',
                 invalid || serverError ? 'border-error' : 'border-border'
             ]}
@@ -116,9 +116,7 @@
                 ]}
             />
             {#if !compact}
-                <span class="rounded border border-border px-1.5 font-mono text-2xs text-muted"
-                    >/</span
-                >
+                <kbd class="kbd text-muted">/</kbd>
             {/if}
         </div>
         {#if !compact}

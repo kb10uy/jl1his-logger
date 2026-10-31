@@ -102,7 +102,7 @@
 >
     <div class="flex flex-col gap-1.5 border-b border-border p-2">
         <div
-            class="flex h-10 items-center gap-2 rounded-lg border border-border bg-bg px-3 md:h-8 md:rounded-md md:px-2.5"
+            class="flex h-10 items-center gap-2 rounded-lg border border-border bg-bg px-3 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-info md:h-8 md:rounded-md md:px-2.5"
         >
             <Icon name="search" size={16} class="text-muted" />
             <input

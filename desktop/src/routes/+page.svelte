@@ -497,7 +497,7 @@
                         class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-xs"
                         onclick={clear}
                         >{m.entry_clear()}
-                        <span class="font-mono text-2xs text-muted">Esc</span></button
+                        <kbd class="kbd text-muted">Esc</kbd></button
                     >
                     <button
                         type="submit"
@@ -510,7 +510,7 @@
                                 : 'bg-accent text-accent-text'
                         ]}
                         >{m.entry_log_qso()}
-                        <span class="font-mono text-2xs font-medium opacity-80">↵</span></button
+                        <kbd class="kbd opacity-80">↵</kbd></button
                     >
                 </div>
             </div>

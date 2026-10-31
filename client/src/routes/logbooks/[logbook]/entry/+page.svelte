@@ -551,7 +551,7 @@
                     >
                     <Button size="lg" class="max-md:h-12" onclick={clear}
                         >{m.common_clear()}
-                        <span class="font-mono text-2xs text-muted max-md:hidden">Esc</span></Button
+                        <kbd class="kbd text-muted max-md:hidden">Esc</kbd></Button
                     >
                     <Button
                         type="submit"
@@ -560,7 +560,7 @@
                         class="font-semibold max-md:h-12 max-md:flex-1"
                         disabled={problem !== undefined || stationId === '' || session.logging}
                         >{m.entry_log_qso()}
-                        <span class="font-mono text-2xs font-medium opacity-80">↵</span></Button
+                        <kbd class="kbd opacity-80">↵</kbd></Button
                     >
                 </div>
             </form>

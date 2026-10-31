@@ -163,6 +163,21 @@
     color: var(--muted);
 }
 
+@utility kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: 500;
+    line-height: 1;
+}
+
 @utility control {
     min-width: 0;
     height: 32px;

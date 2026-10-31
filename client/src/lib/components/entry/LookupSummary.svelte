@@ -12,7 +12,7 @@
     {/if}
     <span class="text-muted">{lookupLine(lookup)}</span>
     {#if lookup.previous.count > 0}
-        <span class="rounded-full bg-info-bg px-2 py-px text-2xs text-info"
+        <span class="rounded-sm bg-info-bg px-1.5 py-px text-2xs text-info"
             >{m.entry_worked_before({ count: lookup.previous.count })}</span
         >
     {/if}

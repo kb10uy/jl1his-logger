@@ -316,7 +316,7 @@
                         <span class="text-2xs text-muted">{m.voice_also()}</span>
                         <span class="flex flex-wrap gap-1.5">
                             {#each extras as extra (extra)}
-                                <span class="rounded-full bg-surface-2 px-2 py-px text-2xs"
+                                <span class="rounded-sm bg-surface-2 px-1.5 py-px text-2xs"
                                     >{extra}</span
                                 >
                             {/each}

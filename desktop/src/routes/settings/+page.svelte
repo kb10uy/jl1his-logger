@@ -112,7 +112,7 @@
                 stroke-width="2"
                 stroke-linecap="round"><path d="M15 6l-6 6 6 6" /></svg
             >{m.settings_back()}
-            <span class="font-mono text-2xs text-muted">Esc</span></button
+            <kbd class="kbd text-muted">Esc</kbd></button
         >
         <h1 class="m-0 text-base font-semibold">{m.settings_title()}</h1>
         <div class="flex-1"></div>
