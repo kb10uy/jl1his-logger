@@ -86,20 +86,43 @@ describe('bulk changes', () => {
     }));
 
     it('groups the undo by the values each row had', () => {
-        expect(undoOf(before, after, ['QSL_SENT', 'QSLSDATE'])).toEqual([
+        expect(undoOf(before, after)).toEqual([
             {
                 qsos: [
                     { id: 'a', revision: 2 },
                     { id: 'b', revision: 2 }
                 ],
-                fields: { QSL_SENT: 'R', QSLSDATE: '' }
+                change: { fields: { QSLSDATE: '', QSL_SENT: 'R' } }
             },
-            { qsos: [{ id: 'c', revision: 2 }], fields: { QSL_SENT: '', QSLSDATE: '' } }
+            {
+                qsos: [{ id: 'c', revision: 2 }],
+                change: { fields: { QSLSDATE: '', QSL_SENT: '' } }
+            }
+        ]);
+    });
+
+    it('moves rows back to the Station and Instrument they had', () => {
+        const moved = before.map((q) => ({
+            ...q,
+            revision: 2,
+            station_id: 'away',
+            instrument_id: 'rig',
+            fields: { ...q.fields, STATION_CALLSIGN: 'JL1HIS/2', MY_RIG: 'IC-705' }
+        }));
+        expect(undoOf(before.slice(0, 1), moved.slice(0, 1))).toEqual([
+            {
+                qsos: [{ id: 'a', revision: 2 }],
+                change: {
+                    fields: { MY_RIG: '', STATION_CALLSIGN: '' },
+                    station_id: 'st',
+                    instrument_id: null
+                }
+            }
         ]);
     });
 
     it('cannot undo rows it never saw', () => {
-        expect(undoOf(before.slice(1), after, ['QSL_SENT'])).toBeUndefined();
+        expect(undoOf(before.slice(1), after)).toBeUndefined();
     });
 
     it('replaces updated rows and counts values', () => {

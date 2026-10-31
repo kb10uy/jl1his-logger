@@ -6,7 +6,7 @@
     import { page } from '$app/state';
     import * as api from '#lib/api/api.ts';
     import { ApiError } from '#lib/api/client.ts';
-    import type { Fields, Qso, Target } from '#lib/api/types.ts';
+    import type { BulkChange, Qso, Target } from '#lib/api/types.ts';
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import BulkEdit from '#lib/components/log/BulkEdit.svelte';
@@ -153,13 +153,17 @@
         else goto(`/logbooks/${logbookId}/qsos/${qso.id}`);
     }
 
-    async function changeQsl(targets: Target[], fields: Fields, done: (count: number) => string) {
+    async function applyChange(
+        targets: Target[],
+        change: BulkChange,
+        done: (count: number) => string
+    ) {
         const before = rows.filter((r) => checked[r.qso.id] !== undefined).map((r) => r.qso);
         busy = true;
         try {
-            const outcome = await api.updateQsl(logbookId, targets, fields);
+            const outcome = await api.bulkUpdate(logbookId, targets, change);
             log.applied(outcome.updated);
-            const undo = undoOf(before, outcome.updated, Object.keys(fields));
+            const undo = undoOf(before, outcome.updated);
             const skipped = outcome.skipped.length;
             const text = `${done(outcome.updated.length)}${
                 skipped > 0 ? m.log_skipped_meanwhile({ count: skipped }) : ''
@@ -173,10 +177,10 @@
                               run: async () => {
                                   try {
                                       for (const group of undo) {
-                                          const back = await api.updateQsl(
+                                          const back = await api.bulkUpdate(
                                               logbookId,
                                               group.qsos,
-                                              group.fields
+                                              group.change
                                           );
                                           log.applied(back.updated);
                                       }
@@ -538,9 +542,9 @@
                         size="sm"
                         disabled={busy}
                         onclick={() =>
-                            changeQsl(
+                            applyChange(
                                 targetsOfChecked(),
-                                { QSL_SENT: 'Y', QSLSDATE: adifDate(today) },
+                                { fields: { QSL_SENT: 'Y', QSLSDATE: adifDate(today) } },
                                 (count) => m.log_marked_sent({ count })
                             )}>{m.log_mark_sent_today()}</Button
                     >
@@ -548,9 +552,9 @@
                         size="sm"
                         disabled={busy}
                         onclick={() =>
-                            changeQsl(
+                            applyChange(
                                 targetsOfChecked(),
-                                { QSL_RCVD: 'Y', QSLRDATE: adifDate(today) },
+                                { fields: { QSL_RCVD: 'Y', QSLRDATE: adifDate(today) } },
                                 (count) => m.log_marked_received({ count })
                             )}>{m.log_mark_received()}</Button
                     >
@@ -575,9 +579,11 @@
                     known={rows.filter((r) => r.qso.id in checked).map((r) => r.qso)}
                     {today}
                     {busy}
-                    onapply={(fields) =>
-                        changeQsl(targetsOfChecked(), fields, (count) =>
-                            m.log_updated_qsl({ count })
+                    stations={logbook.stations}
+                    instruments={logbook.instruments}
+                    onapply={(bulk) =>
+                        applyChange(targetsOfChecked(), bulk, (count) =>
+                            m.log_bulk_updated({ count })
                         )}
                     onclose={() => (bulkOpen = false)}
                 />

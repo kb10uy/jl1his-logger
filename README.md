@@ -25,7 +25,7 @@ scope.
   previous QSOs with it (name, grid, QTH).
 - Serves a SvelteKit PWA on the same origin: log list and search, single-QSO
   editing, live QSO entry, push-to-talk voice entry, Station Location and
-  Instrument editing, ADIF import and export, and bulk QSL changes, in English
+  Instrument editing, ADIF import and export, and bulk changes of QSOs, in English
   or Japanese. Entry keeps working offline.
 
 Users sign in with passkeys only. Instance roles are `admin` and `user`;

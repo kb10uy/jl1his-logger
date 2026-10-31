@@ -74,7 +74,7 @@
             }
         }
     ],
-    "log_updated_qsl": [
+    "log_bulk_updated": [
         {
             "declarations": [
                 "input count",
@@ -83,8 +83,8 @@
             ],
             "selectors": ["countPlural"],
             "match": {
-                "countPlural=one": "Updated QSL fields on {n} QSO",
-                "countPlural=other": "Updated QSL fields on {n} QSOs"
+                "countPlural=one": "Updated {n} QSO",
+                "countPlural=other": "Updated {n} QSOs"
             }
         }
     ],
@@ -177,6 +177,16 @@
         }
     ],
     "log_bulk_help": "Each row is sent with its revision. A row someone changed meanwhile is skipped and listed afterwards.",
+    "log_bulk_place": "Station / Instrument",
+    "log_bulk_place_help": "A new Station or Instrument bakes its current values into each QSO, except fields changed here.",
+    "log_bulk_other_fields": "Other fields",
+    "log_bulk_field_name": "Field name",
+    "log_bulk_field_value": "Value of {name}",
+    "log_bulk_clear_field": "Clear",
+    "log_bulk_remove_field": "Remove this field",
+    "log_bulk_add_field": "Add a field",
+    "log_bulk_bad_name": "Not an ADIF field name.",
+    "log_bulk_repeated": "This field is already changed above.",
     "log_reset": "Reset",
     "log_columns": "Columns",
     "log_columns_shown": "Shown columns, left to right",

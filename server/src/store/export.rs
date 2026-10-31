@@ -13,8 +13,8 @@ use crate::{
     store::{
         Fault, StoreError, WriteTx,
         access::LogbookAccess,
+        bulk::{self, Outcome},
         new_id, now,
-        qsl::{self, Outcome},
         qso::{self, Filter, StoredQso, Target},
         today,
     },
@@ -230,7 +230,7 @@ pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result
     };
     let targets = targets(tx, id).await?;
     let changes = vec![(sent, "Y".to_owned()), (date, today())];
-    let outcome = qsl::apply(tx, &access, &targets, &changes).await?;
+    let outcome = bulk::apply(tx, &access, &targets, &changes).await?;
     sqlx::query("UPDATE export_batches SET applied_at = ? WHERE id = ?")
         .bind(now())
         .bind(id)
@@ -273,8 +273,8 @@ mod tests {
     use crate::{
         domain::qso::QsoId,
         store::{
-            qsl::{
-                SkipReason,
+            bulk::{
+                Change, SkipReason,
                 tests::{target, three_qsos},
             },
             testing::World,
@@ -368,8 +368,11 @@ mod tests {
         sorted.sort_by_key(|t| t.id.to_string());
         assert_eq!(get(&mut tx, &access, &batch.id).await.unwrap(), (batch.clone(), sorted));
 
-        let edited = BTreeMap::from([("QSL_SENT_VIA".to_owned(), "D".to_owned())]);
-        qsl::update(&mut tx, &access, &[target(&rows[1])], &edited)
+        let edited = Change {
+            fields: BTreeMap::from([("QSL_SENT_VIA".to_owned(), "D".to_owned())]),
+            ..Change::default()
+        };
+        bulk::update(&mut tx, &access, &[target(&rows[1])], &edited)
             .await
             .unwrap();
 

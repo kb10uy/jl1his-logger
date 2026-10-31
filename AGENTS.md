@@ -17,7 +17,7 @@ The repository contains:
 - `client/`: SvelteKit + Svelte 5 (runes) + TypeScript, built with
   `adapter-static` as a client-only SPA/PWA. Log list and search, QSO editing,
   live entry, voice entry, Station Location and
-  Instrument editing, ADIF import and export, bulk QSL changes.
+  Instrument editing, ADIF import and export, bulk changes of QSOs.
 - `desktop/`: the desktop entry client, a Tauri v2 app. A SvelteKit app built
   with `adapter-static` like `client/`, and its Rust side in
   `desktop/src-tauri/`, a package of its own.

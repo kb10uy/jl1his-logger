@@ -1,4 +1,4 @@
-import type { Fields, Qso, Target } from '#lib/api/types.ts';
+import type { BulkChange, Fields, Qso, Target } from '#lib/api/types.ts';
 import { compareNewestFirst } from '#lib/qso/format.ts';
 
 export interface Row {
@@ -48,29 +48,38 @@ export function replaceRows(rows: Row[], updated: Qso[], matches: (qso: Qso) => 
 
 export interface Undo {
     qsos: Target[];
-    fields: Fields;
+    change: BulkChange;
 }
 
-export function undoOf(before: Qso[], after: Qso[], names: string[]): Undo[] | undefined {
+export function undoOf(before: Qso[], after: Qso[]): Undo[] | undefined {
     const previous = new Map(before.map((q) => [q.id, q]));
     const groups = new Map<string, Undo>();
     for (const qso of after) {
         const old = previous.get(qso.id);
         if (old === undefined) return undefined;
-        const fields = Object.fromEntries(names.map((n) => [n, old.fields[n] ?? '']));
-        const key = JSON.stringify(fields);
-        const group = groups.get(key) ?? { qsos: [], fields };
+        const names = new Set([...Object.keys(old.fields), ...Object.keys(qso.fields)]);
+        const fields: Fields = {};
+        for (const name of [...names].sort()) {
+            if (old.fields[name] !== qso.fields[name]) fields[name] = old.fields[name] ?? '';
+        }
+        const change: BulkChange = { fields };
+        if (old.station_id !== qso.station_id) change.station_id = old.station_id;
+        if (old.instrument_id !== qso.instrument_id) change.instrument_id = old.instrument_id;
+        const key = JSON.stringify(change);
+        const group = groups.get(key) ?? { qsos: [], change };
         group.qsos.push({ id: qso.id, revision: qso.revision });
         groups.set(key, group);
     }
     return [...groups.values()];
 }
 
-export function distribution(qsos: Qso[], name: string): string {
+export function tally(values: (string | undefined)[]): string {
     const counts = new Map<string, number>();
-    for (const q of qsos) {
-        const v = (q.fields[name] ?? '').trim() || '—';
+    for (const value of values) {
+        const v = (value ?? '').trim() || '—';
         counts.set(v, (counts.get(v) ?? 0) + 1);
     }
     return [...counts].map(([v, n]) => `${v} ×${n}`).join(' · ') || '—';
 }
+
+export const distribution = (qsos: Qso[], name: string) => tally(qsos.map((q) => q.fields[name]));

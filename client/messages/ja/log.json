@@ -60,11 +60,11 @@
             "match": { "": "{n} 件の QSO を QSL 受領済みにしました。" }
         }
     ],
-    "log_updated_qsl": [
+    "log_bulk_updated": [
         {
             "declarations": ["input count", "local n = count: number"],
             "selectors": [],
-            "match": { "": "{n} 件の QSO の QSL フィールドを更新しました。" }
+            "match": { "": "{n} 件の QSO を更新しました。" }
         }
     ],
     "log_skipped_meanwhile": [
@@ -128,6 +128,16 @@
         }
     ],
     "log_bulk_help": "各行はリビジョン付きで送信されます。その間に誰かが変更した行はスキップされ、後で一覧に表示されます。",
+    "log_bulk_place": "Station / Instrument",
+    "log_bulk_place_help": "新しい Station や Instrument を選ぶと、ここで変更するフィールドを除き、その現在の値を各 QSO に焼き込みます。",
+    "log_bulk_other_fields": "その他のフィールド",
+    "log_bulk_field_name": "フィールド名",
+    "log_bulk_field_value": "{name} の値",
+    "log_bulk_clear_field": "消去",
+    "log_bulk_remove_field": "このフィールドを外す",
+    "log_bulk_add_field": "フィールドを追加",
+    "log_bulk_bad_name": "ADIF のフィールド名ではありません。",
+    "log_bulk_repeated": "このフィールドは上で変更しています。",
     "log_reset": "リセット",
     "log_columns": "列",
     "log_columns_shown": "表示中の列（左から順）",

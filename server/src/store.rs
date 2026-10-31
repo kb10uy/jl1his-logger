@@ -1,9 +1,9 @@
 pub mod access;
 pub mod account;
+pub mod bulk;
 pub mod export;
 pub mod import;
 pub mod logbook;
-pub mod qsl;
 pub mod qso;
 pub mod reference;
 

@@ -26,7 +26,7 @@ The design of jl1his-logger, the QSO log of record for JL1HIS, and the reasons b
 - Confirmation state (paper QSL, eQSL and LoTW held separately).
 - Reference data: the CTY archive (cty.dat and cty.csv), installed by an admin; the ADIF tables (bands and frequencies, modes and submodes, QSL values, QSO field names, DXCC entities, subdivisions), built in from the ADIF specification.
 - lookup: entity information from cty.dat and previous contacts in the own log (name / grid / QTH).
-- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry, Station Location and Instrument editing, ADIF import and export, bulk QSL state changes.
+- Web UI: log list and search, single-QSO editing, Live QSO entry, voice entry, Station Location and Instrument editing, ADIF import and export, bulk changes of QSOs.
 
 ## Out of Scope
 
@@ -138,8 +138,8 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 
 ### Bulk Changes
 
-- A bulk QSL change takes QSO IDs, each with the revision it is based on, and assignments to the QSL columns only. Values are checked against the ADIF enumerations ignoring case and dates as `YYYYMMDD`, and stored as given. Rows that are missing, deleted or at another revision are skipped and reported; the others are updated. Operators can do it.
-- Applying an export batch is a bulk QSL change over the batch rows at their recorded revisions, dated with the UTC day of the application: `qsl_card` sets `QSL_SENT = Y` and `QSLSDATE`, `eqsl` sets `EQSL_QSL_SENT = Y` and `EQSL_QSLSDATE`, and `lotw` sets `LOTW_QSL_SENT = Y` and `LOTW_QSLSDATE`. `QSL_SENT_VIA` is not written. `adif` and `pota` batches are records only and cannot be applied. A batch is applied once, in one transaction.
+- A bulk change takes QSO IDs, each with the revision it is based on, and assignments to any fields, optionally with a Station or an Instrument (or none). An empty value removes the field. Names are checked as in a QSO, the values of the QSL fields against the ADIF enumerations ignoring case and dates as `YYYYMMDD`, and stored as given; a change that leaves a row invalid, such as one removing `CALL`, refuses the whole request. A new Station or Instrument is baked in as when one QSO's pair changes (see Own Station Information), and fields the same change assigns win. Rows that are missing, deleted or at another revision are skipped and reported; the others are updated. Operators can do it. It was first limited to the QSL fields, which left every other correction of several QSOs to one QSO at a time.
+- Applying an export batch is a bulk change of QSL fields over the batch rows at their recorded revisions, dated with the UTC day of the application: `qsl_card` sets `QSL_SENT = Y` and `QSLSDATE`, `eqsl` sets `EQSL_QSL_SENT = Y` and `EQSL_QSLSDATE`, and `lotw` sets `LOTW_QSL_SENT = Y` and `LOTW_QSLSDATE`. `QSL_SENT_VIA` is not written. `adif` and `pota` batches are records only and cannot be applied. A batch is applied once, in one transaction.
 - Rewriting the past QSOs of a Station is reserved for owners. It covers the Station's QSOs, optionally within a QSO time range, and overwrites `STATION_CALLSIGN` and the keys present in the Station's fields, leaving the other fields alone; rows that already match are not touched. A preview returns the number of rows; applying takes that number and refuses with a conflict if it no longer matches.
 - Rewriting the past QSOs of an Instrument works the same way and is reserved for owners too. It covers the Instrument's QSOs, optionally within a QSO time range, and overwrites the fixed fields the Instrument has a value for and the keys present in its fields.
 
@@ -198,7 +198,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 - Other fields a confirmation carries (`DXCC`, `CQZ`, `ITUZ`, `STATE`, `CNTY`, `GRIDSQUARE`, `IOTA` in LoTW's report) are never applied; the preview counts the QSOs where they differ.
 - A record matches the live QSOs of the Logbook, or of one Station when it is given, with the same call ignoring case, the same band (from `FREQ` when the record has no `BAND`), a mode where the `MODE` or `SUBMODE` of one equals the `MODE` or `SUBMODE` of the other ignoring case, `TIME_ON` within 15 minutes, and the same `STATION_CALLSIGN` when the record has one.
 - Matching searches every candidate page before deciding whether a match is unique. Exactly one match is merged. No match is reported as unmatched. Several matches are ambiguous and never merged unless all of them are already received; they are resolved by hand. Unmatched, ambiguous and invalid records can be written to a rejects file as ADIF. Two records matching the same QSO merge the first only.
-- Applying is a bulk QSL change at the revisions read while matching, so a row changed in between is skipped and reported. A rerun finds the merged rows already received and changes nothing.
+- Applying is a bulk change of QSL fields at the revisions read while matching, so a row changed in between is skipped and reported. A rerun finds the merged rows already received and changes nothing.
 
 ### Backup and Restore
 

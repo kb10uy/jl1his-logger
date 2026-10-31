@@ -5,6 +5,7 @@ import type {
     AdminUser,
     Area,
     Batch,
+    BulkChange,
     Encoding,
     Exported,
     ExportKind,
@@ -299,8 +300,8 @@ export const lookup = (
     signal?: AbortSignal
 ) => request<Lookup>('GET', `${base(logbook)}/lookup${query({ call, ...candidate })}`, { signal });
 
-export const updateQsl = (logbook: string, qsos: Target[], fields: Fields) =>
-    request<Outcome>('POST', `${base(logbook)}/qsl`, { body: { qsos, fields } });
+export const bulkUpdate = (logbook: string, qsos: Target[], change: BulkChange) =>
+    request<Outcome>('POST', `${base(logbook)}/bulk`, { body: { qsos, ...change } });
 
 export interface ExportRequest {
     kind: ExportKind;
