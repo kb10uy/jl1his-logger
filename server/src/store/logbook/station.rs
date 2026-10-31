@@ -56,6 +56,12 @@ impl Station {
             favorite: row.try_get("favorite")?,
         })
     }
+
+    pub fn values(&self) -> BTreeMap<String, String> {
+        let mut values = self.fields.clone();
+        values.insert("STATION_CALLSIGN".to_owned(), self.callsign.clone());
+        values
+    }
 }
 
 struct Normalized {
@@ -213,14 +219,10 @@ async fn rewrite_plan(
     range: TimeRange,
 ) -> Result<Vec<(StoredQso, Qso)>, StoreError> {
     let station = fetch(conn, access, id).await?;
-    let values: Vec<(&str, &str)> = [("STATION_CALLSIGN", station.callsign.as_str())]
-        .into_iter()
-        .chain(
-            station
-                .fields
-                .iter()
-                .map(|(name, value)| (name.as_str(), value.as_str())),
-        )
+    let values = station.values();
+    let values: Vec<(&str, &str)> = values
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.as_str()))
         .collect();
     holder::rewrite_plan(conn, access, Holder::Station(&station.id), range, &values).await
 }

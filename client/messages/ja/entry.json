@@ -103,7 +103,7 @@
     "entry_editor_eqsl": "eQSL 送 / 受",
     "entry_editor_station_at_time": "記録時の運用地",
     "entry_editor_read_only": "読み取り専用",
-    "entry_editor_baked": "記録時に書き込まれた値です。運用地や設備を編集しても、ここで別の設備を選んでも、これらの値は変わりません。",
+    "entry_editor_baked": "記録時に書き込まれた値です。運用地や設備を編集してもこれらの値は変わりませんが、ここで別の運用地や設備を選んで保存すると、自分で変えたフィールドを除いて、その時点の値に置き換わります。",
     "entry_editor_other_fields": "その他の ADIF フィールド",
     "entry_editor_none": "なし",
     "entry_editor_delete_qso": "QSO を削除",

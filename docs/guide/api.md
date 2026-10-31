@@ -423,9 +423,15 @@ tags are `400`. Another revision is `412`, and a `PUT` on a deleted QSO is
 `409`; both carry the current QSO as `current`, so the client merges and retries
 with its revision.
 
-`PUT` replaces the whole QSO: `fields` is the complete new set, Station and
-Instrument defaults are not baked in again, and a field left out is removed.
-It sets the Instrument to `instrument_id`, so leaving it out clears it.
+`PUT` replaces the whole QSO: `fields` is the complete new set, and a field
+left out is removed. It sets the Instrument to `instrument_id`, so leaving it
+out clears it. While the Station and Instrument stay the same, their values are
+not baked in again. When `station_id` or `instrument_id` changes, the values
+the change affects are baked in from the current Station and Instrument (the
+Instrument's winning over the Station's, as on creation): a value the new
+pair has is set, and a value only the old pair had is removed where the QSO
+still holds it. A field whose value in `fields` differs from the stored QSO is
+taken as given and left alone.
 
 `warnings` never refuse a write:
 
