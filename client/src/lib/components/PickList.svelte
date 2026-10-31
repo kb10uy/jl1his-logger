@@ -96,7 +96,7 @@
 <section
     aria-label={label}
     class={[
-        'flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface md:sticky md:top-4 md:max-h-[calc(100dvh-6rem)]',
+        'flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface md:sticky md:top-[73px] md:max-h-[calc(100dvh-97px)]',
         className
     ]}
 >
