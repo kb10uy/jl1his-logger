@@ -69,17 +69,18 @@
 </script>
 
 {#snippet now(text: string)}
-    <span class="font-mono text-xs break-words text-muted">{m.log_bulk_now({ values: text })}</span>
+    <span class="font-mono text-2xs break-words text-muted">{m.log_bulk_now({ values: text })}</span
+    >
 {/snippet}
 
 <aside
     aria-label={m.log_bulk_edit()}
-    class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-3.5 overflow-y-auto border-l border-border bg-surface px-6 pt-4 pb-6 shadow-[-12px_0_32px] shadow-shadow"
+    class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-3 overflow-y-auto border-l border-border bg-surface px-4 pt-3 pb-4 shadow-[-12px_0_32px] shadow-shadow"
 >
     <div class="flex items-start justify-between gap-2">
         <div class="flex flex-col gap-0.5">
             <span class="eyebrow">{m.log_bulk_edit()}</span>
-            <span class="text-xl font-semibold">{m.log_bulk_title({ count })}</span>
+            <span class="text-lg font-semibold">{m.log_bulk_title({ count })}</span>
         </div>
         <button
             type="button"
@@ -91,10 +92,10 @@
         </button>
     </div>
 
-    <fieldset class="m-0 flex flex-col gap-2.5 rounded-lg border border-border p-3">
+    <fieldset class="m-0 flex min-w-0 flex-col gap-2 rounded-lg border border-border p-2.5">
         <legend class="px-1.5 eyebrow">{m.log_bulk_place()}</legend>
         <div class="flex flex-col gap-1">
-            <label for="bulk-station" class="text-xs text-muted">{m.field_station()}</label>
+            <label for="bulk-station" class="text-2xs text-muted">{m.field_station()}</label>
             <select id="bulk-station" class="control" bind:value={station}>
                 <option value={KEEP}>{m.log_bulk_keep()}</option>
                 {#each stations.filter((s) => s.archived_at === null) as s (s.id)}
@@ -104,7 +105,7 @@
             {@render now(tally(known.map((q) => stationName(q.station_id))))}
         </div>
         <div class="flex flex-col gap-1">
-            <label for="bulk-instrument" class="text-xs text-muted">{m.field_instrument()}</label>
+            <label for="bulk-instrument" class="text-2xs text-muted">{m.field_instrument()}</label>
             <select id="bulk-instrument" class="control" bind:value={instrument}>
                 <option value={KEEP}>{m.log_bulk_keep()}</option>
                 <option value={NO_INSTRUMENT}>{m.common_none()}</option>
@@ -114,10 +115,10 @@
             </select>
             {@render now(tally(known.map((q) => instrumentName(q.instrument_id))))}
         </div>
-        <span class="text-[11px] text-muted">{m.log_bulk_place_help()}</span>
+        <span class="text-2xs text-muted">{m.log_bulk_place_help()}</span>
     </fieldset>
 
-    <fieldset class="m-0 flex flex-col gap-2.5 rounded-lg border border-border p-3">
+    <fieldset class="m-0 flex min-w-0 flex-col gap-2 rounded-lg border border-border p-2.5">
         <legend class="px-1.5 eyebrow">{m.log_bulk_fields()}</legend>
         {#each edits as edit, i (i)}
             {@const name = edit.name.trim().toUpperCase()}
@@ -132,7 +133,7 @@
                         autocomplete="off"
                         autocapitalize="characters"
                         spellcheck="false"
-                        class="control h-9 min-w-0 flex-1 font-mono text-xs uppercase"
+                        class="control h-8 min-w-0 flex-1 font-mono text-2xs uppercase"
                         value={edit.name}
                         oninput={(e) => rename(edit, e.currentTarget.value)}
                     />
@@ -149,7 +150,7 @@
                         <select
                             aria-label={m.log_bulk_field_value({ name })}
                             disabled={edit.clear}
-                            class="control h-9 min-w-0 flex-1 disabled:opacity-50"
+                            class="control h-8 min-w-0 flex-1 disabled:opacity-50"
                             bind:value={edit.value}
                         >
                             <option value="">{m.log_bulk_keep()}</option>
@@ -161,20 +162,22 @@
                         <input
                             aria-label={m.log_bulk_field_value({ name: name || 'FIELD_NAME' })}
                             disabled={edit.clear}
-                            class="control h-9 min-w-0 flex-1 disabled:opacity-50"
+                            class="control h-8 min-w-0 flex-1 disabled:opacity-50"
                             bind:value={edit.value}
                         />
                     {/if}
-                    <label class="flex shrink-0 items-center gap-1.5 text-xs">
+                    <label class="flex shrink-0 items-center gap-1.5 text-2xs">
                         <input type="checkbox" class="accent-info" bind:checked={edit.clear} />
                         {m.log_bulk_clear_field()}
                     </label>
                 </div>
                 {#if problems[i] === 'name'}
-                    <span role="alert" class="text-xs text-error-text">{m.log_bulk_bad_name()}</span
+                    <span role="alert" class="text-2xs text-error-text"
+                        >{m.log_bulk_bad_name()}</span
                     >
                 {:else if problems[i] === 'repeated'}
-                    <span role="alert" class="text-xs text-error-text">{m.log_bulk_repeated()}</span
+                    <span role="alert" class="text-2xs text-error-text"
+                        >{m.log_bulk_repeated()}</span
                     >
                 {:else if name !== ''}
                     {@render now(distribution(known, name))}
@@ -183,7 +186,7 @@
         {/each}
         <button
             type="button"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-[13px] text-muted hover:text-text"
+            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-sm text-muted hover:text-text"
             onclick={() => edits.push(blank())}
         >
             <Icon name="plus" size={14} />
@@ -196,32 +199,32 @@
         </datalist>
     </fieldset>
 
-    <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-bg p-3">
+    <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-bg p-2.5">
         <span class="eyebrow">{m.log_bulk_changes()}</span>
         {#each summary as [name, value] (name)}
-            <span class="font-mono text-xs break-words"
+            <span class="font-mono text-2xs break-words"
                 >{name} → {value === '' ? m.log_bulk_removed() : value}</span
             >
         {:else}
-            <span class="text-xs text-muted">{m.log_bulk_nothing()}</span>
+            <span class="text-2xs text-muted">{m.log_bulk_nothing()}</span>
         {/each}
     </div>
 
     <div class="flex gap-2">
-        <button type="button" class="h-10 rounded-md border border-border px-3.5" onclick={reset}
+        <button type="button" class="h-9 rounded-md border border-border px-3.5" onclick={reset}
             >{m.log_reset()}</button
         >
         <button
             type="button"
             disabled={isEmpty(change) || blocked || busy}
-            class="h-10 flex-1 rounded-md font-bold enabled:bg-accent enabled:text-accent-text disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted"
+            class="h-9 flex-1 rounded-md font-semibold enabled:bg-accent enabled:text-accent-text disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted"
             onclick={() => {
                 onapply(change);
                 reset();
             }}>{m.log_bulk_apply({ count })}</button
         >
     </div>
-    <span class="text-[11px] text-muted">
+    <span class="text-2xs text-muted">
         {m.log_bulk_help()}
     </span>
 </aside>

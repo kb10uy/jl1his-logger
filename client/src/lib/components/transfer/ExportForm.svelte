@@ -32,10 +32,10 @@
 </script>
 
 <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
-    <label for={id} class="text-xs text-muted">{m.transfer_query()}</label>
+    <label for={id} class="text-2xs text-muted">{m.transfer_query()}</label>
     <input
         {id}
-        class="control h-10 font-mono"
+        class="control h-9 font-mono"
         {placeholder}
         spellcheck="false"
         autocomplete="off"
@@ -48,7 +48,7 @@
     <Notice tone="error">{matches.error}</Notice>
 {/if}
 <div class="flex flex-wrap items-center gap-3">
-    <span class="text-[13px]"
+    <span class="text-sm"
         ><Slotted text={matchText}
             ><strong class="font-mono text-base">{matches.total ?? '…'}</strong></Slotted
         ></span

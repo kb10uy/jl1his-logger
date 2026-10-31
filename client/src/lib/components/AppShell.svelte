@@ -176,7 +176,7 @@
         <div class={['flex items-center gap-2 pt-1 pb-3.5', collapsed ? 'flex-col' : 'pr-0 pl-3']}>
             <img src="/logo.svg" alt="" class="size-6" />
             {#if !collapsed}
-                <span class="flex-1 font-logo text-[15px] font-bold">JL1HIS Logger</span>
+                <span class="flex-1 font-logo text-base font-semibold">JL1HIS Logger</span>
             {/if}
             <button
                 type="button"
@@ -234,7 +234,7 @@
                 {/if}
                 <span
                     title={who}
-                    class="font-mono text-xs font-semibold text-text [writing-mode:vertical-rl]"
+                    class="font-mono text-2xs font-semibold text-text [writing-mode:vertical-rl]"
                     >{session.me?.callsign}</span
                 >
                 <button
@@ -246,7 +246,7 @@
                 >
             </div>
         {:else}
-            <div class="flex flex-col gap-1.5 border-t border-border p-3 text-xs text-muted">
+            <div class="flex flex-col gap-1.5 border-t border-border p-3 text-2xs text-muted">
                 {@render logbookMenu()}
                 {#if status !== undefined}
                     <span class="flex items-center gap-2"
@@ -285,13 +285,13 @@
                 >
             {:else}
                 <DropdownMenu.Trigger
-                    class="mb-1 flex h-8 items-center justify-between gap-2 rounded-md border border-border bg-bg px-2.5 text-[13px] text-text"
+                    class="mb-1 flex h-8 items-center justify-between gap-2 rounded-md border border-border bg-bg px-2.5 text-sm text-text"
                 >
                     <span class="min-w-0 truncate font-semibold"
                         >{logbook?.name ?? m.nav_logbook()}</span
                     >
                     <span
-                        class="flex shrink-0 items-center gap-1 text-xs whitespace-nowrap text-muted"
+                        class="flex shrink-0 items-center gap-1 text-2xs whitespace-nowrap text-muted"
                         >{m.nav_logbook()} <Icon name="chevron" size={12} /></span
                     >
                 </DropdownMenu.Trigger>
@@ -306,10 +306,10 @@
                     {#each session.logbooks as l (l.id)}
                         <DropdownMenu.Item
                             onSelect={() => switchTo(l.id)}
-                            class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
+                            class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-sm data-highlighted:bg-surface-2"
                         >
                             <span class="font-semibold">{l.name}</span>
-                            <span class="text-xs text-muted">{roleLabel(l.role)}</span>
+                            <span class="text-2xs text-muted">{roleLabel(l.role)}</span>
                         </DropdownMenu.Item>
                     {/each}
                 </DropdownMenu.Content>
@@ -331,7 +331,7 @@
                     href={item.href}
                     aria-current={current(item.href) ? 'page' : undefined}
                     class={[
-                        'flex flex-col items-center justify-center gap-1 rounded-lg text-[11px] no-underline',
+                        'flex flex-col items-center justify-center gap-1 rounded-lg text-2xs no-underline',
                         current(item.href) ? 'font-semibold text-accent' : 'text-muted'
                     ]}
                 >
@@ -342,7 +342,7 @@
                 href={`${root}/more`}
                 aria-current={onMore ? 'page' : undefined}
                 class={[
-                    'flex flex-col items-center justify-center gap-1 rounded-lg text-[11px] no-underline',
+                    'flex flex-col items-center justify-center gap-1 rounded-lg text-2xs no-underline',
                     onMore ? 'font-semibold text-accent' : 'text-muted'
                 ]}
             >

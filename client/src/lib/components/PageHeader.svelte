@@ -49,7 +49,7 @@
 </script>
 
 <header class="sticky top-0 z-20 shrink-0 border-b border-border bg-surface">
-    <div class="flex h-14 items-center gap-2 px-4 md:gap-3 md:px-6">
+    <div class="flex h-14 items-center gap-2 px-4 md:gap-3 md:px-5">
         {#if back}
             {#if back.href !== undefined}
                 <a
@@ -68,14 +68,14 @@
             {/if}
         {/if}
         <div class="flex min-w-0 flex-1 flex-col">
-            <h1 class="truncate text-xl leading-tight font-semibold">{title}</h1>
+            <h1 class="truncate text-lg leading-tight font-semibold">{title}</h1>
             {#if subtitle}
-                <span class="truncate text-xs text-muted">{subtitle}</span>
+                <span class="truncate text-2xs text-muted">{subtitle}</span>
             {/if}
         </div>
         {#if logbook}
             <span
-                class="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted md:hidden"
+                class="flex shrink-0 items-center gap-1.5 text-2xs whitespace-nowrap text-muted md:hidden"
             >
                 <span
                     role="img"
@@ -93,7 +93,7 @@
         {/if}
     </div>
     {#if toolbar}
-        <div class={['px-4 pb-3 md:px-6', toolbarClass]}>
+        <div class={['px-4 pb-3 md:px-5', toolbarClass]}>
             {@render toolbar()}
         </div>
     {/if}

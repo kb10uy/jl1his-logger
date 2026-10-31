@@ -26,14 +26,14 @@
     role="status"
     aria-label={m.entry_lookup()}
     class={[
-        '-mt-0.5 flex h-[20px] items-center gap-2 text-[12px] whitespace-nowrap',
+        '-mt-0.5 flex h-[20px] items-center gap-2 text-xs whitespace-nowrap',
         !shown && 'invisible'
     ]}
 >
     {#if lookup}
         <span class="min-w-0 flex-[0_1_auto] truncate text-muted">{lookupLine(lookup)}</span>
         {#if lookup.previous.count > 0}
-            <span class="flex-none rounded-full bg-info-bg px-[7px] py-px text-[11px] text-info"
+            <span class="flex-none rounded-full bg-info-bg px-2 py-px text-2xs text-info"
                 >{m.entry_worked({ count: lookup.previous.count })}</span
             >
             {#if lastFields}
@@ -59,12 +59,12 @@
                                 ? m.entry_today()
                                 : isoDate(duplicate.fields.QSO_DATE)
                     })}
-                    class="flex-none rounded-full bg-warn-bg px-[7px] py-px text-[11px] font-semibold text-warn"
+                    class="flex-none rounded-full bg-warn-bg px-2 py-px text-2xs font-semibold text-warn"
                     >{m.entry_possible_duplicate()}</span
                 >
             {/if}
         {:else}
-            <span class="flex-none rounded-full bg-ok-bg px-[7px] py-px text-[11px] text-ok"
+            <span class="flex-none rounded-full bg-ok-bg px-2 py-px text-2xs text-ok"
                 >{m.entry_first_qso()}</span
             >
         {/if}

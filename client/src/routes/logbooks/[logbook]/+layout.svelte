@@ -19,7 +19,7 @@
 {:else}
     <AppShell logbookId={null}>
         <main class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-            <h1 class="text-xl font-semibold">{m.logbook_not_found_title()}</h1>
+            <h1 class="text-lg font-semibold">{m.logbook_not_found_title()}</h1>
             <p class="text-muted">{m.logbook_not_found_body()}</p>
             <a href="/">{m.logbook_not_found_link()}</a>
         </main>

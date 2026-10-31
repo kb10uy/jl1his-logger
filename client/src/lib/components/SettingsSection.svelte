@@ -23,7 +23,7 @@
         {onsubmit}
         class={[
             'rounded-lg border border-border bg-surface',
-            padded ? 'flex flex-col gap-3 p-4' : 'overflow-x-auto'
+            padded ? 'flex flex-col gap-2 p-3' : 'overflow-x-auto'
         ]}
     >
         {@render children()}

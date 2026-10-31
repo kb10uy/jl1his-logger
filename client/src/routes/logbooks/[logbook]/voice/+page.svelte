@@ -229,7 +229,7 @@
     {/snippet}
 </PageHeader>
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
     <LogbookLoadError />
     {#if logbook.noActiveStation}
         <Notice>{m.voice_no_active_station()}</Notice>
@@ -246,18 +246,18 @@
                 class="flex flex-col gap-3 rounded-lg border border-accent bg-surface p-4"
             >
                 <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
-                    <span class="text-xs text-muted">{m.field_date_utc()}</span>
+                    <span class="text-2xs text-muted">{m.field_date_utc()}</span>
                     <div class="flex items-center gap-3 font-mono tabular">
-                        <span class="text-[15px] text-muted">{clock.date}</span>
-                        <span class="text-lg font-semibold">{clock.time}</span>
+                        <span class="text-base text-muted">{clock.date}</span>
+                        <span class="text-md font-semibold">{clock.time}</span>
                     </div>
                 </div>
                 <div class="h-px bg-border"></div>
                 <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
-                    <span class="text-xs text-muted">{m.field_call()}</span>
+                    <span class="text-2xs text-muted">{m.field_call()}</span>
                     <span
                         class={[
-                            'font-mono text-[32px] leading-none font-semibold tracking-[0.04em]',
+                            'font-mono text-2xl leading-none font-semibold tracking-[0.04em]',
                             draft.call === undefined && 'text-muted'
                         ]}>{draft.call ?? '—'}</span
                     >
@@ -265,14 +265,14 @@
                         <span></span>
                         <LookupSummary {lookup} />
                     {/if}
-                    <span class="text-xs text-muted">{m.entry_freq_band()}</span>
-                    <span class="flex min-w-0 flex-wrap gap-x-2 font-mono text-lg">
+                    <span class="text-2xs text-muted">{m.entry_freq_band()}</span>
+                    <span class="flex min-w-0 flex-wrap gap-x-2 font-mono text-md">
                         <span>{draft.freq ? `${draft.freq} MHz` : '—'} ·</span>
                         <span>{draft.band}</span>
                     </span>
-                    <span class="text-xs text-muted">{m.field_mode()}</span>
+                    <span class="text-2xs text-muted">{m.field_mode()}</span>
                     <div class="flex min-w-0 items-center gap-2.5">
-                        <span class="min-w-0 flex-1 font-mono text-lg"
+                        <span class="min-w-0 flex-1 font-mono text-md"
                             >{draft.mode}
                             <span class="text-muted">{draft.submode}</span></span
                         >
@@ -287,24 +287,24 @@
                                     )
                                 )}
                             iconOnly
-                            class="h-11"
+                            class="h-10"
                         />
                     </div>
-                    <span class="text-xs text-muted">{m.field_rst()}</span>
-                    <span class="flex flex-wrap items-center gap-x-1.5 font-mono text-lg"
-                        ><span class="font-sans text-xs text-muted">{m.voice_sent()}</span>
+                    <span class="text-2xs text-muted">{m.field_rst()}</span>
+                    <span class="flex flex-wrap items-center gap-x-1.5 font-mono text-md"
+                        ><span class="font-sans text-2xs text-muted">{m.voice_sent()}</span>
                         {draft.rstSent}
-                        <span class="ml-3 font-sans text-xs text-muted">{m.voice_rcvd()}</span>
+                        <span class="ml-3 font-sans text-2xs text-muted">{m.voice_rcvd()}</span>
                         {draft.rstRcvd}</span
                     >
                     {#if settings.contest.enabled || draft.received !== undefined}
-                        <span class="text-xs text-muted">{m.voice_number()}</span>
-                        <span class="flex flex-wrap items-center gap-x-1.5 font-mono text-lg"
+                        <span class="text-2xs text-muted">{m.voice_number()}</span>
+                        <span class="flex flex-wrap items-center gap-x-1.5 font-mono text-md"
                             >{#if settings.contest.enabled}<span
-                                    class="font-sans text-xs text-muted">{m.voice_sent()}</span
+                                    class="font-sans text-2xs text-muted">{m.voice_sent()}</span
                                 >
                                 {sent || '—'}
-                                <span class="ml-3 font-sans text-xs text-muted"
+                                <span class="ml-3 font-sans text-2xs text-muted"
                                     >{m.voice_rcvd()}</span
                                 >
                             {/if}<span class={draft.received === undefined ? 'text-info' : ''}
@@ -313,10 +313,10 @@
                         >
                     {/if}
                     {#if extras.length > 0}
-                        <span class="text-xs text-muted">{m.voice_also()}</span>
+                        <span class="text-2xs text-muted">{m.voice_also()}</span>
                         <span class="flex flex-wrap gap-1.5">
                             {#each extras as extra (extra)}
-                                <span class="rounded-full bg-surface-2 px-2 py-px text-xs"
+                                <span class="rounded-sm bg-surface-2 px-1.5 py-px text-2xs"
                                     >{extra}</span
                                 >
                             {/each}
@@ -341,14 +341,14 @@
                                 placeholder={m.voice_command_placeholder()}
                                 autocomplete="off"
                                 spellcheck="false"
-                                class="control h-10 flex-1 font-mono"
+                                class="control h-9 flex-1 font-mono"
                                 bind:value={command}
                             />
                             <Button type="submit" size="lg">{m.common_apply()}</Button>
                         </form>
                         <div class="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                             <div class="flex flex-col gap-1">
-                                <label for="voice-call" class="text-xs text-muted"
+                                <label for="voice-call" class="text-2xs text-muted"
                                     >{m.field_call()}</label
                                 >
                                 <input
@@ -362,7 +362,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-freq" class="text-xs text-muted"
+                                <label for="voice-freq" class="text-2xs text-muted"
                                     >{m.voice_freq_mhz()}</label
                                 >
                                 <input
@@ -378,7 +378,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-band" class="text-xs text-muted"
+                                <label for="voice-band" class="text-2xs text-muted"
                                     >{m.field_band()}</label
                                 >
                                 <BandSelect
@@ -388,7 +388,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-mode" class="text-xs text-muted"
+                                <label for="voice-mode" class="text-2xs text-muted"
                                     >{m.field_mode()}</label
                                 >
                                 <ModeSelect
@@ -400,7 +400,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-rsts" class="text-xs text-muted"
+                                <label for="voice-rsts" class="text-2xs text-muted"
                                     >{m.field_rst_sent()}</label
                                 >
                                 <input
@@ -416,7 +416,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-rstr" class="text-xs text-muted"
+                                <label for="voice-rstr" class="text-2xs text-muted"
                                     >{m.field_rst_rcvd()}</label
                                 >
                                 <input
@@ -432,7 +432,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-name" class="text-xs text-muted"
+                                <label for="voice-name" class="text-2xs text-muted"
                                     >{m.field_name()}</label
                                 >
                                 <input
@@ -444,7 +444,7 @@
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label for="voice-qth" class="text-xs text-muted"
+                                <label for="voice-qth" class="text-2xs text-muted"
                                     >{m.field_qth()}</label
                                 >
                                 <input
@@ -460,7 +460,7 @@
                 {/if}
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="flex-[1_1_200px] text-xs text-info max-md:basis-full"
+                    <span class="flex-[1_1_200px] text-2xs text-info max-md:basis-full"
                         >{draft.call !== undefined ? problem : ''}</span
                     >
                     <Button
@@ -479,7 +479,7 @@
                     <Button
                         variant="primary"
                         size="xl"
-                        class="font-bold max-md:order-3 max-md:basis-full"
+                        class="font-semibold max-md:order-3 max-md:basis-full"
                         disabled={problem !== undefined || stationId === '' || session.logging}
                         onclick={() => void logDraft()}>{m.voice_log_qso()}</Button
                     >
@@ -491,7 +491,7 @@
             <section
                 aria-label={m.voice_speech_engine()}
                 class={[
-                    'flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]',
+                    'flex flex-wrap items-center gap-x-3 gap-y-2 text-sm',
                     voice.engine !== 'ready' &&
                         'rounded-lg border border-border bg-surface px-4 py-3'
                 ]}
@@ -524,7 +524,7 @@
                             : m.voice_load()}</Button
                     >
                 {/if}
-                <div class="flex w-full items-center gap-2 text-xs text-muted">
+                <div class="flex w-full items-center gap-2 text-2xs text-muted">
                     <span
                         >Vosk · {LANGUAGE_LABELS[voice.settings.language]()} · {ENGINE_TEXT[
                             voice.engine
@@ -538,15 +538,15 @@
                 aria-label={m.voice_heard()}
                 class="flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-4 py-3"
             >
-                <div class="flex items-center justify-between text-xs text-muted">
-                    <span class="tracking-[0.06em] uppercase">{m.voice_heard()}</span>
+                <div class="flex items-center justify-between text-2xs text-muted">
+                    <span>{m.voice_heard()}</span>
                     {#if voice.heard}
                         <span class="font-mono">{time(voice.heard.at)}</span>
                     {/if}
                 </div>
                 {#if voice.heard}
                     <p class="text-base leading-snug">{voice.heard.heard}</p>
-                    <span class={['text-xs', voice.heard.ok ? 'text-muted' : 'text-error-text']}
+                    <span class={['text-2xs', voice.heard.ok ? 'text-muted' : 'text-error-text']}
                         >{voice.heard.message}</span
                     >
                 {:else}
@@ -562,9 +562,7 @@
                     class="flex flex-col gap-2 max-md:order-4 max-md:hidden"
                 >
                     <h2 class="eyebrow">{m.voice_recent_utterances()}</h2>
-                    <div
-                        class="flex flex-col rounded-lg border border-border bg-surface text-[13px]"
-                    >
+                    <div class="flex flex-col rounded-lg border border-border bg-surface text-sm">
                         {#each voice.utterances as u (u.id)}
                             <div
                                 class="flex gap-3 border-b border-surface-2 px-3 py-2 last:border-b-0"
@@ -573,7 +571,7 @@
                                 <span class="flex min-w-0 flex-1 flex-col">
                                     <span>{u.heard}</span>
                                     {#if u.source === 'typed'}
-                                        <span class="text-xs text-muted">{m.voice_typed()}</span>
+                                        <span class="text-2xs text-muted">{m.voice_typed()}</span>
                                     {/if}
                                 </span>
                                 <span

@@ -96,11 +96,11 @@
     }}
 />
 
-<div class="flex h-dvh flex-col text-[13px]">
+<div class="flex h-dvh flex-col text-sm">
     <header class="flex h-[44px] flex-none items-center gap-2.5 border-b border-border px-[12px]">
         <button
             type="button"
-            class="flex h-[30px] items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[12px]"
+            class="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs"
             onclick={() => goto('/')}
             ><svg
                 aria-hidden="true"
@@ -112,12 +112,12 @@
                 stroke-width="2"
                 stroke-linecap="round"><path d="M15 6l-6 6 6 6" /></svg
             >{m.settings_back()}
-            <span class="font-mono text-[10px] text-muted">Esc</span></button
+            <kbd class="kbd text-muted">Esc</kbd></button
         >
-        <h1 class="m-0 text-[15px] font-semibold">{m.settings_title()}</h1>
+        <h1 class="m-0 text-base font-semibold">{m.settings_title()}</h1>
         <div class="flex-1"></div>
         {#if current}
-            <span title={current.path} class="text-[11px] text-muted"
+            <span title={current.path} class="text-2xs text-muted"
                 >{m.settings_saved({ file: current.path.split(/[\\/]/).at(-1) ?? '' })}</span
             >
         {/if}
@@ -127,7 +127,7 @@
         {#if settings.error}
             <p
                 role="alert"
-                class="m-0 rounded-md bg-error-bg px-2.5 py-2 text-[12px] text-error-text select-text"
+                class="m-0 rounded-md bg-error-bg px-2.5 py-2 text-xs text-error-text select-text"
             >
                 {errorText(settings.error)}
             </p>
@@ -139,10 +139,10 @@
                 class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
             >
                 <div class="flex items-center gap-2.5">
-                    <h2 id="settings-rig" class="m-0 text-[13px] font-semibold">
+                    <h2 id="settings-rig" class="m-0 text-sm font-semibold">
                         {m.settings_rig()}
                     </h2>
-                    <span class="text-[12px] text-muted">{m.settings_rig_lead()}</span>
+                    <span class="text-xs text-muted">{m.settings_rig_lead()}</span>
                     <div class="flex-1"></div>
                     <button
                         type="button"
@@ -165,8 +165,8 @@
 
                 <div class={['flex flex-col gap-2.5', !current.rig.enabled && 'opacity-50']}>
                     <div class="flex items-end gap-2">
-                        <div class="flex flex-col gap-[3px]">
-                            <label for="rig-host" class="text-[11px] text-muted"
+                        <div class="flex flex-col gap-1">
+                            <label for="rig-host" class="text-2xs text-muted"
                                 >{m.settings_rig_host()}</label
                             >
                             <input
@@ -181,8 +181,8 @@
                                 }}
                             />
                         </div>
-                        <div class="flex flex-col gap-[3px]">
-                            <label for="rig-port" class="text-[11px] text-muted"
+                        <div class="flex flex-col gap-1">
+                            <label for="rig-port" class="text-2xs text-muted"
                                 >{m.settings_rig_port()}</label
                             >
                             <input
@@ -199,8 +199,8 @@
                                 }}
                             />
                         </div>
-                        <div class="flex flex-col gap-[3px]">
-                            <label for="rig-poll" class="text-[11px] text-muted"
+                        <div class="flex flex-col gap-1">
+                            <label for="rig-poll" class="text-2xs text-muted"
                                 >{m.settings_rig_poll()}</label
                             >
                             <select
@@ -218,16 +218,16 @@
                         <button
                             type="button"
                             disabled={!current.rig.enabled}
-                            class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-[12px] whitespace-nowrap"
+                            class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-xs whitespace-nowrap"
                             onclick={() => settings.reconnect()}
                             >{m.settings_rig_reconnect()}</button
                         >
                     </div>
 
-                    <div role="status" class="flex h-[20px] items-center gap-1.5 text-[12px]">
+                    <div role="status" class="flex h-[20px] items-center gap-1.5 text-xs">
                         <span
                             class={[
-                                'size-[7px] flex-none rounded-full',
+                                'size-2 flex-none rounded-full',
                                 status.tone === 'ok' && 'bg-ok',
                                 status.tone === 'busy' && 'bg-info',
                                 status.tone === 'error' && 'bg-error',
@@ -247,22 +247,18 @@
 
                     <div class="flex flex-col gap-1.5 border-t border-border pt-2.5">
                         <div class="flex items-baseline gap-2">
-                            <span class="flex-none eyebrow text-[11px]"
-                                >{m.settings_rig_modes()}</span
-                            >
-                            <span class="text-[11px] text-muted">{m.settings_rig_modes_hint()}</span
-                            >
+                            <span class="flex-none eyebrow text-2xs">{m.settings_rig_modes()}</span>
+                            <span class="text-2xs text-muted">{m.settings_rig_modes_hint()}</span>
                         </div>
                         <div class="grid grid-cols-3 gap-x-3 gap-y-1.5">
                             {#each RIG_MODES as mode (mode)}
                                 <div class="flex items-center gap-2">
-                                    <span class="w-[56px] font-mono text-[12px] text-muted"
-                                        >{mode}</span
+                                    <span class="w-[56px] font-mono text-xs text-muted">{mode}</span
                                     >
                                     <span aria-hidden="true" class="text-[#6e7681]">→</span>
                                     <select
                                         aria-label={m.settings_rig_mode_label({ mode })}
-                                        class="field h-[28px] min-w-0 flex-1 px-1.5 font-mono text-[12px]"
+                                        class="field h-[28px] min-w-0 flex-1 px-1.5 font-mono text-xs"
                                         value={loggedFor(mode, current.rig.modes)}
                                         onchange={(e) =>
                                             saveRig({
@@ -288,10 +284,10 @@
                 class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-[12px]"
             >
                 <div class="flex items-center gap-2.5">
-                    <h2 id="settings-listen" class="m-0 flex-none text-[13px] font-semibold">
+                    <h2 id="settings-listen" class="m-0 flex-none text-sm font-semibold">
                         {m.settings_listen()}
                     </h2>
-                    <span class="truncate text-[12px] text-muted" title={m.settings_listen_lead()}
+                    <span class="truncate text-xs text-muted" title={m.settings_listen_lead()}
                         >{m.settings_listen_lead()}</span
                     >
                 </div>
@@ -321,7 +317,7 @@
                             aria-label={m.settings_listen_host()}
                             spellcheck="false"
                             autocomplete="off"
-                            class="field h-[28px] w-[150px] font-mono text-[12px]"
+                            class="field h-[28px] w-[150px] font-mono text-xs"
                             value={listener.host}
                             onchange={(e) => {
                                 const host = e.currentTarget.value.trim();
@@ -333,7 +329,7 @@
                             type="number"
                             min="1"
                             max="65535"
-                            class="field h-[28px] w-[76px] text-right font-mono text-[12px]"
+                            class="field h-[28px] w-[76px] text-right font-mono text-xs"
                             value={listener.port}
                             onchange={(e) => {
                                 const port = Number(e.currentTarget.value);
@@ -344,7 +340,7 @@
                         <label
                             title={m.settings_listen_subscribe_title()}
                             class={[
-                                'flex flex-none items-center gap-[5px] text-[12px]',
+                                'flex flex-none items-center gap-1 text-xs',
                                 !listener.enabled && 'text-muted'
                             ]}
                             ><input
@@ -356,10 +352,10 @@
                                     saveListener(index, { subscribe: e.currentTarget.checked })}
                             />{m.settings_listen_subscribe()}</label
                         >
-                        <span class="flex min-w-0 flex-1 items-center gap-1.5 text-[12px]">
+                        <span class="flex min-w-0 flex-1 items-center gap-1.5 text-xs">
                             <span
                                 class={[
-                                    'size-[7px] flex-none rounded-full',
+                                    'size-2 flex-none rounded-full',
                                     status.tone === 'ok' && 'bg-ok',
                                     status.tone === 'error' && 'bg-error',
                                     status.tone === 'off' && 'bg-[#6e7681]'
@@ -395,7 +391,7 @@
                     </div>
                 {/each}
                 {#if exposed.length > 0}
-                    <p class="m-0 text-[12px] text-warn">
+                    <p class="m-0 text-xs text-warn">
                         {m.settings_listen_exposed({
                             addresses: exposed.map((l) => `${l.host}:${l.port}`).join(', ')
                         })}
@@ -404,7 +400,7 @@
                 <div>
                     <button
                         type="button"
-                        class="h-[28px] rounded-md border border-border bg-surface-2 px-2.5 text-[12px]"
+                        class="h-[28px] rounded-md border border-border bg-surface-2 px-2.5 text-xs"
                         onclick={() =>
                             saveListeners([
                                 ...current.listeners,
@@ -420,17 +416,17 @@
                     class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
                 >
                     <div class="flex items-center justify-between gap-2.5">
-                        <h2 id="settings-server" class="m-0 text-[13px] font-semibold">
+                        <h2 id="settings-server" class="m-0 text-sm font-semibold">
                             {m.settings_server()}
                         </h2>
                         <button
                             type="button"
-                            class="h-[28px] rounded-md border border-error-border px-2.5 text-[12px] text-error-text"
+                            class="h-[28px] rounded-md border border-error-border px-2.5 text-xs text-error-text"
                             onclick={() => session.signOut()}>{m.common_sign_out()}</button
                         >
                     </div>
                     <div
-                        class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-[12px]"
+                        class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs"
                     >
                         <span class="text-muted">{m.settings_server_url()}</span>
                         <span class="font-mono select-text">{signedIn.url}</span>
@@ -459,7 +455,7 @@
                 aria-labelledby="settings-tray"
                 class="flex items-center gap-3 rounded-lg border border-border bg-surface p-[12px]"
             >
-                <h2 id="settings-tray" class="m-0 w-[96px] flex-none text-[13px] font-semibold">
+                <h2 id="settings-tray" class="m-0 w-[96px] flex-none text-sm font-semibold">
                     {m.settings_tray()}
                 </h2>
                 <button
@@ -479,7 +475,7 @@
                         ]}
                     ></span></button
                 >
-                <span class="text-[12px] text-muted"
+                <span class="text-xs text-muted"
                     >{current.closeToTray ? m.settings_tray_on() : m.settings_tray_off()}</span
                 >
             </section>
@@ -488,11 +484,11 @@
                 aria-labelledby="settings-appearance"
                 class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
             >
-                <h2 id="settings-appearance" class="m-0 text-[13px] font-semibold">
+                <h2 id="settings-appearance" class="m-0 text-sm font-semibold">
                     {m.settings_appearance()}
                 </h2>
                 <div
-                    class="grid grid-cols-[96px_200px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-[12px]"
+                    class="grid grid-cols-[96px_200px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs"
                 >
                     <label for="theme" class="text-muted">{m.settings_theme()}</label>
                     <select

@@ -99,7 +99,7 @@
             aria-label={m.favorites_title()}
             align="end"
             sideOffset={6}
-            class="z-40 flex max-h-[min(480px,calc(100dvh-96px))] w-[min(330px,calc(100vw-32px))] flex-col gap-px overflow-y-auto rounded-lg border border-border bg-surface p-1 text-[13px] shadow-lg shadow-shadow"
+            class="z-40 flex max-h-[min(480px,calc(100dvh-96px))] w-[min(330px,calc(100vw-32px))] flex-col gap-px overflow-y-auto rounded-lg border border-border bg-surface p-1 text-sm shadow-lg shadow-shadow"
         >
             <h2 class="flex h-7 items-center px-2.5 eyebrow">{m.favorites_title()}</h2>
             {#if savable}
@@ -126,11 +126,10 @@
                     <button
                         type="button"
                         aria-current={active ? 'true' : undefined}
-                        class="grid h-11 min-w-0 flex-1 grid-cols-[40px_76px_minmax(0,1fr)] items-center gap-2 bg-none px-2.5 text-left font-mono text-[15px] md:h-8 md:grid-cols-[36px_68px_minmax(0,1fr)] md:text-[13px]"
+                        class="grid h-11 min-w-0 flex-1 grid-cols-[40px_76px_minmax(0,1fr)] items-center gap-2 bg-none px-2.5 text-left font-mono text-base md:h-8 md:grid-cols-[36px_68px_minmax(0,1fr)] md:text-sm"
                         onclick={() => select(favorite)}
                     >
-                        <span class="text-[11px] font-normal text-muted"
-                            >{favoriteBand(favorite)}</span
+                        <span class="text-2xs font-normal text-muted">{favoriteBand(favorite)}</span
                         >
                         <span class="text-right">{freqLabel(favorite.freq)}</span>
                         <span>{favorite.submode || favorite.mode}</span>
@@ -146,7 +145,7 @@
             {/each}
             {#if removed}
                 {@const gone = removed}
-                <div role="status" class="flex h-9 items-center gap-2 px-2.5 text-xs text-muted">
+                <div role="status" class="flex h-9 items-center gap-2 px-2.5 text-2xs text-muted">
                     <span class="flex-1"
                         >{m.favorites_removed()}
                         <span class="font-mono text-text">{favoriteLabel(gone)}</span></span
@@ -159,9 +158,9 @@
                 </div>
             {/if}
             {#if favoriteFrequencies.failed}
-                <p class="px-2.5 py-2 text-xs text-error-text">{m.favorites_failed()}</p>
+                <p class="px-2.5 py-2 text-2xs text-error-text">{m.favorites_failed()}</p>
             {:else if favoriteFrequencies.items.length === 0 && !removed}
-                <p class="px-2.5 py-2 text-xs text-muted">{m.favorites_empty()}</p>
+                <p class="px-2.5 py-2 text-2xs text-muted">{m.favorites_empty()}</p>
             {/if}
         </Popover.Content>
     </Popover.Portal>

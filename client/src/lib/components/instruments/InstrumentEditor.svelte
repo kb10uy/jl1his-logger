@@ -81,10 +81,10 @@
 </script>
 
 {#snippet labelFor(id: string, text: string, adif?: string)}
-    <label for={id} class="flex flex-col text-xs text-muted md:pt-2">
+    <label for={id} class="flex flex-col text-2xs text-muted md:pt-2">
         <span>{text}</span>
         {#if adif}
-            <span class="font-mono text-[10px] tracking-wide opacity-75">{adif}</span>
+            <span class="font-mono text-2xs">{adif}</span>
         {/if}
     </label>
 {/snippet}
@@ -95,7 +95,7 @@
             {instrument === undefined ? m.stations_instrument_new() : instrument.name}
         </h2>
         {#if instrument?.archived_at}
-            <span class="text-xs text-muted"
+            <span class="text-2xs text-muted"
                 >{m.stations_archived_on({ date: instrument.archived_at.slice(0, 10) })}</span
             >
         {/if}
@@ -112,20 +112,20 @@
 
     <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[168px_minmax(0,1fr)]">
         {@render labelFor('in-name', m.field_name())}
-        <input id="in-name" class="control h-10" autocomplete="off" bind:value={draft.name} />
+        <input id="in-name" class="control h-9" autocomplete="off" bind:value={draft.name} />
 
         <div class="border-t border-border md:col-span-2"></div>
 
         {@render labelFor('in-rig', m.stations_instrument_rig(), 'MY_RIG')}
-        <input id="in-rig" class="control h-10" autocomplete="off" bind:value={draft.rig} />
+        <input id="in-rig" class="control h-9" autocomplete="off" bind:value={draft.rig} />
         {@render labelFor('in-antenna', m.stations_instrument_antenna(), 'MY_ANTENNA')}
-        <input id="in-antenna" class="control h-10" autocomplete="off" bind:value={draft.antenna} />
+        <input id="in-antenna" class="control h-9" autocomplete="off" bind:value={draft.antenna} />
         {@render labelFor('in-power', m.stations_instrument_power(), 'TX_PWR')}
         <input
             id="in-power"
             inputmode="decimal"
             placeholder={m.stations_placeholder_none()}
-            class="control h-10 w-28 font-mono"
+            class="control h-9 w-28 font-mono"
             bind:value={draft.power}
         />
 
@@ -134,7 +134,7 @@
                 aria-label={m.stations_field_name()}
                 list="in-adif-fields"
                 placeholder="FIELD_NAME"
-                class="control h-10 font-mono text-xs uppercase"
+                class="control h-9 font-mono text-2xs uppercase"
                 autocomplete="off"
                 spellcheck="false"
                 bind:value={field.name}
@@ -144,7 +144,7 @@
                     aria-label={field.name
                         ? m.stations_instrument_value_named({ name: field.name })
                         : m.stations_instrument_value_field()}
-                    class="control h-10 flex-1"
+                    class="control h-9 flex-1"
                     bind:value={field.value}
                 />
                 <button
@@ -181,7 +181,7 @@
     {/if}
 
     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-        <span class="mr-auto text-xs text-muted">
+        <span class="mr-auto text-2xs text-muted">
             {instrument === undefined
                 ? m.stations_instrument_new_hint()
                 : changed

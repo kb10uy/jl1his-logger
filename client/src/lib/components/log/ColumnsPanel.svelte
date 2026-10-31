@@ -53,7 +53,7 @@
 
 <Popover.Root>
     <Popover.Trigger
-        class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text"
+        class="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text"
     >
         <Icon name="columns" size={16} />{m.log_columns()}
     </Popover.Trigger>
@@ -61,10 +61,10 @@
         <Popover.Content
             align="end"
             sideOffset={6}
-            class="z-40 flex max-h-[min(640px,calc(100dvh-96px))] w-[300px] flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3 text-[13px] shadow-lg shadow-shadow"
+            class="z-40 flex max-h-[min(640px,calc(100dvh-96px))] w-[300px] flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3 text-sm shadow-lg shadow-shadow"
         >
             <div class="flex items-center justify-between">
-                <h2 class="text-sm font-semibold">{m.log_columns()}</h2>
+                <h2 class="text-xs font-semibold">{m.log_columns()}</h2>
                 <button
                     type="button"
                     class="h-7 px-1 text-info disabled:text-muted"
@@ -110,7 +110,7 @@
                         <span
                             class={[
                                 'min-w-0 flex-1 truncate',
-                                id.startsWith('adif.') && 'font-mono text-xs'
+                                id.startsWith('adif.') && 'font-mono text-2xs'
                             ]}>{column(id)?.label ?? id}</span
                         >
                         <button
@@ -158,7 +158,7 @@
                     addField();
                 }}
             >
-                <label for="column-field" class="text-xs text-muted">{m.log_adif_field()}</label>
+                <label for="column-field" class="text-2xs text-muted">{m.log_adif_field()}</label>
                 <div class="flex gap-2">
                     <input
                         id="column-field"
@@ -168,18 +168,18 @@
                         autocapitalize="characters"
                         spellcheck="false"
                         aria-invalid={problem !== undefined}
-                        class="control h-9 min-w-0 flex-1 rounded-md px-2 font-mono text-xs uppercase"
+                        class="control h-8 min-w-0 flex-1 rounded-md px-2 font-mono text-2xs uppercase"
                         bind:value={field}
                         oninput={() => (problem = undefined)}
                     />
                     <button
                         type="submit"
-                        class="h-9 rounded-md border border-border bg-surface-2 px-3 font-medium"
+                        class="h-8 rounded-md border border-border bg-surface-2 px-3 font-medium"
                         >{m.common_add()}</button
                     >
                 </div>
                 {#if problem}
-                    <p role="alert" class="text-xs text-error-text">{problem}</p>
+                    <p role="alert" class="text-2xs text-error-text">{problem}</p>
                 {/if}
                 <datalist id="column-fields">
                     {#each ADIF_QSO_FIELDS as name (name)}

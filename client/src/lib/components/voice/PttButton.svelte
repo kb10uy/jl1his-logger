@@ -56,8 +56,8 @@
         style:transform="scaleX({voice.ptt === 'listening' ? meter : 0})"
     ></span>
     <Icon name="voice" size={28} />
-    <span class="text-lg font-bold">{label}</span>
+    <span class="text-md font-semibold">{label}</span>
     {#if voice.ptt === 'listening' && voice.partial}
-        <span class="px-4 text-[15px] opacity-90">{voice.partial}</span>
+        <span class="px-4 text-base opacity-90">{voice.partial}</span>
     {/if}
 </button>

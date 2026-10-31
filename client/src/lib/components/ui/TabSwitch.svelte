@@ -19,7 +19,7 @@
             role="tab"
             aria-selected={value === tab.id}
             class={[
-                'h-10 rounded-md border text-[13px]',
+                'h-9 rounded-md border text-sm',
                 value === tab.id
                     ? 'border-accent bg-selected font-semibold text-accent'
                     : 'border-border bg-bg'

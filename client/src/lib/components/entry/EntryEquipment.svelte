@@ -8,7 +8,7 @@
 </script>
 
 <div class="flex items-center gap-2 md:gap-3">
-    <label for="station" class="shrink-0 text-xs text-muted max-md:sr-only"
+    <label for="station" class="shrink-0 text-2xs text-muted max-md:sr-only"
         >{m.field_station()}</label
     >
     <StationSelect
@@ -18,7 +18,7 @@
         stations={session.logbook.activeStations}
         onchange={(id) => (session.settings.stationId = id)}
     />
-    <label for="instrument" class="shrink-0 text-xs text-muted max-md:sr-only"
+    <label for="instrument" class="shrink-0 text-2xs text-muted max-md:sr-only"
         >{m.field_instrument()}</label
     >
     <InstrumentSelect

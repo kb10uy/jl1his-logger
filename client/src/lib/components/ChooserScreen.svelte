@@ -115,7 +115,7 @@
     {/snippet}
 </PageHeader>
 
-<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-6">
+<main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
     <LogbookLoadError />
     <div class="grid items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
         <PickList

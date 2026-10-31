@@ -54,7 +54,7 @@
             aria-autocomplete="list"
             aria-activedescendant={open ? `${id}-option-${active}` : undefined}
             placeholder={m.stations_dxcc_placeholder()}
-            class="control h-10 w-full font-mono"
+            class="control h-9 w-full font-mono"
             autocomplete="off"
             spellcheck="false"
             value={query ?? value}
@@ -74,7 +74,7 @@
                         role="option"
                         aria-selected={i === active}
                         class={[
-                            'flex cursor-pointer items-baseline gap-3 rounded-md px-2.5 py-1.5 text-[13px]',
+                            'flex cursor-pointer items-baseline gap-3 rounded-md px-2.5 py-1.5 text-sm',
                             i === active && 'bg-surface-2'
                         ]}
                         onpointerdown={(e) => {
@@ -92,7 +92,7 @@
             </ul>
         {/if}
     </div>
-    <span class="text-xs text-muted">
+    <span class="text-2xs text-muted">
         {#if entity}
             <span class="text-text">{entity.name}</span>{entity.deleted
                 ? ` (${m.stations_dxcc_deleted()})`

@@ -106,11 +106,11 @@
 <SettingsFrame {logbookId}>
     {#if canEdit}
         <SettingsSection title={m.settings_members_add_title()} form onsubmit={add}>
-            <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+            <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
                 <SettingsField label={m.settings_members_callsign()} for="mem-call">
                     <input
                         id="mem-call"
-                        class="control h-10 w-full font-mono uppercase md:w-60"
+                        class="control h-9 w-full font-mono uppercase md:w-60"
                         placeholder="JA1ABC"
                         autocomplete="off"
                         spellcheck="false"
@@ -118,14 +118,14 @@
                     />
                 </SettingsField>
                 <SettingsField label={m.settings_members_role()} for="mem-role">
-                    <select id="mem-role" class="control h-10 w-full md:w-60" bind:value={role}>
+                    <select id="mem-role" class="control h-9 w-full md:w-60" bind:value={role}>
                         <option value="operator">{roleLabel('operator')}</option>
                         <option value="owner">{roleLabel('owner')}</option>
                     </select>
                 </SettingsField>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-3">
-                <span class="mr-auto text-xs text-muted">{m.settings_members_must_exist()}</span>
+                <span class="mr-auto text-2xs text-muted">{m.settings_members_must_exist()}</span>
                 <Button type="submit" variant="primary" disabled={adding || callsign.trim() === ''}
                     >{m.settings_members_add()}</Button
                 >
@@ -138,19 +138,19 @@
     <SettingsSection title={m.settings_members()} padded={false}>
         {#each members ?? [] as member (member.user_id)}
             <div
-                class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-2 px-4 py-3 last:border-b-0"
+                class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-2 px-3 py-2 last:border-b-0"
             >
                 <span class={['font-mono font-semibold', member.disabled && 'text-muted']}
                     >{member.callsign}</span
                 >
-                <span class="min-w-0 flex-1 text-xs text-muted">{note(member)}</span>
+                <span class="min-w-0 flex-1 text-2xs text-muted">{note(member)}</span>
                 {#if canEdit}
                     <label for={`role-${member.user_id}`} class="sr-only"
                         >{m.settings_members_role_of({ callsign: member.callsign })}</label
                     >
                     <select
                         id={`role-${member.user_id}`}
-                        class="control h-9"
+                        class="control h-8"
                         disabled={locked(member)}
                         value={member.role}
                         onchange={(e) => setRole(member, e.currentTarget.value as LogbookRole)}
@@ -168,11 +168,11 @@
                         }}>{m.common_remove()}</Button
                     >
                 {:else}
-                    <span class="text-[13px]">{roleLabel(member.role)}</span>
+                    <span class="text-sm">{roleLabel(member.role)}</span>
                 {/if}
             </div>
         {:else}
-            <p class="px-4 py-3 text-muted">
+            <p class="px-3 py-3 text-muted">
                 {members === undefined ? m.common_loading() : ''}
             </p>
         {/each}

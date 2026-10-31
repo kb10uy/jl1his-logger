@@ -15,7 +15,7 @@
 </script>
 
 <SettingsSection title={m.settings_voice_recognition()}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField
             label={m.voice_speech_language()}
             for="voice-language"
@@ -23,7 +23,7 @@
         >
             <select
                 id="voice-language"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 value={language}
                 onchange={(e) => setLanguage(e.currentTarget.value as SpeechLanguage)}
             >

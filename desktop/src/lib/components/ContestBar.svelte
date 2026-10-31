@@ -8,14 +8,14 @@
 <div
     role="group"
     aria-label={m.entry_contest()}
-    class="flex flex-none items-center gap-2 rounded-md border border-info-strong bg-selected px-2 py-[5px] text-[11px] text-muted"
+    class="flex flex-none items-center gap-2 rounded-md border border-info-strong bg-selected px-2 py-1 text-2xs text-muted"
 >
     <label for="contest-id">CONTEST_ID</label>
     <input
         id="contest-id"
         autocomplete="off"
         spellcheck="false"
-        class="field h-[28px] w-[120px] font-mono text-[12px] uppercase"
+        class="field h-[28px] w-[120px] font-mono text-xs uppercase"
         bind:value={contest.contestId}
     />
     <label for="contest-template" class="ml-1.5">{m.entry_contest_template()}</label>
@@ -24,7 +24,7 @@
         autocomplete="off"
         spellcheck="false"
         placeholder={'{serial}'}
-        class="field h-[28px] w-[100px] font-mono text-[12px]"
+        class="field h-[28px] w-[100px] font-mono text-xs"
         bind:value={contest.exchangeTemplate}
     />
     <label for="contest-next" class="ml-1.5">{m.entry_contest_next()}</label>
@@ -33,7 +33,7 @@
         type="number"
         min="1"
         step="1"
-        class="field h-[28px] w-[60px] px-1.5 text-right font-mono text-[12px]"
+        class="field h-[28px] w-[60px] px-1.5 text-right font-mono text-xs"
         bind:value={contest.nextSerial}
     />
     <label class="ml-1.5 flex items-center gap-1.5">

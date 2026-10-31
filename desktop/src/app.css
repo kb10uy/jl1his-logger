@@ -6,10 +6,10 @@
     height: 32px;
     padding: 0 8px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     background: var(--bg);
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--text-sm);
 }
 
 @layer base {

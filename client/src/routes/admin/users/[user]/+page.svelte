@@ -203,11 +203,11 @@
     <p class="text-muted">{m.common_loading()}</p>
 {:else}
     <SettingsSection title={m.admin_users_account()}>
-        <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+        <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
             <SettingsField label={m.admin_users_role()} for="user-role">
                 <select
                     id="user-role"
-                    class="control h-10 w-full md:w-60"
+                    class="control h-9 w-full md:w-60"
                     disabled={busy}
                     value={user.role}
                     onchange={(e) => setRole(e.currentTarget.value as AdminUser['role'])}
@@ -244,10 +244,10 @@
     </SettingsSection>
 
     <SettingsSection title={m.admin_users_registration()}>
-        <p class="text-[13px] text-muted">{m.admin_users_registration_hint()}</p>
+        <p class="text-sm text-muted">{m.admin_users_registration_hint()}</p>
         <div class="flex flex-wrap items-center justify-end gap-3">
             {#if user.disabled_at !== null}
-                <span class="mr-auto text-xs text-muted"
+                <span class="mr-auto text-2xs text-muted"
                     >{m.admin_users_registration_disabled()}</span
                 >
             {/if}
@@ -263,10 +263,10 @@
     <SettingsSection title={m.admin_users_passkeys()} padded={false}>
         {#each passkeys ?? [] as passkey (passkey.id)}
             <div
-                class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-4 py-3 last:border-b-0"
+                class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-3 py-2 last:border-b-0"
             >
                 <span class="min-w-0 flex-1 truncate font-medium">{passkey.name}</span>
-                <span class="text-xs text-muted"
+                <span class="text-2xs text-muted"
                     >{m.settings_account_passkey_dates({
                         created: day(passkey.created_at),
                         used: day(passkey.last_used_at)
@@ -280,7 +280,7 @@
                 >
             </div>
         {:else}
-            <p class="px-4 py-3 text-muted">
+            <p class="px-3 py-3 text-muted">
                 {passkeys === undefined ? m.common_loading() : m.admin_users_no_passkeys()}
             </p>
         {/each}
@@ -289,13 +289,13 @@
     <SettingsSection title={m.admin_users_sessions()} padded={false}>
         {#each sessions ?? [] as live (live.id)}
             <div
-                class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-4 py-3 last:border-b-0"
+                class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-3 py-2 last:border-b-0"
             >
                 <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span class="truncate text-[13px]"
+                    <span class="truncate text-sm"
                         >{live.user_agent ?? m.admin_users_session_unknown()}</span
                     >
-                    <span class="text-xs text-muted"
+                    <span class="text-2xs text-muted"
                         >{m.admin_users_session_dates({
                             created: day(live.created_at),
                             used: day(live.last_used_at)
@@ -311,26 +311,26 @@
                 >
             </div>
         {:else}
-            <p class="px-4 py-3 text-muted">
+            <p class="px-3 py-3 text-muted">
                 {sessions === undefined ? m.common_loading() : m.admin_users_no_sessions()}
             </p>
         {/each}
     </SettingsSection>
 
     <SettingsSection title={m.admin_users_tokens()} padded={false}>
-        <table class="w-full border-collapse text-[13px]">
+        <table class="w-full border-collapse text-sm">
             <thead>
-                <tr class="text-left text-xs text-muted">
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <tr class="text-left text-2xs text-muted">
+                    <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                         >{m.settings_tokens_name()}</th
                     >
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                    <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                         >{m.admin_users_token_logbooks()}</th
                     >
-                    <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                    <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                         >{m.admin_users_token_last_used()}</th
                     >
-                    <th scope="col" class="border-b border-border px-3 py-2"
+                    <th scope="col" class="border-b border-border px-3 py-1.5"
                         ><span class="sr-only">{m.admin_users_actions()}</span></th
                     >
                 </tr>
@@ -338,10 +338,10 @@
             <tbody>
                 {#each tokens ?? [] as token (token.id)}
                     <tr class="border-b border-surface-2 last:border-b-0">
-                        <td class="px-3 py-2.5">{token.name}</td>
-                        <td class="px-3 py-2.5">{logbookNames(token.logbook_ids)}</td>
-                        <td class="px-3 py-2.5 font-mono text-muted">{day(token.last_used_at)}</td>
-                        <td class="px-3 py-2 text-right">
+                        <td class="px-3 py-1.5">{token.name}</td>
+                        <td class="px-3 py-1.5">{logbookNames(token.logbook_ids)}</td>
+                        <td class="px-3 py-1.5 font-mono text-muted">{day(token.last_used_at)}</td>
+                        <td class="px-3 py-1 text-right">
                             <Button
                                 size="sm"
                                 variant="danger"

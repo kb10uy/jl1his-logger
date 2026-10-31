@@ -84,11 +84,11 @@
 </script>
 
 <SettingsSection title={m.settings_tokens_issue_title()} form onsubmit={issue}>
-    <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.settings_tokens_name()} for="tok-name">
             <input
                 id="tok-name"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 placeholder={m.settings_tokens_name_placeholder()}
                 autocomplete="off"
                 bind:value={name}
@@ -97,7 +97,7 @@
         <SettingsField label={m.settings_tokens_logbooks()}>
             <div class="flex flex-col gap-2 md:pt-2.5">
                 {#each session.logbooks as logbook (logbook.id)}
-                    <label class="flex cursor-pointer items-center gap-2 text-[13px]">
+                    <label class="flex cursor-pointer items-center gap-2 text-sm">
                         <input
                             type="checkbox"
                             name="tok-logbook"
@@ -105,7 +105,7 @@
                             onchange={(e) => toggle(logbook.id, e.currentTarget.checked)}
                         />
                         <span class="font-semibold">{logbook.name}</span>
-                        <span class="text-xs text-muted">{roleLabel(logbook.role)}</span>
+                        <span class="text-2xs text-muted">{roleLabel(logbook.role)}</span>
                     </label>
                 {/each}
             </div>
@@ -113,7 +113,7 @@
     </div>
     <div class="flex flex-wrap items-center justify-end gap-3">
         {#if problem && name !== ''}
-            <span class="mr-auto text-xs text-muted">{problem}</span>
+            <span class="mr-auto text-2xs text-muted">{problem}</span>
         {/if}
         <Button type="submit" variant="primary" disabled={problem !== undefined || issuing}
             >{issuing ? m.settings_tokens_issuing() : m.settings_tokens_issue()}</Button
@@ -125,7 +125,7 @@
                 <span class="font-semibold">{m.settings_tokens_shown_once()}</span>
                 <div class="flex flex-wrap items-center gap-2">
                     <code
-                        class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-[13px] break-all text-text select-all"
+                        class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-sm break-all text-text select-all"
                         >{plaintext}</code
                     >
                     <Button size="sm" onclick={copy}>{m.common_copy()}</Button>
@@ -136,19 +136,19 @@
 </SettingsSection>
 
 <SettingsSection title={m.settings_tokens_list_title()} padded={false}>
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="text-left text-xs text-muted">
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+            <tr class="text-left text-2xs text-muted">
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.settings_tokens_name()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.settings_tokens_logbooks()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2 font-medium"
+                <th scope="col" class="border-b border-border px-3 py-1.5 font-medium"
                     >{m.settings_tokens_last_used()}</th
                 >
-                <th scope="col" class="border-b border-border px-3 py-2"
+                <th scope="col" class="border-b border-border px-3 py-1.5"
                     ><span class="sr-only">{m.settings_tokens_actions()}</span></th
                 >
             </tr>
@@ -156,12 +156,12 @@
         <tbody>
             {#each tokens ?? [] as token (token.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-2.5">{token.name}</td>
-                    <td class="px-3 py-2.5">{logbookNames(token.logbook_ids)}</td>
-                    <td class="px-3 py-2.5 font-mono text-muted"
+                    <td class="px-3 py-1.5">{token.name}</td>
+                    <td class="px-3 py-1.5">{logbookNames(token.logbook_ids)}</td>
+                    <td class="px-3 py-1.5 font-mono text-muted"
                         >{token.last_used_at?.slice(0, 10) ?? m.settings_never()}</td
                     >
-                    <td class="px-3 py-2 text-right">
+                    <td class="px-3 py-1 text-right">
                         <Button
                             size="sm"
                             variant="danger"

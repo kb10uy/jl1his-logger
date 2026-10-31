@@ -46,10 +46,10 @@
 <PageHeader title={m.nav_more()} subtitle={logbook.logbook.name}>
     {#snippet toolbar()}
         <div class="flex flex-col gap-1">
-            <label for="more-logbook" class="text-xs text-muted">{m.more_logbook()}</label>
+            <label for="more-logbook" class="text-2xs text-muted">{m.more_logbook()}</label>
             <select
                 id="more-logbook"
-                class="control h-11 bg-bg"
+                class="control h-10 bg-bg"
                 value={logbook.logbook.id}
                 onchange={(e) => goto(`/logbooks/${e.currentTarget.value}/more`)}
             >
@@ -72,14 +72,14 @@
                 <span class="flex flex-1 flex-col">
                     <span>{link.label}</span>
                     {#if link.detail}
-                        <span class="text-xs text-muted">{link.detail()}</span>
+                        <span class="text-2xs text-muted">{link.detail()}</span>
                     {/if}
                 </span>
                 <Icon name="chevron" size={16} class="-rotate-90 text-muted" />
             </a>
         {/each}
     </div>
-    <div class="flex flex-col gap-1.5 px-1 text-xs text-muted">
+    <div class="flex flex-col gap-1.5 px-1 text-2xs text-muted">
         <span class="flex items-center gap-2">
             <span
                 class={[
@@ -103,7 +103,7 @@
     </div>
     <button
         type="button"
-        class="h-11 rounded-lg border border-border bg-surface-2 font-medium"
+        class="h-10 rounded-lg border border-border bg-surface-2 font-medium"
         onclick={signOut}>{m.shell_sign_out()}</button
     >
 </main>

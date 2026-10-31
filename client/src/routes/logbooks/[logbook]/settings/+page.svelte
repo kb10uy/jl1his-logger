@@ -76,13 +76,13 @@
     <SettingsSection title={m.settings_logbook_name()} form onsubmit={rename}>
         <fieldset
             disabled={!canEdit}
-            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]"
+            class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]"
         >
             <SettingsField label={m.settings_logbook_name_label()} for="logbook-name">
                 <input
                     id="logbook-name"
                     autocomplete="off"
-                    class="control h-10 w-full md:w-80"
+                    class="control h-9 w-full md:w-80"
                     bind:value={name}
                 />
             </SettingsField>
@@ -100,11 +100,11 @@
     </SettingsSection>
 
     <SettingsSection title={m.settings_area_field()} form onsubmit={save}>
-        <p class="text-[13px] text-muted">{m.settings_area_help()}</p>
+        <p class="text-sm text-muted">{m.settings_area_help()}</p>
 
         <fieldset
             disabled={!canEdit}
-            class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]"
+            class="grid grid-cols-1 gap-x-3 gap-y-2 md:grid-cols-[160px_minmax(0,1fr)]"
         >
             <SettingsField label={m.settings_area_adif_field()} for="area-name">
                 <input
@@ -114,7 +114,7 @@
                     autocomplete="off"
                     autocapitalize="characters"
                     spellcheck="false"
-                    class="control h-10 w-full font-mono uppercase md:w-60"
+                    class="control h-9 w-full font-mono uppercase md:w-60"
                     bind:value={draft.name}
                 />
             </SettingsField>
@@ -123,7 +123,7 @@
                     id="area-label"
                     placeholder={m.settings_area_label_placeholder()}
                     autocomplete="off"
-                    class="control h-10 w-full md:w-60"
+                    class="control h-9 w-full md:w-60"
                     bind:value={draft.label}
                 />
             </SettingsField>
@@ -135,7 +135,7 @@
                             size="sm"
                             onclick={() => (draft = { name: preset.name, label: preset.label })}
                             >{preset.label}
-                            <span class="font-mono text-xs text-muted">{preset.name}</span></Button
+                            <span class="font-mono text-2xs text-muted">{preset.name}</span></Button
                         >
                     {/each}
                     <Button size="sm" onclick={() => (draft = { name: '', label: '' })}
@@ -157,7 +157,8 @@
         {#if canEdit}
             <div class="flex flex-wrap items-center justify-end gap-3">
                 {#if changed}
-                    <span class="mr-auto text-xs text-muted">{m.settings_area_keeps_values()}</span>
+                    <span class="mr-auto text-2xs text-muted">{m.settings_area_keeps_values()}</span
+                    >
                 {/if}
                 <Button
                     type="submit"

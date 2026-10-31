@@ -23,26 +23,24 @@
     } = $props();
 
     const host = $derived(URL.canParse(url) ? new URL(url).host : url);
-    const dot = 'size-[7px] flex-none rounded-full';
+    const dot = 'size-2 flex-none rounded-full';
 </script>
 
 <footer
     role="status"
     aria-label={m.status_label()}
-    class="flex h-[22px] flex-none items-center gap-[14px] border-t border-border bg-surface px-[12px] text-[11px] whitespace-nowrap text-muted"
+    class="flex h-6 flex-none items-center gap-3 border-t border-border bg-surface px-[12px] text-2xs whitespace-nowrap text-muted"
 >
     {#if rig.state === 'connected'}
         <span
             title={m.status_rig_title({ seconds: pollMs / 1000, mode: rig.mode })}
-            class="flex items-center gap-[5px]"
+            class="flex items-center gap-1"
             ><span class={[dot, 'bg-ok']}></span>{['rigctld', rig.model, rig.address]
                 .filter((s) => s)
                 .join(' · ')}</span
         >
     {:else}
-        <span
-            title={rig.state === 'failed' ? rig.error : undefined}
-            class="flex items-center gap-[5px]"
+        <span title={rig.state === 'failed' ? rig.error : undefined} class="flex items-center gap-1"
             ><span class={[dot, 'bg-[#6e7681]']}></span>{rig.state === 'off'
                 ? m.status_rig_off()
                 : m.status_rig_down()}</span
@@ -51,7 +49,7 @@
     {#if reachable}
         <span
             title={m.status_server_title({ url })}
-            class="flex min-w-0 items-center gap-[5px] overflow-hidden"
+            class="flex min-w-0 items-center gap-1 overflow-hidden"
             ><span class={[dot, 'bg-ok']}></span><span class="truncate"
                 >{[callsign, host].filter((s) => s).join(' · ')}</span
             ></span
@@ -59,7 +57,7 @@
     {:else}
         <span
             title={m.status_unreachable_title()}
-            class="flex min-w-0 items-center gap-[5px] overflow-hidden"
+            class="flex min-w-0 items-center gap-1 overflow-hidden"
             ><span class={[dot, 'bg-error']}></span><span class="truncate"
                 >{m.status_unreachable({ host })}</span
             ></span
@@ -67,13 +65,13 @@
     {/if}
     <div class="flex-1"></div>
     {#if unsent > 0}
-        <span title={m.status_queued_title({ count: unsent })} class="flex items-center gap-[5px]"
+        <span title={m.status_queued_title({ count: unsent })} class="flex items-center gap-1"
             ><span class={[dot, 'bg-warn']}></span>{sending
                 ? m.status_sending({ count: unsent })
                 : m.status_queued({ count: unsent })}</span
         >
     {:else}
-        <span title={m.status_synced_title()} class="flex items-center gap-[5px]"
+        <span title={m.status_synced_title()} class="flex items-center gap-1"
             ><span class={[dot, 'bg-ok']}></span>{m.status_synced()}</span
         >
     {/if}
@@ -82,7 +80,7 @@
             type="button"
             title={m.status_settings()}
             aria-label={m.status_settings()}
-            class="-mr-[6px] flex size-[22px] items-center justify-center text-muted hover:text-text"
+            class="-mr-1.5 flex size-6 items-center justify-center text-muted hover:text-text"
             onclick={onsettings}
             ><svg
                 aria-hidden="true"

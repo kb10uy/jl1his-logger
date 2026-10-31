@@ -15,7 +15,7 @@
         <div
             role="status"
             class={[
-                'pointer-events-auto flex max-w-full items-center gap-4 rounded-lg border bg-surface-2 py-2.5 pr-3 pl-4 text-[13px] shadow-lg shadow-shadow',
+                'pointer-events-auto flex max-w-full items-center gap-4 rounded-lg border bg-surface-2 py-2.5 pr-3 pl-4 text-sm shadow-lg shadow-shadow',
                 toast.tone === 'error' ? 'border-error text-error-text' : 'border-border'
             ]}
         >

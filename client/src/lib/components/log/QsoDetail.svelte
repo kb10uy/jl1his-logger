@@ -80,7 +80,7 @@
 
 <aside
     aria-label={m.log_detail_label()}
-    class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-4 overflow-y-auto border-l border-border bg-surface px-6 pt-4 pb-6 shadow-[-12px_0_32px] shadow-shadow"
+    class="absolute inset-y-0 right-0 z-10 flex w-[380px] max-w-full flex-col gap-3 overflow-y-auto border-l border-border bg-surface px-4 pt-3 pb-4 shadow-[-12px_0_32px] shadow-shadow"
 >
     <div class="flex items-center justify-between gap-2">
         <span class="eyebrow">QSO</span>
@@ -99,23 +99,23 @@
         </div>
     </div>
     {#if stale}
-        <p class="rounded-md bg-warn-bg px-3 py-2 text-xs text-warn">
+        <p class="rounded-md bg-warn-bg px-2.5 py-1.5 text-2xs text-warn">
             {qso.deleted_at ? m.log_detail_deleted() : m.log_detail_stale()}
         </p>
     {/if}
     <div class="flex flex-col gap-1">
-        <span class="font-mono text-[28px] font-semibold tracking-wide">{f.CALL}</span>
+        <span class="font-mono text-2xl font-semibold tracking-wide">{f.CALL}</span>
         <span class="text-muted"
             >{entity?.name ?? f.COUNTRY ?? (entity === undefined ? '…' : '—')}</span
         >
     </div>
-    <dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 text-[13px] wrap-anywhere">
+    <dl class="m-0 grid grid-cols-2 gap-x-3 gap-y-2 text-sm wrap-anywhere">
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_date_utc()}</dt>
+            <dt class="text-2xs text-muted">{m.field_date_utc()}</dt>
             <dd class="m-0 font-mono">{isoDate(f.QSO_DATE)} {hhmmss(f.TIME_ON)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_band_mode()}</dt>
+            <dt class="text-2xs text-muted">{m.field_band_mode()}</dt>
             <dd class="m-0 font-mono">
                 {f.BAND}
                 {f.MODE}
@@ -123,65 +123,65 @@
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_frequency()}</dt>
+            <dt class="text-2xs text-muted">{m.field_frequency()}</dt>
             <dd class={['m-0 font-mono', !f.FREQ && 'text-muted']}>
                 {f.FREQ ? `${f.FREQ} MHz` : m.log_detail_not_recorded()}
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.log_detail_rst()}</dt>
+            <dt class="text-2xs text-muted">{m.log_detail_rst()}</dt>
             <dd class="m-0 font-mono">{pair(f.RST_SENT, f.RST_RCVD)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_station()}</dt>
+            <dt class="text-2xs text-muted">{m.field_station()}</dt>
             <dd class="m-0">{join(f.STATION_CALLSIGN, logbook.stationName(qso.station_id))}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_instrument()}</dt>
+            <dt class="text-2xs text-muted">{m.field_instrument()}</dt>
             <dd class="m-0">
                 {join(logbook.instrumentName(qso.instrument_id), f.MY_RIG, f.MY_ANTENNA)}
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_tx_power()}</dt>
+            <dt class="text-2xs text-muted">{m.field_tx_power()}</dt>
             <dd class={['m-0 font-mono', !f.TX_PWR && 'text-muted']}>
                 {f.TX_PWR ? `${f.TX_PWR} W` : '—'}
             </dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.field_park()}</dt>
+            <dt class="text-2xs text-muted">{m.field_park()}</dt>
             <dd class="m-0 font-mono text-info">{parks(f).join(', ') || '—'}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.log_detail_name_qth()}</dt>
+            <dt class="text-2xs text-muted">{m.log_detail_name_qth()}</dt>
             <dd class="m-0">{join(f.NAME, f.QTH)}</dd>
         </div>
         {#if area}
             <div class="flex flex-col gap-0.5">
-                <dt class="text-xs text-muted">{area.label}</dt>
+                <dt class="text-2xs text-muted">{area.label}</dt>
                 <dd class="m-0 font-mono">{f[area.name] || '—'}</dd>
             </div>
         {/if}
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">{m.log_detail_state_grid()}</dt>
+            <dt class="text-2xs text-muted">{m.log_detail_state_grid()}</dt>
             <dd class="m-0 font-mono">{join(f.STATE, f.GRIDSQUARE)}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-            <dt class="text-xs text-muted">DXCC / CQ / ITU</dt>
+            <dt class="text-2xs text-muted">DXCC / CQ / ITU</dt>
             <dd class="m-0 font-mono">{f.DXCC || '—'} / {f.CQZ || '—'} / {f.ITUZ || '—'}</dd>
         </div>
         {#if f.CONTEST_ID || f.STX_STRING || f.SRX_STRING}
             <div class="flex flex-col gap-0.5">
-                <dt class="text-xs text-muted">{m.field_contest()}</dt>
+                <dt class="text-2xs text-muted">{m.field_contest()}</dt>
                 <dd class="m-0 font-mono">{f.CONTEST_ID || '—'}</dd>
             </div>
             <div class="flex flex-col gap-0.5">
-                <dt class="text-xs text-muted">{m.log_detail_number()}</dt>
+                <dt class="text-2xs text-muted">{m.log_detail_number()}</dt>
                 <dd class="m-0 font-mono">{pair(f.STX_STRING, f.SRX_STRING)}</dd>
             </div>
         {/if}
     </dl>
-    <div class="flex flex-col gap-2 rounded-lg border border-border bg-bg p-3 text-[13px]">
+    <div class="flex flex-col gap-1.5 rounded-lg border border-border bg-bg p-2.5 text-sm">
         <span class="eyebrow">QSL</span>
         <div class="flex items-center justify-between">
             <span>{m.log_sent()}</span>
@@ -208,25 +208,25 @@
             <span class="font-mono">{pair(f.EQSL_QSL_SENT, f.EQSL_QSL_RCVD)}</span>
         </div>
     </div>
-    <div class="flex flex-col gap-1.5 text-xs text-muted">
+    <div class="flex flex-col gap-1.5 text-2xs text-muted">
         <span>{m.field_comment()}</span>
-        <p class="m-0 text-[13px] text-text">{f.COMMENT || '—'}</p>
+        <p class="m-0 text-sm text-text">{f.COMMENT || '—'}</p>
     </div>
     {#if f.NOTES}
-        <div class="flex flex-col gap-1.5 text-xs text-muted">
+        <div class="flex flex-col gap-1.5 text-2xs text-muted">
             <span>{m.field_notes()}</span>
-            <p class="m-0 text-[13px] whitespace-pre-line text-text">{f.NOTES}</p>
+            <p class="m-0 text-sm whitespace-pre-line text-text">{f.NOTES}</p>
         </div>
     {/if}
     {#if others.length > 0}
-        <details class="rounded-lg border border-border bg-bg p-3 text-[13px]">
+        <details class="rounded-lg border border-border bg-bg p-2.5 text-sm">
             <summary class="cursor-pointer"
                 >{m.log_detail_other_fields({ count: others.length })}</summary
             >
             <div class="mt-2 flex flex-col gap-1">
                 {#each others as [name, value] (name)}
                     <span class="break-all whitespace-pre-line"
-                        ><span class="font-mono text-[11px] text-muted">{name}</span>
+                        ><span class="font-mono text-2xs text-muted">{name}</span>
                         {value}</span
                     >
                 {/each}
@@ -234,7 +234,7 @@
         </details>
     {/if}
     <div class="flex-1"></div>
-    <span class="font-mono text-[11px] text-muted"
+    <span class="font-mono text-2xs text-muted"
         >{qso.id} · {m.log_detail_rev({ revision: qso.revision })} · {qso.updated_by_callsign ??
             ''}</span
     >
