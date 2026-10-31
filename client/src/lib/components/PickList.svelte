@@ -77,7 +77,7 @@
             href={href(item)}
             aria-current={item.id === selected ? 'page' : undefined}
             class={[
-                'flex h-14 min-w-0 flex-1 items-center gap-2 pr-3 text-base no-underline md:h-9 md:text-sm',
+                'flex h-14 min-w-0 flex-1 items-center gap-2 pr-3 text-base no-underline md:h-8 md:text-sm',
                 item.id === selected
                     ? 'font-semibold text-accent'
                     : item.archived_at === null
@@ -134,7 +134,7 @@
         {#if archived.length > 0}
             <details bind:open={archivedOpen}>
                 <summary
-                    class="flex h-14 cursor-pointer items-center px-3 text-2xs text-muted md:h-9"
+                    class="flex h-14 cursor-pointer items-center px-3 text-2xs text-muted md:h-8"
                     >{m.stations_archived_count({ count: archived.length })}</summary
                 >
                 {#each archived as item (item.id)}
