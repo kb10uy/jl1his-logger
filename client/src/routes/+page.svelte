@@ -18,7 +18,7 @@
 
 {#if !target}
     <main class="flex min-h-dvh flex-col items-center justify-center gap-2 p-6 text-center">
-        <h1 class="text-xl font-semibold">{m.no_logbook_title()}</h1>
+        <h1 class="text-lg font-semibold">{m.no_logbook_title()}</h1>
         {#if session.me?.role === 'admin'}
             <p class="max-w-sm text-muted">
                 {m.no_logbook_admin_body({ callsign: session.me.callsign })}

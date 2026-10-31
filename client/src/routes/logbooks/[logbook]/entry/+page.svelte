@@ -223,10 +223,10 @@
                 bind:this={form}
             >
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <span class="text-xs text-muted">{m.field_date_utc()}</span>
+                    <span class="text-2xs text-muted">{m.field_date_utc()}</span>
                     <div class="flex items-center gap-3 font-mono tabular">
-                        <span class="text-[15px] text-muted">{clock.date}</span>
-                        <span class={['text-lg font-semibold', locked && 'text-warn']}
+                        <span class="text-base text-muted">{clock.date}</span>
+                        <span class={['text-md font-semibold', locked && 'text-warn']}
                             >{clock.time}</span
                         >
                         <div class="flex-1"></div>
@@ -244,7 +244,7 @@
                 <div class="h-px bg-border"></div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="freq" class="text-xs text-muted">{m.entry_freq_band()}</label>
+                    <label for="freq" class="text-2xs text-muted">{m.entry_freq_band()}</label>
                     <div
                         class="grid grid-cols-2 gap-2.5 md:flex md:flex-wrap md:items-center md:gap-2"
                     >
@@ -252,13 +252,13 @@
                             id="freq"
                             inputmode="decimal"
                             placeholder={m.entry_optional()}
-                            class="control h-11 w-full rounded-lg px-3 text-right font-mono text-lg md:w-[140px]"
+                            class="control h-11 w-full rounded-lg px-3 text-right font-mono text-md md:w-[140px]"
                             value={entry.freq}
                             oninput={(e) => setFreq(e.currentTarget.value)}
                         />
-                        <span class="mr-2 text-xs text-muted max-md:hidden">MHz</span>
+                        <span class="mr-2 text-2xs text-muted max-md:hidden">MHz</span>
                         <BandSelect
-                            class="h-11 rounded-lg text-[15px] md:min-w-[168px] md:flex-1"
+                            class="h-11 rounded-lg text-base md:min-w-[168px] md:flex-1"
                             detailed
                             value={entry.band}
                             onchange={selectBand}
@@ -266,15 +266,15 @@
                     </div>
                     {#if bandWarning}
                         <span class="max-md:hidden"></span>
-                        <Notice class="text-xs">{bandWarning}</Notice>
+                        <Notice class="text-2xs">{bandWarning}</Notice>
                     {/if}
                 </div>
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="mode" class="text-xs text-muted">{m.field_mode()}</label>
+                    <label for="mode" class="text-2xs text-muted">{m.field_mode()}</label>
                     <div class="flex min-w-0 gap-2">
                         <ModeSelect
                             id="mode"
-                            class="h-11 flex-1 rounded-lg text-[15px]"
+                            class="h-11 flex-1 rounded-lg text-base"
                             mode={entry.mode}
                             submode={entry.submode}
                             onchange={setMode}
@@ -286,7 +286,7 @@
                 <div class="h-px bg-border"></div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="call" class="text-xs text-muted">{m.field_call()}</label>
+                    <label for="call" class="text-2xs text-muted">{m.field_call()}</label>
                     <input
                         id="call"
                         bind:this={callInput}
@@ -294,7 +294,7 @@
                         autocomplete="off"
                         autocapitalize="characters"
                         spellcheck="false"
-                        class="control h-14 rounded-lg border-2 border-accent px-3.5 font-mono text-[28px] font-semibold tracking-wider uppercase outline-none"
+                        class="control h-14 rounded-lg border-2 border-accent px-3.5 font-mono text-2xl font-semibold tracking-wider uppercase outline-none"
                     />
                     {#if lookup && call.length >= 3}
                         <span class="max-md:hidden"></span>
@@ -322,31 +322,31 @@
                 </div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <span class="text-xs text-muted max-md:hidden">{m.field_rst()}</span>
+                    <span class="text-2xs text-muted max-md:hidden">{m.field_rst()}</span>
                     <div class="grid grid-cols-2 gap-2.5 md:flex md:items-center md:gap-3">
                         <div class="flex flex-col gap-1 md:flex-row md:items-center md:gap-3">
-                            <label for="rsts" class="text-xs text-muted"
+                            <label for="rsts" class="text-2xs text-muted"
                                 ><span class="md:hidden">{'RST '}</span
                                 >{m.entry_sent_short()}</label
                             >
                             <input
                                 id="rsts"
                                 inputmode="numeric"
-                                class="control h-11 w-full rounded-lg text-center font-mono text-xl md:w-24"
+                                class="control h-11 w-full rounded-lg text-center font-mono text-lg md:w-24"
                                 bind:value={entry.rstSent}
                             />
                         </div>
                         <div
                             class="flex flex-col gap-1 md:ml-2 md:flex-row md:items-center md:gap-3"
                         >
-                            <label for="rstr" class="text-xs text-muted"
+                            <label for="rstr" class="text-2xs text-muted"
                                 ><span class="md:hidden">{'RST '}</span
                                 >{m.entry_rcvd_short()}</label
                             >
                             <input
                                 id="rstr"
                                 inputmode="numeric"
-                                class="control h-11 w-full rounded-lg text-center font-mono text-xl md:w-24"
+                                class="control h-11 w-full rounded-lg text-center font-mono text-lg md:w-24"
                                 bind:value={entry.rstRcvd}
                             />
                         </div>
@@ -357,15 +357,15 @@
                     <div
                         class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                     >
-                        <span class="text-xs text-muted">{m.entry_number()}</span>
+                        <span class="text-2xs text-muted">{m.entry_number()}</span>
                         <div class="flex flex-wrap items-center gap-3">
-                            <span class="text-xs text-muted">{m.entry_sent_short()}</span>
+                            <span class="text-2xs text-muted">{m.entry_sent_short()}</span>
                             <output
                                 aria-label={m.entry_sent_number()}
-                                class="inline-flex h-11 min-w-24 items-center rounded-lg border border-dashed border-border px-3 font-mono text-xl"
+                                class="inline-flex h-11 min-w-24 items-center rounded-lg border border-dashed border-border px-3 font-mono text-lg"
                                 >{sentShown}</output
                             >
-                            <label for="srx" class="ml-2 text-xs text-muted"
+                            <label for="srx" class="ml-2 text-2xs text-muted"
                                 >{m.entry_rcvd_short()}</label
                             >
                             <input
@@ -375,7 +375,7 @@
                                 spellcheck="false"
                                 placeholder="001"
                                 class={[
-                                    'control h-11 w-[140px] rounded-lg font-mono text-xl uppercase',
+                                    'control h-11 w-[140px] rounded-lg font-mono text-lg uppercase',
                                     entry.received.trim() === '' && 'border-2 border-info'
                                 ]}
                                 bind:value={entry.received}
@@ -390,7 +390,7 @@
                     <div
                         class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                     >
-                        <label for="name" class="text-xs text-muted">{m.field_name()}</label>
+                        <label for="name" class="text-2xs text-muted">{m.field_name()}</label>
                         <input
                             id="name"
                             placeholder={lookup?.previous.fields.NAME ?? m.entry_optional()}
@@ -401,7 +401,7 @@
                     <div
                         class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                     >
-                        <label for="qth" class="text-xs text-muted">{m.field_qth()}</label>
+                        <label for="qth" class="text-2xs text-muted">{m.field_qth()}</label>
                         <input
                             id="qth"
                             placeholder={lookup?.previous.fields.QTH ?? m.entry_optional()}
@@ -412,11 +412,11 @@
                 </div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <span class="text-xs text-muted max-md:hidden">{area?.label ?? 'QSL'}</span>
+                    <span class="text-2xs text-muted max-md:hidden">{area?.label ?? 'QSL'}</span>
                     <div class="grid grid-cols-2 gap-2.5 md:flex md:items-center md:gap-3">
                         {#if area}
                             <div class="flex flex-col gap-1">
-                                <label for="area" class="text-xs text-muted md:hidden"
+                                <label for="area" class="text-2xs text-muted md:hidden"
                                     >{area.label}</label
                                 >
                                 <input
@@ -431,7 +431,7 @@
                             </div>
                         {/if}
                         <div class="flex flex-col gap-1 md:flex-row md:items-center md:gap-3">
-                            <label for="qsl" class={['text-xs text-muted', !area && 'md:hidden']}
+                            <label for="qsl" class={['text-2xs text-muted', !area && 'md:hidden']}
                                 >QSL</label
                             >
                             <select
@@ -450,7 +450,7 @@
                 <div class="h-px bg-border"></div>
 
                 <div class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3">
-                    <label for="comment" class="text-xs text-muted">{m.field_comment()}</label>
+                    <label for="comment" class="text-2xs text-muted">{m.field_comment()}</label>
                     <input
                         id="comment"
                         placeholder="P2P US-0001…"
@@ -461,7 +461,7 @@
 
                 <details class="group">
                     <summary
-                        class="-ml-2 inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-text [&::-webkit-details-marker]:hidden"
+                        class="-ml-2 inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-2 py-1 text-sm text-muted hover:bg-surface-2 hover:text-text [&::-webkit-details-marker]:hidden"
                         >{m.entry_extra_fields()}{#if extraCount > 0}<span
                                 >&nbsp;· {extraCount}</span
                             >{/if}<Icon
@@ -474,7 +474,7 @@
                         <div
                             class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                         >
-                            <label for="tx-pwr" class="text-xs text-muted"
+                            <label for="tx-pwr" class="text-2xs text-muted"
                                 >{m.entry_tx_power_w()}</label
                             >
                             <input
@@ -488,7 +488,7 @@
                         <div
                             class="grid gap-1 md:grid-cols-[96px_minmax(0,1fr)] md:items-center md:gap-3"
                         >
-                            <label for="notes" class="text-xs text-muted">{m.field_notes()}</label>
+                            <label for="notes" class="text-2xs text-muted">{m.field_notes()}</label>
                             <input
                                 id="notes"
                                 placeholder={m.entry_optional()}
@@ -510,7 +510,7 @@
                                     autocomplete="off"
                                     autocapitalize="characters"
                                     spellcheck="false"
-                                    class="control h-10 w-full rounded-lg px-2 font-mono text-xs uppercase"
+                                    class="control h-10 w-full rounded-lg px-2 font-mono text-2xs uppercase"
                                     bind:value={extra.name}
                                 />
                                 <label for={`extra-value-${i}`} class="sr-only"
@@ -546,22 +546,21 @@
                 <div
                     class="mt-1 flex flex-wrap items-center justify-end gap-3 max-md:sticky max-md:bottom-[84px] max-md:z-10 max-md:-mx-4 max-md:flex-nowrap max-md:border-t max-md:border-border max-md:bg-surface max-md:px-4 max-md:py-2.5"
                 >
-                    <span class="flex-1 text-xs text-info max-md:hidden"
+                    <span class="flex-1 text-2xs text-info max-md:hidden"
                         >{entry.call !== '' ? problem : ''}</span
                     >
                     <Button size="lg" class="max-md:h-12" onclick={clear}
                         >{m.common_clear()}
-                        <span class="font-mono text-[11px] text-muted max-md:hidden">Esc</span
-                        ></Button
+                        <span class="font-mono text-2xs text-muted max-md:hidden">Esc</span></Button
                     >
                     <Button
                         type="submit"
                         variant="primary"
                         size="xl"
-                        class="font-bold max-md:h-12 max-md:flex-1"
+                        class="font-semibold max-md:h-12 max-md:flex-1"
                         disabled={problem !== undefined || stationId === '' || session.logging}
                         >{m.entry_log_qso()}
-                        <span class="font-mono text-xs font-medium opacity-80">↵</span></Button
+                        <span class="font-mono text-2xs font-medium opacity-80">↵</span></Button
                     >
                 </div>
             </form>
@@ -575,7 +574,7 @@
                         {#each before as q (q.id)}
                             <a
                                 href={`/logbooks/${logbookId}?qso=${q.id}&q=${encodeURIComponent(`base:"${call}"`)}`}
-                                class="flex items-center gap-3 border-b border-surface-2 px-3 py-2 text-[13px] text-text no-underline last:border-b-0 compact:px-2 compact:py-0.5"
+                                class="flex items-center gap-3 border-b border-surface-2 px-3 py-2 text-sm text-text no-underline last:border-b-0 compact:px-2 compact:py-0.5"
                             >
                                 <span class="font-mono text-muted"
                                     >{isoDate(q.fields.QSO_DATE)} {hhmm(q.fields.TIME_ON)}</span
@@ -584,7 +583,7 @@
                                 <span class="flex-1"></span>
                                 {#if isToday(q)}
                                     <span
-                                        class="rounded bg-warn-bg px-1.5 text-xs font-semibold text-warn"
+                                        class="rounded bg-warn-bg px-1.5 text-2xs font-semibold text-warn"
                                         >{m.entry_today()}</span
                                     >
                                 {:else}

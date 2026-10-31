@@ -28,13 +28,13 @@
 {/snippet}
 
 <header class="flex h-[32px] flex-none items-center gap-1.5">
-    <label for="station" class="text-[11px] text-muted">{m.entry_station()}</label>
+    <label for="station" class="text-2xs text-muted">{m.entry_station()}</label>
     {#if desk.groups.length === 0}
-        <span class="text-[12px] text-warn">{m.entry_no_station()}</span>
+        <span class="text-xs text-warn">{m.entry_no_station()}</span>
     {:else}
         <select
             id="station"
-            class="field h-[30px] w-[250px] bg-surface px-1.5 text-[12px]"
+            class="field h-8 w-[250px] bg-surface px-1.5 text-xs"
             value={desk.stationId}
             onchange={(e) => (desk.settings.stationId = e.currentTarget.value)}
         >
@@ -61,10 +61,10 @@
             {/if}
         </select>
     {/if}
-    <label for="instrument" class="ml-2 text-[11px] text-muted">{m.entry_instrument()}</label>
+    <label for="instrument" class="ml-2 text-2xs text-muted">{m.entry_instrument()}</label>
     <select
         id="instrument"
-        class="field h-[30px] w-[200px] bg-surface px-1.5 text-[12px]"
+        class="field h-8 w-[200px] bg-surface px-1.5 text-xs"
         value={desk.instrumentId}
         onchange={(e) => {
             desk.settings.instrumentId = e.currentTarget.value;
@@ -90,7 +90,7 @@
         type="button"
         aria-pressed={desk.settings.contest.enabled}
         class={[
-            'h-[30px] rounded-md border px-2.5 text-[12px]',
+            'h-8 rounded-md border px-2.5 text-xs',
             desk.settings.contest.enabled
                 ? 'border-info-strong bg-selected font-semibold text-info'
                 : 'border-border bg-surface'

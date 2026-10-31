@@ -40,25 +40,25 @@
         onsubmit={connect}
     >
         <div class="mb-1 flex flex-col gap-0.5">
-            <h1 id="sign-in-title" class="text-lg font-semibold">{m.app_name()}</h1>
-            <p class="text-xs text-muted">{m.signin_lead()}</p>
+            <h1 id="sign-in-title" class="text-md font-semibold">{m.app_name()}</h1>
+            <p class="text-2xs text-muted">{m.signin_lead()}</p>
         </div>
 
         <div class="flex flex-col gap-1">
-            <label for="url" class="text-[11px] text-muted">{m.signin_url()}</label>
+            <label for="url" class="text-2xs text-muted">{m.signin_url()}</label>
             <input
                 id="url"
                 type="url"
                 placeholder="https://log.example.com"
                 autocomplete="url"
                 spellcheck="false"
-                class="control font-mono text-[13px]"
+                class="control font-mono text-sm"
                 bind:value={url}
             />
         </div>
 
         <div class="flex flex-col gap-1">
-            <label for="token" class="text-[11px] text-muted">{m.signin_token()}</label>
+            <label for="token" class="text-2xs text-muted">{m.signin_token()}</label>
             <div class="flex">
                 <input
                     id="token"
@@ -66,7 +66,7 @@
                     autocomplete="off"
                     spellcheck="false"
                     class={[
-                        'control flex-1 rounded-r-none font-mono text-[13px]',
+                        'control flex-1 rounded-r-none font-mono text-sm',
                         refusesToken(error) && 'border-error'
                     ]}
                     bind:value={token}
@@ -95,18 +95,18 @@
                     >
                 </button>
             </div>
-            <span class="text-[11px] text-muted">{m.signin_token_hint()}</span>
+            <span class="text-2xs text-muted">{m.signin_token_hint()}</span>
         </div>
 
         {#if error}
             <p
                 role="alert"
-                class="rounded-md bg-error-bg px-2.5 py-2 text-xs text-error-text select-text"
+                class="rounded-md bg-error-bg px-2.5 py-2 text-2xs text-error-text select-text"
             >
                 {errorText(error)}
             </p>
         {:else if saved?.rejected}
-            <p role="status" class="rounded-md bg-warn-bg px-2.5 py-2 text-xs text-warn">
+            <p role="status" class="rounded-md bg-warn-bg px-2.5 py-2 text-2xs text-warn">
                 {m.signin_rejected()}
             </p>
         {/if}
@@ -114,9 +114,9 @@
         <button
             type="submit"
             disabled={cantConnect}
-            class="mt-1 h-10 rounded-md bg-accent text-sm font-bold text-accent-text disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted"
+            class="mt-1 h-10 rounded-md bg-accent text-xs font-semibold text-accent-text disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted"
             >{checking ? m.signin_checking() : m.signin_connect()}</button
         >
-        <p class="text-center text-[11px] text-muted">{m.signin_keychain()}</p>
+        <p class="text-center text-2xs text-muted">{m.signin_keychain()}</p>
     </form>
 </main>

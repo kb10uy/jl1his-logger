@@ -241,8 +241,8 @@
     }}
 />
 
-<div class="flex h-dvh flex-col overflow-hidden text-[13px]" onfocusout={share}>
-    <div class="flex min-h-0 flex-1 flex-col gap-2 px-[12px] pt-[6px] pb-[10px]">
+<div class="flex h-dvh flex-col overflow-hidden text-sm" onfocusout={share}>
+    <div class="flex min-h-0 flex-1 flex-col gap-2 px-[12px] py-2">
         <EntryHeader {desk} oninstrument={() => (entry.txPwr = '')} />
 
         {#if settings.contest.enabled}
@@ -256,7 +256,7 @@
             bind:this={form}
         >
             <div class="flex h-[32px] items-center gap-1.5 whitespace-nowrap [&>*]:flex-none">
-                <label for="freq" class="text-[11px] text-muted">{m.entry_freq()}</label>
+                <label for="freq" class="text-2xs text-muted">{m.entry_freq()}</label>
                 <input
                     id="freq"
                     inputmode="decimal"
@@ -265,15 +265,15 @@
                     value={entry.freq}
                     oninput={(e) => (entry = withFreq(entry, e.currentTarget.value))}
                 />
-                <span class="font-mono text-[10px] text-muted">MHz</span>
-                <label for="band" class="ml-1.5 text-[11px] text-muted">{m.entry_band()}</label>
+                <span class="font-mono text-2xs text-muted">MHz</span>
+                <label for="band" class="ml-1.5 text-2xs text-muted">{m.entry_band()}</label>
                 <BandSelect
                     id="band"
                     class="w-[64px] px-1.5"
                     value={entry.band}
                     onchange={(band) => (entry = withBand(entry, band))}
                 />
-                <label for="mode" class="ml-1.5 text-[11px] text-muted">{m.entry_mode()}</label>
+                <label for="mode" class="ml-1.5 text-2xs text-muted">{m.entry_mode()}</label>
                 <ModeSelect
                     id="mode"
                     class={['w-[92px] px-1.5', rigFit === 'mismatch' && rigMode && 'border-warn!']}
@@ -290,7 +290,7 @@
                     <span
                         title={rigTitle}
                         class={[
-                            'inline-flex h-[18px] min-w-0 shrink! items-center gap-[3px] overflow-hidden rounded-[4px] border px-[5px] font-mono text-[10px] leading-none',
+                            'inline-flex h-5 min-w-0 shrink! items-center gap-1 overflow-hidden rounded-[4px] border px-1 font-mono text-2xs leading-none',
                             rigFit === 'kept' && 'border-border text-muted',
                             rigFit === 'followed' && 'border-info-strong bg-selected text-info',
                             rigFit === 'mismatch' && 'border-warn bg-warn-bg text-warn'
@@ -315,16 +315,13 @@
                     class="flex items-center gap-1.5 max-[760px]:flex-col max-[760px]:items-end max-[760px]:gap-0.5 max-[760px]:leading-none"
                 >
                     <span class="flex items-center gap-1.5 text-muted max-[760px]:gap-1">
-                        <span class="text-[11px] max-[760px]:text-[10px]">UTC</span>
-                        <span class="font-mono text-[12px] tabular max-[760px]:text-[10px]"
+                        <span class="text-2xs max-[760px]:text-2xs">UTC</span>
+                        <span class="font-mono text-xs tabular max-[760px]:text-2xs"
                             >{clock.date}</span
                         >
                     </span>
-                    <span
-                        class={[
-                            'font-mono text-[17px] font-semibold tabular',
-                            locked && 'text-warn'
-                        ]}>{clock.time}</span
+                    <span class={['font-mono text-md font-semibold tabular', locked && 'text-warn']}
+                        >{clock.time}</span
                     >
                 </div>
                 <button
@@ -332,7 +329,7 @@
                     title={m.entry_lock_title()}
                     aria-pressed={locked !== undefined}
                     class={[
-                        'h-[32px] rounded-md border px-2.5 text-[12px]',
+                        'h-[32px] rounded-md border px-2.5 text-xs',
                         locked
                             ? 'border-warn bg-warn-bg font-semibold text-warn'
                             : 'border-border bg-surface'
@@ -350,48 +347,48 @@
                         : 'grid-cols-[minmax(0,1fr)_64px_64px]'
                 ]}
             >
-                <div class="flex flex-col gap-[3px]">
-                    <label for="call" class="text-[11px] text-muted">{m.entry_call()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="call" class="text-2xs text-muted">{m.entry_call()}</label>
                     <input
                         id="call"
                         bind:this={callInput}
                         bind:value={entry.call}
                         autocomplete="off"
                         spellcheck="false"
-                        class="h-[40px] min-w-0 rounded-md border-2 border-accent bg-bg px-[10px] font-mono text-[22px] font-semibold tracking-[0.04em] uppercase outline-none"
+                        class="h-[40px] min-w-0 rounded-md border-2 border-accent bg-bg px-[10px] font-mono text-xl font-semibold tracking-[0.04em] uppercase outline-none"
                     />
                 </div>
-                <div class="flex flex-col gap-[3px]">
-                    <label for="rst-sent" class="text-[11px] text-muted">{m.entry_sent()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="rst-sent" class="text-2xs text-muted">{m.entry_sent()}</label>
                     <input
                         id="rst-sent"
                         inputmode="numeric"
                         autocomplete="off"
-                        class="field h-[40px] px-0 text-center font-mono text-[17px]"
+                        class="field h-[40px] px-0 text-center font-mono text-md"
                         bind:value={entry.rstSent}
                     />
                 </div>
-                <div class="flex flex-col gap-[3px]">
-                    <label for="rst-rcvd" class="text-[11px] text-muted">{m.entry_rcvd()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="rst-rcvd" class="text-2xs text-muted">{m.entry_rcvd()}</label>
                     <input
                         id="rst-rcvd"
                         inputmode="numeric"
                         autocomplete="off"
-                        class="field h-[40px] px-0 text-center font-mono text-[17px]"
+                        class="field h-[40px] px-0 text-center font-mono text-md"
                         bind:value={entry.rstRcvd}
                     />
                 </div>
                 {#if settings.contest.enabled}
-                    <div class="flex flex-col gap-[3px]">
-                        <span class="text-[11px] text-info">{m.entry_sent_number()}</span>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-2xs text-info">{m.entry_sent_number()}</span>
                         <output
                             aria-label={m.entry_sent_number_label()}
-                            class="flex h-[40px] items-center overflow-hidden rounded-md border border-dashed border-info-strong px-[10px] font-mono text-[17px] whitespace-nowrap"
+                            class="flex h-[40px] items-center overflow-hidden rounded-md border border-dashed border-info-strong px-[10px] font-mono text-md whitespace-nowrap"
                             >{sentShown}</output
                         >
                     </div>
-                    <div class="flex flex-col gap-[3px]">
-                        <label for="received" class="text-[11px] text-info"
+                    <div class="flex flex-col gap-1">
+                        <label for="received" class="text-2xs text-info"
                             >{m.entry_rcvd_number()}</label
                         >
                         <input
@@ -400,7 +397,7 @@
                             autocomplete="off"
                             spellcheck="false"
                             class={[
-                                'field h-[40px] px-[10px] font-mono text-[17px] uppercase outline-none',
+                                'field h-[40px] px-[10px] font-mono text-md uppercase outline-none',
                                 entry.received.trim() === '' && 'border-2 border-info'
                             ]}
                             bind:value={entry.received}
@@ -425,8 +422,8 @@
                         : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'
                 ]}
             >
-                <div class="flex flex-col gap-[3px]">
-                    <label for="name" class="text-[11px] text-muted">{m.entry_name()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="name" class="text-2xs text-muted">{m.entry_name()}</label>
                     <input
                         id="name"
                         placeholder={previous?.NAME}
@@ -434,8 +431,8 @@
                         bind:value={entry.name}
                     />
                 </div>
-                <div class="flex flex-col gap-[3px]">
-                    <label for="qth" class="text-[11px] text-muted">{m.entry_qth()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="qth" class="text-2xs text-muted">{m.entry_qth()}</label>
                     <input
                         id="qth"
                         placeholder={previous?.QTH}
@@ -444,8 +441,8 @@
                     />
                 </div>
                 {#if area}
-                    <div class="flex flex-col gap-[3px]">
-                        <label for="area" title={area.label} class="truncate text-[11px] text-muted"
+                    <div class="flex flex-col gap-1">
+                        <label for="area" title={area.label} class="truncate text-2xs text-muted"
                             >{area.label}</label
                         >
                         <input
@@ -461,12 +458,12 @@
             </div>
 
             <div class="grid grid-cols-[minmax(0,1fr)_112px_auto] items-end gap-2">
-                <div class="flex flex-col gap-[3px]">
-                    <label for="comment" class="text-[11px] text-muted">{m.entry_comment()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="comment" class="text-2xs text-muted">{m.entry_comment()}</label>
                     <input id="comment" class="field" bind:value={entry.comment} />
                 </div>
-                <div class="flex flex-col gap-[3px]">
-                    <label for="qsl" class="text-[11px] text-muted">{m.entry_qsl()}</label>
+                <div class="flex flex-col gap-1">
+                    <label for="qsl" class="text-2xs text-muted">{m.entry_qsl()}</label>
                     <select id="qsl" class="field px-1.5" bind:value={entry.qsl}>
                         {#each QSL_REQUESTS as [value, label] (value)}
                             <option {value}>{label()}</option>
@@ -479,7 +476,7 @@
                         aria-expanded={extraOpen}
                         aria-controls="extra"
                         class={[
-                            'flex h-[32px] items-center gap-1 rounded-md px-2 text-[12px]',
+                            'flex h-[32px] items-center gap-1 rounded-md px-2 text-xs',
                             extraOpen ? 'bg-surface-2 text-text' : 'text-muted'
                         ]}
                         onclick={() => (extraOpen = !extraOpen)}
@@ -497,23 +494,23 @@
                     >
                     <button
                         type="button"
-                        class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-[12px]"
+                        class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-xs"
                         onclick={clear}
                         >{m.entry_clear()}
-                        <span class="font-mono text-[10px] text-muted">Esc</span></button
+                        <span class="font-mono text-2xs text-muted">Esc</span></button
                     >
                     <button
                         type="submit"
                         title={problem}
                         disabled={cantLog}
                         class={[
-                            'h-[32px] rounded-md px-4 text-[13px] font-bold whitespace-nowrap',
+                            'h-[32px] rounded-md px-4 text-sm font-semibold whitespace-nowrap',
                             cantLog
                                 ? 'cursor-not-allowed bg-surface-2 text-muted'
                                 : 'bg-accent text-accent-text'
                         ]}
                         >{m.entry_log_qso()}
-                        <span class="font-mono text-[11px] font-medium opacity-80">↵</span></button
+                        <span class="font-mono text-2xs font-medium opacity-80">↵</span></button
                     >
                 </div>
             </div>

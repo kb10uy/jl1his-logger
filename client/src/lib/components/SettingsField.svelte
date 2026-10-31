@@ -12,11 +12,11 @@
 <svelte:element
     this={id === undefined ? 'span' : 'label'}
     for={id}
-    class="text-xs text-muted md:pt-3">{label}</svelte:element
+    class="text-2xs text-muted md:pt-3">{label}</svelte:element
 >
 <div class="flex min-w-0 flex-col gap-1">
     {@render children()}
     {#if hint}
-        <span class="text-xs text-muted">{hint}</span>
+        <span class="text-2xs text-muted">{hint}</span>
     {/if}
 </div>

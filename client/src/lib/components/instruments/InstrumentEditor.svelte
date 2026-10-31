@@ -81,10 +81,10 @@
 </script>
 
 {#snippet labelFor(id: string, text: string, adif?: string)}
-    <label for={id} class="flex flex-col text-xs text-muted md:pt-2">
+    <label for={id} class="flex flex-col text-2xs text-muted md:pt-2">
         <span>{text}</span>
         {#if adif}
-            <span class="font-mono text-[10px] tracking-wide opacity-75">{adif}</span>
+            <span class="font-mono text-2xs">{adif}</span>
         {/if}
     </label>
 {/snippet}
@@ -95,7 +95,7 @@
             {instrument === undefined ? m.stations_instrument_new() : instrument.name}
         </h2>
         {#if instrument?.archived_at}
-            <span class="text-xs text-muted"
+            <span class="text-2xs text-muted"
                 >{m.stations_archived_on({ date: instrument.archived_at.slice(0, 10) })}</span
             >
         {/if}
@@ -134,7 +134,7 @@
                 aria-label={m.stations_field_name()}
                 list="in-adif-fields"
                 placeholder="FIELD_NAME"
-                class="control h-10 font-mono text-xs uppercase"
+                class="control h-10 font-mono text-2xs uppercase"
                 autocomplete="off"
                 spellcheck="false"
                 bind:value={field.name}
@@ -181,7 +181,7 @@
     {/if}
 
     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-        <span class="mr-auto text-xs text-muted">
+        <span class="mr-auto text-2xs text-muted">
             {instrument === undefined
                 ? m.stations_instrument_new_hint()
                 : changed

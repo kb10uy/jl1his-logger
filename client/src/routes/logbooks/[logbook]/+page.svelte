@@ -262,15 +262,15 @@
 
 {#snippet counts()}
     {#if outside > 0}
-        <button type="button" class="text-xs text-info" onclick={() => log.search()}
+        <button type="button" class="text-2xs text-info" onclick={() => log.search()}
             >{m.log_new_outside({ count: outside })}</button
         >
     {/if}
-    <span class="text-[13px] text-muted">{matchText}</span>
+    <span class="text-sm text-muted">{matchText}</span>
     <DropdownMenu.Root>
         <DropdownMenu.Trigger
             aria-label={`${m.log_sort()}: ${sortLabels[sort]()}`}
-            class="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-md bg-none px-2 text-[13px] text-muted hover:bg-surface-2 hover:text-text"
+            class="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-none px-2 text-sm text-muted hover:bg-surface-2 hover:text-text"
         >
             {sortLabels[sort]()}
             <Icon name="chevron" size={14} />
@@ -284,7 +284,7 @@
                 {#each SORTS as s (s)}
                     <DropdownMenu.Item
                         onSelect={() => replaceUrl({ sort: s })}
-                        class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
+                        class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-sm data-highlighted:bg-surface-2"
                     >
                         <span>{sortLabels[s]()}</span>
                         {#if s === sort}
@@ -311,7 +311,7 @@
             ><span class="text-muted">{isoDate(f.QSO_DATE)}</span> {hhmm(f.TIME_ON)}</td
         >
     {:else if id === 'call'}
-        <td class="px-3 font-mono text-sm font-semibold">{f.CALL}</td>
+        <td class="px-3 font-mono text-base font-semibold">{f.CALL}</td>
     {:else if id === 'qsl'}
         {@render qsl(f.QSL_SENT, f.QSL_RCVD)}
     {:else if id === 'lotw'}
@@ -359,7 +359,7 @@
         role="status"
         aria-live="polite"
         class={[
-            'sticky left-0 flex items-center justify-center gap-2 px-6 py-4 text-[13px] text-muted',
+            'sticky left-0 flex items-center justify-center gap-2 px-6 py-4 text-sm text-muted',
             n > 0 && desktop.current && 'pb-24'
         ]}
     >
@@ -401,10 +401,10 @@
                 class="min-w-0 flex-1 overflow-auto"
                 onscroll={() => (log.scrollTop = scroller?.scrollTop ?? 0)}
             >
-                <table class="w-full border-collapse text-[13px]">
+                <table class="w-full border-collapse text-sm">
                     <thead class="sticky top-0 z-[1] bg-bg">
                         <tr
-                            class="text-left text-xs text-muted compact:[&>th]:py-1 [&>th:last-child]:pr-6 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2 compact:[&>th:not(:first-child,:last-child)]:px-2"
+                            class="text-left text-2xs text-muted compact:[&>th]:py-1 [&>th:last-child]:pr-6 [&>th:not(:first-child)]:border-l [&>th:not(:first-child)]:border-l-surface-2 compact:[&>th:not(:first-child,:last-child)]:px-2"
                         >
                             <th
                                 scope="col"
@@ -473,7 +473,7 @@
                                 aria-current={isOpen ? 'true' : undefined}
                                 title={row.stale ? m.log_row_stale() : undefined}
                                 class={[
-                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-[7px] [&>td]:whitespace-nowrap compact:[&>td]:py-0.5 [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l compact:[&>td:not(:first-child,:last-child)]:px-2',
+                                    'cursor-pointer [&>td]:border-b [&>td]:border-surface-2 [&>td]:py-1.5 [&>td]:whitespace-nowrap compact:[&>td]:py-px [&>td:last-child]:pr-6 [&>td:not(:first-child)]:border-l compact:[&>td:not(:first-child,:last-child)]:px-2',
                                     isChecked
                                         ? 'bg-selected'
                                         : isOpen
@@ -521,20 +521,17 @@
                     role="toolbar"
                     aria-label={m.log_checked_qsos()}
                     class={[
-                        'absolute bottom-4 left-6 z-[4] flex flex-wrap items-center gap-2 rounded-[10px] border border-info-strong bg-selected px-2.5 py-2 text-[13px] shadow-lg shadow-shadow',
+                        'absolute bottom-4 left-6 z-[4] flex flex-wrap items-center gap-2 rounded-[10px] border border-info-strong bg-selected px-2.5 py-2 text-sm shadow-lg shadow-shadow',
                         showBulk || openQso ? 'right-[404px]' : 'right-6'
                     ]}
                 >
                     <span class="pl-1 font-semibold">{m.log_checked_count({ count: n })}</span>
                     {#if total !== undefined && n < total}
-                        <button
-                            type="button"
-                            class="h-[30px] px-2 text-info"
-                            onclick={checkAllMatching}
+                        <button type="button" class="h-8 px-2 text-info" onclick={checkAllMatching}
                             >{m.log_check_all_matching({ count: total })}</button
                         >
                     {/if}
-                    <button type="button" class="h-[30px] px-2 text-info" onclick={clearChecked}
+                    <button type="button" class="h-8 px-2 text-info" onclick={clearChecked}
                         >{m.common_clear()}</button
                     >
                     <span aria-hidden="true" class="mx-1 h-5 w-px bg-border"></span>
@@ -615,7 +612,7 @@
     <main class="flex flex-col">
         {#each groups as group (group.key)}
             <div
-                class="flex items-center justify-between px-4 pt-2.5 pb-1 text-xs text-muted compact:pt-1.5 compact:pb-0.5"
+                class="flex items-center justify-between px-4 pt-2.5 pb-1 text-2xs text-muted compact:pt-1.5 compact:pb-0.5"
             >
                 <span class="font-mono">{group.date}</span>
                 <span>{group.where}</span>
@@ -629,18 +626,18 @@
                         row.stale && 'opacity-50'
                     ]}
                 >
-                    <span class="w-11 font-mono text-[13px] text-muted">{hhmm(f.TIME_ON)}</span>
+                    <span class="w-11 font-mono text-sm text-muted">{hhmm(f.TIME_ON)}</span>
                     <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span
-                            class="font-mono text-[17px] font-semibold tracking-wide compact:text-[15px]"
+                            class="font-mono text-md font-semibold tracking-wide compact:text-base"
                             >{f.CALL}</span
                         >
-                        <span class="truncate text-xs text-muted"
+                        <span class="truncate text-2xs text-muted"
                             >{[f.NAME, f.QTH, f.COMMENT].filter((s) => s).join(' · ')}</span
                         >
                     </span>
                     <span class="flex flex-col items-end gap-1">
-                        <span class="font-mono text-[13px]">{f.BAND} {f.MODE}</span>
+                        <span class="font-mono text-sm">{f.BAND} {f.MODE}</span>
                         <span class="flex gap-1">
                             <QslBadge value={f.QSL_SENT} small />
                             <QslBadge value={f.QSL_RCVD} small />

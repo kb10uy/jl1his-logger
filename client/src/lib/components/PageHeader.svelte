@@ -68,14 +68,14 @@
             {/if}
         {/if}
         <div class="flex min-w-0 flex-1 flex-col">
-            <h1 class="truncate text-xl leading-tight font-semibold">{title}</h1>
+            <h1 class="truncate text-lg leading-tight font-semibold">{title}</h1>
             {#if subtitle}
-                <span class="truncate text-xs text-muted">{subtitle}</span>
+                <span class="truncate text-2xs text-muted">{subtitle}</span>
             {/if}
         </div>
         {#if logbook}
             <span
-                class="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted md:hidden"
+                class="flex shrink-0 items-center gap-1.5 text-2xs whitespace-nowrap text-muted md:hidden"
             >
                 <span
                     role="img"

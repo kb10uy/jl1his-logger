@@ -122,9 +122,9 @@
 </SettingsSection>
 
 <SettingsSection title={m.admin_logbooks()} padded={false}>
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="text-left text-xs text-muted">
+            <tr class="text-left text-2xs text-muted">
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                     >{m.admin_logbooks_name()}</th
                 >
@@ -176,7 +176,7 @@
 </SettingsSection>
 
 <SettingsSection title={m.admin_logbooks_rescue_title()} form onsubmit={rescue}>
-    <p class="text-[13px] text-muted">{m.admin_logbooks_rescue_hint()}</p>
+    <p class="text-sm text-muted">{m.admin_logbooks_rescue_hint()}</p>
     <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.admin_logbooks_rescue_logbook()} for="rescue-logbook">
             <select id="rescue-logbook" class="control h-10 w-full md:w-60" bind:value={rescueId}>

@@ -9,7 +9,7 @@
     border-radius: 6px;
     background: var(--bg);
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--text-sm);
 }
 
 @layer base {

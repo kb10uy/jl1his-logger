@@ -148,7 +148,7 @@
                 aria-label={m.transfer_qsl_send()}
                 class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
             >
-                <h2 class="text-[15px] font-semibold">{m.transfer_qsl_send()}</h2>
+                <h2 class="text-base font-semibold">{m.transfer_qsl_send()}</h2>
                 <Segmented
                     label={m.transfer_kind()}
                     options={[
@@ -168,14 +168,14 @@
                     busyLabel={m.transfer_qsl_creating()}
                     onexport={create}
                 >
-                    <label for="qsl-len" class="text-xs text-muted">{m.transfer_lengths()}</label>
+                    <label for="qsl-len" class="text-2xs text-muted">{m.transfer_lengths()}</label>
                     <select id="qsl-len" class="control h-10" bind:value={exportLength}>
                         {#each lengths as l (l.value)}
                             <option value={l.value}>{l.label}</option>
                         {/each}
                     </select>
                 </ExportForm>
-                <span class="text-xs text-muted"
+                <span class="text-2xs text-muted"
                     >{m.transfer_qsl_mark_note({ sent: fields[0], date: fields[1] })}</span
                 >
             </section>
@@ -199,7 +199,7 @@
                 tab !== 'receive' && 'max-md:hidden'
             ]}
         >
-            <h2 class="text-[15px] font-semibold">{m.transfer_qsl_receive()}</h2>
+            <h2 class="text-base font-semibold">{m.transfer_qsl_receive()}</h2>
             <Segmented
                 label={m.transfer_qsl_source()}
                 options={[
@@ -212,7 +212,7 @@
             <FileDrop bind:file />
             <div class="flex flex-wrap items-end gap-3">
                 <div class="flex min-w-0 flex-col gap-1">
-                    <label for="rcv-station" class="text-xs text-muted">{m.field_station()}</label>
+                    <label for="rcv-station" class="text-2xs text-muted">{m.field_station()}</label>
                     <select id="rcv-station" class="control" bind:value={stationId}>
                         <option value="">{m.transfer_qsl_any_station()}</option>
                         {#each logbook.stations as s (s.id)}
@@ -222,7 +222,7 @@
                 </div>
                 {#if format === 'adi'}
                     <div class="flex min-w-0 flex-col gap-1">
-                        <label for="rcv-len" class="text-xs text-muted"
+                        <label for="rcv-len" class="text-2xs text-muted"
                             >{m.transfer_lengths()}</label
                         >
                         <select id="rcv-len" class="control" bind:value={importLength}>
@@ -246,7 +246,7 @@
             {#if merge.report}
                 {@const report = merge.report}
                 {@const merged = merge.applied}
-                <span class="text-xs text-muted"
+                <span class="text-2xs text-muted"
                     >{merged ? m.transfer_qsl_merged() : m.transfer_preview_note()}</span
                 >
                 <div class="grid grid-cols-3 gap-2">
@@ -274,7 +274,7 @@
                     />
                 </div>
                 {#if report.not_confirmations > 0}
-                    <span class="text-xs text-muted"
+                    <span class="text-2xs text-muted"
                         >{m.transfer_qsl_not_confirmations({
                             records: m.common_record_count({ count: report.not_confirmations })
                         })}</span
@@ -309,12 +309,12 @@
                 {/if}
                 {#if differencesText(report.differences)}
                     <details class="rounded-lg border border-border px-3">
-                        <summary class="flex h-10 cursor-pointer items-center text-[13px]"
+                        <summary class="flex h-10 cursor-pointer items-center text-sm"
                             >{m.transfer_qsl_differences({
                                 differences: differencesText(report.differences)
                             })}</summary
                         >
-                        <p class="pb-3 text-[13px] text-muted">
+                        <p class="pb-3 text-sm text-muted">
                             {m.transfer_qsl_differences_help()}
                         </p>
                     </details>

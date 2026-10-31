@@ -38,19 +38,19 @@
 <main class="flex min-h-dvh items-center justify-center p-4">
     <div class="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-surface p-6">
         <div class="flex flex-col gap-1">
-            <h1 class="font-logo text-[22px] font-semibold">JL1HIS Logger</h1>
+            <h1 class="font-logo text-xl font-semibold">JL1HIS Logger</h1>
             <p class="text-muted">{m.login_lead()}</p>
         </div>
         {#if !isWebAuthnSupported()}
             <p class="text-error-text">{m.login_unsupported()}</p>
         {/if}
         {#if error}
-            <p role="alert" class="text-[13px] text-error-text">{error}</p>
+            <p role="alert" class="text-sm text-error-text">{error}</p>
         {/if}
         <Button variant="primary" size="xl" disabled={busy} onclick={signIn}>
             {busy ? m.login_waiting() : m.login_button()}
         </Button>
-        <p class="text-xs text-muted">
+        <p class="text-2xs text-muted">
             {m.login_new_here()}
         </p>
     </div>

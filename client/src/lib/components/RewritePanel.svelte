@@ -79,11 +79,11 @@
     aria-label={m.stations_rewrite_title()}
     class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
 >
-    <h2 class="text-[15px] font-semibold">{m.stations_rewrite_title()}</h2>
-    <p class="text-[13px] text-muted">{lead}</p>
+    <h2 class="text-base font-semibold">{m.stations_rewrite_title()}</h2>
+    <p class="text-sm text-muted">{lead}</p>
     <div class="flex flex-wrap items-end gap-3">
         <div class="flex flex-col gap-1">
-            <label for="rw-from" class="text-xs text-muted">{m.stations_rewrite_from()}</label>
+            <label for="rw-from" class="text-2xs text-muted">{m.stations_rewrite_from()}</label>
             <input
                 id="rw-from"
                 type="date"
@@ -93,7 +93,7 @@
             />
         </div>
         <div class="flex flex-col gap-1">
-            <label for="rw-until" class="text-xs text-muted">{m.stations_rewrite_until()}</label>
+            <label for="rw-until" class="text-2xs text-muted">{m.stations_rewrite_until()}</label>
             <input
                 id="rw-until"
                 type="date"
@@ -105,7 +105,7 @@
         <Button size="lg" disabled={changed} onclick={previewRewrite}>{m.stations_preview()}</Button
         >
         {#if preview !== undefined}
-            <span class="text-[13px]"
+            <span class="text-sm"
                 ><Slotted text={m.stations_would_change({ count: preview, n: SLOT })}
                     ><strong class="font-mono text-base">{formatNumber(preview)}</strong></Slotted
                 ></span
@@ -121,13 +121,13 @@
             >
         {/if}
         {#if rewritten !== undefined}
-            <span role="status" class="text-[13px] text-ok"
+            <span role="status" class="text-sm text-ok"
                 >{m.stations_rewrote({ count: rewritten })}</span
             >
         {/if}
     </div>
     {#if changed}
-        <span class="text-xs text-muted">{m.stations_save_first()}</span>
+        <span class="text-2xs text-muted">{m.stations_save_first()}</span>
     {/if}
 </section>
 <ConfirmDialog

@@ -24,11 +24,11 @@
 
 {#if items.length > 0}
     <details {open} class="rounded-lg border border-border px-3">
-        <summary class="flex h-10 cursor-pointer items-center gap-2 text-[13px]">
+        <summary class="flex h-10 cursor-pointer items-center gap-2 text-sm">
             {title} · {formatNumber(items.length)}
             {#if note}<span class="text-muted">{note}</span>{/if}
         </summary>
-        <ul class="flex flex-col gap-1.5 pb-3 font-mono text-[13px]">
+        <ul class="flex flex-col gap-1.5 pb-3 font-mono text-sm">
             {#each shown as item, i (i)}
                 <li class="flex flex-wrap gap-x-2">
                     <span class="text-muted">#{item.record}</span>

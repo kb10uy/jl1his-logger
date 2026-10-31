@@ -223,13 +223,13 @@
             <Field label={m.field_call()} adif="CALL" for="e-call">
                 <input
                     id="e-call"
-                    class="control h-12 font-mono text-[22px] font-semibold tracking-wide uppercase"
+                    class="control h-12 font-mono text-xl font-semibold tracking-wide uppercase"
                     autocomplete="off"
                     spellcheck="false"
                     bind:value={draft.call}
                 />
                 {#if entity}
-                    <span class="text-xs text-muted"
+                    <span class="text-2xs text-muted"
                         >{entity.name} · DXCC {entity.dxcc ?? '—'} · CQ {entity.cq_zone} · ITU {entity.itu_zone}</span
                     >
                 {/if}
@@ -385,13 +385,13 @@
                         />
                     </Field>
                 </div>
-                <div class="flex justify-between text-[13px] text-muted">
+                <div class="flex justify-between text-sm text-muted">
                     <span>{m.entry_editor_lotw()}</span>
                     <span class="font-mono"
                         >{qso.fields.LOTW_QSL_SENT || '—'} / {qso.fields.LOTW_QSL_RCVD || '—'}</span
                     >
                 </div>
-                <div class="flex justify-between text-[13px] text-muted">
+                <div class="flex justify-between text-sm text-muted">
                     <span>{m.entry_editor_eqsl()}</span>
                     <span class="font-mono"
                         >{qso.fields.EQSL_QSL_SENT || '—'} / {qso.fields.EQSL_QSL_RCVD || '—'}</span
@@ -402,17 +402,17 @@
             <div class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
                 <div class="flex justify-between">
                     <span class="eyebrow">{m.entry_editor_station_at_time()}</span>
-                    <span class="text-xs text-muted">{m.entry_editor_read_only()}</span>
+                    <span class="text-2xs text-muted">{m.entry_editor_read_only()}</span>
                 </div>
-                <div class="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+                <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                     {#each station as [name, value] (name)}
                         <span
-                            ><span class="font-mono text-[11px] text-muted">{name}</span>
+                            ><span class="font-mono text-2xs text-muted">{name}</span>
                             <span class="font-mono">{value}</span></span
                         >
                     {/each}
                 </div>
-                <span class="text-xs text-muted">{m.entry_editor_baked()}</span>
+                <span class="text-2xs text-muted">{m.entry_editor_baked()}</span>
             </div>
 
             <Field label={m.field_station()} for="e-station">
@@ -451,7 +451,7 @@
                             autocomplete="off"
                             autocapitalize="characters"
                             spellcheck="false"
-                            class="control h-10 w-full px-2 font-mono text-xs uppercase"
+                            class="control h-10 w-full px-2 font-mono text-2xs uppercase"
                             bind:value={extra.name}
                         />
                         <label for={`e-extra-value-${i}`} class="sr-only">{m.entry_value()}</label>
@@ -469,7 +469,7 @@
                         >
                     </div>
                 {:else}
-                    <span class="text-xs text-muted">{m.entry_editor_none()}</span>
+                    <span class="text-2xs text-muted">{m.entry_editor_none()}</span>
                 {/each}
                 <div>
                     <Button onclick={() => draft?.extra.push({ name: '', value: '' })}
@@ -484,7 +484,7 @@
             </fieldset>
 
             {#if problem}
-                <p class="text-xs text-error-text">{problem}</p>
+                <p class="text-2xs text-error-text">{problem}</p>
             {/if}
             <button type="submit" class="hidden">{m.common_save()}</button>
             {#if qso.deleted_at === null}

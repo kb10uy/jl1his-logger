@@ -100,7 +100,7 @@
     </SettingsSection>
 
     <SettingsSection title={m.settings_area_field()} form onsubmit={save}>
-        <p class="text-[13px] text-muted">{m.settings_area_help()}</p>
+        <p class="text-sm text-muted">{m.settings_area_help()}</p>
 
         <fieldset
             disabled={!canEdit}
@@ -135,7 +135,7 @@
                             size="sm"
                             onclick={() => (draft = { name: preset.name, label: preset.label })}
                             >{preset.label}
-                            <span class="font-mono text-xs text-muted">{preset.name}</span></Button
+                            <span class="font-mono text-2xs text-muted">{preset.name}</span></Button
                         >
                     {/each}
                     <Button size="sm" onclick={() => (draft = { name: '', label: '' })}
@@ -157,7 +157,8 @@
         {#if canEdit}
             <div class="flex flex-wrap items-center justify-end gap-3">
                 {#if changed}
-                    <span class="mr-auto text-xs text-muted">{m.settings_area_keeps_values()}</span>
+                    <span class="mr-auto text-2xs text-muted">{m.settings_area_keeps_values()}</span
+                    >
                 {/if}
                 <Button
                     type="submit"

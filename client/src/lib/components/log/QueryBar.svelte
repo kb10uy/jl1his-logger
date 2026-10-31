@@ -112,11 +112,11 @@
                 placeholder="call:JH1* band:40m,20m -mode:FT8 date:2026-10-01.. sent:R,Q"
                 class={[
                     'min-w-0 flex-1 border-0 bg-transparent font-mono outline-none',
-                    compact ? 'text-base' : 'text-sm'
+                    compact ? 'text-base' : 'text-xs'
                 ]}
             />
             {#if !compact}
-                <span class="rounded border border-border px-1.5 font-mono text-[11px] text-muted"
+                <span class="rounded border border-border px-1.5 font-mono text-2xs text-muted"
                     >/</span
                 >
             {/if}
@@ -136,7 +136,7 @@
 
     {#if showHelp}
         <div
-            class="grid grid-cols-1 gap-x-6 gap-y-2 rounded-lg border border-border bg-surface px-4 py-3 text-xs sm:grid-cols-2 lg:grid-cols-3"
+            class="grid grid-cols-1 gap-x-6 gap-y-2 rounded-lg border border-border bg-surface px-4 py-3 text-2xs sm:grid-cols-2 lg:grid-cols-3"
         >
             {#each SYNTAX as [example, meaning] (example)}
                 <div class="flex gap-2.5">
@@ -149,7 +149,7 @@
 
     <div
         class={[
-            'flex items-center gap-1.5 text-[13px]',
+            'flex items-center gap-1.5 text-sm',
             compact ? 'overflow-x-auto pb-0.5' : 'min-h-8 flex-wrap'
         ]}
     >
@@ -157,7 +157,7 @@
             <span
                 class={[
                     'inline-flex shrink-0 items-center gap-1.5 rounded-md pr-1 pl-2.5',
-                    compact ? 'h-8' : 'h-[30px]',
+                    compact ? 'h-8' : 'h-8',
                     toneClass[c.tone]
                 ]}
                 title={token.error?.message}
@@ -176,7 +176,7 @@
                 <button
                     type="button"
                     aria-label={m.log_query_remove({ term: token.text })}
-                    class="inline-flex size-[22px] items-center justify-center rounded text-muted hover:text-text"
+                    class="inline-flex size-6 items-center justify-center rounded text-muted hover:text-text"
                     onclick={() => set(removeToken(text, token))}
                 >
                     <Icon name="close" size={12} strokeWidth={2.5} />
@@ -187,7 +187,7 @@
             <DropdownMenu.Trigger
                 class={[
                     'shrink-0 rounded-md border border-dashed border-border px-2.5 text-muted',
-                    compact ? 'h-8' : 'h-[30px]'
+                    compact ? 'h-8' : 'h-8'
                 ]}>{m.log_add_condition()}</DropdownMenu.Trigger
             >
             <DropdownMenu.Portal>
@@ -199,17 +199,17 @@
                     {#each templates(utcClock(new Date()).date) as t (t.term)}
                         <DropdownMenu.Item
                             onSelect={() => add(t.term)}
-                            class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-[13px] data-highlighted:bg-surface-2"
+                            class="flex h-8 cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 text-sm data-highlighted:bg-surface-2"
                         >
                             <span>{t.label}</span>
-                            <span class="font-mono text-xs text-muted">{t.term}</span>
+                            <span class="font-mono text-2xs text-muted">{t.term}</span>
                         </DropdownMenu.Item>
                     {/each}
                 </DropdownMenu.Content>
             </DropdownMenu.Portal>
         </DropdownMenu.Root>
         {#if chips.length > 0 && !compact}
-            <button type="button" class="h-[30px] px-2 text-info" onclick={() => set('')}
+            <button type="button" class="h-8 px-2 text-info" onclick={() => set('')}
                 >{m.log_clear_all()}</button
             >
         {/if}
@@ -219,6 +219,6 @@
         {/if}
     </div>
     {#if serverError}
-        <p role="alert" class="text-xs text-error-text">{serverError}</p>
+        <p role="alert" class="text-2xs text-error-text">{serverError}</p>
     {/if}
 </div>

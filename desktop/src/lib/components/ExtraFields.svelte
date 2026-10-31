@@ -16,9 +16,9 @@
     aria-label={m.entry_extra_fields()}
     class="flex flex-wrap items-end gap-2 border-t border-border pt-2"
 >
-    <div class="flex flex-col gap-[3px]">
-        <label for="tx-pwr" class="text-[11px] text-muted"
-            >{m.entry_tx_power()} <span class="font-mono text-[10px]">W</span></label
+    <div class="flex flex-col gap-1">
+        <label for="tx-pwr" class="text-2xs text-muted"
+            >{m.entry_tx_power()} <span class="font-mono text-2xs">W</span></label
         >
         <input
             id="tx-pwr"
@@ -28,13 +28,13 @@
             bind:value={entry.txPwr}
         />
     </div>
-    <div class="flex flex-[1_1_160px] flex-col gap-[3px]">
-        <label for="notes" class="text-[11px] text-muted">{m.entry_notes()}</label>
+    <div class="flex flex-[1_1_160px] flex-col gap-1">
+        <label for="notes" class="text-2xs text-muted">{m.entry_notes()}</label>
         <input id="notes" class="field" bind:value={entry.notes} />
     </div>
     {#each entry.extra as extra, i (i)}
-        <div class="flex flex-col gap-[3px]">
-            <span class="text-[11px] text-muted">{m.entry_adif_field()}</span>
+        <div class="flex flex-col gap-1">
+            <span class="text-2xs text-muted">{m.entry_adif_field()}</span>
             <div class="flex items-center">
                 <input
                     aria-label={m.entry_adif_field_name()}
@@ -42,7 +42,7 @@
                     placeholder="FIELD"
                     autocomplete="off"
                     spellcheck="false"
-                    class="field w-[104px] rounded-r-none border-r-0 bg-surface-2 font-mono text-[11px] uppercase"
+                    class="field w-[104px] rounded-r-none border-r-0 bg-surface-2 font-mono text-2xs uppercase"
                     bind:value={extra.name}
                 />
                 <input
@@ -71,7 +71,7 @@
     {/each}
     <button
         type="button"
-        class="h-[32px] rounded-md border border-dashed border-border px-2.5 text-[12px] text-muted"
+        class="h-[32px] rounded-md border border-dashed border-border px-2.5 text-xs text-muted"
         onclick={() => entry.extra.push({ name: '', value: '' })}>{m.entry_add_adif_field()}</button
     >
     <datalist id="adif-fields">

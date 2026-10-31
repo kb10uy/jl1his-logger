@@ -146,11 +146,9 @@
             id="frequency-favorites"
             role="dialog"
             aria-label={m.favorites_title()}
-            class="absolute top-[38px] left-0 z-40 flex max-h-[420px] w-[300px] flex-col gap-px overflow-y-auto rounded-lg border border-border bg-surface p-1 text-[12px] whitespace-normal shadow-lg shadow-shadow"
+            class="absolute top-10 left-0 z-40 flex max-h-[420px] w-[300px] flex-col gap-px overflow-y-auto rounded-lg border border-border bg-surface p-1 text-xs whitespace-normal shadow-lg shadow-shadow"
         >
-            <h2
-                class="flex h-[24px] items-center px-2 text-[11px] font-medium tracking-[0.06em] text-muted uppercase"
-            >
+            <h2 class="flex h-[24px] items-center px-2 text-2xs font-medium text-muted">
                 {m.favorites_title()}
             </h2>
             {#if savable}
@@ -191,11 +189,10 @@
                     <button
                         type="button"
                         aria-current={active ? 'true' : undefined}
-                        class="grid h-[28px] min-w-0 flex-1 grid-cols-[34px_64px_minmax(0,1fr)] items-center gap-2 bg-none px-2 text-left font-mono text-[13px]"
+                        class="grid h-[28px] min-w-0 flex-1 grid-cols-[34px_64px_minmax(0,1fr)] items-center gap-2 bg-none px-2 text-left font-mono text-sm"
                         onclick={() => select(favorite)}
                     >
-                        <span class="text-[11px] font-normal text-muted"
-                            >{favoriteBand(favorite)}</span
+                        <span class="text-2xs font-normal text-muted">{favoriteBand(favorite)}</span
                         >
                         <span class="text-right">{freqLabel(favorite.freq)}</span>
                         <span>{favorite.submode || favorite.mode}</span>
@@ -242,7 +239,7 @@
                 <p class="px-2 py-1.5 text-muted">{m.favorites_empty()}</p>
             {/if}
             {#if rig}
-                <p class="mt-1 border-t border-border px-2 pt-1.5 pb-0.5 text-[11px] text-muted">
+                <p class="mt-1 border-t border-border px-2 pt-1.5 pb-0.5 text-2xs text-muted">
                     {m.favorites_rig()}
                 </p>
             {/if}

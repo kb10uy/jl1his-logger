@@ -55,7 +55,7 @@
         }}
     >
         <div class="flex flex-col gap-1">
-            <h1 class="text-[22px] font-semibold">{m.register_title()}</h1>
+            <h1 class="text-xl font-semibold">{m.register_title()}</h1>
             {#if ceremony}
                 <p class="text-muted">
                     <Slotted text={m.register_for({ callsign: SLOT })}
@@ -77,7 +77,7 @@
             </Field>
         {/if}
         {#if error}
-            <p role="alert" class="text-[13px] text-error-text">{error}</p>
+            <p role="alert" class="text-sm text-error-text">{error}</p>
         {/if}
         <Button type="submit" variant="primary" size="xl" disabled={busy || !ceremony}>
             {busy ? m.login_waiting() : m.register_button()}

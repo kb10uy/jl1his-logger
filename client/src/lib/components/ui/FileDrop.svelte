@@ -33,11 +33,11 @@
     }}
 >
     {#if file}
-        <span class="max-w-full truncate font-mono text-sm"
+        <span class="max-w-full truncate font-mono text-xs"
             >{file.name} <span class="text-muted">· {size(file.size)}</span></span
         >
     {/if}
-    <span class="text-xs text-muted">{hint}</span>
+    <span class="text-2xs text-muted">{hint}</span>
     <input
         type="file"
         {accept}

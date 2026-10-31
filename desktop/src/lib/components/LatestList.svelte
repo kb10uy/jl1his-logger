@@ -41,7 +41,7 @@
     {#if unsent.length > 0}
         <div
             role="status"
-            class="flex flex-none flex-col gap-1 rounded-lg border border-warn-border bg-warn-surface px-2.5 py-1.5 text-[12px]"
+            class="flex flex-none flex-col gap-1 rounded-lg border border-warn-border bg-warn-surface px-2.5 py-1.5 text-xs"
         >
             <div class="flex items-center gap-2.5">
                 <svg
@@ -67,13 +67,13 @@
                 <button
                     type="button"
                     disabled={outbox.sending}
-                    class="h-[26px] rounded-md border border-warn px-2.5 font-semibold text-warn"
+                    class="h-7 rounded-md border border-warn px-2.5 font-semibold text-warn"
                     onclick={onsendnow}
                     >{outbox.sending ? m.latest_sending() : m.latest_send_now()}</button
                 >
             </div>
             {#each unsent.filter((i) => i.error) as item (item.id)}
-                <div class="flex items-center gap-2 text-[11px]">
+                <div class="flex items-center gap-2 text-2xs">
                     <span class="font-mono font-semibold">{item.fields.CALL}</span>
                     <span class="min-w-0 flex-1 truncate text-muted select-text">{item.error}</span>
                     <button
@@ -85,11 +85,11 @@
             {/each}
         </div>
     {/if}
-    <h2 class="flex-none eyebrow text-[11px]">{m.latest_title()}</h2>
+    <h2 class="flex-none eyebrow text-2xs">{m.latest_title()}</h2>
     <div class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface">
-        <table class="w-full border-collapse text-[13px]">
+        <table class="w-full border-collapse text-sm">
             <thead>
-                <tr class="text-left text-[11px] text-muted">
+                <tr class="text-left text-2xs text-muted">
                     {#each headers as header (header)}
                         <th
                             scope="col"
@@ -108,13 +108,13 @@
                 {#each rows as row (row.id)}
                     {@const f = row.fields}
                     <tr
-                        class="align-top [&>td]:border-b [&>td]:border-surface-2 [&>td]:px-2.5 [&>td]:py-[5px]"
+                        class="align-top [&>td]:border-b [&>td]:border-surface-2 [&>td]:px-2.5 [&>td]:py-1"
                     >
                         <td class="font-mono whitespace-nowrap"
                             ><span class="text-muted">{isoDate(f.QSO_DATE).slice(5)}</span>
                             {hhmm(f.TIME_ON)}</td
                         >
-                        <td class="font-mono text-[14px] font-semibold">{f.CALL}</td>
+                        <td class="font-mono text-base font-semibold">{f.CALL}</td>
                         <td class="font-mono whitespace-nowrap"
                             >{f.BAND}
                             {f.MODE} <span class="text-muted">{f.SUBMODE ?? ''}</span></td

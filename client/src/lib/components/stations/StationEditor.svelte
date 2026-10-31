@@ -164,10 +164,10 @@
 </script>
 
 {#snippet labelFor(id: string, text: string, adif?: string)}
-    <label for={id} class="flex flex-col text-xs text-muted md:pt-2">
+    <label for={id} class="flex flex-col text-2xs text-muted md:pt-2">
         <span>{text}</span>
         {#if adif}
-            <span class="font-mono text-[10px] tracking-wide opacity-75">{adif}</span>
+            <span class="font-mono text-2xs">{adif}</span>
         {/if}
     </label>
 {/snippet}
@@ -178,7 +178,7 @@
             {station === undefined ? m.stations_new() : station.name}
         </h2>
         {#if station?.archived_at}
-            <span class="text-xs text-muted"
+            <span class="text-2xs text-muted"
                 >{m.stations_archived_on({ date: station.archived_at.slice(0, 10) })}</span
             >
         {/if}
@@ -258,7 +258,7 @@
         >
             {#each draft.parks as park (park)}
                 <span
-                    class="inline-flex h-7 items-center gap-0.5 rounded border border-border bg-surface-2 pr-0.5 pl-2 font-mono text-[13px]"
+                    class="inline-flex h-7 items-center gap-0.5 rounded border border-border bg-surface-2 pr-0.5 pl-2 font-mono text-sm"
                 >
                     {park}
                     <button
@@ -298,7 +298,7 @@
                     aria-label={m.stations_field_name()}
                     list="st-adif-fields"
                     placeholder="FIELD_NAME"
-                    class="control h-10 font-mono text-xs uppercase"
+                    class="control h-10 font-mono text-2xs uppercase"
                     autocomplete="off"
                     spellcheck="false"
                     bind:value={field.name}
@@ -354,7 +354,7 @@
 
     {#if canEdit}
         <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-            <span class="mr-auto text-xs text-muted">
+            <span class="mr-auto text-2xs text-muted">
                 {station === undefined
                     ? m.stations_new_hint()
                     : changed
@@ -378,7 +378,7 @@
             >
         </div>
     {:else}
-        <p class="text-xs text-muted">{m.stations_owners_edit()}</p>
+        <p class="text-2xs text-muted">{m.stations_owners_edit()}</p>
     {/if}
 </form>
 

@@ -59,7 +59,7 @@
 {/if}
 
 <SettingsSection title={m.admin_server_build()}>
-    <dl class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 text-[13px]">
+    <dl class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 text-sm">
         <dt class="text-muted">{m.admin_server_version()}</dt>
         <dd class="font-mono">{server?.version ?? '…'}</dd>
         <dt class="text-muted">{m.admin_server_commit()}</dt>
@@ -77,9 +77,9 @@
 </SettingsSection>
 
 <SettingsSection title={m.admin_reference()} padded={false}>
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="text-left text-xs text-muted">
+            <tr class="text-left text-2xs text-muted">
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                     >{m.admin_reference_kind()}</th
                 >

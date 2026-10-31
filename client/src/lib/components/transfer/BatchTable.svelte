@@ -21,9 +21,9 @@
 </script>
 
 <div class="overflow-x-auto rounded-lg border border-border bg-surface">
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="text-left text-xs text-muted">
+            <tr class="text-left text-2xs text-muted">
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                     >{m.transfer_kind()}</th
                 >
@@ -69,7 +69,7 @@
                                 <button
                                     type="button"
                                     disabled={applying !== undefined}
-                                    class="h-[30px] rounded-md border border-accent px-3 text-[13px] font-semibold text-accent disabled:opacity-60"
+                                    class="h-8 rounded-md border border-accent px-3 text-sm font-semibold text-accent disabled:opacity-60"
                                     onclick={() => onapply(batch)}
                                     >{applying === batch.id
                                         ? m.transfer_batch_marking()

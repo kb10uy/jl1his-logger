@@ -77,7 +77,7 @@
             href={href(item)}
             aria-current={item.id === selected ? 'page' : undefined}
             class={[
-                'flex h-14 min-w-0 flex-1 items-center gap-2 pr-3 text-[15px] no-underline md:h-9 md:text-[13px]',
+                'flex h-14 min-w-0 flex-1 items-center gap-2 pr-3 text-base no-underline md:h-9 md:text-sm',
                 item.id === selected
                     ? 'font-semibold text-accent'
                     : item.archived_at === null
@@ -86,7 +86,7 @@
             ]}
         >
             <span class="min-w-0 flex-1 truncate">{item.name}</span>
-            <span class="shrink-0 font-mono text-[13px] font-normal text-muted md:text-xs"
+            <span class="shrink-0 font-mono text-sm font-normal text-muted md:text-2xs"
                 >{detail(item)}</span
             >
         </a>
@@ -114,11 +114,11 @@
                 spellcheck="false"
                 autocomplete="off"
                 autocapitalize="off"
-                class="min-w-0 flex-1 border-0 bg-transparent text-base outline-none md:text-[13px]"
+                class="min-w-0 flex-1 border-0 bg-transparent text-base outline-none md:text-sm"
             />
         </div>
         {#if filtering}
-            <span class="px-0.5 text-xs text-muted" aria-live="polite"
+            <span class="px-0.5 text-2xs text-muted" aria-live="polite"
                 >{m.stations_filter_count({ shown: active.length, total })}</span
             >
         {/if}
@@ -127,14 +127,14 @@
         {#each active as item (item.id)}
             {@render row(item)}
         {:else}
-            <p class="px-3 py-4 text-[13px] text-muted">
+            <p class="px-3 py-4 text-sm text-muted">
                 {filtering ? m.stations_filter_none({ query: query.trim() }) : empty}
             </p>
         {/each}
         {#if archived.length > 0}
             <details bind:open={archivedOpen}>
                 <summary
-                    class="flex h-14 cursor-pointer items-center px-3 text-xs text-muted md:h-9"
+                    class="flex h-14 cursor-pointer items-center px-3 text-2xs text-muted md:h-9"
                     >{m.stations_archived_count({ count: archived.length })}</summary
                 >
                 {#each archived as item (item.id)}

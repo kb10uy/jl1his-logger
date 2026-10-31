@@ -159,10 +159,10 @@
                 tab !== 'import' && 'max-md:hidden'
             ]}
         >
-            <h2 class="text-[15px] font-semibold">{m.transfer_import_new_title()}</h2>
+            <h2 class="text-base font-semibold">{m.transfer_import_new_title()}</h2>
             <FileDrop bind:file />
             <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3">
-                <label for="imp-station" class="text-xs text-muted">{m.field_station()}</label>
+                <label for="imp-station" class="text-2xs text-muted">{m.field_station()}</label>
                 <StationSelect
                     id="imp-station"
                     class="h-10"
@@ -170,7 +170,8 @@
                     stations={logbook.activeStations}
                     onchange={(id) => (stationId = id)}
                 />
-                <label for="imp-instrument" class="text-xs text-muted">{m.field_instrument()}</label
+                <label for="imp-instrument" class="text-2xs text-muted"
+                    >{m.field_instrument()}</label
                 >
                 <InstrumentSelect
                     id="imp-instrument"
@@ -180,7 +181,7 @@
                     onchange={(id) => (instrumentId = id)}
                 />
                 {#if format === 'adi'}
-                    <label for="imp-encoding" class="text-xs text-muted"
+                    <label for="imp-encoding" class="text-2xs text-muted"
                         >{m.transfer_encoding()}</label
                     >
                     <select
@@ -195,7 +196,7 @@
                             <option {value}>{name}</option>
                         {/each}
                     </select>
-                    <label for="imp-len" class="text-xs text-muted">{m.transfer_lengths()}</label>
+                    <label for="imp-len" class="text-2xs text-muted">{m.transfer_lengths()}</label>
                     <select id="imp-len" class="control h-10" bind:value={importLength}>
                         <option value="auto">{m.transfer_length_auto()}</option>
                         {#each lengths as l (l.value)}
@@ -216,7 +217,7 @@
                 {@const report = importer.report}
                 {@const imported = importer.applied}
                 <div class="flex items-center gap-2">
-                    <span class="text-xs text-muted"
+                    <span class="text-2xs text-muted"
                         >{imported ? m.transfer_imported_label() : m.transfer_preview_note()} · {readingNote(
                             report
                         )}</span
@@ -305,7 +306,7 @@
                     onapply={importFile}
                 />
             {:else if importer.previewing}
-                <span class="text-xs text-muted">{m.transfer_reading_file()}</span>
+                <span class="text-2xs text-muted">{m.transfer_reading_file()}</span>
             {/if}
         </section>
 
@@ -319,7 +320,7 @@
                 aria-label={m.transfer_export()}
                 class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
             >
-                <h2 class="text-[15px] font-semibold">{m.transfer_export()}</h2>
+                <h2 class="text-base font-semibold">{m.transfer_export()}</h2>
                 <Segmented
                     label={m.transfer_kind()}
                     options={[
@@ -342,7 +343,8 @@
                     onexport={runExport}
                 >
                     {#if kind === 'pota'}
-                        <label for="exp-park" class="text-xs text-muted">{m.transfer_park()}</label>
+                        <label for="exp-park" class="text-2xs text-muted">{m.transfer_park()}</label
+                        >
                         <input
                             id="exp-park"
                             class="control h-10 font-mono uppercase"
@@ -352,7 +354,7 @@
                             bind:value={park}
                         />
                     {/if}
-                    <label for="exp-encoding" class="text-xs text-muted"
+                    <label for="exp-encoding" class="text-2xs text-muted"
                         >{m.transfer_encoding()}</label
                     >
                     <select id="exp-encoding" class="control h-10" bind:value={exportEncoding}>
@@ -361,7 +363,7 @@
                         {/each}
                     </select>
                     {#if exportEncoding === 'utf-8'}
-                        <label for="exp-len" class="text-xs text-muted"
+                        <label for="exp-len" class="text-2xs text-muted"
                             >{m.transfer_lengths()}</label
                         >
                         <select id="exp-len" class="control h-10" bind:value={exportLength}>
@@ -370,7 +372,7 @@
                             {/each}
                         </select>
                     {:else}
-                        <label for="exp-unencodable" class="text-xs text-muted"
+                        <label for="exp-unencodable" class="text-2xs text-muted"
                             >{m.transfer_unencodable()}</label
                         >
                         <select

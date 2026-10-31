@@ -21,7 +21,7 @@
         <span class="font-semibold">{m.admin_users_link_shown_once({ callsign })}</span>
         <div class="flex flex-wrap items-center gap-2">
             <code
-                class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-[13px] break-all text-text select-all"
+                class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-sm break-all text-text select-all"
                 >{url}</code
             >
             <Button size="sm" onclick={copy}>{m.common_copy()}</Button>

@@ -19,7 +19,7 @@
     <div
         role="status"
         class={[
-            'flex flex-none items-center gap-2 rounded-lg border px-2.5 py-1 text-[12px]',
+            'flex flex-none items-center gap-2 rounded-lg border px-2.5 py-1 text-xs',
             warning ? 'border-warn-border bg-warn-surface' : 'border-border bg-surface'
         ]}
     >

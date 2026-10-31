@@ -45,7 +45,7 @@
     {#if unsent.length > 0}
         <section
             aria-label={m.latest_unsent_label()}
-            class="flex flex-col gap-2 rounded-lg border border-warn-border bg-warn-surface px-4 py-3 text-[13px]"
+            class="flex flex-col gap-2 rounded-lg border border-warn-border bg-warn-surface px-4 py-3 text-sm"
         >
             <div class="flex items-center gap-3">
                 <Icon name="offline" size={16} class="text-warn" />
@@ -64,7 +64,7 @@
                 >
             </div>
             {#each unsent.filter((i) => i.error) as item (item.id)}
-                <div class="flex items-center gap-2 text-xs">
+                <div class="flex items-center gap-2 text-2xs">
                     <span class="font-mono font-semibold">{item.fields.CALL}</span>
                     <span class="flex-1 text-muted">{item.error}</span>
                     <button
@@ -80,13 +80,13 @@
         <h2 class="eyebrow">{m.latest_title()}</h2>
         <a
             href={`/logbooks/${logbookId}?q=${encodeURIComponent(`station:"${stationName}"`)}`}
-            class="text-[13px] no-underline">{m.latest_open_in_log()}</a
+            class="text-sm no-underline">{m.latest_open_in_log()}</a
         >
     </div>
     <div class="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table class="w-full border-collapse text-[13px]">
+        <table class="w-full border-collapse text-sm">
             <thead>
-                <tr class="text-left text-xs text-muted compact:[&>th]:px-2 compact:[&>th]:py-1">
+                <tr class="text-left text-2xs text-muted compact:[&>th]:px-2 compact:[&>th]:py-1">
                     {#each headers as c (c.h)}
                         <th
                             scope="col"
@@ -116,7 +116,7 @@
                             ><span class="text-muted">{isoDate(f.QSO_DATE).slice(5)}</span>
                             {hhmm(f.TIME_ON)}</td
                         >
-                        <td class="font-mono text-sm font-semibold">{f.CALL}</td>
+                        <td class="font-mono text-base font-semibold">{f.CALL}</td>
                         <td class="font-mono whitespace-nowrap max-md:hidden"
                             >{f.BAND}
                             {f.MODE} <span class="text-muted">{f.SUBMODE ?? ''}</span></td

@@ -125,7 +125,7 @@
                 </SettingsField>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-3">
-                <span class="mr-auto text-xs text-muted">{m.settings_members_must_exist()}</span>
+                <span class="mr-auto text-2xs text-muted">{m.settings_members_must_exist()}</span>
                 <Button type="submit" variant="primary" disabled={adding || callsign.trim() === ''}
                     >{m.settings_members_add()}</Button
                 >
@@ -143,7 +143,7 @@
                 <span class={['font-mono font-semibold', member.disabled && 'text-muted']}
                     >{member.callsign}</span
                 >
-                <span class="min-w-0 flex-1 text-xs text-muted">{note(member)}</span>
+                <span class="min-w-0 flex-1 text-2xs text-muted">{note(member)}</span>
                 {#if canEdit}
                     <label for={`role-${member.user_id}`} class="sr-only"
                         >{m.settings_members_role_of({ callsign: member.callsign })}</label
@@ -168,7 +168,7 @@
                         }}>{m.common_remove()}</Button
                     >
                 {:else}
-                    <span class="text-[13px]">{roleLabel(member.role)}</span>
+                    <span class="text-sm">{roleLabel(member.role)}</span>
                 {/if}
             </div>
         {:else}

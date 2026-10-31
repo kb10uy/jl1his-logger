@@ -9,10 +9,10 @@
 </script>
 
 <div class="flex min-w-0 flex-col gap-0.5 rounded-md bg-bg px-3 py-2.5">
-    <span class="truncate text-xs text-muted">{label}</span>
+    <span class="truncate text-2xs text-muted">{label}</span>
     <span
         class={[
-            'font-mono text-lg',
+            'font-mono text-md',
             tone === 'ok' && 'text-ok',
             tone === 'warn' && 'text-warn',
             tone === 'error' && 'text-error-text'

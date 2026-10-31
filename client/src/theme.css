@@ -84,6 +84,27 @@
     --font-mono--font-feature-settings: 'cv01' 2;
 }
 
+@theme {
+    --spacing: 4px;
+    --text-*: initial;
+    --text-2xs: 11px;
+    --text-2xs--line-height: 16px;
+    --text-xs: 12px;
+    --text-xs--line-height: 16px;
+    --text-sm: 13px;
+    --text-sm--line-height: 20px;
+    --text-base: 14px;
+    --text-base--line-height: 20px;
+    --text-md: 16px;
+    --text-md--line-height: 24px;
+    --text-lg: 18px;
+    --text-lg--line-height: 24px;
+    --text-xl: 20px;
+    --text-xl--line-height: 28px;
+    --text-2xl: 28px;
+    --text-2xl--line-height: 32px;
+}
+
 @layer base {
     html,
     body {
@@ -119,11 +140,10 @@
 }
 
 @utility eyebrow {
-    font-size: 12px;
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
     font-weight: 500;
     color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
 }
 
 @utility control {

@@ -97,7 +97,7 @@
         <SettingsField label={m.settings_tokens_logbooks()}>
             <div class="flex flex-col gap-2 md:pt-2.5">
                 {#each session.logbooks as logbook (logbook.id)}
-                    <label class="flex cursor-pointer items-center gap-2 text-[13px]">
+                    <label class="flex cursor-pointer items-center gap-2 text-sm">
                         <input
                             type="checkbox"
                             name="tok-logbook"
@@ -105,7 +105,7 @@
                             onchange={(e) => toggle(logbook.id, e.currentTarget.checked)}
                         />
                         <span class="font-semibold">{logbook.name}</span>
-                        <span class="text-xs text-muted">{roleLabel(logbook.role)}</span>
+                        <span class="text-2xs text-muted">{roleLabel(logbook.role)}</span>
                     </label>
                 {/each}
             </div>
@@ -113,7 +113,7 @@
     </div>
     <div class="flex flex-wrap items-center justify-end gap-3">
         {#if problem && name !== ''}
-            <span class="mr-auto text-xs text-muted">{problem}</span>
+            <span class="mr-auto text-2xs text-muted">{problem}</span>
         {/if}
         <Button type="submit" variant="primary" disabled={problem !== undefined || issuing}
             >{issuing ? m.settings_tokens_issuing() : m.settings_tokens_issue()}</Button
@@ -125,7 +125,7 @@
                 <span class="font-semibold">{m.settings_tokens_shown_once()}</span>
                 <div class="flex flex-wrap items-center gap-2">
                     <code
-                        class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-[13px] break-all text-text select-all"
+                        class="min-w-0 flex-1 rounded bg-bg px-2 py-1.5 font-mono text-sm break-all text-text select-all"
                         >{plaintext}</code
                     >
                     <Button size="sm" onclick={copy}>{m.common_copy()}</Button>
@@ -136,9 +136,9 @@
 </SettingsSection>
 
 <SettingsSection title={m.settings_tokens_list_title()} padded={false}>
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="text-left text-xs text-muted">
+            <tr class="text-left text-2xs text-muted">
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                     >{m.settings_tokens_name()}</th
                 >

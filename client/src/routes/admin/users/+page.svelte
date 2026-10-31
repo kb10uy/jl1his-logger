@@ -93,9 +93,9 @@
 </SettingsSection>
 
 <SettingsSection title={m.admin_users_list_title()} padded={false}>
-    <table class="w-full border-collapse text-[13px]">
+    <table class="w-full border-collapse text-sm">
         <thead>
-            <tr class="text-left text-xs text-muted">
+            <tr class="text-left text-2xs text-muted">
                 <th scope="col" class="border-b border-border px-3 py-2 font-medium"
                     >{m.admin_users_callsign()}</th
                 >
@@ -122,7 +122,7 @@
                             ]}>{user.callsign}</a
                         >
                         {#if user.id === session.me?.id}
-                            <span class="ml-1 text-xs text-muted">{m.admin_users_you()}</span>
+                            <span class="ml-1 text-2xs text-muted">{m.admin_users_you()}</span>
                         {/if}
                     </td>
                     <td class="px-3 py-2.5">{roleLabel(user.role)}</td>
