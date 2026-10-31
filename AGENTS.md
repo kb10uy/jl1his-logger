@@ -171,7 +171,8 @@ shared crate.
   for menus and dialogs. `desktop/` imports the same `client/src/theme.css`,
   so its screens share the tokens, fonts and base styles.
 - `theme.css` sets the root font size to 14px but the spacing unit to 4px,
-  so Tailwind spacing is in pixels: `h-8` is 32px. Text sizes are the eight
+  so Tailwind spacing is in pixels: `h-8` is 32px, and radii are px tokens
+  (`rounded-md` is 6px, `rounded-lg` 8px). Text sizes are the eight
   steps defined there, `text-2xs` (11px) to `text-2xl` (28px); do not use
   `text-[Npx]` or other off-scale sizes. Weights stay at 400 to 600, and
   labels are not uppercased or tracked. Keep spacing on the 4px grid, with

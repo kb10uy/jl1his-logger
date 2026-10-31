@@ -169,7 +169,7 @@
                     onexport={create}
                 >
                     <label for="qsl-len" class="text-2xs text-muted">{m.transfer_lengths()}</label>
-                    <select id="qsl-len" class="control h-10" bind:value={exportLength}>
+                    <select id="qsl-len" class="control h-9" bind:value={exportLength}>
                         {#each lengths as l (l.value)}
                             <option value={l.value}>{l.label}</option>
                         {/each}

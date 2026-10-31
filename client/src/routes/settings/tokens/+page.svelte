@@ -88,7 +88,7 @@
         <SettingsField label={m.settings_tokens_name()} for="tok-name">
             <input
                 id="tok-name"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 placeholder={m.settings_tokens_name_placeholder()}
                 autocomplete="off"
                 bind:value={name}

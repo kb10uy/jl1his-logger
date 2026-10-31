@@ -45,14 +45,14 @@
             bind:value={contest.nextSerial}
         />
     </div>
-    <label class="flex h-9 cursor-pointer items-center gap-2 text-sm">
+    <label class="flex h-8 cursor-pointer items-center gap-2 text-sm">
         <input type="checkbox" class="size-4 accent-info" bind:checked={contest.includeRst} />
         {m.entry_rst_in_front()}
     </label>
     <div class="flex-1"></div>
     <div class="flex flex-col items-end gap-1">
         <span class="text-2xs text-muted">{m.entry_next_stx()}</span>
-        <strong class="flex h-9 items-center font-mono text-md font-semibold"
+        <strong class="flex h-8 items-center font-mono text-md font-semibold"
             >{(contest.includeRst ? rstSent : '') + sent || m.entry_nothing()}</strong
         >
     </div>

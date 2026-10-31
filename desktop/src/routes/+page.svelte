@@ -290,7 +290,7 @@
                     <span
                         title={rigTitle}
                         class={[
-                            'inline-flex h-5 min-w-0 shrink! items-center gap-1 overflow-hidden rounded-[4px] border px-1 font-mono text-2xs leading-none',
+                            'inline-flex h-5 min-w-0 shrink! items-center gap-1 overflow-hidden rounded-sm border px-1 font-mono text-2xs leading-none',
                             rigFit === 'kept' && 'border-border text-muted',
                             rigFit === 'followed' && 'border-info-strong bg-selected text-info',
                             rigFit === 'mismatch' && 'border-warn bg-warn-bg text-warn'

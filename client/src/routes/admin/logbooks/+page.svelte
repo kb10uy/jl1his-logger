@@ -93,7 +93,7 @@
         <SettingsField label={m.admin_logbooks_name()} for="lb-name">
             <input
                 id="lb-name"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 placeholder={m.admin_logbooks_name_placeholder()}
                 autocomplete="off"
                 bind:value={name}
@@ -106,7 +106,7 @@
         >
             <input
                 id="lb-owner"
-                class="control h-10 w-full font-mono uppercase md:w-60"
+                class="control h-9 w-full font-mono uppercase md:w-60"
                 placeholder="JA1ABC"
                 autocomplete="off"
                 spellcheck="false"
@@ -179,7 +179,7 @@
     <p class="text-sm text-muted">{m.admin_logbooks_rescue_hint()}</p>
     <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[160px_minmax(0,1fr)]">
         <SettingsField label={m.admin_logbooks_rescue_logbook()} for="rescue-logbook">
-            <select id="rescue-logbook" class="control h-10 w-full md:w-60" bind:value={rescueId}>
+            <select id="rescue-logbook" class="control h-9 w-full md:w-60" bind:value={rescueId}>
                 <option value=""></option>
                 {#each logbooks ?? [] as logbook (logbook.id)}
                     <option value={logbook.id}>{logbook.name}</option>
@@ -189,7 +189,7 @@
         <SettingsField label={m.admin_logbooks_rescue_callsign()} for="rescue-callsign">
             <input
                 id="rescue-callsign"
-                class="control h-10 w-full font-mono uppercase md:w-60"
+                class="control h-9 w-full font-mono uppercase md:w-60"
                 placeholder="JA1ABC"
                 autocomplete="off"
                 spellcheck="false"
@@ -199,7 +199,7 @@
         <SettingsField label={m.admin_logbooks_rescue_reason()} for="rescue-reason">
             <input
                 id="rescue-reason"
-                class="control h-10 w-full"
+                class="control h-9 w-full"
                 placeholder={m.admin_logbooks_rescue_reason_placeholder()}
                 autocomplete="off"
                 bind:value={reason}

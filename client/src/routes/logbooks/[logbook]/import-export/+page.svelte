@@ -165,7 +165,7 @@
                 <label for="imp-station" class="text-2xs text-muted">{m.field_station()}</label>
                 <StationSelect
                     id="imp-station"
-                    class="h-10"
+                    class="h-9"
                     value={station}
                     stations={logbook.activeStations}
                     onchange={(id) => (stationId = id)}
@@ -175,7 +175,7 @@
                 >
                 <InstrumentSelect
                     id="imp-instrument"
-                    class="h-10"
+                    class="h-9"
                     value={instrument}
                     instruments={logbook.activeInstruments}
                     onchange={(id) => (instrumentId = id)}
@@ -186,7 +186,7 @@
                     >
                     <select
                         id="imp-encoding"
-                        class="control h-10"
+                        class="control h-9"
                         value={importEncoding}
                         onchange={(e) =>
                             (importEncoding = e.currentTarget.value as Encoding | 'auto')}
@@ -197,7 +197,7 @@
                         {/each}
                     </select>
                     <label for="imp-len" class="text-2xs text-muted">{m.transfer_lengths()}</label>
-                    <select id="imp-len" class="control h-10" bind:value={importLength}>
+                    <select id="imp-len" class="control h-9" bind:value={importLength}>
                         <option value="auto">{m.transfer_length_auto()}</option>
                         {#each lengths as l (l.value)}
                             <option value={l.value}>{l.label}</option>
@@ -347,7 +347,7 @@
                         >
                         <input
                             id="exp-park"
-                            class="control h-10 font-mono uppercase"
+                            class="control h-9 font-mono uppercase"
                             placeholder={m.transfer_park_every()}
                             spellcheck="false"
                             autocomplete="off"
@@ -357,7 +357,7 @@
                     <label for="exp-encoding" class="text-2xs text-muted"
                         >{m.transfer_encoding()}</label
                     >
-                    <select id="exp-encoding" class="control h-10" bind:value={exportEncoding}>
+                    <select id="exp-encoding" class="control h-9" bind:value={exportEncoding}>
                         {#each encodings as [value, name] (value)}
                             <option {value}>{name}</option>
                         {/each}
@@ -366,7 +366,7 @@
                         <label for="exp-len" class="text-2xs text-muted"
                             >{m.transfer_lengths()}</label
                         >
-                        <select id="exp-len" class="control h-10" bind:value={exportLength}>
+                        <select id="exp-len" class="control h-9" bind:value={exportLength}>
                             {#each lengths as l (l.value)}
                                 <option value={l.value}>{l.label}</option>
                             {/each}
@@ -377,7 +377,7 @@
                         >
                         <select
                             id="exp-unencodable"
-                            class="control h-10"
+                            class="control h-9"
                             bind:value={exportUnencodable}
                         >
                             {#each unencodables as u (u.value)}

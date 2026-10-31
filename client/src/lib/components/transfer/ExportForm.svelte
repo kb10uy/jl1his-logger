@@ -35,7 +35,7 @@
     <label for={id} class="text-2xs text-muted">{m.transfer_query()}</label>
     <input
         {id}
-        class="control h-10 font-mono"
+        class="control h-9 font-mono"
         {placeholder}
         spellcheck="false"
         autocomplete="off"

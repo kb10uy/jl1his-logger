@@ -101,7 +101,7 @@
         aria-expanded={open}
         aria-controls="frequency-favorites"
         class={[
-            'inline-flex h-[32px] w-[40px] items-center justify-center gap-0.5 rounded-[6px] border',
+            'inline-flex h-[32px] w-[40px] items-center justify-center gap-0.5 rounded-md border',
             open ? 'border-muted bg-surface-2' : 'border-border bg-bg',
             saved ? 'text-warn' : 'text-muted'
         ]}

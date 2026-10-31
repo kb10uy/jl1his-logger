@@ -35,7 +35,7 @@
     {/if}
     <div class="flex-1"></div>
     {#if done !== undefined}
-        <span class="flex h-10 items-center rounded-md bg-ok-bg px-4 font-semibold text-ok"
+        <span class="flex h-9 items-center rounded-md bg-ok-bg px-4 font-semibold text-ok"
             >{done}</span
         >
     {:else}

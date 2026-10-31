@@ -223,7 +223,7 @@
             <Field label={m.field_call()} adif="CALL" for="e-call">
                 <input
                     id="e-call"
-                    class="control h-12 font-mono text-xl font-semibold tracking-wide uppercase"
+                    class="control h-11 font-mono text-xl font-semibold tracking-wide uppercase"
                     autocomplete="off"
                     spellcheck="false"
                     bind:value={draft.call}
@@ -239,7 +239,7 @@
                     <input
                         id="e-date"
                         type="date"
-                        class="control h-11 font-mono"
+                        class="control h-10 font-mono"
                         bind:value={draft.date}
                     />
                 </Field>
@@ -248,7 +248,7 @@
                         id="e-time"
                         type="time"
                         step="1"
-                        class="control h-11 font-mono"
+                        class="control h-10 font-mono"
                         bind:value={draft.time}
                     />
                 </Field>
@@ -259,19 +259,19 @@
                         id="e-freq"
                         inputmode="decimal"
                         placeholder={m.entry_optional()}
-                        class="control h-11 font-mono"
+                        class="control h-10 font-mono"
                         value={draft.freq}
                         oninput={(e) => onFreq(e.currentTarget.value)}
                     />
                 </Field>
                 <Field label={m.field_band()} adif="BAND" for="e-band">
-                    <BandSelect id="e-band" class="h-11" value={draft.band} onchange={onBand} />
+                    <BandSelect id="e-band" class="h-10" value={draft.band} onchange={onBand} />
                 </Field>
             </div>
             <Field label={m.entry_editor_mode_submode()} adif="MODE · SUBMODE" for="e-mode">
                 <ModeSelect
                     id="e-mode"
-                    class="h-11"
+                    class="h-10"
                     mode={draft.mode}
                     submode={draft.submode}
                     onchange={onMode}
@@ -279,18 +279,18 @@
             </Field>
             <div class="grid grid-cols-2 gap-3">
                 <Field label={m.field_rst_sent()} adif="RST_SENT" for="e-rsts">
-                    <input id="e-rsts" class="control h-11 font-mono" bind:value={draft.rstSent} />
+                    <input id="e-rsts" class="control h-10 font-mono" bind:value={draft.rstSent} />
                 </Field>
                 <Field label={m.field_rst_rcvd()} adif="RST_RCVD" for="e-rstr">
-                    <input id="e-rstr" class="control h-11 font-mono" bind:value={draft.rstRcvd} />
+                    <input id="e-rstr" class="control h-10 font-mono" bind:value={draft.rstRcvd} />
                 </Field>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <Field label={m.field_name()} adif="NAME" for="e-name">
-                    <input id="e-name" class="control h-11 text-base" bind:value={draft.name} />
+                    <input id="e-name" class="control h-10 text-base" bind:value={draft.name} />
                 </Field>
                 <Field label={m.field_qth()} adif="QTH" for="e-qth">
-                    <input id="e-qth" class="control h-11 text-base" bind:value={draft.qth} />
+                    <input id="e-qth" class="control h-10 text-base" bind:value={draft.qth} />
                 </Field>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -300,7 +300,7 @@
                             id="e-area"
                             autocomplete="off"
                             spellcheck="false"
-                            class="control h-11 font-mono"
+                            class="control h-10 font-mono"
                             bind:value={draft.area}
                         />
                     </Field>
@@ -309,7 +309,7 @@
                     <input
                         id="e-txpwr"
                         inputmode="decimal"
-                        class="control h-11 font-mono"
+                        class="control h-10 font-mono"
                         bind:value={draft.txPwr}
                     />
                 </Field>
@@ -333,7 +333,7 @@
                 <legend class="px-1.5 eyebrow">QSL</legend>
                 <div class="grid grid-cols-2 gap-3">
                     <Field label={m.entry_editor_qsl_sent()} adif="QSL_SENT" for="e-qsls">
-                        <select id="e-qsls" class="control h-11" bind:value={draft.qslSent}>
+                        <select id="e-qsls" class="control h-10" bind:value={draft.qslSent}>
                             <option value="">—</option>
                             {#each QSL_SENT_VALUES as [code, label] (code)}
                                 <option value={code}>{code} · {label()}</option>
@@ -341,7 +341,7 @@
                         </select>
                     </Field>
                     <Field label={m.entry_editor_qsl_rcvd()} adif="QSL_RCVD" for="e-qslr">
-                        <select id="e-qslr" class="control h-11" bind:value={draft.qslRcvd}>
+                        <select id="e-qslr" class="control h-10" bind:value={draft.qslRcvd}>
                             <option value="">—</option>
                             {#each QSL_RCVD_VALUES as [code, label] (code)}
                                 <option value={code}>{code} · {label()}</option>
@@ -351,7 +351,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <Field label={m.entry_editor_qsl_sent_via()} adif="QSL_SENT_VIA" for="e-via">
-                        <select id="e-via" class="control h-11" bind:value={draft.qslSentVia}>
+                        <select id="e-via" class="control h-10" bind:value={draft.qslSentVia}>
                             <option value="">—</option>
                             {#each QSL_VIA_VALUES as [code, label] (code)}
                                 <option value={code}>{code} · {label()}</option>
@@ -362,14 +362,14 @@
                         <input
                             id="e-qslsdate"
                             type="date"
-                            class="control h-11 font-mono"
+                            class="control h-10 font-mono"
                             bind:value={draft.qslSentDate}
                         />
                     </Field>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <Field label={m.entry_editor_qsl_rcvd_via()} adif="QSL_RCVD_VIA" for="e-rvia">
-                        <select id="e-rvia" class="control h-11" bind:value={draft.qslRcvdVia}>
+                        <select id="e-rvia" class="control h-10" bind:value={draft.qslRcvdVia}>
                             <option value="">—</option>
                             {#each QSL_VIA_VALUES as [code, label] (code)}
                                 <option value={code}>{code} · {label()}</option>
@@ -380,7 +380,7 @@
                         <input
                             id="e-qslrdate"
                             type="date"
-                            class="control h-11 font-mono"
+                            class="control h-10 font-mono"
                             bind:value={draft.qslRcvdDate}
                         />
                     </Field>
@@ -418,7 +418,7 @@
             <Field label={m.field_station()} for="e-station">
                 <StationSelect
                     id="e-station"
-                    class="h-11"
+                    class="h-10"
                     value={stationId}
                     {stations}
                     onchange={(id) => (stationId = id)}
@@ -428,7 +428,7 @@
             <Field label={m.field_instrument()} for="e-instrument">
                 <InstrumentSelect
                     id="e-instrument"
-                    class="h-11"
+                    class="h-10"
                     value={instrumentId}
                     {instruments}
                     onchange={(id) => (instrumentId = id)}
@@ -451,13 +451,13 @@
                             autocomplete="off"
                             autocapitalize="characters"
                             spellcheck="false"
-                            class="control h-10 w-full px-2 font-mono text-2xs uppercase"
+                            class="control h-9 w-full px-2 font-mono text-2xs uppercase"
                             bind:value={extra.name}
                         />
                         <label for={`e-extra-value-${i}`} class="sr-only">{m.entry_value()}</label>
                         <input
                             id={`e-extra-value-${i}`}
-                            class="control h-10"
+                            class="control h-9"
                             bind:value={extra.value}
                         />
                         <button
@@ -490,7 +490,7 @@
             {#if qso.deleted_at === null}
                 <button
                     type="button"
-                    class="h-11 rounded-lg border border-error bg-transparent font-medium text-error"
+                    class="h-10 rounded-lg border border-error bg-transparent font-medium text-error"
                     onclick={() => (confirmDelete = true)}>{m.entry_editor_delete_qso()}</button
                 >
             {/if}

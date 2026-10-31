@@ -92,7 +92,7 @@
         <div
             class={[
                 'flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2.5',
-                compact ? 'h-11 rounded-lg bg-bg' : 'h-10 bg-surface',
+                compact ? 'h-10 rounded-lg bg-bg' : 'h-9 bg-surface',
                 invalid || serverError ? 'border-error' : 'border-border'
             ]}
         >
@@ -126,7 +126,7 @@
                 type="button"
                 aria-pressed={showHelp}
                 class={[
-                    'h-10 rounded-md border border-border px-3',
+                    'h-9 rounded-md border border-border px-3',
                     showHelp ? 'bg-surface-2' : 'bg-surface'
                 ]}
                 onclick={() => (showHelp = !showHelp)}>{m.log_syntax()}</button

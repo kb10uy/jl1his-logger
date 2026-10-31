@@ -54,7 +54,7 @@
             aria-autocomplete="list"
             aria-activedescendant={open ? `${id}-option-${active}` : undefined}
             placeholder={m.stations_dxcc_placeholder()}
-            class="control h-10 w-full font-mono"
+            class="control h-9 w-full font-mono"
             autocomplete="off"
             spellcheck="false"
             value={query ?? value}

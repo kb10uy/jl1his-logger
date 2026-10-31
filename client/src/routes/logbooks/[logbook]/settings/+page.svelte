@@ -82,7 +82,7 @@
                 <input
                     id="logbook-name"
                     autocomplete="off"
-                    class="control h-10 w-full md:w-80"
+                    class="control h-9 w-full md:w-80"
                     bind:value={name}
                 />
             </SettingsField>
@@ -114,7 +114,7 @@
                     autocomplete="off"
                     autocapitalize="characters"
                     spellcheck="false"
-                    class="control h-10 w-full font-mono uppercase md:w-60"
+                    class="control h-9 w-full font-mono uppercase md:w-60"
                     bind:value={draft.name}
                 />
             </SettingsField>
@@ -123,7 +123,7 @@
                     id="area-label"
                     placeholder={m.settings_area_label_placeholder()}
                     autocomplete="off"
-                    class="control h-10 w-full md:w-60"
+                    class="control h-9 w-full md:w-60"
                     bind:value={draft.label}
                 />
             </SettingsField>

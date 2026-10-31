@@ -43,12 +43,23 @@
     --sans: 'M PLUS 2 Variable', system-ui, sans-serif;
 }
 
+:root {
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%231f2328' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+        --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23e6edf3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    }
+}
+
 :root[data-theme='light'] {
     color-scheme: light;
 }
 
 :root[data-theme='dark'] {
     color-scheme: dark;
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23e6edf3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
 }
 
 @theme inline {
@@ -86,6 +97,12 @@
 
 @theme {
     --spacing: 4px;
+    --radius: 4px;
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
     --text-*: initial;
     --text-2xs: 11px;
     --text-2xs--line-height: 16px;
@@ -148,10 +165,19 @@
 
 @utility control {
     min-width: 0;
-    height: 36px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     background: var(--bg);
     color: var(--text);
+
+    &:where(select) {
+        appearance: none;
+        padding-inline-end: 28px;
+        background-image: var(--select-arrow);
+        background-position: right 8px center;
+        background-repeat: no-repeat;
+        background-size: 16px;
+    }
 }

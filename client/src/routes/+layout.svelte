@@ -43,7 +43,7 @@
         <p class="text-error-text">{session.error}</p>
         <button
             type="button"
-            class="h-9 rounded-md border border-border bg-surface-2 px-3.5"
+            class="h-8 rounded-md border border-border bg-surface-2 px-3.5"
             onclick={() => session.load()}>{m.common_try_again()}</button
         >
     </main>

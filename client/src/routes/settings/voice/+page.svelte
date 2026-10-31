@@ -23,7 +23,7 @@
         >
             <select
                 id="voice-language"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 value={language}
                 onchange={(e) => setLanguage(e.currentTarget.value as SpeechLanguage)}
             >

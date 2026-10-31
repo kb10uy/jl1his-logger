@@ -252,13 +252,13 @@
                             id="freq"
                             inputmode="decimal"
                             placeholder={m.entry_optional()}
-                            class="control h-11 w-full rounded-lg px-3 text-right font-mono text-md md:w-[140px]"
+                            class="control h-10 w-full rounded-lg px-2.5 text-right font-mono text-md md:w-[140px]"
                             value={entry.freq}
                             oninput={(e) => setFreq(e.currentTarget.value)}
                         />
                         <span class="mr-2 text-2xs text-muted max-md:hidden">MHz</span>
                         <BandSelect
-                            class="h-11 rounded-lg text-base md:min-w-[168px] md:flex-1"
+                            class="h-10 rounded-lg text-base md:min-w-[168px] md:flex-1"
                             detailed
                             value={entry.band}
                             onchange={selectBand}
@@ -274,12 +274,12 @@
                     <div class="flex min-w-0 gap-2">
                         <ModeSelect
                             id="mode"
-                            class="h-11 flex-1 rounded-lg text-base"
+                            class="h-10 flex-1 rounded-lg text-base"
                             mode={entry.mode}
                             submode={entry.submode}
                             onchange={setMode}
                         />
-                        <FrequencyFavorites tuning={entry} onselect={setFavorite} class="h-11" />
+                        <FrequencyFavorites tuning={entry} onselect={setFavorite} class="h-10" />
                     </div>
                 </div>
 
@@ -294,7 +294,7 @@
                         autocomplete="off"
                         autocapitalize="characters"
                         spellcheck="false"
-                        class="control h-14 rounded-lg border-2 border-accent px-3.5 font-mono text-2xl font-semibold tracking-wider uppercase outline-none"
+                        class="control h-13 rounded-lg border-2 border-accent px-3 font-mono text-2xl font-semibold tracking-wider uppercase outline-none"
                     />
                     {#if lookup && call.length >= 3}
                         <span class="max-md:hidden"></span>
@@ -332,7 +332,7 @@
                             <input
                                 id="rsts"
                                 inputmode="numeric"
-                                class="control h-11 w-full rounded-lg text-center font-mono text-lg md:w-24"
+                                class="control h-10 w-full rounded-lg text-center font-mono text-lg md:w-24"
                                 bind:value={entry.rstSent}
                             />
                         </div>
@@ -346,7 +346,7 @@
                             <input
                                 id="rstr"
                                 inputmode="numeric"
-                                class="control h-11 w-full rounded-lg text-center font-mono text-lg md:w-24"
+                                class="control h-10 w-full rounded-lg text-center font-mono text-lg md:w-24"
                                 bind:value={entry.rstRcvd}
                             />
                         </div>
@@ -362,7 +362,7 @@
                             <span class="text-2xs text-muted">{m.entry_sent_short()}</span>
                             <output
                                 aria-label={m.entry_sent_number()}
-                                class="inline-flex h-11 min-w-24 items-center rounded-lg border border-dashed border-border px-3 font-mono text-lg"
+                                class="inline-flex h-10 min-w-24 items-center rounded-lg border border-dashed border-border px-3 font-mono text-lg"
                                 >{sentShown}</output
                             >
                             <label for="srx" class="ml-2 text-2xs text-muted"
@@ -375,7 +375,7 @@
                                 spellcheck="false"
                                 placeholder="001"
                                 class={[
-                                    'control h-11 w-[140px] rounded-lg font-mono text-lg uppercase',
+                                    'control h-10 w-[140px] rounded-lg font-mono text-lg uppercase',
                                     entry.received.trim() === '' && 'border-2 border-info'
                                 ]}
                                 bind:value={entry.received}
@@ -394,7 +394,7 @@
                         <input
                             id="name"
                             placeholder={lookup?.previous.fields.NAME ?? m.entry_optional()}
-                            class="control h-11 rounded-lg px-3 text-base"
+                            class="control h-10 rounded-lg px-2.5 text-base"
                             bind:value={entry.name}
                         />
                     </div>
@@ -405,7 +405,7 @@
                         <input
                             id="qth"
                             placeholder={lookup?.previous.fields.QTH ?? m.entry_optional()}
-                            class="control h-11 rounded-lg px-3 text-base"
+                            class="control h-10 rounded-lg px-2.5 text-base"
                             bind:value={entry.qth}
                         />
                     </div>
@@ -425,7 +425,7 @@
                                         m.entry_optional()}
                                     autocomplete="off"
                                     spellcheck="false"
-                                    class="control h-11 w-full rounded-lg px-3 font-mono text-base md:w-40"
+                                    class="control h-10 w-full rounded-lg px-2.5 font-mono text-base md:w-40"
                                     bind:value={entry.area}
                                 />
                             </div>
@@ -436,7 +436,7 @@
                             >
                             <select
                                 id="qsl"
-                                class="control h-11 w-full rounded-lg text-base md:w-48"
+                                class="control h-10 w-full rounded-lg text-base md:w-48"
                                 bind:value={entry.qsl}
                             >
                                 {#each QSL_REQUESTS as [value, label] (value)}
@@ -454,7 +454,7 @@
                     <input
                         id="comment"
                         placeholder="P2P US-0001…"
-                        class="control h-11 rounded-lg px-3 text-base"
+                        class="control h-10 rounded-lg px-2.5 text-base"
                         bind:value={entry.comment}
                     />
                 </div>
@@ -481,7 +481,7 @@
                                 id="tx-pwr"
                                 inputmode="decimal"
                                 placeholder={instrumentPower}
-                                class="control h-10 rounded-lg px-3 font-mono"
+                                class="control h-9 rounded-lg px-2.5 font-mono"
                                 bind:value={entry.txPwr}
                             />
                         </div>
@@ -492,7 +492,7 @@
                             <input
                                 id="notes"
                                 placeholder={m.entry_optional()}
-                                class="control h-10 rounded-lg px-3"
+                                class="control h-9 rounded-lg px-2.5"
                                 bind:value={entry.notes}
                             />
                         </div>
@@ -510,7 +510,7 @@
                                     autocomplete="off"
                                     autocapitalize="characters"
                                     spellcheck="false"
-                                    class="control h-10 w-full rounded-lg px-2 font-mono text-2xs uppercase"
+                                    class="control h-9 w-full rounded-lg px-2 font-mono text-2xs uppercase"
                                     bind:value={extra.name}
                                 />
                                 <label for={`extra-value-${i}`} class="sr-only"
@@ -518,7 +518,7 @@
                                 >
                                 <input
                                     id={`extra-value-${i}`}
-                                    class="control h-10 rounded-lg px-3"
+                                    class="control h-9 rounded-lg px-2.5"
                                     bind:value={extra.value}
                                 />
                                 <button

@@ -521,7 +521,7 @@
                     role="toolbar"
                     aria-label={m.log_checked_qsos()}
                     class={[
-                        'absolute bottom-4 left-5 z-[4] flex flex-wrap items-center gap-2 rounded-[10px] border border-info-strong bg-selected px-2.5 py-2 text-sm shadow-lg shadow-shadow',
+                        'absolute bottom-4 left-5 z-[4] flex flex-wrap items-center gap-2 rounded-lg border border-info-strong bg-selected px-2.5 py-2 text-sm shadow-lg shadow-shadow',
                         showBulk || openQso ? 'right-[404px]' : 'right-6'
                     ]}
                 >

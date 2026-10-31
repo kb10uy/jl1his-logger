@@ -287,7 +287,7 @@
                                     )
                                 )}
                             iconOnly
-                            class="h-11"
+                            class="h-10"
                         />
                     </div>
                     <span class="text-2xs text-muted">{m.field_rst()}</span>
@@ -341,7 +341,7 @@
                                 placeholder={m.voice_command_placeholder()}
                                 autocomplete="off"
                                 spellcheck="false"
-                                class="control h-10 flex-1 font-mono"
+                                class="control h-9 flex-1 font-mono"
                                 bind:value={command}
                             />
                             <Button type="submit" size="lg">{m.common_apply()}</Button>

@@ -64,7 +64,7 @@
         >
             <input
                 id="user-call"
-                class="control h-10 w-full font-mono uppercase md:w-60"
+                class="control h-9 w-full font-mono uppercase md:w-60"
                 placeholder="JA1ABC"
                 autocomplete="off"
                 spellcheck="false"
@@ -76,7 +76,7 @@
             for="user-role"
             hint={m.admin_users_role_hint()}
         >
-            <select id="user-role" class="control h-10 w-full md:w-60" bind:value={role}>
+            <select id="user-role" class="control h-9 w-full md:w-60" bind:value={role}>
                 <option value="user">{roleLabel('user')}</option>
                 <option value="admin">{roleLabel('admin')}</option>
             </select>

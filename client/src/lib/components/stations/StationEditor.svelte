@@ -198,11 +198,11 @@
         class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[168px_minmax(0,1fr)]"
     >
         {@render labelFor('st-name', m.field_name())}
-        <input id="st-name" class="control h-10" autocomplete="off" bind:value={draft.name} />
+        <input id="st-name" class="control h-9" autocomplete="off" bind:value={draft.name} />
         {@render labelFor('st-call', m.stations_callsign(), 'STATION_CALLSIGN')}
         <input
             id="st-call"
-            class="control h-10 font-mono uppercase"
+            class="control h-9 font-mono uppercase"
             autocomplete="off"
             spellcheck="false"
             bind:value={draft.callsign}
@@ -214,7 +214,7 @@
         <DxccField id="st-MY_DXCC" bind:value={draft.main.MY_DXCC} />
         {@render labelFor('st-MY_STATE', m.stations_field_state(), 'MY_STATE')}
         {#if stateChoices}
-            <select id="st-MY_STATE" class="control h-10" bind:value={draft.main.MY_STATE}>
+            <select id="st-MY_STATE" class="control h-9" bind:value={draft.main.MY_STATE}>
                 <option value="">—</option>
                 {#each subdivisions as s (s.code)}
                     <option value={s.code}>{s.code} · {s.name}</option>
@@ -223,19 +223,19 @@
         {:else}
             <input
                 id="st-MY_STATE"
-                class="control h-10 font-mono"
+                class="control h-9 font-mono"
                 bind:value={draft.main.MY_STATE}
             />
         {/if}
         {@render labelFor('st-MY_CITY', m.stations_field_city(), 'MY_CITY')}
-        <input id="st-MY_CITY" class="control h-10" bind:value={draft.main.MY_CITY} />
+        <input id="st-MY_CITY" class="control h-9" bind:value={draft.main.MY_CITY} />
         {@render labelFor('st-MY_CNTY', countyLabel, 'MY_CNTY')}
-        <input id="st-MY_CNTY" class="control h-10 font-mono" bind:value={draft.main.MY_CNTY} />
+        <input id="st-MY_CNTY" class="control h-9 font-mono" bind:value={draft.main.MY_CNTY} />
         {@render labelFor('st-MY_GRIDSQUARE', m.stations_field_grid(), 'MY_GRIDSQUARE')}
         <div class="flex min-w-0 gap-2">
             <input
                 id="st-MY_GRIDSQUARE"
-                class="control h-10 flex-1 font-mono"
+                class="control h-9 flex-1 font-mono"
                 autocomplete="off"
                 spellcheck="false"
                 bind:value={draft.main.MY_GRIDSQUARE}
@@ -298,14 +298,14 @@
                     aria-label={m.stations_field_name()}
                     list="st-adif-fields"
                     placeholder="FIELD_NAME"
-                    class="control h-10 font-mono text-2xs uppercase"
+                    class="control h-9 font-mono text-2xs uppercase"
                     autocomplete="off"
                     spellcheck="false"
                     bind:value={field.name}
                 />
             {/if}
             <div class="flex min-w-0 items-center gap-2">
-                <input id={`st-extra-${i}`} class="control h-10 flex-1" bind:value={field.value} />
+                <input id={`st-extra-${i}`} class="control h-9 flex-1" bind:value={field.value} />
                 <button
                     type="button"
                     aria-label={field.name
@@ -324,7 +324,7 @@
                 <label for="st-add" class="sr-only">{m.stations_add_field()}</label>
                 <select
                     id="st-add"
-                    class="control h-10 w-full"
+                    class="control h-9 w-full"
                     value=""
                     onchange={(e) => {
                         addField(e.currentTarget.value);

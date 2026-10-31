@@ -12,7 +12,7 @@
             type="button"
             aria-pressed={value === option.value}
             class={[
-                'h-9 rounded-md border px-3.5 text-sm',
+                'h-8 rounded-md border px-3.5 text-sm',
                 value === option.value
                     ? 'border-accent bg-selected font-semibold text-accent'
                     : 'border-border bg-bg text-text'

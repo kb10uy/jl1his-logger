@@ -207,7 +207,7 @@
             <SettingsField label={m.admin_users_role()} for="user-role">
                 <select
                     id="user-role"
-                    class="control h-10 w-full md:w-60"
+                    class="control h-9 w-full md:w-60"
                     disabled={busy}
                     value={user.role}
                     onchange={(e) => setRole(e.currentTarget.value as AdminUser['role'])}

@@ -80,7 +80,7 @@
         <SettingsField label={m.settings_account_passkey_name()} for="pk-name">
             <input
                 id="pk-name"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 placeholder={m.settings_account_passkey_placeholder()}
                 autocomplete="off"
                 bind:value={name}

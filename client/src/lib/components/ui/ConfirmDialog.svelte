@@ -48,7 +48,7 @@
                         ></span
                     >
                     <input
-                        class="control h-10 font-mono"
+                        class="control h-9 font-mono"
                         autocomplete="off"
                         spellcheck="false"
                         bind:value={typed}
@@ -57,13 +57,13 @@
             {/if}
             <div class="mt-2 flex justify-end gap-2">
                 <AlertDialog.Cancel
-                    class="h-9 rounded-md border border-border bg-transparent px-3.5 text-text"
+                    class="h-8 rounded-md border border-border bg-transparent px-3.5 text-text"
                     >{m.common_cancel()}</AlertDialog.Cancel
                 >
                 <AlertDialog.Action
                     disabled={!ready}
                     class={[
-                        'h-9 rounded-md px-3.5 font-semibold disabled:opacity-50',
+                        'h-8 rounded-md px-3.5 font-semibold disabled:opacity-50',
                         danger ? 'border border-error text-error' : 'bg-accent text-accent-text'
                     ]}
                     onclick={() => {

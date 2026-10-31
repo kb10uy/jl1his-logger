@@ -87,7 +87,7 @@
             <input
                 id="rw-from"
                 type="date"
-                class="control h-10 font-mono"
+                class="control h-9 font-mono"
                 bind:value={from}
                 onchange={resetPreview}
             />
@@ -97,7 +97,7 @@
             <input
                 id="rw-until"
                 type="date"
-                class="control h-10 font-mono"
+                class="control h-9 font-mono"
                 bind:value={until}
                 onchange={resetPreview}
             />

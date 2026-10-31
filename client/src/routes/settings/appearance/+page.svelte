@@ -18,7 +18,7 @@
         <SettingsField label={m.theme_label()} for="theme">
             <select
                 id="theme"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 value={storedTheme() ?? ''}
                 onchange={(e) => chooseTheme(asTheme(e.currentTarget.value))}
             >
@@ -31,7 +31,7 @@
         <SettingsField label={m.density_label()} for="density" hint={m.density_hint()}>
             <select
                 id="density"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 value={storedCompact() ? 'compact' : ''}
                 onchange={(e) => chooseCompact(e.currentTarget.value === 'compact')}
             >
@@ -42,7 +42,7 @@
         <SettingsField label={m.language_label()} for="display-language" hint={m.language_hint()}>
             <select
                 id="display-language"
-                class="control h-10 w-full md:w-60"
+                class="control h-9 w-full md:w-60"
                 value={chosen ?? ''}
                 onchange={(e) => {
                     const value = e.currentTarget.value;

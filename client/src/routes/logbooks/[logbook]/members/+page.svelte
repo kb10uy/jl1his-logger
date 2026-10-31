@@ -110,7 +110,7 @@
                 <SettingsField label={m.settings_members_callsign()} for="mem-call">
                     <input
                         id="mem-call"
-                        class="control h-10 w-full font-mono uppercase md:w-60"
+                        class="control h-9 w-full font-mono uppercase md:w-60"
                         placeholder="JA1ABC"
                         autocomplete="off"
                         spellcheck="false"
@@ -118,7 +118,7 @@
                     />
                 </SettingsField>
                 <SettingsField label={m.settings_members_role()} for="mem-role">
-                    <select id="mem-role" class="control h-10 w-full md:w-60" bind:value={role}>
+                    <select id="mem-role" class="control h-9 w-full md:w-60" bind:value={role}>
                         <option value="operator">{roleLabel('operator')}</option>
                         <option value="owner">{roleLabel('owner')}</option>
                     </select>
@@ -150,7 +150,7 @@
                     >
                     <select
                         id={`role-${member.user_id}`}
-                        class="control h-9"
+                        class="control h-8"
                         disabled={locked(member)}
                         value={member.role}
                         onchange={(e) => setRole(member, e.currentTarget.value as LogbookRole)}

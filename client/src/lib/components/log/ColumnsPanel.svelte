@@ -53,7 +53,7 @@
 
 <Popover.Root>
     <Popover.Trigger
-        class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text"
+        class="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text"
     >
         <Icon name="columns" size={16} />{m.log_columns()}
     </Popover.Trigger>
@@ -168,13 +168,13 @@
                         autocapitalize="characters"
                         spellcheck="false"
                         aria-invalid={problem !== undefined}
-                        class="control h-9 min-w-0 flex-1 rounded-md px-2 font-mono text-2xs uppercase"
+                        class="control h-8 min-w-0 flex-1 rounded-md px-2 font-mono text-2xs uppercase"
                         bind:value={field}
                         oninput={() => (problem = undefined)}
                     />
                     <button
                         type="submit"
-                        class="h-9 rounded-md border border-border bg-surface-2 px-3 font-medium"
+                        class="h-8 rounded-md border border-border bg-surface-2 px-3 font-medium"
                         >{m.common_add()}</button
                     >
                 </div>

@@ -133,7 +133,7 @@
                         autocomplete="off"
                         autocapitalize="characters"
                         spellcheck="false"
-                        class="control h-9 min-w-0 flex-1 font-mono text-2xs uppercase"
+                        class="control h-8 min-w-0 flex-1 font-mono text-2xs uppercase"
                         value={edit.name}
                         oninput={(e) => rename(edit, e.currentTarget.value)}
                     />
@@ -150,7 +150,7 @@
                         <select
                             aria-label={m.log_bulk_field_value({ name })}
                             disabled={edit.clear}
-                            class="control h-9 min-w-0 flex-1 disabled:opacity-50"
+                            class="control h-8 min-w-0 flex-1 disabled:opacity-50"
                             bind:value={edit.value}
                         >
                             <option value="">{m.log_bulk_keep()}</option>
@@ -162,7 +162,7 @@
                         <input
                             aria-label={m.log_bulk_field_value({ name: name || 'FIELD_NAME' })}
                             disabled={edit.clear}
-                            class="control h-9 min-w-0 flex-1 disabled:opacity-50"
+                            class="control h-8 min-w-0 flex-1 disabled:opacity-50"
                             bind:value={edit.value}
                         />
                     {/if}
@@ -186,7 +186,7 @@
         {/each}
         <button
             type="button"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-sm text-muted hover:text-text"
+            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-sm text-muted hover:text-text"
             onclick={() => edits.push(blank())}
         >
             <Icon name="plus" size={14} />
@@ -211,13 +211,13 @@
     </div>
 
     <div class="flex gap-2">
-        <button type="button" class="h-10 rounded-md border border-border px-3.5" onclick={reset}
+        <button type="button" class="h-9 rounded-md border border-border px-3.5" onclick={reset}
             >{m.log_reset()}</button
         >
         <button
             type="button"
             disabled={isEmpty(change) || blocked || busy}
-            class="h-10 flex-1 rounded-md font-semibold enabled:bg-accent enabled:text-accent-text disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted"
+            class="h-9 flex-1 rounded-md font-semibold enabled:bg-accent enabled:text-accent-text disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted"
             onclick={() => {
                 onapply(change);
                 reset();

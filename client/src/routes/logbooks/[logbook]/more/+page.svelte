@@ -49,7 +49,7 @@
             <label for="more-logbook" class="text-2xs text-muted">{m.more_logbook()}</label>
             <select
                 id="more-logbook"
-                class="control h-11 bg-bg"
+                class="control h-10 bg-bg"
                 value={logbook.logbook.id}
                 onchange={(e) => goto(`/logbooks/${e.currentTarget.value}/more`)}
             >
@@ -103,7 +103,7 @@
     </div>
     <button
         type="button"
-        class="h-11 rounded-lg border border-border bg-surface-2 font-medium"
+        class="h-10 rounded-lg border border-border bg-surface-2 font-medium"
         onclick={signOut}>{m.shell_sign_out()}</button
     >
 </main>
