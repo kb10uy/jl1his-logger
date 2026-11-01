@@ -27,7 +27,7 @@
     {/each}
 {/snippet}
 
-<header class="flex h-8 flex-none items-center gap-1.5">
+<header class="flex h-8 flex-none items-center gap-1.5 whitespace-nowrap">
     <label for="station" class="text-2xs text-muted">{m.entry_station()}</label>
     {#if desk.groups.length === 0}
         <span class="text-xs text-warn">{m.entry_no_station()}</span>

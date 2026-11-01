@@ -8,7 +8,7 @@
 <div
     role="group"
     aria-label={m.entry_contest()}
-    class="flex flex-none items-center gap-2 rounded-md border border-info-strong bg-selected px-2 py-1 text-2xs text-muted"
+    class="flex flex-none items-center gap-2 rounded-md border border-info-strong bg-selected px-2 py-1 text-2xs whitespace-nowrap text-muted"
 >
     <label for="contest-id">CONTEST_ID</label>
     <input

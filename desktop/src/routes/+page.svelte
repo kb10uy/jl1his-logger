@@ -266,14 +266,18 @@
                     oninput={(e) => (entry = withFreq(entry, e.currentTarget.value))}
                 />
                 <span class="font-mono text-2xs text-muted">MHz</span>
-                <label for="band" class="ml-1.5 text-2xs text-muted">{m.entry_band()}</label>
+                <label for="band" class="ml-1.5 text-2xs text-muted max-[720px]:sr-only"
+                    >{m.entry_band()}</label
+                >
                 <BandSelect
                     id="band"
                     class="w-[64px]"
                     value={entry.band}
                     onchange={(band) => (entry = withBand(entry, band))}
                 />
-                <label for="mode" class="ml-1.5 text-2xs text-muted">{m.entry_mode()}</label>
+                <label for="mode" class="ml-1.5 text-2xs text-muted max-[720px]:sr-only"
+                    >{m.entry_mode()}</label
+                >
                 <ModeSelect
                     id="mode"
                     class={['w-[96px]', rigFit === 'mismatch' && rigMode && 'border-warn!']}
@@ -312,11 +316,11 @@
                 {/if}
                 <div class="flex-1!"></div>
                 <div
-                    class="flex items-center gap-1.5 max-[760px]:flex-col max-[760px]:items-end max-[760px]:gap-0.5 max-[760px]:leading-none"
+                    class="flex items-center gap-1.5 max-[800px]:flex-col max-[800px]:items-end max-[800px]:gap-0.5 max-[800px]:leading-none"
                 >
-                    <span class="flex items-center gap-1.5 text-muted max-[760px]:gap-1">
-                        <span class="text-2xs max-[760px]:text-2xs">UTC</span>
-                        <span class="font-mono text-xs tabular max-[760px]:text-2xs"
+                    <span class="flex items-center gap-1.5 text-muted max-[800px]:gap-1">
+                        <span class="text-2xs">UTC</span>
+                        <span class="font-mono text-xs tabular max-[800px]:text-2xs"
                             >{clock.date}</span
                         >
                     </span>
