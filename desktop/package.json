@@ -1,7 +1,7 @@
 {
     "name": "jl1his-logger-desktop",
     "private": true,
-    "version": "0.7.0",
+    "version": "0.8.0",
     "type": "module",
     "packageManager": "pnpm@12.15.0",
     "scripts": {
@@ -19,9 +19,9 @@
     },
     "devDependencies": {
         "@inlang/paraglide-js": "^2.29.3",
-        "@inlang/plugin-message-format": "^4.5.5",
-        "@sveltejs/adapter-static": "^4.0.0",
-        "@sveltejs/kit": "^3.1.0",
+        "@inlang/plugin-message-format": "^4.5.6",
+        "@sveltejs/adapter-static": "^4.0.1",
+        "@sveltejs/kit": "^3.1.1",
         "@sveltejs/vite-plugin-svelte": "^7.3.1",
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/cli": "^2.12.4",
