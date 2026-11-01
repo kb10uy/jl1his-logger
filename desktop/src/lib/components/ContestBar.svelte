@@ -15,7 +15,7 @@
         id="contest-id"
         autocomplete="off"
         spellcheck="false"
-        class="field h-[28px] w-[120px] font-mono text-xs uppercase"
+        class="field h-7 w-[120px] font-mono text-xs uppercase"
         bind:value={contest.contestId}
     />
     <label for="contest-template" class="ml-1.5">{m.entry_contest_template()}</label>
@@ -24,7 +24,7 @@
         autocomplete="off"
         spellcheck="false"
         placeholder={'{serial}'}
-        class="field h-[28px] w-[100px] font-mono text-xs"
+        class="field h-7 w-[100px] font-mono text-xs"
         bind:value={contest.exchangeTemplate}
     />
     <label for="contest-next" class="ml-1.5">{m.entry_contest_next()}</label>
@@ -33,15 +33,11 @@
         type="number"
         min="1"
         step="1"
-        class="field h-[28px] w-[60px] px-1.5 text-right font-mono text-xs"
+        class="field h-7 w-[60px] px-1.5 text-right font-mono text-xs"
         bind:value={contest.nextSerial}
     />
     <label class="ml-1.5 flex items-center gap-1.5">
-        <input
-            type="checkbox"
-            class="m-0 size-[14px] accent-info"
-            bind:checked={contest.includeRst}
-        />
+        <input type="checkbox" class="m-0 size-3.5 accent-info" bind:checked={contest.includeRst} />
         {m.entry_rst_in_front()}
     </label>
 </div>

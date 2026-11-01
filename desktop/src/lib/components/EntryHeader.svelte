@@ -27,14 +27,14 @@
     {/each}
 {/snippet}
 
-<header class="flex h-[32px] flex-none items-center gap-1.5">
+<header class="flex h-8 flex-none items-center gap-1.5">
     <label for="station" class="text-2xs text-muted">{m.entry_station()}</label>
     {#if desk.groups.length === 0}
         <span class="text-xs text-warn">{m.entry_no_station()}</span>
     {:else}
         <select
             id="station"
-            class="field h-8 w-[250px] bg-surface px-1.5 text-xs"
+            class="field h-8 w-[250px] bg-surface text-xs"
             value={desk.stationId}
             onchange={(e) => (desk.settings.stationId = e.currentTarget.value)}
         >
@@ -64,7 +64,7 @@
     <label for="instrument" class="ml-2 text-2xs text-muted">{m.entry_instrument()}</label>
     <select
         id="instrument"
-        class="field h-8 w-[200px] bg-surface px-1.5 text-xs"
+        class="field h-8 w-[200px] bg-surface text-xs"
         value={desk.instrumentId}
         onchange={(e) => {
             desk.settings.instrumentId = e.currentTarget.value;

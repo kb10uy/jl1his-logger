@@ -101,7 +101,7 @@
         aria-expanded={open}
         aria-controls="frequency-favorites"
         class={[
-            'inline-flex h-[32px] w-[40px] items-center justify-center gap-0.5 rounded-md border',
+            'inline-flex h-8 w-10 items-center justify-center gap-0.5 rounded-md border',
             open ? 'border-muted bg-surface-2' : 'border-border bg-bg',
             saved ? 'text-warn' : 'text-muted'
         ]}
@@ -148,13 +148,13 @@
             aria-label={m.favorites_title()}
             class="absolute top-10 left-0 z-40 flex max-h-[420px] w-[300px] flex-col gap-px overflow-y-auto rounded-lg border border-border bg-surface p-1 text-xs whitespace-normal shadow-lg shadow-shadow"
         >
-            <h2 class="flex h-[24px] items-center px-2 text-2xs font-medium text-muted">
+            <h2 class="flex h-6 items-center px-2 text-2xs font-medium text-muted">
                 {m.favorites_title()}
             </h2>
             {#if savable}
                 <button
                     type="button"
-                    class="mb-1 flex h-[28px] items-center gap-2 rounded-md border border-dashed border-border bg-none px-2 text-left text-muted hover:bg-surface-2 hover:text-text"
+                    class="mb-1 flex h-7 items-center gap-2 rounded-md border border-dashed border-border bg-none px-2 text-left text-muted hover:bg-surface-2 hover:text-text"
                     onclick={save}
                 >
                     <svg
@@ -173,7 +173,7 @@
                     >
                 </button>
             {:else if saved}
-                <p class="mb-1 flex h-[24px] items-center gap-2 px-2 text-muted">
+                <p class="mb-1 flex h-6 items-center gap-2 px-2 text-muted">
                     <span class="font-mono text-text">{favoriteLabel(tuning)}</span>
                     {m.favorites_saved()}
                 </p>
@@ -189,7 +189,7 @@
                     <button
                         type="button"
                         aria-current={active ? 'true' : undefined}
-                        class="grid h-[28px] min-w-0 flex-1 grid-cols-[34px_64px_minmax(0,1fr)] items-center gap-2 bg-none px-2 text-left font-mono text-sm"
+                        class="grid h-7 min-w-0 flex-1 grid-cols-[34px_64px_minmax(0,1fr)] items-center gap-2 bg-none px-2 text-left font-mono text-sm"
                         onclick={() => select(favorite)}
                     >
                         <span class="text-2xs font-normal text-muted">{favoriteBand(favorite)}</span
@@ -201,7 +201,7 @@
                         type="button"
                         aria-label={m.favorites_remove({ favorite: favoriteLabel(favorite) })}
                         title={m.favorites_remove({ favorite: favoriteLabel(favorite) })}
-                        class="inline-flex size-[28px] shrink-0 items-center justify-center rounded-md bg-none text-muted hover:text-text"
+                        class="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-none text-muted hover:text-text"
                         onclick={() => remove(favorite)}
                         ><svg
                             aria-hidden="true"
@@ -218,14 +218,14 @@
             {/each}
             {#if removed}
                 {@const gone = removed}
-                <div role="status" class="flex h-[28px] items-center gap-2 px-2 text-muted">
+                <div role="status" class="flex h-7 items-center gap-2 px-2 text-muted">
                     <span class="flex-1"
                         >{m.favorites_removed()}
                         <span class="font-mono text-text">{favoriteLabel(gone)}</span></span
                     >
                     <button
                         type="button"
-                        class="h-[24px] rounded-md bg-none px-1.5 font-semibold text-info hover:bg-surface-2"
+                        class="h-6 rounded-md bg-none px-1.5 font-semibold text-info hover:bg-surface-2"
                         onclick={() => undo(gone)}>{m.favorites_undo()}</button
                     >
                 </div>
