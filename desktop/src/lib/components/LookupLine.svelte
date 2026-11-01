@@ -25,10 +25,7 @@
 <div
     role="status"
     aria-label={m.entry_lookup()}
-    class={[
-        '-mt-0.5 flex h-[20px] items-center gap-2 text-xs whitespace-nowrap',
-        !shown && 'invisible'
-    ]}
+    class={['-mt-0.5 flex h-5 items-center gap-2 text-xs whitespace-nowrap', !shown && 'invisible']}
 >
     {#if lookup}
         <span class="min-w-0 flex-[0_1_auto] truncate text-muted">{lookupLine(lookup)}</span>

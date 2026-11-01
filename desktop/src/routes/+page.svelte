@@ -242,7 +242,7 @@
 />
 
 <div class="flex h-dvh flex-col overflow-hidden text-sm" onfocusout={share}>
-    <div class="flex min-h-0 flex-1 flex-col gap-2 px-[12px] py-2">
+    <div class="flex min-h-0 flex-1 flex-col gap-2 px-3 py-2">
         <EntryHeader {desk} oninstrument={() => (entry.txPwr = '')} />
 
         {#if settings.contest.enabled}
@@ -251,11 +251,11 @@
 
         <form
             aria-label={m.entry_new_qso()}
-            class="flex flex-none flex-col gap-2 rounded-lg border border-accent bg-surface p-[10px]"
+            class="flex flex-none flex-col gap-2 rounded-lg border border-accent bg-surface p-2.5"
             onsubmit={log}
             bind:this={form}
         >
-            <div class="flex h-[32px] items-center gap-1.5 whitespace-nowrap [&>*]:flex-none">
+            <div class="flex h-8 items-center gap-1.5 whitespace-nowrap [&>*]:flex-none">
                 <label for="freq" class="text-2xs text-muted">{m.entry_freq()}</label>
                 <input
                     id="freq"
@@ -266,17 +266,21 @@
                     oninput={(e) => (entry = withFreq(entry, e.currentTarget.value))}
                 />
                 <span class="font-mono text-2xs text-muted">MHz</span>
-                <label for="band" class="ml-1.5 text-2xs text-muted">{m.entry_band()}</label>
+                <label for="band" class="ml-1.5 text-2xs text-muted max-[720px]:sr-only"
+                    >{m.entry_band()}</label
+                >
                 <BandSelect
                     id="band"
-                    class="w-[64px] px-1.5"
+                    class="w-[64px]"
                     value={entry.band}
                     onchange={(band) => (entry = withBand(entry, band))}
                 />
-                <label for="mode" class="ml-1.5 text-2xs text-muted">{m.entry_mode()}</label>
+                <label for="mode" class="ml-1.5 text-2xs text-muted max-[720px]:sr-only"
+                    >{m.entry_mode()}</label
+                >
                 <ModeSelect
                     id="mode"
-                    class={['w-[92px] px-1.5', rigFit === 'mismatch' && rigMode && 'border-warn!']}
+                    class={['w-[96px]', rigFit === 'mismatch' && rigMode && 'border-warn!']}
                     mode={entry.mode}
                     submode={entry.submode}
                     onchange={chooseMode}
@@ -312,11 +316,11 @@
                 {/if}
                 <div class="flex-1!"></div>
                 <div
-                    class="flex items-center gap-1.5 max-[760px]:flex-col max-[760px]:items-end max-[760px]:gap-0.5 max-[760px]:leading-none"
+                    class="flex items-center gap-1.5 max-[800px]:flex-col max-[800px]:items-end max-[800px]:gap-0.5 max-[800px]:leading-none"
                 >
-                    <span class="flex items-center gap-1.5 text-muted max-[760px]:gap-1">
-                        <span class="text-2xs max-[760px]:text-2xs">UTC</span>
-                        <span class="font-mono text-xs tabular max-[760px]:text-2xs"
+                    <span class="flex items-center gap-1.5 text-muted max-[800px]:gap-1">
+                        <span class="text-2xs">UTC</span>
+                        <span class="font-mono text-xs tabular max-[800px]:text-2xs"
                             >{clock.date}</span
                         >
                     </span>
@@ -329,7 +333,7 @@
                     title={m.entry_lock_title()}
                     aria-pressed={locked !== undefined}
                     class={[
-                        'h-[32px] rounded-md border px-2.5 text-xs',
+                        'h-8 rounded-md border px-2.5 text-xs',
                         locked
                             ? 'border-warn bg-warn-bg font-semibold text-warn'
                             : 'border-border bg-surface'
@@ -355,7 +359,7 @@
                         bind:value={entry.call}
                         autocomplete="off"
                         spellcheck="false"
-                        class="h-[40px] min-w-0 rounded-md border-2 border-accent bg-bg px-[10px] font-mono text-xl font-semibold tracking-[0.04em] uppercase outline-none"
+                        class="h-10 min-w-0 rounded-md border-2 border-accent bg-bg px-2.5 font-mono text-xl font-semibold tracking-[0.04em] uppercase outline-none"
                     />
                 </div>
                 <div class="flex flex-col gap-1">
@@ -364,7 +368,7 @@
                         id="rst-sent"
                         inputmode="numeric"
                         autocomplete="off"
-                        class="field h-[40px] px-0 text-center font-mono text-md"
+                        class="field h-10 px-0 text-center font-mono text-md"
                         bind:value={entry.rstSent}
                     />
                 </div>
@@ -374,7 +378,7 @@
                         id="rst-rcvd"
                         inputmode="numeric"
                         autocomplete="off"
-                        class="field h-[40px] px-0 text-center font-mono text-md"
+                        class="field h-10 px-0 text-center font-mono text-md"
                         bind:value={entry.rstRcvd}
                     />
                 </div>
@@ -383,7 +387,7 @@
                         <span class="text-2xs text-info">{m.entry_sent_number()}</span>
                         <output
                             aria-label={m.entry_sent_number_label()}
-                            class="flex h-[40px] items-center overflow-hidden rounded-md border border-dashed border-info-strong px-[10px] font-mono text-md whitespace-nowrap"
+                            class="flex h-10 items-center overflow-hidden rounded-md border border-dashed border-info-strong px-2.5 font-mono text-md whitespace-nowrap"
                             >{sentShown}</output
                         >
                     </div>
@@ -397,7 +401,7 @@
                             autocomplete="off"
                             spellcheck="false"
                             class={[
-                                'field h-[40px] px-[10px] font-mono text-md uppercase outline-none',
+                                'field h-10 px-2.5 font-mono text-md uppercase outline-none',
                                 entry.received.trim() === '' && 'border-2 border-info'
                             ]}
                             bind:value={entry.received}
@@ -464,7 +468,7 @@
                 </div>
                 <div class="flex flex-col gap-1">
                     <label for="qsl" class="text-2xs text-muted">{m.entry_qsl()}</label>
-                    <select id="qsl" class="field px-1.5" bind:value={entry.qsl}>
+                    <select id="qsl" class="field" bind:value={entry.qsl}>
                         {#each QSL_REQUESTS as [value, label] (value)}
                             <option {value}>{label()}</option>
                         {/each}
@@ -476,7 +480,7 @@
                         aria-expanded={extraOpen}
                         aria-controls="extra"
                         class={[
-                            'flex h-[32px] items-center gap-1 rounded-md px-2 text-xs',
+                            'flex h-8 items-center gap-1 rounded-md px-2 text-xs',
                             extraOpen ? 'bg-surface-2 text-text' : 'text-muted'
                         ]}
                         onclick={() => (extraOpen = !extraOpen)}
@@ -494,7 +498,7 @@
                     >
                     <button
                         type="button"
-                        class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-xs"
+                        class="h-8 rounded-md border border-border bg-surface-2 px-3 text-xs"
                         onclick={clear}
                         >{m.entry_clear()}
                         <kbd class="kbd text-muted">Esc</kbd></button
@@ -504,7 +508,7 @@
                         title={problem}
                         disabled={cantLog}
                         class={[
-                            'h-[32px] rounded-md px-4 text-sm font-semibold whitespace-nowrap',
+                            'h-8 rounded-md px-4 text-sm font-semibold whitespace-nowrap',
                             cantLog
                                 ? 'cursor-not-allowed bg-surface-2 text-muted'
                                 : 'bg-accent text-accent-text'

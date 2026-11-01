@@ -97,7 +97,7 @@
 />
 
 <div class="flex h-dvh flex-col text-sm">
-    <header class="flex h-[44px] flex-none items-center gap-2.5 border-b border-border px-[12px]">
+    <header class="flex h-11 flex-none items-center gap-2.5 border-b border-border px-3">
         <button
             type="button"
             class="flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs"
@@ -123,7 +123,7 @@
         {/if}
     </header>
 
-    <main class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-[12px]">
+    <main class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
         {#if settings.error}
             <p
                 role="alert"
@@ -136,7 +136,7 @@
         {#if current}
             <section
                 aria-labelledby="settings-rig"
-                class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
+                class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-3"
             >
                 <div class="flex items-center gap-2.5">
                     <h2 id="settings-rig" class="m-0 text-sm font-semibold">
@@ -150,14 +150,14 @@
                         aria-checked={current.rig.enabled}
                         aria-label={m.settings_rig_switch()}
                         class={[
-                            'relative h-[20px] w-[36px] flex-none rounded-full',
+                            'relative h-5 w-9 flex-none rounded-full',
                             current.rig.enabled ? 'bg-info-strong' : 'bg-border'
                         ]}
                         onclick={() => saveRig({ enabled: !current.rig.enabled })}
                         ><span
                             class={[
-                                'absolute top-[2px] size-[16px] rounded-full bg-text',
-                                current.rig.enabled ? 'left-[18px]' : 'left-[2px]'
+                                'absolute top-0.5 size-4 rounded-full bg-text',
+                                current.rig.enabled ? 'left-4.5' : 'left-0.5'
                             ]}
                         ></span></button
                     >
@@ -205,7 +205,7 @@
                             >
                             <select
                                 id="rig-poll"
-                                class="field w-[84px] px-1.5"
+                                class="field w-[84px]"
                                 value={current.rig.poll_ms}
                                 onchange={(e) =>
                                     saveRig({ poll_ms: Number(e.currentTarget.value) })}
@@ -218,13 +218,13 @@
                         <button
                             type="button"
                             disabled={!current.rig.enabled}
-                            class="h-[32px] rounded-md border border-border bg-surface-2 px-3 text-xs whitespace-nowrap"
+                            class="h-8 rounded-md border border-border bg-surface-2 px-3 text-xs whitespace-nowrap"
                             onclick={() => settings.reconnect()}
                             >{m.settings_rig_reconnect()}</button
                         >
                     </div>
 
-                    <div role="status" class="flex h-[20px] items-center gap-1.5 text-xs">
+                    <div role="status" class="flex h-5 items-center gap-1.5 text-xs">
                         <span
                             class={[
                                 'size-2 flex-none rounded-full',
@@ -258,7 +258,7 @@
                                     <span aria-hidden="true" class="text-[#6e7681]">→</span>
                                     <select
                                         aria-label={m.settings_rig_mode_label({ mode })}
-                                        class="field h-[28px] min-w-0 flex-1 px-1.5 font-mono text-xs"
+                                        class="field h-7 min-w-0 flex-1 font-mono text-xs"
                                         value={loggedFor(mode, current.rig.modes)}
                                         onchange={(e) =>
                                             saveRig({
@@ -281,7 +281,7 @@
 
             <section
                 aria-labelledby="settings-listen"
-                class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-[12px]"
+                class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3"
             >
                 <div class="flex items-center gap-2.5">
                     <h2 id="settings-listen" class="m-0 flex-none text-sm font-semibold">
@@ -302,14 +302,14 @@
                                 address: `${listener.host}:${listener.port}`
                             })}
                             class={[
-                                'relative h-[20px] w-[36px] flex-none rounded-full',
+                                'relative h-5 w-9 flex-none rounded-full',
                                 listener.enabled ? 'bg-info-strong' : 'bg-border'
                             ]}
                             onclick={() => saveListener(index, { enabled: !listener.enabled })}
                             ><span
                                 class={[
-                                    'absolute top-[2px] size-[16px] rounded-full bg-text',
-                                    listener.enabled ? 'left-[18px]' : 'left-[2px]'
+                                    'absolute top-0.5 size-4 rounded-full bg-text',
+                                    listener.enabled ? 'left-4.5' : 'left-0.5'
                                 ]}
                             ></span></button
                         >
@@ -317,7 +317,7 @@
                             aria-label={m.settings_listen_host()}
                             spellcheck="false"
                             autocomplete="off"
-                            class="field h-[28px] w-[150px] font-mono text-xs"
+                            class="field h-7 w-[150px] font-mono text-xs"
                             value={listener.host}
                             onchange={(e) => {
                                 const host = e.currentTarget.value.trim();
@@ -329,7 +329,7 @@
                             type="number"
                             min="1"
                             max="65535"
-                            class="field h-[28px] w-[76px] text-right font-mono text-xs"
+                            class="field h-7 w-[76px] text-right font-mono text-xs"
                             value={listener.port}
                             onchange={(e) => {
                                 const port = Number(e.currentTarget.value);
@@ -345,7 +345,7 @@
                             ]}
                             ><input
                                 type="checkbox"
-                                class="m-0 size-[14px] accent-info-strong"
+                                class="m-0 size-3.5 accent-info-strong"
                                 checked={listener.subscribe}
                                 disabled={!listener.enabled}
                                 onchange={(e) =>
@@ -400,7 +400,7 @@
                 <div>
                     <button
                         type="button"
-                        class="h-[28px] rounded-md border border-border bg-surface-2 px-2.5 text-xs"
+                        class="h-7 rounded-md border border-border bg-surface-2 px-2.5 text-xs"
                         onclick={() =>
                             saveListeners([
                                 ...current.listeners,
@@ -413,7 +413,7 @@
             {#if signedIn}
                 <section
                     aria-labelledby="settings-server"
-                    class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
+                    class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-3"
                 >
                     <div class="flex items-center justify-between gap-2.5">
                         <h2 id="settings-server" class="m-0 text-sm font-semibold">
@@ -421,7 +421,7 @@
                         </h2>
                         <button
                             type="button"
-                            class="h-[28px] rounded-md border border-error-border px-2.5 text-xs text-error-text"
+                            class="h-7 rounded-md border border-error-border px-2.5 text-xs text-error-text"
                             onclick={() => session.signOut()}>{m.common_sign_out()}</button
                         >
                     </div>
@@ -453,7 +453,7 @@
 
             <section
                 aria-labelledby="settings-tray"
-                class="flex items-center gap-3 rounded-lg border border-border bg-surface p-[12px]"
+                class="flex items-center gap-3 rounded-lg border border-border bg-surface p-3"
             >
                 <h2 id="settings-tray" class="m-0 w-[96px] flex-none text-sm font-semibold">
                     {m.settings_tray()}
@@ -464,14 +464,14 @@
                     aria-checked={current.closeToTray}
                     aria-label={m.settings_tray_switch()}
                     class={[
-                        'relative h-[20px] w-[36px] flex-none rounded-full',
+                        'relative h-5 w-9 flex-none rounded-full',
                         current.closeToTray ? 'bg-info-strong' : 'bg-border'
                     ]}
                     onclick={() => settings.save({ closeToTray: !current.closeToTray })}
                     ><span
                         class={[
-                            'absolute top-[2px] size-[16px] rounded-full bg-text',
-                            current.closeToTray ? 'left-[18px]' : 'left-[2px]'
+                            'absolute top-0.5 size-4 rounded-full bg-text',
+                            current.closeToTray ? 'left-4.5' : 'left-0.5'
                         ]}
                     ></span></button
                 >
@@ -482,7 +482,7 @@
 
             <section
                 aria-labelledby="settings-appearance"
-                class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-[12px]"
+                class="flex flex-col gap-2.5 rounded-lg border border-border bg-surface p-3"
             >
                 <h2 id="settings-appearance" class="m-0 text-sm font-semibold">
                     {m.settings_appearance()}
@@ -493,7 +493,7 @@
                     <label for="theme" class="text-muted">{m.settings_theme()}</label>
                     <select
                         id="theme"
-                        class="field px-1.5"
+                        class="field"
                         value={current.theme ?? ''}
                         onchange={(e) => settings.save({ theme: asTheme(e.currentTarget.value) })}
                     >
@@ -506,7 +506,7 @@
                     <label for="language" class="text-muted">{m.settings_language()}</label>
                     <select
                         id="language"
-                        class="field px-1.5"
+                        class="field"
                         value={current.language ?? ''}
                         onchange={(e) =>
                             settings.save({ language: asLocale(e.currentTarget.value) })}

@@ -53,7 +53,7 @@
                 <button
                     type="button"
                     aria-label={m.entry_remove_field()}
-                    class="flex h-[32px] w-[28px] items-center justify-center text-muted hover:text-text"
+                    class="flex h-8 w-7 items-center justify-center text-muted hover:text-text"
                     onclick={() => entry.extra.splice(i, 1)}
                     ><svg
                         aria-hidden="true"
@@ -71,7 +71,7 @@
     {/each}
     <button
         type="button"
-        class="h-[32px] rounded-md border border-dashed border-border px-2.5 text-xs text-muted"
+        class="h-8 rounded-md border border-dashed border-border px-2.5 text-xs text-muted"
         onclick={() => entry.extra.push({ name: '', value: '' })}>{m.entry_add_adif_field()}</button
     >
     <datalist id="adif-fields">

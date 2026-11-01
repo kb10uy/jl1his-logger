@@ -131,7 +131,7 @@
                             <span
                                 title={row.unsent ? m.latest_unsent_dot() : m.latest_synced_dot()}
                                 class={[
-                                    'inline-block size-[8px] rounded-full',
+                                    'inline-block size-2 rounded-full',
                                     row.unsent ? 'bg-warn' : 'bg-ok'
                                 ]}
                             ></span>

@@ -29,7 +29,7 @@
 <footer
     role="status"
     aria-label={m.status_label()}
-    class="flex h-6 flex-none items-center gap-3 border-t border-border bg-surface px-[12px] text-2xs whitespace-nowrap text-muted"
+    class="flex h-6 flex-none items-center gap-3 border-t border-border bg-surface px-3 text-2xs whitespace-nowrap text-muted"
 >
     {#if rig.state === 'connected'}
         <span
