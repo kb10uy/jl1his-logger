@@ -597,12 +597,15 @@ batch is recorded.
 `POST /exports/split` takes the same options and `split`, a non-empty list of
 ADIF field names, and writes one file for each combination of their values
 the records carry, with one batch recorded for each file in one transaction;
-eQSL and LoTW take one upload per `STATION_CALLSIGN`, so
-`split: ["STATION_CALLSIGN"]` makes the files those uploads need. Values are
+eQSL takes one upload per `STATION_CALLSIGN` and LoTW one per TQSL station
+location, so `split: ["STATION_CALLSIGN"]` and
+`split: ["STATION_CALLSIGN", "MY_GRIDSQUARE"]` make the files those uploads
+need. Values are
 compared trimmed and ignoring ASCII case, and a missing or empty value counts
 as `none`. `files` lists the files in the order of their values, each
-`{name, label, records, batch}`: `label` is the values joined with spaces, and
-`name` is the label with every run of characters other than ASCII letters,
+`{name, label, missing, records, batch}`: `label` is the values joined with
+spaces, `missing` names the split fields the file's records have no value for,
+and `name` is the label with every run of characters other than ASCII letters,
 digits and `-` replaced by `_`, made unique with `-2`, `-3` and so on, plus
 `.adi`. `format` is `zip` and `file` the base64 of a zip archive holding the
 files, or, when there is one file, `adi` and the base64 of that file's bytes

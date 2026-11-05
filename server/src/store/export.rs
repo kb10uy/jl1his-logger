@@ -150,6 +150,7 @@ fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<S
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Part {
     pub label: String,
+    pub missing: Vec<String>,
     pub records: Vec<Qso>,
     pub targets: Vec<Target>,
 }
@@ -167,6 +168,7 @@ pub fn split(selection: &Selection, fields: &[String]) -> Vec<Part> {
             }
             Part {
                 label: group.label,
+                missing: group.missing,
                 records: group.records.iter().map(|&i| selection.records[i].clone()).collect(),
                 targets,
             }

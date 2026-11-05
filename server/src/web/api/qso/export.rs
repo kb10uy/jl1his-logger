@@ -161,6 +161,7 @@ pub struct SplitRequest {
 pub struct FileBody {
     name: String,
     label: String,
+    missing: Vec<String>,
     records: usize,
     batch: BatchBody,
 }
@@ -337,6 +338,7 @@ pub async fn create_split(
         bodies.push(FileBody {
             name: name.clone(),
             label: part.label.clone(),
+            missing: part.missing.clone(),
             records: part.records.len(),
             batch: batch.into(),
         });
@@ -573,10 +575,17 @@ mod tests {
         let labels: Vec<_> = list.as_array().unwrap().iter().map(|b| b["label"].clone()).collect();
         assert_eq!(labels, [json!("JL1HIS/P"), json!("JL1HIS")]);
 
+        let (status, by_grid) = send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN", "MY_GRIDSQUARE"] })).await;
+        assert_eq!(status, StatusCode::CREATED, "{by_grid}");
+        let files = by_grid["files"].as_array().unwrap();
+        assert_eq!(files[0]["name"], "JL1HIS_none.adi");
+        assert_eq!(files[0]["missing"], json!(["MY_GRIDSQUARE"]));
+
         let (status, one) = send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN"], "q": "call:JA1XYZ" })).await;
         assert_eq!(status, StatusCode::CREATED, "{one}");
         assert_eq!(one["format"], "adi");
         assert_eq!(one["files"].as_array().unwrap().len(), 1);
+        assert_eq!(one["files"][0]["missing"], json!([]));
         let adi = BASE64_STANDARD.decode(one["file"].as_str().unwrap()).unwrap();
         assert!(
             std::str::from_utf8(&adi)
@@ -603,7 +612,7 @@ mod tests {
             (&json!("JL1HIS_P.adi"), &json!(1))
         );
         let (_, list) = h.send("GET", &h.path("/exports"), Auth::Session(&cookie), None).await;
-        assert_eq!(list.as_array().unwrap().len(), 3);
+        assert_eq!(list.as_array().unwrap().len(), 5);
     }
 
     #[tokio::test]

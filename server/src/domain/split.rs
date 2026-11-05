@@ -12,6 +12,7 @@ pub const NONE: &str = "none";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Group {
     pub label: String,
+    pub missing: Vec<String>,
     pub records: Vec<usize>,
 }
 
@@ -38,6 +39,12 @@ pub fn group(records: &[Qso], fields: &[String]) -> Vec<Group> {
             .entry(key)
             .or_insert_with(|| Group {
                 label: values.join(" "),
+                missing: fields
+                    .iter()
+                    .zip(&values)
+                    .filter(|(_, v)| **v == NONE)
+                    .map(|(f, _)| f.clone())
+                    .collect(),
                 records: Vec::new(),
             })
             .records
@@ -126,10 +133,12 @@ mod tests {
             [
                 Group {
                     label: "JL1HIS".into(),
+                    missing: vec![],
                     records: vec![1, 3]
                 },
                 Group {
                     label: "JL1HIS/P".into(),
+                    missing: vec![],
                     records: vec![0, 2]
                 },
             ]
@@ -138,6 +147,8 @@ mod tests {
         let labels: Vec<_> = by_both.iter().map(|g| g.label.as_str()).collect();
         assert_eq!(labels, ["JL1HIS none", "JL1HIS/P none", "jl1his/p PM95"]);
         assert_eq!(by_both[0].records, [1, 3]);
+        assert_eq!(by_both[0].missing, ["MY_GRIDSQUARE"]);
+        assert_eq!(by_both[2].missing, Vec::<String>::new());
     }
 
     #[test]
