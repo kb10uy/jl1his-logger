@@ -17,7 +17,6 @@
     import List from '@tabler/icons-svelte-runes/icons/list';
     import Loader2 from '@tabler/icons-svelte-runes/icons/loader-2';
     import Logout from '@tabler/icons-svelte-runes/icons/logout';
-    import Mail from '@tabler/icons-svelte-runes/icons/mail';
     import MapPin from '@tabler/icons-svelte-runes/icons/map-pin';
     import Microphone from '@tabler/icons-svelte-runes/icons/microphone';
     import Plus from '@tabler/icons-svelte-runes/icons/plus';
@@ -38,7 +37,6 @@
         voice: Microphone,
         stations: MapPin,
         instruments: Antenna,
-        qsl: Mail,
         transfer: TransferVertical,
         settings: Settings,
         admin: ShieldCog,

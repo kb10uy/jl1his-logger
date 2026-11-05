@@ -26,7 +26,6 @@
             href: `${root}/instruments`,
             detail: () => m.more_active({ count: logbook.activeInstruments.length })
         },
-        { label: m.nav_qsl_management(), icon: 'qsl', href: `${root}/qsl-management` },
         { label: m.nav_import_export(), icon: 'transfer', href: `${root}/import-export` },
         { label: m.nav_members(), icon: 'members', href: `${root}/members` },
         { label: m.nav_settings(), icon: 'settings', href: '/settings' },

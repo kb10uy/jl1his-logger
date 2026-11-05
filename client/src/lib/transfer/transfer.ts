@@ -48,6 +48,14 @@ export function recordOnly(kind: ExportKind): boolean {
     return SENT_FIELDS[kind] === undefined;
 }
 
+export const QUERY_PRESETS: Record<ExportKind, string> = {
+    adif: '',
+    pota: '',
+    qsl_card: 'sent:R,Q',
+    eqsl: '-eqsl-sent:Y',
+    lotw: '-lotw-sent:Y'
+};
+
 export function formatOf(name: string): 'adi' | 'adx' {
     return name.toLowerCase().endsWith('.adx') ? 'adx' : 'adi';
 }

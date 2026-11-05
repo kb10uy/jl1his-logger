@@ -16,17 +16,15 @@ export class Batches {
     creating = $state(false);
     private readonly logbookId: string;
     private readonly logbookName: () => string;
-    private readonly keep: (batch: Batch) => boolean;
 
-    constructor(logbookId: string, logbookName: () => string, keep: (batch: Batch) => boolean) {
+    constructor(logbookId: string, logbookName: () => string) {
         this.logbookId = logbookId;
         this.logbookName = logbookName;
-        this.keep = keep;
     }
 
     load() {
         api.batches(this.logbookId)
-            .then((found) => (this.items = found.filter(this.keep)))
+            .then((found) => (this.items = found))
             .catch((e) => toasts.error(message(e)));
         api.members(this.logbookId)
             .then((found) => {
