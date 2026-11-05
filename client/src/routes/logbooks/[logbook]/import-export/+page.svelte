@@ -47,7 +47,7 @@
     const logbookId = logbook.logbook.id;
     const qsoHref = (id: string) => `/logbooks/${logbookId}/qsos/${id}`;
 
-    let tab = $state<'import' | 'export'>('import');
+    let tab = $state<'import' | 'export'>('export');
 
     let source = $state<ImportSource>('new');
     let file = $state<File | undefined>(undefined);
@@ -200,8 +200,8 @@
             label={m.transfer_direction()}
             class="md:hidden"
             tabs={[
-                { id: 'import', label: m.transfer_import() },
-                { id: 'export', label: m.transfer_export() }
+                { id: 'export', label: m.transfer_export() },
+                { id: 'import', label: m.transfer_import() }
             ]}
             bind:value={tab}
         />
@@ -210,6 +210,103 @@
 
 <main class="flex min-w-0 flex-col gap-4 px-4 pt-4 pb-6 md:px-5">
     <div class="flex flex-wrap items-start gap-4">
+        <div
+            class={[
+                'flex min-w-0 flex-[1_1_440px] flex-col gap-4',
+                tab !== 'export' && 'max-md:hidden'
+            ]}
+        >
+            <section
+                aria-label={m.transfer_export()}
+                class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+            >
+                <h2 class="text-base font-semibold">{m.transfer_export()}</h2>
+                <Segmented
+                    label={m.transfer_kind()}
+                    options={kinds.map((value) => ({ value, label: KIND_LABELS[value]() }))}
+                    bind:value={() => kind, pick}
+                />
+                <ExportForm
+                    id="exp-query"
+                    bind:q
+                    placeholder={m.transfer_query_everything()}
+                    {matches}
+                    matchText={kind === 'pota'
+                        ? m.transfer_qsos_match_pota({ total: SLOT })
+                        : m.transfer_qsos_match({ total: SLOT })}
+                    busy={batches.creating}
+                    label={m.transfer_download_adif()}
+                    busyLabel={m.transfer_exporting()}
+                    onexport={runExport}
+                >
+                    {#if kind === 'pota'}
+                        <label for="exp-park" class="text-2xs text-muted">{m.transfer_park()}</label
+                        >
+                        <input
+                            id="exp-park"
+                            class="control h-9 font-mono uppercase"
+                            placeholder={m.transfer_park_every()}
+                            spellcheck="false"
+                            autocomplete="off"
+                            bind:value={park}
+                        />
+                    {/if}
+                    <label for="exp-encoding" class="text-2xs text-muted"
+                        >{m.transfer_encoding()}</label
+                    >
+                    <select id="exp-encoding" class="control h-9" bind:value={exportEncoding}>
+                        {#each encodings as [value, name] (value)}
+                            <option {value}>{name}</option>
+                        {/each}
+                    </select>
+                    {#if exportEncoding === 'utf-8'}
+                        <label for="exp-len" class="text-2xs text-muted"
+                            >{m.transfer_lengths()}</label
+                        >
+                        <select id="exp-len" class="control h-9" bind:value={exportLength}>
+                            {#each lengths as l (l.value)}
+                                <option value={l.value}>{l.label}</option>
+                            {/each}
+                        </select>
+                    {:else}
+                        <label for="exp-unencodable" class="text-2xs text-muted"
+                            >{m.transfer_unencodable()}</label
+                        >
+                        <select
+                            id="exp-unencodable"
+                            class="control h-9"
+                            bind:value={exportUnencodable}
+                        >
+                            {#each unencodables as u (u.value)}
+                                <option value={u.value}>{u.label}</option>
+                            {/each}
+                        </select>
+                    {/if}
+                    <div></div>
+                    <label class="flex h-8 cursor-pointer items-center gap-2 text-sm">
+                        <input type="checkbox" class="size-4 accent-info" bind:checked={split} />
+                        {m.transfer_split_by_callsign()}
+                    </label>
+                </ExportForm>
+                {#if fields}
+                    <span class="text-2xs text-muted"
+                        >{m.transfer_qsl_mark_note({ sent: fields[0], date: fields[1] })}</span
+                    >
+                {/if}
+            </section>
+
+            <section aria-label={m.transfer_recent_exports()} class="flex flex-col gap-2">
+                <h2 class="eyebrow">{m.transfer_recent_exports()}</h2>
+                <BatchTable
+                    batches={batches.items}
+                    callsigns={batches.callsigns}
+                    results={batches.results}
+                    applying={batches.applying}
+                    onapply={apply}
+                />
+            </section>
+        </div>
+
         <section
             aria-label={m.transfer_import()}
             class={[
@@ -323,102 +420,5 @@
                 <span class="text-2xs text-muted">{m.transfer_reading_file()}</span>
             {/if}
         </section>
-
-        <div
-            class={[
-                'flex min-w-0 flex-[1_1_440px] flex-col gap-4',
-                tab !== 'export' && 'max-md:hidden'
-            ]}
-        >
-            <section
-                aria-label={m.transfer_export()}
-                class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
-            >
-                <h2 class="text-base font-semibold">{m.transfer_export()}</h2>
-                <Segmented
-                    label={m.transfer_kind()}
-                    options={kinds.map((value) => ({ value, label: KIND_LABELS[value]() }))}
-                    bind:value={() => kind, pick}
-                />
-                <ExportForm
-                    id="exp-query"
-                    bind:q
-                    placeholder={m.transfer_query_everything()}
-                    {matches}
-                    matchText={kind === 'pota'
-                        ? m.transfer_qsos_match_pota({ total: SLOT })
-                        : m.transfer_qsos_match({ total: SLOT })}
-                    busy={batches.creating}
-                    label={m.transfer_download_adif()}
-                    busyLabel={m.transfer_exporting()}
-                    onexport={runExport}
-                >
-                    {#if kind === 'pota'}
-                        <label for="exp-park" class="text-2xs text-muted">{m.transfer_park()}</label
-                        >
-                        <input
-                            id="exp-park"
-                            class="control h-9 font-mono uppercase"
-                            placeholder={m.transfer_park_every()}
-                            spellcheck="false"
-                            autocomplete="off"
-                            bind:value={park}
-                        />
-                    {/if}
-                    <label for="exp-encoding" class="text-2xs text-muted"
-                        >{m.transfer_encoding()}</label
-                    >
-                    <select id="exp-encoding" class="control h-9" bind:value={exportEncoding}>
-                        {#each encodings as [value, name] (value)}
-                            <option {value}>{name}</option>
-                        {/each}
-                    </select>
-                    {#if exportEncoding === 'utf-8'}
-                        <label for="exp-len" class="text-2xs text-muted"
-                            >{m.transfer_lengths()}</label
-                        >
-                        <select id="exp-len" class="control h-9" bind:value={exportLength}>
-                            {#each lengths as l (l.value)}
-                                <option value={l.value}>{l.label}</option>
-                            {/each}
-                        </select>
-                    {:else}
-                        <label for="exp-unencodable" class="text-2xs text-muted"
-                            >{m.transfer_unencodable()}</label
-                        >
-                        <select
-                            id="exp-unencodable"
-                            class="control h-9"
-                            bind:value={exportUnencodable}
-                        >
-                            {#each unencodables as u (u.value)}
-                                <option value={u.value}>{u.label}</option>
-                            {/each}
-                        </select>
-                    {/if}
-                    <div></div>
-                    <label class="flex h-8 cursor-pointer items-center gap-2 text-sm">
-                        <input type="checkbox" class="size-4 accent-info" bind:checked={split} />
-                        {m.transfer_split_by_callsign()}
-                    </label>
-                </ExportForm>
-                {#if fields}
-                    <span class="text-2xs text-muted"
-                        >{m.transfer_qsl_mark_note({ sent: fields[0], date: fields[1] })}</span
-                    >
-                {/if}
-            </section>
-
-            <section aria-label={m.transfer_recent_exports()} class="flex flex-col gap-2">
-                <h2 class="eyebrow">{m.transfer_recent_exports()}</h2>
-                <BatchTable
-                    batches={batches.items}
-                    callsigns={batches.callsigns}
-                    results={batches.results}
-                    applying={batches.applying}
-                    onapply={apply}
-                />
-            </section>
-        </div>
     </div>
 </main>
