@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { withBand, withFreq, withMode } from './tuning.ts';
+import { retuned, withBand, withFreq, withMode } from './tuning.ts';
 
 describe('tuning', () => {
     const ssb = {
@@ -37,5 +37,10 @@ describe('tuning', () => {
     it('moves reports at the default when only the submode changes the report form', () => {
         const ft4 = { ...ssb, mode: 'MFSK', submode: 'FT4', rstSent: '-10', rstRcvd: '-10' };
         expect(withMode(ft4, 'MFSK', 'MFSK16')).toMatchObject({ rstSent: '599', rstRcvd: '599' });
+    });
+
+    it('takes over the tuning and moves the reports still at the default', () => {
+        const cw = { freq: '14.05', band: '20m', mode: 'CW', submode: '' };
+        expect(retuned(ssb, cw)).toEqual({ ...cw, rstSent: '599', rstRcvd: '57' });
     });
 });

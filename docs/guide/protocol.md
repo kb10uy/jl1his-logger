@@ -63,8 +63,9 @@ a QSO. Every message carries `"v": 1` and a `type`; a message of another
 version, an unknown `type`, or one that does not parse is ignored. Only the
 entry screen takes them. While it is not shown, as when the settings screen
 is open, the fields of each `set` are held, the last value of each field
-(up to 64 fields), and filled in once when the entry screen comes back; a
-`clear` drops what is held, and a `log` is lost.
+(up to 64 fields), and filled in once when the entry screen comes back, over
+the form as it was left; a `clear` drops what is held and leaves that form as
+it is, and a `log` is lost.
 
 | `type` | Effect |
 | --- | --- |

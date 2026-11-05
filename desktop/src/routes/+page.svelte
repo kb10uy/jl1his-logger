@@ -4,7 +4,13 @@
     import { listen } from '@tauri-apps/api/event';
     import { goto } from '$app/navigation';
     import type { FavoriteFrequency, Fields } from '#client/api/types.ts';
-    import { clearedEntry, entryFields, entryProblem, type Entry } from '#client/entry/record.ts';
+    import {
+        clearedEntry,
+        entryFields,
+        entryProblem,
+        restoredEntry,
+        type Entry
+    } from '#client/entry/record.ts';
     import { expandExchange } from '#client/qso/contest.ts';
     import { utcClock, utcFields } from '#client/qso/format.ts';
     import { formatMhz } from '#client/qso/bands.ts';
@@ -52,27 +58,32 @@
         }
     });
     const settings = desk.settings;
+    const kept = session.entryDraft;
 
-    let entry = $state<Entry>({
-        call: '',
-        freq: untrack(() => settings.freq),
-        band: untrack(() => settings.band),
-        mode: untrack(() => settings.mode),
-        submode: untrack(() => settings.submode),
-        rstSent: untrack(() => defaultRst(settings.mode, settings.submode)),
-        rstRcvd: untrack(() => defaultRst(settings.mode, settings.submode)),
-        received: '',
-        name: '',
-        qth: '',
-        area: '',
-        qsl: 'none',
-        comment: '',
-        txPwr: '',
-        notes: '',
-        extra: []
-    });
+    let entry = $state<Entry>(
+        kept
+            ? untrack(() => restoredEntry(kept, settings))
+            : {
+                  call: '',
+                  freq: untrack(() => settings.freq),
+                  band: untrack(() => settings.band),
+                  mode: untrack(() => settings.mode),
+                  submode: untrack(() => settings.submode),
+                  rstSent: untrack(() => defaultRst(settings.mode, settings.submode)),
+                  rstRcvd: untrack(() => defaultRst(settings.mode, settings.submode)),
+                  received: '',
+                  name: '',
+                  qth: '',
+                  area: '',
+                  qsl: 'none',
+                  comment: '',
+                  txPwr: '',
+                  notes: '',
+                  extra: []
+              }
+    );
     let now = $state(new Date());
-    let locked = $state<Date | undefined>(undefined);
+    let locked = $state<Date | undefined>(kept?.locked);
     let extraOpen = $state(false);
     let callInput = $state<HTMLInputElement>();
     let form = $state<HTMLFormElement>();
@@ -196,6 +207,11 @@
         return () => {
             gone = true;
             clearInterval(tick);
+            session.entryDraft = {
+                entry: $state.snapshot(entry),
+                locked,
+                instrumentId: settings.instrumentId
+            };
             invoke('detach_entry').catch(() => undefined);
             void unlisten.then((stop) => stop());
         };

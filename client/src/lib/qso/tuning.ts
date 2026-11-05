@@ -40,3 +40,8 @@ export function withMode<T extends Tuning & Reports>(tuning: T, mode: string, su
         rstRcvd: tuning.rstRcvd === before ? after : tuning.rstRcvd
     };
 }
+
+export function retuned<T extends Tuning & Reports>(form: T, tuning: Tuning): T {
+    const { freq, band, mode, submode } = tuning;
+    return { ...withMode(form, mode, submode), freq, band };
+}

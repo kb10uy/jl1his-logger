@@ -19,11 +19,14 @@
     import { m } from '#lib/paraglide/messages.js';
     import { expandExchange } from '#lib/qso/contest.ts';
     import { hhmm, isoDate, utcClock, utcFields } from '#lib/qso/format.ts';
+    import { retuned } from '#lib/qso/tuning.ts';
     import { EntrySession } from '#lib/state/entry.svelte.ts';
     import { useLogbook } from '#lib/state/logbook.svelte.ts';
     import { toasts } from '#lib/state/toast.svelte.ts';
     import {
         FREE_TEXT_MAX_LENGTH,
+        carryOf,
+        newDraft,
         withBand,
         withFreq,
         withMode,
@@ -69,12 +72,11 @@
     });
     const settings = session.settings;
     const voice = new VoiceState(
-        untrack(() => ({
-            freq: settings.freq,
-            band: settings.band,
-            mode: settings.mode,
-            submode: settings.submode
-        })),
+        untrack(() => {
+            const carry = carryOf(settings);
+            const kept = logbook.voiceDraft;
+            return kept ? retuned(kept, carry) : newDraft(carry);
+        }),
         logDraft
     );
 
@@ -134,6 +136,7 @@
         return () => {
             clearInterval(tick);
             stop();
+            logbook.voiceDraft = $state.snapshot(voice.draft);
         };
     });
 
@@ -147,9 +150,9 @@
         }
         if (session.logging) return { ok: false, reason: m.voice_still_logging() };
         const fields = draftFields(current, settings.contest, new Date(), logbook.area);
-        const result = await session.log(fields);
         voice.next();
         correcting = false;
+        const result = await session.log(fields);
         if ('saved' in result) {
             warnings = result.saved.warnings;
             toasts.show(m.voice_logged({ call: fields.CALL }));

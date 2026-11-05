@@ -86,10 +86,10 @@ export class VoiceState {
     #listeners = new Set<(applied: Applied) => void>();
 
     constructor(
-        carry: Carry,
+        draft: Draft,
         private readonly log: () => Promise<LogResult>
     ) {
-        this.draft = $state(newDraft(carry));
+        this.draft = $state(draft);
     }
 
     get heard(): Utterance | undefined {

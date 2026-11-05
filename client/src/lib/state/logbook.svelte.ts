@@ -2,7 +2,9 @@ import { getContext, setContext } from 'svelte';
 import * as api from '#lib/api/api.ts';
 import type { RowMatcher } from '#lib/query/index.ts';
 import type { Area, Hello, Instrument, Logbook, Qso, QsoEvent, Station } from '#lib/api/types.ts';
+import type { EntryDraft } from '#lib/entry/record.ts';
 import { LogList } from '#lib/state/log.svelte.ts';
+import type { Draft } from '#lib/voice/draft.ts';
 
 export type StreamStatus = 'connecting' | 'live' | 'offline';
 
@@ -18,6 +20,8 @@ export class LogbookState {
     status = $state<StreamStatus>('connecting');
     lastUpdatedSeq = $state(0);
     readonly log: LogList;
+    entryDraft: EntryDraft | undefined;
+    voiceDraft: Draft | undefined;
     private generation: string | undefined;
     private source: EventSource | undefined;
     private retry: ReturnType<typeof setTimeout> | undefined;

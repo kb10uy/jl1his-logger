@@ -22,6 +22,7 @@
         entryFields,
         entryProblem,
         extraFieldNames,
+        restoredEntry,
         type Entry
     } from '#lib/entry/record.ts';
     import { bandOf } from '#lib/qso/bands.ts';
@@ -59,27 +60,32 @@
         }
     });
     const settings = session.settings;
+    const kept = logbook.entryDraft;
 
-    let entry = $state<Entry>({
-        call: '',
-        freq: untrack(() => settings.freq),
-        band: untrack(() => settings.band),
-        mode: untrack(() => settings.mode),
-        submode: untrack(() => settings.submode),
-        rstSent: untrack(() => defaultRst(settings.mode, settings.submode)),
-        rstRcvd: untrack(() => defaultRst(settings.mode, settings.submode)),
-        received: '',
-        name: '',
-        qth: '',
-        area: '',
-        qsl: 'none',
-        comment: '',
-        txPwr: '',
-        notes: '',
-        extra: []
-    });
+    let entry = $state<Entry>(
+        kept
+            ? untrack(() => restoredEntry(kept, settings))
+            : {
+                  call: '',
+                  freq: untrack(() => settings.freq),
+                  band: untrack(() => settings.band),
+                  mode: untrack(() => settings.mode),
+                  submode: untrack(() => settings.submode),
+                  rstSent: untrack(() => defaultRst(settings.mode, settings.submode)),
+                  rstRcvd: untrack(() => defaultRst(settings.mode, settings.submode)),
+                  received: '',
+                  name: '',
+                  qth: '',
+                  area: '',
+                  qsl: 'none',
+                  comment: '',
+                  txPwr: '',
+                  notes: '',
+                  extra: []
+              }
+    );
     let now = $state(new Date());
-    let locked = $state<Date | undefined>(undefined);
+    let locked = $state<Date | undefined>(kept?.locked);
     let before = $state<Qso[]>([]);
     let warnings = $state<Warning[]>([]);
     let callInput = $state<HTMLInputElement>();
@@ -124,7 +130,14 @@
     onMount(() => {
         const tick = setInterval(() => (now = new Date()), 1000);
         callInput?.focus();
-        return () => clearInterval(tick);
+        return () => {
+            clearInterval(tick);
+            logbook.entryDraft = {
+                entry: $state.snapshot(entry),
+                locked,
+                instrumentId: settings.instrumentId
+            };
+        };
     });
 
     $effect(() => {

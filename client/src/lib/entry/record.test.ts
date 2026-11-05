@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultContest } from '#lib/qso/contest.ts';
-import { clearedEntry, entryFields, entryProblem, type Entry } from './record.ts';
+import { defaultEntry } from './settings.ts';
+import { clearedEntry, entryFields, entryProblem, restoredEntry, type Entry } from './record.ts';
 
 const entry: Entry = {
     call: ' jh1xyz ',
@@ -140,6 +141,36 @@ describe('entry records', () => {
             qth: '',
             txPwr: '50'
         });
+    });
+
+    it('restores a kept form on the current tuning', () => {
+        const draft = {
+            entry: { ...entry, txPwr: '10', notes: 'kept' },
+            locked: at,
+            instrumentId: 'a'
+        };
+        const settings = {
+            ...defaultEntry(),
+            instrumentId: 'a',
+            freq: '14.05',
+            band: '20m',
+            mode: 'CW',
+            submode: ''
+        };
+        expect(restoredEntry(draft, settings)).toEqual({
+            ...draft.entry,
+            freq: '14.05',
+            band: '20m',
+            mode: 'CW',
+            submode: '',
+            rstSent: '599'
+        });
+    });
+
+    it('drops the kept TX power when the Instrument changed', () => {
+        const draft = { entry: { ...entry, txPwr: '10' }, locked: undefined, instrumentId: 'a' };
+        const settings = { ...defaultEntry(), instrumentId: 'b' };
+        expect(restoredEntry(draft, settings).txPwr).toBe('');
     });
 
     it('says what blocks logging', () => {

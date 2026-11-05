@@ -1,10 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { EntryDraft } from '#client/entry/record.ts';
 import { asCommandError } from './errors.ts';
 import type { CommandError, Session } from './types.ts';
 
 class SessionState {
     current = $state<Session | undefined>();
     error = $state<CommandError | undefined>();
+    entryDraft: EntryDraft | undefined;
 
     async load(): Promise<void> {
         try {
@@ -33,6 +35,7 @@ class SessionState {
     async signOut(): Promise<void> {
         try {
             this.current = await invoke<Session>('sign_out');
+            this.entryDraft = undefined;
             this.error = undefined;
         } catch (e) {
             this.error = asCommandError(e);
