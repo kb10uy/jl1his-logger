@@ -232,5 +232,12 @@
             "selectors": [],
             "match": { "": "すべて表示 ({n} 件)" }
         }
+    ],
+    "transfer_show_more": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "さらに表示 (残り {n} 件)" }
+        }
     ]
 }

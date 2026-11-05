@@ -16,19 +16,21 @@ use crate::{
     store::{
         WriteTx,
         bulk::{self, Change, Outcome, SkipReason, Skipped},
-        export::{self, ExportBatch, ExportKind},
+        export::{self, ExportBatch, ExportKind, ExportState},
         new_id,
         qso::{Filter, Target},
     },
     web::{
         AppState,
         api::logbook::member::{Item, Member},
-        api::qso::QsoBody,
+        api::qso::{QsoBody, limit},
         error::ApiError,
-        extract::Json,
+        extract::{Json, Query},
         query::text,
     },
 };
+
+const DEFAULT_LIST_LIMIT: u32 = 10;
 
 #[derive(Debug, Deserialize)]
 pub struct TargetRequest {
@@ -244,10 +246,47 @@ pub async fn bulk(
     Ok(Json(outcome.into()))
 }
 
-pub async fn list(State(state): State<Arc<AppState>>, member: Member) -> Result<Json<Vec<BatchBody>>, ApiError> {
+#[derive(Debug, Deserialize)]
+pub struct ListQuery {
+    state: Option<ExportState>,
+    after: Option<String>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum ListBody {
+    Every(Vec<BatchBody>),
+    Page {
+        batches: Vec<BatchBody>,
+        next: Option<String>,
+        total: i64,
+    },
+}
+
+pub async fn list(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Query(query): Query<ListQuery>,
+) -> Result<Json<ListBody>, ApiError> {
+    let Some(listed) = query.state else {
+        if query.after.is_some() || query.limit.is_some() {
+            return Err(ApiError::bad_request("after and limit need a state"));
+        }
+        let mut conn = state.db.acquire().await?;
+        let batches = export::list(&mut conn, &member.access).await?;
+        return Ok(Json(ListBody::Every(
+            batches.into_iter().map(BatchBody::from).collect(),
+        )));
+    };
+    let limit = limit(query.limit, DEFAULT_LIST_LIMIT)?;
     let mut conn = state.db.acquire().await?;
-    let batches = export::list(&mut conn, &member.access).await?;
-    Ok(Json(batches.into_iter().map(BatchBody::from).collect()))
+    let page = export::page(&mut conn, &member.access, listed, query.after.as_deref(), limit).await?;
+    Ok(Json(ListBody::Page {
+        batches: page.batches.into_iter().map(BatchBody::from).collect(),
+        next: page.next,
+        total: page.total,
+    }))
 }
 
 pub async fn get(
@@ -763,6 +802,88 @@ mod tests {
         )
         .await;
         assert_eq!((status, &none["batches"]), (StatusCode::OK, &json!(0)));
+    }
+
+    #[tokio::test]
+    async fn lists_whole_exports_by_state_a_page_at_a_time() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let station = h.station.id.clone();
+        h.create_qso(&cookie, &station, "JA1XYZ", "0100", &[("STATION_CALLSIGN", "JL1HIS/P")])
+            .await;
+        h.create_qso(&cookie, &station, "JA1ABC", "0200", &[("STATION_CALLSIGN", "JL1HIS")])
+            .await;
+        let exports = h.path("/exports");
+        let send = async |method, path: String, body| {
+            let (status, reply) = h.send(method, &path, Auth::Session(&cookie), body).await;
+            assert!(status.is_success(), "{reply}");
+            reply
+        };
+        let list = async |query: String| {
+            let page = send("GET", format!("{exports}?{query}"), None).await;
+            let batches = page["batches"].as_array().unwrap();
+            let ids: Vec<Value> = batches.iter().map(|b| b["export_id"].clone()).collect();
+            (ids, page["next"].clone(), page["total"].clone())
+        };
+
+        let split = json!({ "kind": "lotw", "split": ["STATION_CALLSIGN"] });
+        let split = send("POST", format!("{exports}/split"), Some(split)).await;
+        let eqsl = send("POST", exports.clone(), Some(json!({ "kind": "eqsl" }))).await;
+        let adif = send("POST", exports.clone(), Some(json!({ "kind": "adif" }))).await;
+        let card = send("POST", exports.clone(), Some(json!({ "kind": "qsl_card" }))).await;
+        let split_id = split["files"][0]["batch"]["export_id"].clone();
+        let eqsl_id = eqsl["batch"]["export_id"].clone();
+        let adif_id = adif["batch"]["export_id"].clone();
+        let card_id = card["batch"]["export_id"].clone();
+
+        assert_eq!(
+            list("state=pending&limit=2".into()).await,
+            (vec![card_id.clone(), eqsl_id.clone()], eqsl_id.clone(), json!(3))
+        );
+        let after = eqsl_id.as_str().unwrap();
+        assert_eq!(
+            list(format!("state=pending&limit=1&after={after}")).await,
+            (vec![split_id.clone(), split_id.clone()], Value::Null, json!(3))
+        );
+        assert_eq!(
+            list("state=finished".into()).await,
+            (vec![adif_id.clone()], Value::Null, json!(1))
+        );
+
+        let card_uri = format!("{exports}/{}", card["batch"]["id"].as_str().unwrap());
+        send("POST", format!("{card_uri}/dismiss"), None).await;
+        assert_eq!(list("state=pending".into()).await.2, json!(2));
+        assert_eq!(
+            list("state=finished".into()).await.0,
+            [card_id.clone(), adif_id.clone()]
+        );
+        send("DELETE", format!("{card_uri}/dismiss"), None).await;
+        assert_eq!(list("state=pending".into()).await.2, json!(3));
+
+        let first = split["files"][0]["batch"]["id"].as_str().unwrap();
+        let second = split["files"][1]["batch"]["id"].as_str().unwrap();
+        send("POST", format!("{exports}/{first}/apply"), None).await;
+        assert_eq!(list("state=pending".into()).await.2, json!(3));
+        send("POST", format!("{exports}/{second}/dismiss"), None).await;
+        assert_eq!(list("state=pending".into()).await.0, [card_id, eqsl_id]);
+        assert_eq!(list("state=finished".into()).await.2, json!(2));
+
+        let every = send("GET", exports.clone(), None).await;
+        assert_eq!(every.as_array().unwrap().len(), 5);
+    }
+
+    #[rstest]
+    #[case::unknown_state("state=applied")]
+    #[case::no_rows("state=pending&limit=0")]
+    #[case::limit_without_state("limit=10")]
+    #[case::after_without_state("after=0193")]
+    #[tokio::test]
+    async fn refuses_lists_it_cannot_page(#[case] query: &str) {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let path = format!("{}?{query}", h.path("/exports"));
+        let (status, _) = h.send("GET", &path, Auth::Session(&cookie), None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

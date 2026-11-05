@@ -253,6 +253,14 @@ export interface Batch {
     label: string | null;
 }
 
+export type ExportState = 'pending' | 'finished';
+
+export interface BatchPage {
+    batches: Batch[];
+    next: string | null;
+    total: number;
+}
+
 export interface ExportOutcome extends Outcome {
     batches: number;
 }

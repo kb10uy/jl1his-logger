@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import type { Batch, MergeReport, NewReport, Qso } from '#lib/api/types.ts';
+import type { Batch, BatchPage, MergeReport, NewReport, Qso } from '#lib/api/types.ts';
 import {
+    type ExportLists,
     SPLIT_FIELDS,
+    appendPage,
     batchState,
     defaultSplit,
+    exportCount,
     exportRuns,
     differencesText,
     fileName,
     formatOf,
     missingCount,
     outcomeText,
-    partitionRuns,
+    placeExport,
     readingNote,
     recordOnly,
     rejectCount,
+    reviseExport,
     splitChoices,
     splitLabel
 } from './transfer.ts';
@@ -103,9 +107,94 @@ describe('transfer helpers', () => {
         expect(runs[1].batches.map((b) => b.id)).toEqual(['1', '2', '3']);
         expect(batchState(runs[0].batches[0])).toBe('record');
         expect(runs[1].batches.map(batchState)).toEqual(['pending', 'applied', 'dismissed']);
-        const lists = partitionRuns(runs);
-        expect(lists.pending.map((r) => r.id)).toEqual(['a']);
-        expect(lists.finished.map((r) => r.id)).toEqual(['b']);
+    });
+
+    describe('export lists', () => {
+        const batch = (id: string, over: Partial<Batch> = {}): Batch => ({
+            id,
+            export_id: id,
+            kind: 'lotw',
+            created_by: 'u',
+            created_at: '2026-11-05T10:00:00Z',
+            applied_at: null,
+            dismissed_at: null,
+            qso_count: 1,
+            label: null,
+            ...over
+        });
+        const dismissed = (b: Batch) => ({ ...b, dismissed_at: '2026-11-05T11:00:00Z' });
+        const ids = (list: BatchPage) => list.batches.map((b) => b.id);
+        const lists: ExportLists = {
+            pending: {
+                batches: [batch('p9'), batch('p7'), batch('p5', { export_id: 'p6' })],
+                next: 'p6',
+                total: 8
+            },
+            finished: {
+                batches: [batch('r8', { kind: 'adif' }), batch('a4', { kind: 'pota' })],
+                next: null,
+                total: 2
+            }
+        };
+
+        it('counts exports, not batches', () => {
+            expect(exportCount([batch('1'), batch('2', { export_id: '1' }), batch('3')])).toBe(2);
+        });
+
+        it('puts a new export at the top of its list', () => {
+            const pending = placeExport(lists, [
+                batch('pa', { export_id: 'pz' }),
+                batch('pb', { export_id: 'pz' })
+            ]);
+            expect(ids(pending.pending).slice(0, 3)).toEqual(['pa', 'pb', 'p9']);
+            expect(pending.pending.total).toBe(9);
+            expect(pending.finished).toBe(lists.finished);
+
+            const record = placeExport(lists, [batch('zz', { kind: 'adif' })]);
+            expect(ids(record.finished)).toEqual(['zz', 'r8', 'a4']);
+            expect(record.finished.total).toBe(3);
+        });
+
+        it('keeps an export in its place while it has something pending', () => {
+            const split = placeExport(lists, [
+                batch('q2', { export_id: 'p8' }),
+                batch('q1', { export_id: 'p8' })
+            ]);
+            const marked = reviseExport(split, 'p8', (b) => (b.id === 'q1' ? dismissed(b) : b));
+            expect(ids(marked.pending)).toEqual(['p9', 'q2', 'q1', 'p7', 'p5']);
+            expect(marked.pending.total).toBe(9);
+        });
+
+        it('moves an export between the lists when its state changes', () => {
+            const done = reviseExport(lists, 'p7', dismissed);
+            expect(ids(done.pending)).toEqual(['p9', 'p5']);
+            expect(done.pending.total).toBe(7);
+            expect(ids(done.finished)).toEqual(['r8', 'p7', 'a4']);
+            expect(done.finished.total).toBe(3);
+
+            const back = reviseExport(done, 'p7', (b) => ({ ...b, dismissed_at: null }));
+            expect(back).toEqual(lists);
+        });
+
+        it('leaves an export older than the loaded rows to its page', () => {
+            const older = placeExport(lists, [batch('p1')]);
+            expect(ids(older.pending)).toEqual(ids(lists.pending));
+            expect(older.pending.total).toBe(9);
+            expect(older.pending.next).toBe('p6');
+        });
+
+        it('takes the next page and its count from the server', () => {
+            const page = { batches: [batch('p4')], next: null, total: 7 };
+            expect(appendPage(lists.pending, page)).toEqual({
+                batches: [...lists.pending.batches, batch('p4')],
+                next: null,
+                total: 7
+            });
+        });
+
+        it('ignores an export it has not loaded', () => {
+            expect(reviseExport(lists, 'nowhere', dismissed)).toBe(lists);
+        });
     });
 
     it('tells records from batches that can be applied', () => {

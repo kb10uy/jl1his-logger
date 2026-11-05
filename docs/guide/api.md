@@ -573,7 +573,8 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 | --- | --- | --- |
 | `POST /exports` | `{kind, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
 | `POST /exports/split` | `{kind, split, q?, park?, length?, encoding?, unencodable?}` | `201 {records, format, file, files}` |
-| `GET /exports` | | The batches, newest first |
+| `GET /exports` | | Every batch, newest first |
+| `GET /exports?state=&limit=&after=` | | `{batches, next, total}`, one page of exports |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk changes |
 | `POST /exports/{id}/dismiss` | | The batch, with `dismissed_at` set |
@@ -600,6 +601,16 @@ the whole file as text, oldest QSO first; `file` is its bytes in base64 for
 record per park of a QSO, with `MY_SIG` and `MY_SIG_INFO` set. When nothing
 matches, the response is `200` with `batch`, `adif` and `file` null and no
 batch is recorded.
+
+With `state`, `GET /exports` pages exports rather than batches, newest
+`export_id` first. `pending` is the exports with an `eqsl`, `lotw` or
+`qsl_card` batch that is neither applied nor dismissed; `finished` is every
+other export, `adif` and `pota` ones included. `limit` counts exports (default
+10, at most 1000), and `batches` holds every batch of each of them; `total` is
+the number of exports in that state, and `next` is the `after` of the next
+page, or null on the last. Applying, dismissing or restoring a batch can move
+its export to the other state; it keeps its place in the order, so `after`
+stays valid. `after` or `limit` without `state` is `400`.
 
 `POST /exports/split` takes the same options and `split`, a non-empty list of
 ADIF field names, and writes one file for each combination of their values

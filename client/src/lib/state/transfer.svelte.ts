@@ -4,6 +4,7 @@ import type {
     Batch,
     Encoding,
     ExportKind,
+    ExportState,
     Exported,
     ImportSource,
     LengthUnit,
@@ -17,17 +18,28 @@ import { m } from '#lib/paraglide/messages.js';
 import type { LogbookState } from '#lib/state/logbook.svelte.ts';
 import { toasts } from '#lib/state/toast.svelte.ts';
 import {
+    type ExportLists,
     MAX_IMPORT,
+    NO_EXPORTS,
     type SplitChoice,
+    appendPage,
+    batchState,
+    exportCount,
     fileName,
     formatOf,
-    outcomeText
+    outcomeText,
+    placeExport,
+    reviseExport
 } from '#lib/transfer/transfer.ts';
+
+const EXPORTS_SHOWN = 10;
+const EXPORTS_MORE = 50;
+const EXPORT_STATES: ExportState[] = ['pending', 'finished'];
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export class Batches {
-    items = $state<Batch[]>([]);
+    lists = $state.raw<ExportLists>(NO_EXPORTS);
     callsigns = $state<Record<string, string>>({});
     results = $state<Record<string, string>>({});
     working = $state<string | undefined>(undefined);
@@ -46,11 +58,17 @@ export class Batches {
                 this.callsigns = Object.fromEntries(found.map((m) => [m.user_id, m.callsign]));
             })
             .catch(() => undefined);
-        try {
-            this.items = await api.batches(this.logbookId);
-        } catch (e) {
-            toasts.error(message(e));
-        }
+        await this.work('load', async () => {
+            const limit = EXPORTS_SHOWN;
+            const [pending, finished] = await Promise.all(
+                EXPORT_STATES.map((state) => api.batches(this.logbookId, { state, limit }))
+            );
+            this.lists = { pending, finished };
+        });
+    }
+
+    async more(state: ExportState): Promise<void> {
+        await this.work(state, () => this.extend(state, EXPORTS_MORE));
     }
 
     async create(req: ExportRequest): Promise<Exported | undefined> {
@@ -62,7 +80,7 @@ export class Batches {
                 fileName(this.logbookName(), req.kind, new Date()),
                 result.file === null ? result.adif : fromBase64(result.file)
             );
-            this.items = [result.batch, ...this.items];
+            this.lists = placeExport(this.lists, [result.batch]);
             return result;
         } catch (e) {
             toasts.error(message(e));
@@ -82,7 +100,10 @@ export class Batches {
                 fileName(this.logbookName(), req.kind, new Date(), suffix, result.format),
                 fromBase64(result.file)
             );
-            this.items = [...result.files.map((f) => f.batch).reverse(), ...this.items];
+            this.lists = placeExport(
+                this.lists,
+                result.files.map((f) => f.batch)
+            );
             return result;
         } catch (e) {
             toasts.error(message(e));
@@ -117,7 +138,7 @@ export class Batches {
     async applyExport(exportId: string): Promise<boolean> {
         return this.work(exportId, async () => {
             const outcome = await api.applyExport(this.logbookId, exportId);
-            this.items = await api.batches(this.logbookId);
+            this.settle(exportId, 'applied_at');
             toasts.show(
                 m.transfer_export_applied({
                     batches: outcome.batches,
@@ -130,19 +151,47 @@ export class Batches {
     async dismissExport(exportId: string): Promise<boolean> {
         return this.work(exportId, async () => {
             const { batches } = await api.dismissExport(this.logbookId, exportId);
-            this.items = await api.batches(this.logbookId);
+            this.settle(exportId, 'dismissed_at');
             toasts.show(m.transfer_export_dismissed({ batches }));
         });
     }
 
     private replace(batch: Batch) {
-        this.items = this.items.map((b) => (b.id === batch.id ? batch : b));
+        this.lists = reviseExport(this.lists, batch.export_id, (b) =>
+            b.id === batch.id ? batch : b
+        );
+    }
+
+    private settle(exportId: string, field: 'applied_at' | 'dismissed_at') {
+        const at = new Date().toISOString();
+        this.lists = reviseExport(this.lists, exportId, (b) =>
+            batchState(b) === 'pending' ? { ...b, [field]: at } : b
+        );
+    }
+
+    private async extend(state: ExportState, limit: number): Promise<void> {
+        const after = this.lists[state].next;
+        if (after === null) return;
+        const page = await api.batches(this.logbookId, { state, limit, after });
+        this.lists = { ...this.lists, [state]: appendPage(this.lists[state], page) };
+    }
+
+    private async refill(): Promise<void> {
+        try {
+            for (const state of EXPORT_STATES) {
+                const missing = EXPORTS_SHOWN - exportCount(this.lists[state].batches);
+                if (missing > 0) await this.extend(state, missing);
+            }
+        } catch (e) {
+            toasts.error(message(e));
+        }
     }
 
     private async work(id: string, run: () => Promise<void>): Promise<boolean> {
         this.working = id;
         try {
             await run();
+            await this.refill();
             return true;
         } catch (e) {
             toasts.error(message(e));
