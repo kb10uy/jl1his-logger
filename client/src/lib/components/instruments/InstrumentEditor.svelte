@@ -81,7 +81,10 @@
 </script>
 
 {#snippet labelFor(id: string, text: string, adif?: string)}
-    <label for={id} class="flex flex-col text-2xs text-muted md:pt-2">
+    <label
+        for={id}
+        class="flex flex-col text-2xs text-muted md:min-h-9 md:justify-center md:self-start"
+    >
         <span>{text}</span>
         {#if adif}
             <span class="font-mono text-2xs">{adif}</span>
