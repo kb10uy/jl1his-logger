@@ -18,9 +18,7 @@
         SENT_FIELDS,
         SPLIT_FIELDS,
         defaultSplit,
-        exportRuns,
         missingCount,
-        partitionRuns,
         splitChoices,
         splitLabel
     } from '#lib/transfer/transfer.ts';
@@ -31,7 +29,7 @@
     const batches = transfer.batches;
     const matches = new Matches(logbook.logbook.id, () => draft.q);
     const fields = $derived(SENT_FIELDS[draft.kind]);
-    const lists = $derived(partitionRuns(exportRuns(batches.items)));
+    const lists = $derived(batches.lists);
 
     const actions = {
         onapply: async (batch: Batch) => {
@@ -174,18 +172,22 @@
 
 <ExportList
     title={m.transfer_list_pending()}
-    empty={batches.items.length === 0 ? m.transfer_batch_none() : m.transfer_pending_none()}
-    runs={lists.pending}
+    empty={lists.pending.total + lists.finished.total === 0
+        ? m.transfer_batch_none()
+        : m.transfer_pending_none()}
+    list={lists.pending}
     callsigns={batches.callsigns}
     results={batches.results}
     working={batches.working}
+    onmore={() => batches.more('pending')}
     {...actions}
 />
 <ExportList
     title={m.transfer_list_finished()}
-    runs={lists.finished}
+    list={lists.finished}
     callsigns={batches.callsigns}
     results={batches.results}
     working={batches.working}
+    onmore={() => batches.more('finished')}
     {...actions}
 />

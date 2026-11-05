@@ -1,7 +1,9 @@
 import type {
     Batch,
+    BatchPage,
     Encoding,
     ExportKind,
+    ExportState,
     ExportedFile,
     LengthUnit,
     MergeReport,
@@ -160,11 +162,60 @@ export function exportRuns(batches: Batch[]): ExportRun[] {
     return [...runs.values()];
 }
 
-export function partitionRuns(runs: ExportRun[]): { pending: ExportRun[]; finished: ExportRun[] } {
+export type ExportLists = Record<ExportState, BatchPage>;
+
+export const NO_EXPORTS: ExportLists = {
+    pending: { batches: [], next: null, total: 0 },
+    finished: { batches: [], next: null, total: 0 }
+};
+
+export function exportCount(batches: Batch[]): number {
+    return new Set(batches.map((b) => b.export_id)).size;
+}
+
+export function appendPage(list: BatchPage, page: BatchPage): BatchPage {
+    return { ...page, batches: [...list.batches, ...page.batches] };
+}
+
+function withoutExport(list: BatchPage, exportId: string): BatchPage {
+    const batches = list.batches.filter((b) => b.export_id !== exportId);
+    return batches.length === list.batches.length
+        ? list
+        : { ...list, batches, total: list.total - 1 };
+}
+
+function withExport(list: BatchPage, batches: Batch[]): BatchPage {
+    const id = batches[0].export_id;
+    const total = list.total + 1;
+    if (list.next !== null && id < list.next) return { ...list, total };
+    const older = list.batches.findIndex((b) => b.export_id < id);
+    const at = older < 0 ? list.batches.length : older;
     return {
-        pending: runs.filter((run) => run.pending > 0),
-        finished: runs.filter((run) => run.pending === 0)
+        ...list,
+        batches: [...list.batches.slice(0, at), ...batches, ...list.batches.slice(at)],
+        total
     };
+}
+
+export function placeExport(lists: ExportLists, batches: Batch[]): ExportLists {
+    const id = batches[0].export_id;
+    const state = batches.some((b) => batchState(b) === 'pending') ? 'pending' : 'finished';
+    const next = {
+        pending: withoutExport(lists.pending, id),
+        finished: withoutExport(lists.finished, id)
+    };
+    return { ...next, [state]: withExport(next[state], batches) };
+}
+
+export function reviseExport(
+    lists: ExportLists,
+    exportId: string,
+    revise: (batch: Batch) => Batch
+): ExportLists {
+    const batches = [...lists.pending.batches, ...lists.finished.batches]
+        .filter((b) => b.export_id === exportId)
+        .map(revise);
+    return batches.length === 0 ? lists : placeExport(lists, batches);
 }
 
 export function rejectCount(report: NewReport | MergeReport): number {

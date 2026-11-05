@@ -5,9 +5,11 @@ import type {
     AdminUser,
     Area,
     Batch,
+    BatchPage,
     BulkChange,
     Encoding,
     ExportOutcome,
+    ExportState,
     Exported,
     ExportKind,
     FavoriteFrequency,
@@ -320,7 +322,10 @@ export const createExport = (logbook: string, req: ExportRequest) =>
 export const createSplitExport = (logbook: string, req: ExportRequest & { split: string[] }) =>
     request<SplitExported>('POST', `${base(logbook)}/exports/split`, { body: req });
 
-export const batches = (logbook: string) => request<Batch[]>('GET', `${base(logbook)}/exports`);
+export const batches = (
+    logbook: string,
+    page: { state: ExportState; limit: number; after?: string }
+) => request<BatchPage>('GET', `${base(logbook)}/exports${query({ ...page })}`);
 
 export const applyBatch = (logbook: string, id: string) =>
     request<Outcome>('POST', `${base(logbook)}/exports/${encodeURIComponent(id)}/apply`);

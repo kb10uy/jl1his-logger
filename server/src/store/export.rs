@@ -63,6 +63,22 @@ impl ExportKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportState {
+    Pending,
+    Finished,
+}
+
+impl ExportState {
+    fn pending_batches(self) -> &'static str {
+        match self {
+            ExportState::Pending => "> 0",
+            ExportState::Finished => "= 0",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportBatch {
     pub id: String,
@@ -126,6 +142,8 @@ impl ExportBatch {
 const SELECT: &str = "SELECT b.id, b.export_id, b.kind, b.created_by, b.created_at, b.applied_at, b.dismissed_at, \
      b.label, (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
      FROM export_batches b";
+
+const PENDING_BATCHES: &str = "sum(kind NOT IN ('adif', 'pota') AND applied_at IS NULL AND dismissed_at IS NULL)";
 
 pub fn document(records: &[Qso], unit: LengthUnit) -> String {
     encoded(records, Output::utf8(unit)).expect("UTF-8 represents every character")
@@ -286,6 +304,64 @@ pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result
     .iter()
     .map(ExportBatch::from_row)
     .collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportPage {
+    pub batches: Vec<ExportBatch>,
+    pub next: Option<String>,
+    pub total: i64,
+}
+
+pub async fn page(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    state: ExportState,
+    after: Option<&str>,
+    limit: u32,
+) -> Result<ExportPage, StoreError> {
+    let access = access.revalidate(conn).await?;
+    let matching = format!(
+        "GROUP BY export_id HAVING {PENDING_BATCHES} {}",
+        state.pending_batches()
+    );
+    let total = sqlx::query_scalar(AssertSqlSafe(format!(
+        "SELECT count(*) FROM (SELECT 1 FROM export_batches WHERE logbook_id = ? {matching})"
+    )))
+    .bind(access.logbook_id())
+    .fetch_one(&mut *conn)
+    .await?;
+
+    let older = if after.is_some() { "AND export_id < ?" } else { "" };
+    let sql = format!(
+        "SELECT export_id FROM export_batches WHERE logbook_id = ? {older} {matching} ORDER BY export_id DESC LIMIT ?"
+    );
+    let mut ids = sqlx::query_scalar::<_, String>(AssertSqlSafe(sql)).bind(access.logbook_id());
+    if let Some(after) = after {
+        ids = ids.bind(after);
+    }
+    let mut ids = ids.bind(i64::from(limit) + 1).fetch_all(&mut *conn).await?;
+    let more = ids.len() > limit as usize;
+    ids.truncate(limit as usize);
+
+    let marks = vec!["?"; ids.len()].join(", ");
+    let sql =
+        format!("{SELECT} WHERE b.logbook_id = ? AND b.export_id IN ({marks}) ORDER BY b.export_id DESC, b.id DESC");
+    let mut batches = sqlx::query(AssertSqlSafe(sql)).bind(access.logbook_id());
+    for id in &ids {
+        batches = batches.bind(id);
+    }
+    let batches = batches
+        .fetch_all(conn)
+        .await?
+        .iter()
+        .map(ExportBatch::from_row)
+        .collect::<Result<_, _>>()?;
+    Ok(ExportPage {
+        batches,
+        next: more.then(|| ids.pop()).flatten(),
+        total,
+    })
 }
 
 pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result<Outcome, StoreError> {

@@ -321,5 +321,12 @@
             "selectors": [],
             "match": { "": "Show all {n}" }
         }
+    ],
+    "transfer_show_more": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Show more ({n} left)" }
+        }
     ]
 }

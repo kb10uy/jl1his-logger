@@ -1,20 +1,19 @@
 <script lang="ts">
-    import type { Batch } from '#lib/api/types.ts';
+    import type { Batch, BatchPage } from '#lib/api/types.ts';
     import BatchState from '#lib/components/transfer/BatchState.svelte';
     import Icon from '#lib/components/ui/Icon.svelte';
     import { formatNumber } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
-    import { KIND_LABELS, type ExportRun, recordOnly } from '#lib/transfer/transfer.ts';
-
-    const SHOWN = 10;
+    import { KIND_LABELS, type ExportRun, exportRuns, recordOnly } from '#lib/transfer/transfer.ts';
 
     let {
         title,
         empty,
-        runs,
+        list,
         callsigns,
         results,
         working,
+        onmore,
         onapply,
         ondismiss,
         onrestore,
@@ -23,10 +22,11 @@
     }: {
         title: string;
         empty?: string;
-        runs: ExportRun[];
+        list: BatchPage;
         callsigns: Record<string, string>;
         results: Record<string, string>;
         working?: string;
+        onmore: () => void;
         onapply: (batch: Batch) => void;
         ondismiss: (batch: Batch) => void;
         onrestore: (batch: Batch) => void;
@@ -34,8 +34,7 @@
         ondismissall: (run: ExportRun) => void;
     } = $props();
 
-    let all = $state(false);
-    const shown = $derived(all ? runs : runs.slice(0, SHOWN));
+    const runs = $derived(exportRuns(list.batches));
     const when = (at: string) => at.replace('T', ' ').slice(0, 16);
     const busy = $derived(working !== undefined);
     const actions = $derived({ working, onapply, ondismiss, onrestore });
@@ -63,9 +62,9 @@
 
 {#if runs.length > 0 || empty}
     <section aria-label={title} class="flex flex-col gap-1">
-        <h2 class="eyebrow">{title} · {formatNumber(runs.length)}</h2>
+        <h2 class="eyebrow">{title} · {formatNumber(list.total)}</h2>
         <ul class="flex flex-col overflow-hidden rounded-lg border border-border bg-surface">
-            {#each shown as run (run.id)}
+            {#each runs as run (run.id)}
                 <li class="border-b border-surface-2 text-sm last:border-b-0">
                     {#if run.batches.length === 1}
                         <div class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
@@ -177,11 +176,12 @@
                 <li class="px-3 py-4 text-sm text-muted">{empty}</li>
             {/each}
         </ul>
-        {#if runs.length > shown.length}
+        {#if list.next !== null}
             <button
                 type="button"
-                class="self-start px-1 text-sm text-info"
-                onclick={() => (all = true)}>{m.transfer_show_all({ count: runs.length })}</button
+                disabled={busy}
+                class="self-start px-1 text-sm text-info disabled:opacity-60"
+                onclick={onmore}>{m.transfer_show_more({ count: list.total - runs.length })}</button
             >
         {/if}
     </section>
