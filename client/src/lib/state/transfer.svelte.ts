@@ -1,10 +1,28 @@
 import * as api from '#lib/api/api.ts';
 import type { ExportRequest } from '#lib/api/api.ts';
-import type { Batch, Exported, SplitExported } from '#lib/api/types.ts';
+import type {
+    Batch,
+    Encoding,
+    ExportKind,
+    Exported,
+    ImportSource,
+    LengthUnit,
+    MergeReport,
+    NewReport,
+    SplitExported,
+    Unencodable
+} from '#lib/api/types.ts';
 import { download, fromBase64 } from '#lib/download.ts';
 import { m } from '#lib/paraglide/messages.js';
+import type { LogbookState } from '#lib/state/logbook.svelte.ts';
 import { toasts } from '#lib/state/toast.svelte.ts';
-import { MAX_IMPORT, fileName, outcomeText } from '#lib/transfer/transfer.ts';
+import {
+    MAX_IMPORT,
+    type SplitChoice,
+    fileName,
+    formatOf,
+    outcomeText
+} from '#lib/transfer/transfer.ts';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -12,7 +30,7 @@ export class Batches {
     items = $state<Batch[]>([]);
     callsigns = $state<Record<string, string>>({});
     results = $state<Record<string, string>>({});
-    applying = $state<string | undefined>(undefined);
+    working = $state<string | undefined>(undefined);
     creating = $state(false);
     private readonly logbookId: string;
     private readonly logbookName: () => string;
@@ -22,15 +40,17 @@ export class Batches {
         this.logbookName = logbookName;
     }
 
-    load() {
-        api.batches(this.logbookId)
-            .then((found) => (this.items = found))
-            .catch((e) => toasts.error(message(e)));
+    async load(): Promise<void> {
         api.members(this.logbookId)
             .then((found) => {
                 this.callsigns = Object.fromEntries(found.map((m) => [m.user_id, m.callsign]));
             })
             .catch(() => undefined);
+        try {
+            this.items = await api.batches(this.logbookId);
+        } catch (e) {
+            toasts.error(message(e));
+        }
     }
 
     async create(req: ExportRequest): Promise<Exported | undefined> {
@@ -73,20 +93,62 @@ export class Batches {
     }
 
     async apply(batch: Batch): Promise<boolean> {
-        this.applying = batch.id;
-        try {
+        return this.work(batch.id, async () => {
             const outcome = await api.applyBatch(this.logbookId, batch.id);
-            this.results = { ...this.results, [batch.id]: outcomeText(outcome) };
-            const appliedAt = new Date().toISOString();
-            this.items = this.items.map((b) =>
-                b.id === batch.id ? { ...b, applied_at: appliedAt } : b
+            const result = outcomeText(outcome);
+            this.results = { ...this.results, [batch.id]: result };
+            toasts.show(m.transfer_batch_applied_result({ result }));
+            this.replace({ ...batch, applied_at: new Date().toISOString() });
+        });
+    }
+
+    async dismiss(batch: Batch): Promise<boolean> {
+        return this.work(batch.id, async () => {
+            this.replace(await api.dismissBatch(this.logbookId, batch.id));
+        });
+    }
+
+    async restore(batch: Batch): Promise<boolean> {
+        return this.work(batch.id, async () => {
+            this.replace(await api.restoreBatch(this.logbookId, batch.id));
+        });
+    }
+
+    async applyExport(exportId: string): Promise<boolean> {
+        return this.work(exportId, async () => {
+            const outcome = await api.applyExport(this.logbookId, exportId);
+            this.items = await api.batches(this.logbookId);
+            toasts.show(
+                m.transfer_export_applied({
+                    batches: outcome.batches,
+                    result: outcomeText(outcome)
+                })
             );
+        });
+    }
+
+    async dismissExport(exportId: string): Promise<boolean> {
+        return this.work(exportId, async () => {
+            const { batches } = await api.dismissExport(this.logbookId, exportId);
+            this.items = await api.batches(this.logbookId);
+            toasts.show(m.transfer_export_dismissed({ batches }));
+        });
+    }
+
+    private replace(batch: Batch) {
+        this.items = this.items.map((b) => (b.id === batch.id ? batch : b));
+    }
+
+    private async work(id: string, run: () => Promise<void>): Promise<boolean> {
+        this.working = id;
+        try {
+            await run();
             return true;
         } catch (e) {
             toasts.error(message(e));
             return false;
         } finally {
-            this.applying = undefined;
+            this.working = undefined;
         }
     }
 }
@@ -140,4 +202,85 @@ export class ImportRun<R> {
             if (mine === this.attempt) this.previewing = false;
         }
     }
+}
+
+export class ExportDraft {
+    kind = $state<ExportKind>('adif');
+    q = $state('');
+    park = $state('');
+    length = $state<LengthUnit>('codepoints');
+    encoding = $state<Encoding>('utf-8');
+    unencodable = $state<Unencodable>('error');
+    split = $state<SplitChoice>('none');
+}
+
+export class ImportDraft {
+    source = $state<ImportSource>('new');
+    file = $state<File | undefined>(undefined);
+    stationId = $state('');
+    instrumentId = $state('');
+    length = $state<LengthUnit | 'auto'>('auto');
+    encoding = $state<Encoding | 'auto'>('auto');
+}
+
+export class TransferState {
+    readonly batches: Batches;
+    readonly exportDraft = new ExportDraft();
+    readonly importDraft = new ImportDraft();
+    readonly importer: ImportRun<NewReport | MergeReport>;
+
+    constructor(logbook: LogbookState) {
+        const id = logbook.logbook.id;
+        this.batches = new Batches(id, () => logbook.logbook.name);
+        this.importer = new ImportRun<NewReport | MergeReport>((file, apply) => {
+            const draft = this.importDraft;
+            const format = formatOf(file.name);
+            const options = {
+                format,
+                length: format === 'adi' && draft.length !== 'auto' ? draft.length : undefined,
+                encoding:
+                    format === 'adi' && draft.encoding !== 'auto' ? draft.encoding : undefined,
+                apply
+            };
+            return draft.source === 'new'
+                ? api.importAdif(
+                      id,
+                      draft.source,
+                      {
+                          ...options,
+                          station_id: this.station(logbook),
+                          instrument_id: logbook.activeInstrumentId(draft.instrumentId) || undefined
+                      },
+                      file
+                  )
+                : api.importAdif(
+                      id,
+                      draft.source,
+                      { ...options, station_id: draft.stationId || undefined },
+                      file
+                  );
+        });
+    }
+
+    station(logbook: LogbookState): string {
+        const id = this.importDraft.stationId;
+        return logbook.activeStations.some((s) => s.id === id)
+            ? id
+            : (logbook.activeStations[0]?.id ?? '');
+    }
+}
+
+const states = new Map<string, TransferState>();
+
+export function transferState(logbook: LogbookState): TransferState {
+    let state = states.get(logbook.logbook.id);
+    if (state === undefined) {
+        state = new TransferState(logbook);
+        states.set(logbook.logbook.id, state);
+    }
+    return state;
+}
+
+export function forgetTransfers() {
+    states.clear();
 }

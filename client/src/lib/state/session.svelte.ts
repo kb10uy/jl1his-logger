@@ -3,6 +3,7 @@ import { ApiError } from '#lib/api/client.ts';
 import type { Logbook, Me } from '#lib/api/types.ts';
 import { lastLogbook as lastLogbookSetting, load, save } from '#lib/device.ts';
 import { forgetLogbooks } from '#lib/state/logbook.svelte.ts';
+import { forgetTransfers } from '#lib/state/transfer.svelte.ts';
 
 class Session {
     me = $state<Me | null | undefined>(undefined);
@@ -35,11 +36,13 @@ class Session {
         this.me = null;
         this.logbooks = [];
         forgetLogbooks();
+        forgetTransfers();
     }
 
     expire() {
         this.me = null;
         forgetLogbooks();
+        forgetTransfers();
     }
 
     logbook(id: string): Logbook | undefined {

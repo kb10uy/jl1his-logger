@@ -15,7 +15,11 @@
     "transfer_unencodable_omit": "Leave the field out",
     "transfer_read_encoding": "Read as {encoding}",
     "transfer_read_lengths": "non-ASCII lengths in {units}",
-    "transfer_direction": "Direction",
+    "transfer_section_title": "{section} - ADIF Import / Export",
+    "transfer_back": "Back to Import / Export",
+    "transfer_sections": "Import / Export sections",
+    "transfer_export_adif": "Export ADIF",
+    "transfer_import_adif": "Import ADIF",
     "transfer_kind": "Kind",
     "transfer_kind_qsl_card": "QSL card",
     "transfer_query": "Query",
@@ -41,8 +45,6 @@
             }
         }
     ],
-    "transfer_import": "Import",
-    "transfer_export": "Export",
     "transfer_source_new": "New QSOs",
     "transfer_station_required": "Create a Station first; new QSOs are recorded at one.",
     "transfer_imported_label": "Imported",
@@ -123,8 +125,22 @@
     "transfer_park_every": "every park",
     "transfer_exporting": "Exporting…",
     "transfer_download_adif": "Download ADIF",
-    "transfer_recent_exports": "Recent exports",
-    "transfer_split_by_callsign": "One file per STATION_CALLSIGN, in a zip",
+    "transfer_split": "Split by",
+    "transfer_split_none": "No (one file)",
+    "transfer_exported_missing": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} record lacks a split field and is in a file labelled none.",
+                "countPlural=other": "{n} records lack a split field and are in a file labelled none."
+            }
+        }
+    ],
     "transfer_exported_files": [
         {
             "declarations": [
@@ -185,7 +201,6 @@
             }
         }
     ],
-    "transfer_batch_created_at": "Created",
     "transfer_batch_qsos": "QSOs",
     "transfer_batch_state": "State",
     "transfer_batch_record_only": "Record only",
@@ -199,7 +214,87 @@
             "match": { "": "Mark {n} as sent" }
         }
     ],
-    "transfer_batch_none": "No batches yet.",
+    "transfer_batch_none": "No exports yet.",
+    "transfer_batch_file": "File",
+    "transfer_batch_dismiss": "Dismiss",
+    "transfer_batch_dismissed_at": "Dismissed {at}",
+    "transfer_batch_restore": "Restore",
+    "transfer_export_files": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} file",
+                "countPlural=other": "{n} files"
+            }
+        }
+    ],
+    "transfer_export_pending": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} pending" }
+        }
+    ],
+    "transfer_list_pending": "Pending",
+    "transfer_list_finished": "Done and record only",
+    "transfer_pending_none": "Nothing is pending.",
+    "transfer_export_qsos": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} QSO",
+                "countPlural=other": "{n} QSOs"
+            }
+        }
+    ],
+    "transfer_export_done": "Done",
+    "transfer_export_mark_all": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Mark the remaining {n} as sent" }
+        }
+    ],
+    "transfer_export_dismiss_all": "Dismiss the remaining",
+    "transfer_export_applied": [
+        {
+            "declarations": [
+                "input batches",
+                "input result",
+                "local batchesPlural = batches: plural",
+                "local n = batches: number"
+            ],
+            "selectors": ["batchesPlural"],
+            "match": {
+                "batchesPlural=one": "Marked {n} file as sent · {result}",
+                "batchesPlural=other": "Marked {n} files as sent · {result}"
+            }
+        }
+    ],
+    "transfer_export_dismissed": [
+        {
+            "declarations": [
+                "input batches",
+                "local batchesPlural = batches: plural",
+                "local n = batches: number"
+            ],
+            "selectors": ["batchesPlural"],
+            "match": {
+                "batchesPlural=one": "Dismissed {n} file",
+                "batchesPlural=other": "Dismissed {n} files"
+            }
+        }
+    ],
     "transfer_outcome_updated": [
         {
             "declarations": ["input updated", "local u = updated: number"],

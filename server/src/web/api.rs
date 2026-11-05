@@ -124,10 +124,22 @@ pub(super) fn router() -> Router<Arc<AppState>> {
             "/api/logbooks/{logbook_id}/exports/split",
             post(qso::export::create_split),
         )
+        .route(
+            "/api/logbooks/{logbook_id}/exports/apply",
+            post(qso::export::apply_export),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/exports/dismiss",
+            post(qso::export::dismiss_export),
+        )
         .route("/api/logbooks/{logbook_id}/exports/{id}", get(qso::export::get))
         .route(
             "/api/logbooks/{logbook_id}/exports/{id}/apply",
             post(qso::export::apply),
+        )
+        .route(
+            "/api/logbooks/{logbook_id}/exports/{id}/dismiss",
+            post(qso::export::dismiss).delete(qso::export::undismiss),
         )
         .route("/api/logbooks/{logbook_id}/changes", get(qso::changes))
         .route("/api/logbooks/{logbook_id}/events", get(qso::events::stream))

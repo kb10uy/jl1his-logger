@@ -21,7 +21,8 @@ scope.
   (paper, eQSL and LoTW, each kept separately) into existing QSOs. Exports are
   recorded as batches, so sending QSL cards or uploads is marked on exactly the
   QSOs that were exported; an export can be split into one file per
-  `STATION_CALLSIGN`, as eQSL and LoTW uploads need, downloaded as a zip.
+  `STATION_CALLSIGN`, grid or park, as eQSL, LoTW and POTA uploads need,
+  downloaded as a zip.
 - Looks up a callsign's DXCC entity from `cty.dat` and the station's own
   previous QSOs with it (name, grid, QTH).
 - Serves a SvelteKit PWA on the same origin: log list and search, single-QSO

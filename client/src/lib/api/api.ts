@@ -7,6 +7,7 @@ import type {
     Batch,
     BulkChange,
     Encoding,
+    ExportOutcome,
     Exported,
     ExportKind,
     FavoriteFrequency,
@@ -323,6 +324,22 @@ export const batches = (logbook: string) => request<Batch[]>('GET', `${base(logb
 
 export const applyBatch = (logbook: string, id: string) =>
     request<Outcome>('POST', `${base(logbook)}/exports/${encodeURIComponent(id)}/apply`);
+
+export const dismissBatch = (logbook: string, id: string) =>
+    request<Batch>('POST', `${base(logbook)}/exports/${encodeURIComponent(id)}/dismiss`);
+
+export const restoreBatch = (logbook: string, id: string) =>
+    request<Batch>('DELETE', `${base(logbook)}/exports/${encodeURIComponent(id)}/dismiss`);
+
+export const applyExport = (logbook: string, exportId: string) =>
+    request<ExportOutcome>('POST', `${base(logbook)}/exports/apply`, {
+        body: { export_id: exportId }
+    });
+
+export const dismissExport = (logbook: string, exportId: string) =>
+    request<{ batches: number }>('POST', `${base(logbook)}/exports/dismiss`, {
+        body: { export_id: exportId }
+    });
 
 export interface ImportRequest {
     station_id?: string;

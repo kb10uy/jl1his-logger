@@ -102,7 +102,8 @@ A Station Location of a Logbook.
   Station.
 - `fields` is the JSON map of the other defaults that are baked into a new
   QSO, keyed by their ADIF name (`MY_GRIDSQUARE`, `MY_CITY`, `MY_STATE`,
-  `MY_CNTY`, `MY_POTA_REF`, `MY_SIG`, `MY_SIG_INFO`, `MY_DXCC`, ...). The
+  `MY_CNTY`, `MY_POTA_REF`, `MY_SIG`, `MY_SIG_INFO`, `MY_DXCC`,
+  `APP_EQSL_QTH_NICKNAME`, ...). The
   web UI edits them as form fields; the server does not need columns for
   them because nothing searches Stations by them. `MY_RIG`, `MY_ANTENNA`
   and `TX_PWR` are never among them; they belong to `instruments`.
@@ -235,11 +236,15 @@ Applying the result (for example marking `QSL_SENT = Y` after the cards went
 out) touches only the rows in the batch, and a row whose `revision` moved
 since the export, or that was deleted, is skipped and reported rather than
 silently overwritten. `applied_at` is set when the result has been applied,
-and a batch is applied only once. `adif` and `pota` batches record what was
+and a batch is applied only once; `dismissed_at` is set instead when the
+result is not going to be applied, and cleared when the batch is restored.
+`adif` and `pota` batches record what was
 exported and have nothing to apply. decisions.md lists the fields each kind
 sets. `label` is the value a split export grouped the batch by (its
 `STATION_CALLSIGN`, say), shown beside the kind, and null for a batch of an
-unsplit export.
+unsplit export. `export_id` is shared by the batches one request created,
+so the files of a split export can be listed and applied as one export;
+migration 17 gave every earlier batch its own `id` as its `export_id`.
 
 `export_batch_qsos.logbook_id` participates in composite foreign keys to
 both `export_batches` and `qsos`, so a batch cannot include a QSO from

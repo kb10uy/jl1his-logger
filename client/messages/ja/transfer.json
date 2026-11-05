@@ -15,7 +15,11 @@
     "transfer_unencodable_omit": "フィールドを省く",
     "transfer_read_encoding": "{encoding} として読みました",
     "transfer_read_lengths": "ASCII 以外の長さは{units}",
-    "transfer_direction": "方向",
+    "transfer_section_title": "{section} - ADIF 入出力",
+    "transfer_back": "ADIF 入出力に戻る",
+    "transfer_sections": "ADIF 入出力の項目",
+    "transfer_export_adif": "ADIF エクスポート",
+    "transfer_import_adif": "ADIF インポート",
     "transfer_kind": "種類",
     "transfer_kind_qsl_card": "紙 QSL",
     "transfer_query": "検索条件",
@@ -34,8 +38,6 @@
             "match": { "": "除外レコードのファイルをダウンロード ({n} 件)" }
         }
     ],
-    "transfer_import": "インポート",
-    "transfer_export": "エクスポート",
     "transfer_source_new": "新しい QSO",
     "transfer_station_required": "先に運用地を作成してください。新しい QSO はいずれかの運用地で記録します。",
     "transfer_imported_label": "インポート完了",
@@ -88,8 +90,15 @@
     "transfer_park_every": "すべてのパーク",
     "transfer_exporting": "エクスポート中…",
     "transfer_download_adif": "ADIF をダウンロード",
-    "transfer_recent_exports": "最近のエクスポート",
-    "transfer_split_by_callsign": "STATION_CALLSIGN ごとにファイルを分けて zip にする",
+    "transfer_split": "ファイル分割",
+    "transfer_split_none": "なし (1 ファイル)",
+    "transfer_exported_missing": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} 件は分割フィールドがないため、none のファイルに入っています" }
+        }
+    ],
     "transfer_exported_files": [
         {
             "declarations": [
@@ -132,7 +141,6 @@
             "match": { "": "{n} 件の交信確認を反映" }
         }
     ],
-    "transfer_batch_created_at": "作成日時",
     "transfer_batch_qsos": "QSO 数",
     "transfer_batch_state": "状態",
     "transfer_batch_record_only": "記録のみ",
@@ -146,7 +154,58 @@
             "match": { "": "{n} 件を送付済みにする" }
         }
     ],
-    "transfer_batch_none": "バッチはまだありません。",
+    "transfer_batch_none": "エクスポートはまだありません。",
+    "transfer_batch_file": "ファイル",
+    "transfer_batch_dismiss": "対象外にする",
+    "transfer_batch_dismissed_at": "対象外 {at}",
+    "transfer_batch_restore": "戻す",
+    "transfer_export_files": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} ファイル" }
+        }
+    ],
+    "transfer_export_pending": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "未処理 {n} 件" }
+        }
+    ],
+    "transfer_list_pending": "未処理",
+    "transfer_list_finished": "完了・記録のみ",
+    "transfer_pending_none": "未処理のバッチはありません。",
+    "transfer_export_qsos": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} QSO" }
+        }
+    ],
+    "transfer_export_done": "完了",
+    "transfer_export_mark_all": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "残り {n} 件を送付済みにする" }
+        }
+    ],
+    "transfer_export_dismiss_all": "残りを対象外にする",
+    "transfer_export_applied": [
+        {
+            "declarations": ["input batches", "input result", "local n = batches: number"],
+            "selectors": [],
+            "match": { "": "{n} ファイルを送付済みにしました · {result}" }
+        }
+    ],
+    "transfer_export_dismissed": [
+        {
+            "declarations": ["input batches", "local n = batches: number"],
+            "selectors": [],
+            "match": { "": "{n} ファイルを対象外にしました" }
+        }
+    ],
     "transfer_outcome_updated": [
         {
             "declarations": ["input updated", "local u = updated: number"],

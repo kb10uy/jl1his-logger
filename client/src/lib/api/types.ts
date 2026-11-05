@@ -243,12 +243,18 @@ export type Unencodable = 'error' | 'replace' | 'entity' | 'omit';
 
 export interface Batch {
     id: string;
+    export_id: string;
     kind: ExportKind;
     created_by: string;
     created_at: string;
     applied_at: string | null;
+    dismissed_at: string | null;
     qso_count: number;
     label: string | null;
+}
+
+export interface ExportOutcome extends Outcome {
+    batches: number;
 }
 
 export interface Exported {
@@ -261,6 +267,7 @@ export interface Exported {
 export interface ExportedFile {
     name: string;
     label: string;
+    missing: string[];
     records: number;
     batch: Batch;
 }

@@ -17,6 +17,7 @@ use crate::{
         WriteTx,
         bulk::{self, Change, Outcome, SkipReason, Skipped},
         export::{self, ExportBatch, ExportKind},
+        new_id,
         qso::{Filter, Target},
     },
     web::{
@@ -105,10 +106,12 @@ impl From<Outcome> for OutcomeBody {
 #[derive(Debug, Serialize)]
 pub struct BatchBody {
     id: String,
+    export_id: String,
     kind: ExportKind,
     created_by: String,
     created_at: String,
     applied_at: Option<String>,
+    dismissed_at: Option<String>,
     qso_count: i64,
     label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,10 +122,12 @@ impl From<ExportBatch> for BatchBody {
     fn from(batch: ExportBatch) -> BatchBody {
         BatchBody {
             id: batch.id,
+            export_id: batch.export_id,
             kind: batch.kind,
             created_by: batch.created_by,
             created_at: batch.created_at,
             applied_at: batch.applied_at,
+            dismissed_at: batch.dismissed_at,
             qso_count: batch.qso_count,
             label: batch.label,
             qsos: None,
@@ -161,6 +166,7 @@ pub struct SplitRequest {
 pub struct FileBody {
     name: String,
     label: String,
+    missing: Vec<String>,
     records: usize,
     batch: BatchBody,
 }
@@ -279,7 +285,7 @@ pub async fn create(
     let file = matches!(req.encoding, Encoding::ShiftJis | Encoding::Windows1252)
         .then(|| BASE64_STANDARD.encode(req.encoding.encode(&adif)));
     let mut tx = WriteTx::begin(&state.db).await?;
-    let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets, None).await?;
+    let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets, None, &new_id()).await?;
     tx.commit().await?;
     Ok((
         StatusCode::CREATED,
@@ -325,6 +331,7 @@ pub async fn create_split(
     }
     let mut tx = WriteTx::begin(&state.db).await?;
     let mut bodies = Vec::with_capacity(parts.len());
+    let export_id = new_id();
     for (part, name) in parts.iter().zip(&names) {
         let batch = export::create(
             &mut tx,
@@ -332,11 +339,13 @@ pub async fn create_split(
             req.export.kind,
             &part.targets,
             Some(&part.label),
+            &export_id,
         )
         .await?;
         bodies.push(FileBody {
             name: name.clone(),
             label: part.label.clone(),
+            missing: part.missing.clone(),
             records: part.records.len(),
             batch: batch.into(),
         });
@@ -366,6 +375,70 @@ pub async fn apply(
     let outcome = export::apply(&mut tx, &member.access, &item.id).await?;
     tx.commit().await?;
     Ok(Json(outcome.into()))
+}
+
+pub async fn dismiss(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Path(item): Path<Item>,
+) -> Result<Json<BatchBody>, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let batch = export::dismiss(&mut tx, &member.access, &item.id).await?;
+    tx.commit().await?;
+    Ok(Json(batch.into()))
+}
+
+pub async fn undismiss(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Path(item): Path<Item>,
+) -> Result<Json<BatchBody>, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let batch = export::undismiss(&mut tx, &member.access, &item.id).await?;
+    tx.commit().await?;
+    Ok(Json(batch.into()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportIdRequest {
+    export_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportOutcomeBody {
+    batches: usize,
+    #[serde(flatten)]
+    outcome: OutcomeBody,
+}
+
+pub async fn apply_export(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Json(req): Json<ExportIdRequest>,
+) -> Result<Json<ExportOutcomeBody>, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let result = export::apply_export(&mut tx, &member.access, &req.export_id).await?;
+    tx.commit().await?;
+    Ok(Json(ExportOutcomeBody {
+        batches: result.batches,
+        outcome: result.outcome.into(),
+    }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct DismissedBody {
+    batches: usize,
+}
+
+pub async fn dismiss_export(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Json(req): Json<ExportIdRequest>,
+) -> Result<Json<DismissedBody>, ApiError> {
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let batches = export::dismiss_export(&mut tx, &member.access, &req.export_id).await?;
+    tx.commit().await?;
+    Ok(Json(DismissedBody { batches }))
 }
 
 #[cfg(test)]
@@ -573,10 +646,17 @@ mod tests {
         let labels: Vec<_> = list.as_array().unwrap().iter().map(|b| b["label"].clone()).collect();
         assert_eq!(labels, [json!("JL1HIS/P"), json!("JL1HIS")]);
 
+        let (status, by_grid) = send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN", "MY_GRIDSQUARE"] })).await;
+        assert_eq!(status, StatusCode::CREATED, "{by_grid}");
+        let files = by_grid["files"].as_array().unwrap();
+        assert_eq!(files[0]["name"], "JL1HIS_none.adi");
+        assert_eq!(files[0]["missing"], json!(["MY_GRIDSQUARE"]));
+
         let (status, one) = send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN"], "q": "call:JA1XYZ" })).await;
         assert_eq!(status, StatusCode::CREATED, "{one}");
         assert_eq!(one["format"], "adi");
         assert_eq!(one["files"].as_array().unwrap().len(), 1);
+        assert_eq!(one["files"][0]["missing"], json!([]));
         let adi = BASE64_STANDARD.decode(one["file"].as_str().unwrap()).unwrap();
         assert!(
             std::str::from_utf8(&adi)
@@ -603,7 +683,86 @@ mod tests {
             (&json!("JL1HIS_P.adi"), &json!(1))
         );
         let (_, list) = h.send("GET", &h.path("/exports"), Auth::Session(&cookie), None).await;
-        assert_eq!(list.as_array().unwrap().len(), 3);
+        assert_eq!(list.as_array().unwrap().len(), 5);
+    }
+
+    #[tokio::test]
+    async fn dismisses_batches_and_handles_whole_exports() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let station = h.station.id.clone();
+        h.create_qso(&cookie, &station, "JA1XYZ", "0100", &[("STATION_CALLSIGN", "JL1HIS/P")])
+            .await;
+        h.create_qso(&cookie, &station, "JA1ABC", "0200", &[("STATION_CALLSIGN", "JL1HIS")])
+            .await;
+        h.create_qso(&cookie, &station, "JA1DEF", "0300", &[("STATION_CALLSIGN", "JL1HIS")])
+            .await;
+        let exports = h.path("/exports");
+        let send = async |method, path: String, body| h.send(method, &path, Auth::Session(&cookie), body).await;
+
+        let (status, exported) = send(
+            "POST",
+            format!("{exports}/split"),
+            Some(json!({ "kind": "lotw", "split": ["STATION_CALLSIGN"] })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "{exported}");
+        let files = exported["files"].as_array().unwrap();
+        let export_id = files[0]["batch"]["export_id"].as_str().unwrap().to_owned();
+        assert_eq!(files[1]["batch"]["export_id"], export_id);
+        let home = format!("{exports}/{}", files[0]["batch"]["id"].as_str().unwrap());
+
+        let (status, dismissed) = send("POST", format!("{home}/dismiss"), None).await;
+        assert_eq!(status, StatusCode::OK, "{dismissed}");
+        assert!(dismissed["dismissed_at"].is_string());
+        let (status, refused) = send("POST", format!("{home}/apply"), None).await;
+        assert_eq!(
+            (status, &refused["code"]),
+            (StatusCode::CONFLICT, &json!("batch_dismissed"))
+        );
+        let (status, _) = send("POST", format!("{home}/dismiss"), None).await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        let (status, restored) = send("DELETE", format!("{home}/dismiss"), None).await;
+        assert_eq!(status, StatusCode::OK, "{restored}");
+        assert_eq!(restored["dismissed_at"], Value::Null);
+
+        let (status, applied) = send(
+            "POST",
+            format!("{exports}/apply"),
+            Some(json!({ "export_id": export_id })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{applied}");
+        assert_eq!(applied["batches"], 2);
+        assert_eq!(applied["updated"].as_array().unwrap().len(), 3);
+        assert_eq!(applied["skipped"], json!([]));
+        let (status, again) = send(
+            "POST",
+            format!("{exports}/apply"),
+            Some(json!({ "export_id": export_id })),
+        )
+        .await;
+        assert_eq!((status, &again["batches"]), (StatusCode::OK, &json!(0)));
+        let (status, _) = send(
+            "POST",
+            format!("{exports}/dismiss"),
+            Some(json!({ "export_id": "nowhere" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        let (status, plain) = send("POST", exports.clone(), Some(json!({ "kind": "adif" }))).await;
+        assert_eq!(status, StatusCode::CREATED, "{plain}");
+        let batch = format!("{exports}/{}", plain["batch"]["id"].as_str().unwrap());
+        let (status, _) = send("POST", format!("{batch}/dismiss"), None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, none) = send(
+            "POST",
+            format!("{exports}/dismiss"),
+            Some(json!({ "export_id": plain["batch"]["export_id"] })),
+        )
+        .await;
+        assert_eq!((status, &none["batches"]), (StatusCode::OK, &json!(0)));
     }
 
     #[tokio::test]

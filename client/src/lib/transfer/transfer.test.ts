@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { MergeReport, NewReport, Qso } from '#lib/api/types.ts';
+import type { Batch, MergeReport, NewReport, Qso } from '#lib/api/types.ts';
 import {
+    SPLIT_FIELDS,
+    batchState,
+    defaultSplit,
+    exportRuns,
     differencesText,
     fileName,
     formatOf,
+    missingCount,
     outcomeText,
+    partitionRuns,
     readingNote,
     recordOnly,
     rejectCount,
-    splitByDefault
+    splitChoices,
+    splitLabel
 } from './transfer.ts';
 
 describe('transfer helpers', () => {
@@ -30,11 +37,75 @@ describe('transfer helpers', () => {
         );
     });
 
-    it('splits eQSL and LoTW exports by default', () => {
-        expect(splitByDefault('lotw')).toBe(true);
-        expect(splitByDefault('eqsl')).toBe(true);
-        expect(splitByDefault('qsl_card')).toBe(false);
-        expect(splitByDefault('adif')).toBe(false);
+    it('offers the split choices of a kind with its default among them', () => {
+        expect(defaultSplit('lotw')).toBe('callsign_grid');
+        expect(defaultSplit('eqsl')).toBe('callsign');
+        expect(defaultSplit('pota')).toBe('callsign_park');
+        expect(defaultSplit('qsl_card')).toBe('none');
+        expect(defaultSplit('adif')).toBe('none');
+        for (const kind of ['adif', 'pota', 'eqsl', 'lotw', 'qsl_card'] as const) {
+            expect(splitChoices(kind)).toContain(defaultSplit(kind));
+        }
+        expect(splitChoices('pota')).not.toContain('callsign_grid');
+        expect(SPLIT_FIELDS.callsign_park).toEqual(['STATION_CALLSIGN', 'MY_SIG_INFO']);
+        expect(splitLabel('callsign_grid')).toBe('STATION_CALLSIGN, MY_GRIDSQUARE');
+        expect(splitLabel('none')).toBe('No (one file)');
+    });
+
+    it('counts the records of files that lack a split field', () => {
+        const batch = {} as Batch;
+        expect(
+            missingCount([
+                { name: 'JL1HIS_PM95.adi', label: 'JL1HIS PM95', missing: [], records: 5, batch },
+                {
+                    name: 'JL1HIS_none.adi',
+                    label: 'JL1HIS none',
+                    missing: ['MY_GRIDSQUARE'],
+                    records: 2,
+                    batch
+                },
+                {
+                    name: 'none_none.adi',
+                    label: 'none none',
+                    missing: ['STATION_CALLSIGN', 'MY_GRIDSQUARE'],
+                    records: 1,
+                    batch
+                }
+            ])
+        ).toBe(3);
+        expect(missingCount([])).toBe(0);
+    });
+
+    it('groups batches into exports and counts their states', () => {
+        const batch = (over: Partial<Batch>): Batch => ({
+            id: '1',
+            export_id: 'a',
+            kind: 'lotw',
+            created_by: 'u',
+            created_at: '2026-11-05T10:00:01Z',
+            applied_at: null,
+            dismissed_at: null,
+            qso_count: 1,
+            label: null,
+            ...over
+        });
+        const runs = exportRuns([
+            batch({ id: '4', export_id: 'b', kind: 'adif', qso_count: 9 }),
+            batch({ id: '3', label: 'JL1HIS/P', dismissed_at: '2026-11-05T11:00:00Z' }),
+            batch({ id: '2', label: 'JL1HIS', applied_at: '2026-11-05T11:00:00Z', qso_count: 2 }),
+            batch({ id: '1', label: 'JA1ZZZ', created_at: '2026-11-05T10:00:00Z' })
+        ]);
+        expect(runs.map((r) => [r.id, r.kind, r.qsos, r.pending, r.applied, r.dismissed])).toEqual([
+            ['b', 'adif', 9, 0, 0, 0],
+            ['a', 'lotw', 4, 1, 1, 1]
+        ]);
+        expect(runs[1].created_at).toBe('2026-11-05T10:00:00Z');
+        expect(runs[1].batches.map((b) => b.id)).toEqual(['1', '2', '3']);
+        expect(batchState(runs[0].batches[0])).toBe('record');
+        expect(runs[1].batches.map(batchState)).toEqual(['pending', 'applied', 'dismissed']);
+        const lists = partitionRuns(runs);
+        expect(lists.pending.map((r) => r.id)).toEqual(['a']);
+        expect(lists.finished.map((r) => r.id)).toEqual(['b']);
     });
 
     it('tells records from batches that can be applied', () => {
