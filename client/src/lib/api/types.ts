@@ -261,6 +261,7 @@ export interface Exported {
 export interface ExportedFile {
     name: string;
     label: string;
+    missing: string[];
     records: number;
     batch: Batch;
 }

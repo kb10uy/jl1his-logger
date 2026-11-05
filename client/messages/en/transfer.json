@@ -124,7 +124,25 @@
     "transfer_exporting": "Exporting…",
     "transfer_download_adif": "Download ADIF",
     "transfer_recent_exports": "Recent exports",
-    "transfer_split_by_callsign": "One file per STATION_CALLSIGN, in a zip",
+    "transfer_split": "Split",
+    "transfer_split_none": "One file",
+    "transfer_split_callsign": "One file per STATION_CALLSIGN",
+    "transfer_split_callsign_grid": "Per STATION_CALLSIGN and MY_GRIDSQUARE",
+    "transfer_split_callsign_park": "Per STATION_CALLSIGN and park",
+    "transfer_exported_missing": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} record lacks a split field and is in a file labelled none.",
+                "countPlural=other": "{n} records lack a split field and are in a file labelled none."
+            }
+        }
+    ],
     "transfer_exported_files": [
         {
             "declarations": [

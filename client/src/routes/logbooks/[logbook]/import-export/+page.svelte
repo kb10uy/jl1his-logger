@@ -37,10 +37,14 @@
         LENGTH_LABELS,
         QUERY_PRESETS,
         SENT_FIELDS,
-        SPLIT_FIELD,
+        SPLIT_FIELDS,
+        SPLIT_LABELS,
+        type SplitChoice,
+        defaultSplit,
         formatOf,
+        missingCount,
         readingNote,
-        splitByDefault
+        splitChoices
     } from '#lib/transfer/transfer.ts';
 
     const logbook = useLogbook();
@@ -62,7 +66,7 @@
     let exportLength = $state<LengthUnit>('codepoints');
     let exportEncoding = $state<Encoding>('utf-8');
     let exportUnencodable = $state<Unencodable>('error');
-    let split = $state(false);
+    let split = $state<SplitChoice>('none');
 
     const station = $derived(
         logbook.activeStations.some((s) => s.id === stationId)
@@ -130,7 +134,9 @@
 
     function pick(next: ExportKind) {
         if (q === QUERY_PRESETS[kind]) q = QUERY_PRESETS[next];
-        if (split === splitByDefault(kind)) split = splitByDefault(next);
+        if (split === defaultSplit(kind) || !splitChoices(next).includes(split)) {
+            split = defaultSplit(next);
+        }
         kind = next;
     }
 
@@ -143,16 +149,22 @@
             encoding: exportEncoding,
             unencodable: exportEncoding === 'utf-8' ? undefined : exportUnencodable
         };
-        if (split) {
-            const result = await batches.createSplit(req, [SPLIT_FIELD]);
+        if (split !== 'none') {
+            const result = await batches.createSplit(req, SPLIT_FIELDS[split]);
             if (result === undefined) return;
+            if (result.format === null) {
+                toasts.show(m.transfer_export_nothing());
+                return;
+            }
+            const missing = missingCount(result.files);
             toasts.show(
-                result.format === null
-                    ? m.transfer_export_nothing()
-                    : m.transfer_exported_files({
-                          records: result.records,
-                          files: result.files.length
-                      })
+                [
+                    m.transfer_exported_files({
+                        records: result.records,
+                        files: result.files.length
+                    }),
+                    ...(missing > 0 ? [m.transfer_exported_missing({ count: missing })] : [])
+                ].join(' ')
             );
             return;
         }
@@ -251,6 +263,12 @@
                             bind:value={park}
                         />
                     {/if}
+                    <label for="exp-split" class="text-2xs text-muted">{m.transfer_split()}</label>
+                    <select id="exp-split" class="control h-9" bind:value={split}>
+                        {#each splitChoices(kind) as choice (choice)}
+                            <option value={choice}>{SPLIT_LABELS[choice]()}</option>
+                        {/each}
+                    </select>
                     <label for="exp-encoding" class="text-2xs text-muted"
                         >{m.transfer_encoding()}</label
                     >
@@ -282,11 +300,6 @@
                             {/each}
                         </select>
                     {/if}
-                    <div></div>
-                    <label class="flex h-8 cursor-pointer items-center gap-2 text-sm">
-                        <input type="checkbox" class="size-4 accent-info" bind:checked={split} />
-                        {m.transfer_split_by_callsign()}
-                    </label>
                 </ExportForm>
                 {#if fields}
                     <span class="text-2xs text-muted"

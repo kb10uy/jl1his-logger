@@ -1,6 +1,7 @@
 import type {
     Encoding,
     ExportKind,
+    ExportedFile,
     LengthUnit,
     MergeReport,
     NewReport,
@@ -72,10 +73,42 @@ export function fileName(
     return `${safe}-${kind.replace('_', '-')}${suffix}-${stamp}.${extension}`;
 }
 
-export const SPLIT_FIELD = 'STATION_CALLSIGN';
+export type SplitChoice = 'none' | 'callsign' | 'callsign_grid' | 'callsign_park';
 
-export function splitByDefault(kind: ExportKind): boolean {
-    return kind === 'eqsl' || kind === 'lotw';
+export const SPLIT_FIELDS: Record<Exclude<SplitChoice, 'none'>, string[]> = {
+    callsign: ['STATION_CALLSIGN'],
+    callsign_grid: ['STATION_CALLSIGN', 'MY_GRIDSQUARE'],
+    callsign_park: ['STATION_CALLSIGN', 'MY_SIG_INFO']
+};
+
+export const SPLIT_LABELS: Record<SplitChoice, () => string> = {
+    none: m.transfer_split_none,
+    callsign: m.transfer_split_callsign,
+    callsign_grid: m.transfer_split_callsign_grid,
+    callsign_park: m.transfer_split_callsign_park
+};
+
+export function splitChoices(kind: ExportKind): SplitChoice[] {
+    return kind === 'pota'
+        ? ['none', 'callsign', 'callsign_park']
+        : ['none', 'callsign', 'callsign_grid'];
+}
+
+export function defaultSplit(kind: ExportKind): SplitChoice {
+    switch (kind) {
+        case 'lotw':
+            return 'callsign_grid';
+        case 'eqsl':
+            return 'callsign';
+        case 'pota':
+            return 'callsign_park';
+        default:
+            return 'none';
+    }
+}
+
+export function missingCount(files: ExportedFile[]): number {
+    return files.filter((f) => f.missing.length > 0).reduce((n, f) => n + f.records, 0);
 }
 
 export function rejectCount(report: NewReport | MergeReport): number {

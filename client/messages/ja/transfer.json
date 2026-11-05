@@ -89,7 +89,18 @@
     "transfer_exporting": "エクスポート中…",
     "transfer_download_adif": "ADIF をダウンロード",
     "transfer_recent_exports": "最近のエクスポート",
-    "transfer_split_by_callsign": "STATION_CALLSIGN ごとにファイルを分けて zip にする",
+    "transfer_split": "分割",
+    "transfer_split_none": "分割しない",
+    "transfer_split_callsign": "STATION_CALLSIGN ごと",
+    "transfer_split_callsign_grid": "STATION_CALLSIGN と MY_GRIDSQUARE ごと",
+    "transfer_split_callsign_park": "STATION_CALLSIGN とパークごと",
+    "transfer_exported_missing": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "うち {n} 件は分割フィールドがなく、none のファイルに入っています" }
+        }
+    ],
     "transfer_exported_files": [
         {
             "declarations": [

@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { MergeReport, NewReport, Qso } from '#lib/api/types.ts';
+import type { Batch, MergeReport, NewReport, Qso } from '#lib/api/types.ts';
 import {
+    SPLIT_FIELDS,
+    defaultSplit,
     differencesText,
     fileName,
     formatOf,
+    missingCount,
     outcomeText,
     readingNote,
     recordOnly,
     rejectCount,
-    splitByDefault
+    splitChoices
 } from './transfer.ts';
 
 describe('transfer helpers', () => {
@@ -30,11 +33,41 @@ describe('transfer helpers', () => {
         );
     });
 
-    it('splits eQSL and LoTW exports by default', () => {
-        expect(splitByDefault('lotw')).toBe(true);
-        expect(splitByDefault('eqsl')).toBe(true);
-        expect(splitByDefault('qsl_card')).toBe(false);
-        expect(splitByDefault('adif')).toBe(false);
+    it('offers the split choices of a kind with its default among them', () => {
+        expect(defaultSplit('lotw')).toBe('callsign_grid');
+        expect(defaultSplit('eqsl')).toBe('callsign');
+        expect(defaultSplit('pota')).toBe('callsign_park');
+        expect(defaultSplit('qsl_card')).toBe('none');
+        expect(defaultSplit('adif')).toBe('none');
+        for (const kind of ['adif', 'pota', 'eqsl', 'lotw', 'qsl_card'] as const) {
+            expect(splitChoices(kind)).toContain(defaultSplit(kind));
+        }
+        expect(splitChoices('pota')).not.toContain('callsign_grid');
+        expect(SPLIT_FIELDS.callsign_park).toEqual(['STATION_CALLSIGN', 'MY_SIG_INFO']);
+    });
+
+    it('counts the records of files that lack a split field', () => {
+        const batch = {} as Batch;
+        expect(
+            missingCount([
+                { name: 'JL1HIS_PM95.adi', label: 'JL1HIS PM95', missing: [], records: 5, batch },
+                {
+                    name: 'JL1HIS_none.adi',
+                    label: 'JL1HIS none',
+                    missing: ['MY_GRIDSQUARE'],
+                    records: 2,
+                    batch
+                },
+                {
+                    name: 'none_none.adi',
+                    label: 'none none',
+                    missing: ['STATION_CALLSIGN', 'MY_GRIDSQUARE'],
+                    records: 1,
+                    batch
+                }
+            ])
+        ).toBe(3);
+        expect(missingCount([])).toBe(0);
     });
 
     it('tells records from batches that can be applied', () => {
