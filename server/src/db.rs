@@ -8,7 +8,7 @@ use std::{
 use chrono::{DateTime, SecondsFormat, Utc};
 use sqlx::{
     migrate::{Migrate, MigrateError, Migrator},
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous},
 };
 use uuid::Uuid;
 
@@ -67,7 +67,9 @@ pub async fn open(path: &Path) -> Result<Db, DbError> {
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true)
-        .busy_timeout(Duration::from_secs(5));
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_secs(5))
+        .optimize_on_close(true, None);
     Ok(SqlitePoolOptions::new().connect_with(options).await?)
 }
 
@@ -204,7 +206,11 @@ mod tests {
         let journal: String = sqlx::query_scalar("PRAGMA journal_mode").fetch_one(&db).await.unwrap();
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db).await.unwrap();
         let busy_timeout: i64 = sqlx::query_scalar("PRAGMA busy_timeout").fetch_one(&db).await.unwrap();
-        assert_eq!((journal.as_str(), foreign_keys, busy_timeout), ("wal", 1, 5000));
+        let synchronous: i64 = sqlx::query_scalar("PRAGMA synchronous").fetch_one(&db).await.unwrap();
+        assert_eq!(
+            (journal.as_str(), foreign_keys, busy_timeout, synchronous),
+            ("wal", 1, 5000, 1)
+        );
     }
 
     #[tokio::test]
@@ -274,7 +280,7 @@ mod tests {
         .unwrap();
 
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
-        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+        assert_eq!(migrated.applied, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
         assert!(migrated.snapshot.unwrap().is_file());
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db).await.unwrap();
         assert_eq!(foreign_keys, 1);

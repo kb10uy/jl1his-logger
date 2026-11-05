@@ -24,8 +24,13 @@ decisions.md.
 - **Enumerations** with a fixed, application-defined set of values (`role`,
   `kind`) carry a `CHECK`. ADIF values do not: they are stored as they
   arrived.
-- **Connections** set `PRAGMA journal_mode = WAL`, `PRAGMA foreign_keys = ON`
-  and `PRAGMA busy_timeout` on open. Foreign keys are only enforced when the
+- **Connections** set `PRAGMA journal_mode = WAL`, `PRAGMA foreign_keys = ON`,
+  `PRAGMA synchronous = NORMAL` and `PRAGMA busy_timeout` on open, and run
+  `PRAGMA optimize` when they close, so the planner's statistics follow the
+  data as pooled connections are recycled. `NORMAL` with WAL fsyncs at each
+  checkpoint instead of each commit: a crash of the process loses nothing,
+  and a power loss can lose the last commits but never corrupts the file.
+  Foreign keys are only enforced when the
   pragma is on, so it is part of the connection options, not the migration.
   Migration 12 runs outside a transaction so that it can turn the pragma off
   while it rebuilds `stations`, which `qsos` and `station_favorites`
@@ -187,6 +192,7 @@ key references.
 | `(logbook_id, qso_time)` | The log list and date filters. |
 | `(logbook_id, call, qso_time)` | Searching an exact `call`. |
 | `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. `call` is stored as it arrived, so its index cannot answer that. |
+| `(logbook_id, call_base, qso_time DESC)` | The log list sorted by callsign ascending, whose order is `call_base, qso_time DESC`: an index in one direction cannot serve it, and without this one every page sorted the whole Logbook. The descending order walks the ascending index backwards. |
 | `(logbook_id, station_id, qso_time)` | Per-Station listing and export. |
 | `(logbook_id, instrument_id, qso_time)` | Per-Instrument listing and rewrites. |
 | `(logbook_id, qsl_sent)` | The QSL work queue. |
