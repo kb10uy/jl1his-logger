@@ -156,16 +156,11 @@
                 toasts.show(m.transfer_export_nothing());
                 return;
             }
-            const missing = missingCount(result.files);
             toasts.show(
-                [
-                    m.transfer_exported_files({
-                        records: result.records,
-                        files: result.files.length
-                    }),
-                    ...(missing > 0 ? [m.transfer_exported_missing({ count: missing })] : [])
-                ].join(' ')
+                m.transfer_exported_files({ records: result.records, files: result.files.length })
             );
+            const missing = missingCount(result.files);
+            if (missing > 0) toasts.show(m.transfer_exported_missing({ count: missing }));
             return;
         }
         const result = await batches.create(req);

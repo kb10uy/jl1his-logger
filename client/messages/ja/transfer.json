@@ -98,7 +98,7 @@
         {
             "declarations": ["input count", "local n = count: number"],
             "selectors": [],
-            "match": { "": "うち {n} 件は分割フィールドがなく、none のファイルに入っています" }
+            "match": { "": "{n} 件は分割フィールドがないため、none のファイルに入っています" }
         }
     ],
     "transfer_exported_files": [
