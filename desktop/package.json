@@ -1,7 +1,7 @@
 {
     "name": "jl1his-logger-desktop",
     "private": true,
-    "version": "0.8.0",
+    "version": "0.9.0",
     "type": "module",
     "packageManager": "pnpm@12.15.0",
     "scripts": {
@@ -19,11 +19,11 @@
     },
     "devDependencies": {
         "@inlang/paraglide-js": "^2.29.3",
-        "@inlang/plugin-message-format": "^4.5.6",
+        "@inlang/plugin-message-format": "^4.6.0",
         "@sveltejs/adapter-static": "^4.0.1",
         "@sveltejs/kit": "^3.1.1",
         "@sveltejs/vite-plugin-svelte": "^7.3.1",
-        "@tailwindcss/vite": "^4.3.3",
+        "@tailwindcss/vite": "^4.3.4",
         "@tauri-apps/cli": "^2.12.4",
         "@types/node": "^22.20.5",
         "jl1his-logger-client": "link:../client",
@@ -31,8 +31,8 @@
         "prettier-plugin-svelte": "^4.1.1",
         "prettier-plugin-tailwindcss": "^0.8.1",
         "svelte": "^5.57.3",
-        "svelte-check": "^4.7.7",
-        "tailwindcss": "^4.3.3",
+        "svelte-check": "^4.7.8",
+        "tailwindcss": "^4.3.4",
         "typescript": "^6.0.3",
         "vite": "^8.3.5",
         "vitest": "^4.1.12"
