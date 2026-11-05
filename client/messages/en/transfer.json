@@ -124,6 +124,23 @@
     "transfer_exporting": "Exporting…",
     "transfer_download_adif": "Download ADIF",
     "transfer_recent_exports": "Recent exports",
+    "transfer_split_by_callsign": "One file per STATION_CALLSIGN, in a zip",
+    "transfer_exported_files": [
+        {
+            "declarations": [
+                "input records",
+                "input files",
+                "local filesPlural = files: plural",
+                "local n = records: number",
+                "local f = files: number"
+            ],
+            "selectors": ["filesPlural"],
+            "match": {
+                "filesPlural=one": "Exported {n} records as {f} file",
+                "filesPlural=other": "Exported {n} records as {f} files"
+            }
+        }
+    ],
     "transfer_qsl_merged_count": [
         {
             "declarations": [

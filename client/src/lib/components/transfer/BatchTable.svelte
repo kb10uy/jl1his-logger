@@ -43,7 +43,11 @@
         <tbody>
             {#each batches as batch (batch.id)}
                 <tr class="border-b border-surface-2 last:border-b-0">
-                    <td class="px-3 py-1.5 whitespace-nowrap">{KIND_LABELS[batch.kind]()}</td>
+                    <td class="px-3 py-1.5 whitespace-nowrap"
+                        >{KIND_LABELS[batch.kind]()}{#if batch.label}
+                            <span class="ml-1.5 font-mono text-2xs text-muted">{batch.label}</span
+                            >{/if}</td
+                    >
                     <td class="px-3 py-1.5 font-mono whitespace-nowrap text-muted"
                         >{when(batch.created_at)}
                         <span class="font-sans">· {callsigns[batch.created_by] ?? '—'}</span></td

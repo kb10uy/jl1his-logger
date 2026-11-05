@@ -37,9 +37,10 @@
         LENGTH_LABELS,
         QUERY_PRESETS,
         SENT_FIELDS,
+        SPLIT_FIELD,
         formatOf,
         readingNote,
-        recordOnly
+        splitByDefault
     } from '#lib/transfer/transfer.ts';
 
     const logbook = useLogbook();
@@ -61,6 +62,7 @@
     let exportLength = $state<LengthUnit>('codepoints');
     let exportEncoding = $state<Encoding>('utf-8');
     let exportUnencodable = $state<Unencodable>('error');
+    let split = $state(false);
 
     const station = $derived(
         logbook.activeStations.some((s) => s.id === stationId)
@@ -128,18 +130,33 @@
 
     function pick(next: ExportKind) {
         if (q === QUERY_PRESETS[kind]) q = QUERY_PRESETS[next];
+        if (split === splitByDefault(kind)) split = splitByDefault(next);
         kind = next;
     }
 
     async function runExport() {
-        const result = await batches.create({
+        const req = {
             kind,
             q: q.trim() || undefined,
             park: kind === 'pota' && park.trim() !== '' ? park.trim().toUpperCase() : undefined,
             length: exportEncoding === 'utf-8' ? exportLength : undefined,
             encoding: exportEncoding,
             unencodable: exportEncoding === 'utf-8' ? undefined : exportUnencodable
-        });
+        };
+        if (split) {
+            const result = await batches.createSplit(req, [SPLIT_FIELD]);
+            if (result === undefined) return;
+            toasts.show(
+                result.format === null
+                    ? m.transfer_export_nothing()
+                    : m.transfer_exported_files({
+                          records: result.records,
+                          files: result.files.length
+                      })
+            );
+            return;
+        }
+        const result = await batches.create(req);
         if (result === undefined) return;
         toasts.show(
             result.batch === null
@@ -379,6 +396,11 @@
                             {/each}
                         </select>
                     {/if}
+                    <div></div>
+                    <label class="flex h-8 cursor-pointer items-center gap-2 text-sm">
+                        <input type="checkbox" class="size-4 accent-info" bind:checked={split} />
+                        {m.transfer_split_by_callsign()}
+                    </label>
                 </ExportForm>
                 {#if fields}
                     <span class="text-2xs text-muted"

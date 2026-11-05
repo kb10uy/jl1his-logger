@@ -60,10 +60,22 @@ export function formatOf(name: string): 'adi' | 'adx' {
     return name.toLowerCase().endsWith('.adx') ? 'adx' : 'adi';
 }
 
-export function fileName(logbook: string, kind: ExportKind, at: Date, suffix = ''): string {
+export function fileName(
+    logbook: string,
+    kind: ExportKind,
+    at: Date,
+    suffix = '',
+    extension = 'adi'
+): string {
     const stamp = at.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
     const safe = logbook.replace(/[^A-Za-z0-9_-]+/g, '_');
-    return `${safe}-${kind.replace('_', '-')}${suffix}-${stamp}.adi`;
+    return `${safe}-${kind.replace('_', '-')}${suffix}-${stamp}.${extension}`;
+}
+
+export const SPLIT_FIELD = 'STATION_CALLSIGN';
+
+export function splitByDefault(kind: ExportKind): boolean {
+    return kind === 'eqsl' || kind === 'lotw';
 }
 
 export function rejectCount(report: NewReport | MergeReport): number {

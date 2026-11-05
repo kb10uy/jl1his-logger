@@ -7,7 +7,8 @@ import {
     outcomeText,
     readingNote,
     recordOnly,
-    rejectCount
+    rejectCount,
+    splitByDefault
 } from './transfer.ts';
 
 describe('transfer helpers', () => {
@@ -24,6 +25,16 @@ describe('transfer helpers', () => {
         expect(fileName('JL1HIS', 'adif', new Date('2026-10-23T09:05:00Z'), '-rejects')).toBe(
             'JL1HIS-adif-rejects-20261023-0905.adi'
         );
+        expect(fileName('JL1HIS', 'lotw', new Date('2026-10-23T09:05:00Z'), '', 'zip')).toBe(
+            'JL1HIS-lotw-20261023-0905.zip'
+        );
+    });
+
+    it('splits eQSL and LoTW exports by default', () => {
+        expect(splitByDefault('lotw')).toBe(true);
+        expect(splitByDefault('eqsl')).toBe(true);
+        expect(splitByDefault('qsl_card')).toBe(false);
+        expect(splitByDefault('adif')).toBe(false);
     });
 
     it('tells records from batches that can be applied', () => {

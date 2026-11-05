@@ -89,6 +89,19 @@
     "transfer_exporting": "エクスポート中…",
     "transfer_download_adif": "ADIF をダウンロード",
     "transfer_recent_exports": "最近のエクスポート",
+    "transfer_split_by_callsign": "STATION_CALLSIGN ごとにファイルを分けて zip にする",
+    "transfer_exported_files": [
+        {
+            "declarations": [
+                "input records",
+                "input files",
+                "local n = records: number",
+                "local f = files: number"
+            ],
+            "selectors": [],
+            "match": { "": "{n} 件のレコードを {f} ファイルにエクスポートしました" }
+        }
+    ],
     "transfer_qsl_merged_count": [
         {
             "declarations": ["input count", "local n = count: number"],

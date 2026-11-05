@@ -1,6 +1,6 @@
 import * as api from '#lib/api/api.ts';
 import type { ExportRequest } from '#lib/api/api.ts';
-import type { Batch, Exported } from '#lib/api/types.ts';
+import type { Batch, Exported, SplitExported } from '#lib/api/types.ts';
 import { download, fromBase64 } from '#lib/download.ts';
 import { m } from '#lib/paraglide/messages.js';
 import { toasts } from '#lib/state/toast.svelte.ts';
@@ -43,6 +43,26 @@ export class Batches {
                 result.file === null ? result.adif : fromBase64(result.file)
             );
             this.items = [result.batch, ...this.items];
+            return result;
+        } catch (e) {
+            toasts.error(message(e));
+            return undefined;
+        } finally {
+            this.creating = false;
+        }
+    }
+
+    async createSplit(req: ExportRequest, split: string[]): Promise<SplitExported | undefined> {
+        this.creating = true;
+        try {
+            const result = await api.createSplitExport(this.logbookId, { ...req, split });
+            if (result.format === null || result.file === null) return result;
+            const suffix = result.format === 'adi' ? `-${result.files[0].name.slice(0, -4)}` : '';
+            download(
+                fileName(this.logbookName(), req.kind, new Date(), suffix, result.format),
+                fromBase64(result.file)
+            );
+            this.items = [...result.files.map((f) => f.batch).reverse(), ...this.items];
             return result;
         } catch (e) {
             toasts.error(message(e));

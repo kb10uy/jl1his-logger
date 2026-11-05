@@ -248,6 +248,7 @@ export interface Batch {
     created_at: string;
     applied_at: string | null;
     qso_count: number;
+    label: string | null;
 }
 
 export interface Exported {
@@ -255,6 +256,20 @@ export interface Exported {
     records: number;
     adif: string | null;
     file: string | null;
+}
+
+export interface ExportedFile {
+    name: string;
+    label: string;
+    records: number;
+    batch: Batch;
+}
+
+export interface SplitExported {
+    records: number;
+    format: 'zip' | 'adi' | null;
+    file: string | null;
+    files: ExportedFile[];
 }
 
 export type ImportSource = 'new' | 'lotw' | 'eqsl' | 'card';

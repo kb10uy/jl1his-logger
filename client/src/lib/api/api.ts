@@ -31,6 +31,7 @@ import type {
     Saved,
     ServerVersion,
     Session,
+    SplitExported,
     Station,
     StationInput,
     Subdivision,
@@ -314,6 +315,9 @@ export interface ExportRequest {
 
 export const createExport = (logbook: string, req: ExportRequest) =>
     request<Exported>('POST', `${base(logbook)}/exports`, { body: req });
+
+export const createSplitExport = (logbook: string, req: ExportRequest & { split: string[] }) =>
+    request<SplitExported>('POST', `${base(logbook)}/exports/split`, { body: req });
 
 export const batches = (logbook: string) => request<Batch[]>('GET', `${base(logbook)}/exports`);
 
