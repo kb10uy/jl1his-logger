@@ -120,6 +120,10 @@ pub(super) fn router() -> Router<Arc<AppState>> {
             "/api/logbooks/{logbook_id}/exports",
             get(qso::export::list).post(qso::export::create),
         )
+        .route(
+            "/api/logbooks/{logbook_id}/exports/split",
+            post(qso::export::create_split),
+        )
         .route("/api/logbooks/{logbook_id}/exports/{id}", get(qso::export::get))
         .route(
             "/api/logbooks/{logbook_id}/exports/{id}/apply",

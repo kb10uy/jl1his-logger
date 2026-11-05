@@ -168,7 +168,7 @@ pub struct TimeRange {
     pub until: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Target {
     pub id: QsoId,
     pub revision: i64,

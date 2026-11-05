@@ -9,8 +9,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     domain::{
-        adif::{Encoding, LengthUnit, Output, Unencodable},
+        adif::{Encoding, LengthUnit, Output, Unencodable, UnencodableError},
         qso::QsoId,
+        split,
     },
     store::{
         WriteTx,
@@ -109,6 +110,7 @@ pub struct BatchBody {
     created_at: String,
     applied_at: Option<String>,
     qso_count: i64,
+    label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     qsos: Option<Vec<TargetBody>>,
 }
@@ -122,6 +124,7 @@ impl From<ExportBatch> for BatchBody {
             created_at: batch.created_at,
             applied_at: batch.applied_at,
             qso_count: batch.qso_count,
+            label: batch.label,
             qsos: None,
         }
     }
@@ -145,6 +148,62 @@ pub struct ExportBody {
     records: usize,
     adif: Option<String>,
     file: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SplitRequest {
+    split: Vec<String>,
+    #[serde(flatten)]
+    export: ExportRequest,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileBody {
+    name: String,
+    label: String,
+    records: usize,
+    batch: BatchBody,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SplitBody {
+    records: usize,
+    format: Option<&'static str>,
+    file: Option<String>,
+    files: Vec<FileBody>,
+}
+
+impl ExportRequest {
+    fn output(&self, state: &AppState) -> Result<Output, ApiError> {
+        let unit = self
+            .encoding
+            .export_unit(self.length, state.config.adif.length)
+            .ok_or_else(|| {
+                ApiError::bad_request(format!("lengths in {} are counted in bytes", self.encoding.name()))
+            })?;
+        Ok(Output {
+            unit,
+            encoding: self.encoding,
+            unencodable: self.unencodable,
+        })
+    }
+
+    async fn select(&self, state: &AppState, member: &Member) -> Result<export::Selection, ApiError> {
+        let filter = Filter {
+            query: text(self.q.as_deref())?,
+            ..Filter::default()
+        };
+        let mut conn = state.db.acquire().await?;
+        Ok(export::select(&mut conn, &member.access, self.kind, &filter, self.park.as_deref()).await?)
+    }
+}
+
+fn unencodable(e: UnencodableError) -> ApiError {
+    ApiError::bad_request(e.to_string())
+        .with("code", "unencodable".into())
+        .with("record", e.record.into())
+        .with("field", e.field.clone().into())
+        .with("character", e.character.to_string().into())
 }
 
 fn targets(requests: Vec<TargetRequest>) -> Result<Vec<Target>, ApiError> {
@@ -203,22 +262,8 @@ pub async fn create(
     member: Member,
     Json(req): Json<ExportRequest>,
 ) -> Result<(StatusCode, Json<ExportBody>), ApiError> {
-    let filter = Filter {
-        query: text(req.q.as_deref())?,
-        ..Filter::default()
-    };
-    let unit = req
-        .encoding
-        .export_unit(req.length, state.config.adif.length)
-        .ok_or_else(|| ApiError::bad_request(format!("lengths in {} are counted in bytes", req.encoding.name())))?;
-    let output = Output {
-        unit,
-        encoding: req.encoding,
-        unencodable: req.unencodable,
-    };
-    let mut conn = state.db.acquire().await?;
-    let selection = export::select(&mut conn, &member.access, req.kind, &filter, req.park.as_deref()).await?;
-    drop(conn);
+    let output = req.output(&state)?;
+    let selection = req.select(&state, &member).await?;
     if selection.targets.is_empty() {
         return Ok((
             StatusCode::OK,
@@ -230,17 +275,11 @@ pub async fn create(
             }),
         ));
     }
-    let adif = export::encoded(&selection.records, output).map_err(|e| {
-        ApiError::bad_request(e.to_string())
-            .with("code", "unencodable".into())
-            .with("record", e.record.into())
-            .with("field", e.field.clone().into())
-            .with("character", e.character.to_string().into())
-    })?;
+    let adif = export::encoded(&selection.records, output).map_err(unencodable)?;
     let file = matches!(req.encoding, Encoding::ShiftJis | Encoding::Windows1252)
         .then(|| BASE64_STANDARD.encode(req.encoding.encode(&adif)));
     let mut tx = WriteTx::begin(&state.db).await?;
-    let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets).await?;
+    let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets, None).await?;
     tx.commit().await?;
     Ok((
         StatusCode::CREATED,
@@ -249,6 +288,71 @@ pub async fn create(
             records: selection.records.len(),
             adif: Some(adif),
             file,
+        }),
+    ))
+}
+
+pub async fn create_split(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Json(req): Json<SplitRequest>,
+) -> Result<(StatusCode, Json<SplitBody>), ApiError> {
+    if req.split.is_empty() {
+        return Err(ApiError::bad_request("a split names at least one field"));
+    }
+    let fields = split::fields(&req.split).map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let output = req.export.output(&state)?;
+    let selection = req.export.select(&state, &member).await?;
+    let parts = export::split(&selection, &fields);
+    if parts.is_empty() {
+        return Ok((
+            StatusCode::OK,
+            Json(SplitBody {
+                records: 0,
+                format: None,
+                file: None,
+                files: vec![],
+            }),
+        ));
+    }
+    let labels: Vec<String> = parts.iter().map(|p| p.label.clone()).collect();
+    let names = split::file_names(&labels, "adi");
+    let mut files = Vec::with_capacity(parts.len());
+    for (part, name) in parts.iter().zip(&names) {
+        let adif =
+            export::encoded(&part.records, output).map_err(|e| unencodable(e).with("file", name.clone().into()))?;
+        files.push((name.clone(), req.export.encoding.encode(&adif).into_owned()));
+    }
+    let mut tx = WriteTx::begin(&state.db).await?;
+    let mut bodies = Vec::with_capacity(parts.len());
+    for (part, name) in parts.iter().zip(&names) {
+        let batch = export::create(
+            &mut tx,
+            &member.access,
+            req.export.kind,
+            &part.targets,
+            Some(&part.label),
+        )
+        .await?;
+        bodies.push(FileBody {
+            name: name.clone(),
+            label: part.label.clone(),
+            records: part.records.len(),
+            batch: batch.into(),
+        });
+    }
+    tx.commit().await?;
+    let (format, bytes) = match files.len() {
+        1 => ("adi", files.pop().expect("one file").1),
+        _ => ("zip", split::archive(&files)),
+    };
+    Ok((
+        StatusCode::CREATED,
+        Json(SplitBody {
+            records: selection.records.len(),
+            format: Some(format),
+            file: Some(BASE64_STANDARD.encode(bytes)),
+            files: bodies,
         }),
     ))
 }
@@ -422,6 +526,84 @@ mod tests {
             nothing,
             json!({ "batch": null, "records": 0, "adif": null, "file": null })
         );
+    }
+
+    #[tokio::test]
+    async fn splits_an_export_into_files_and_batches() {
+        let h = Harness::new().await;
+        let cookie = h.session(&h.world.operator).await;
+        let station = h.station.id.clone();
+        let portable = &[("STATION_CALLSIGN", "JL1HIS/P"), ("NAME", "太郎")];
+        let home = &[("STATION_CALLSIGN", "JL1HIS")];
+        h.create_qso(&cookie, &station, "JA1XYZ", "0100", portable).await;
+        h.create_qso(&cookie, &station, "JA1ABC", "0200", home).await;
+        h.create_qso(&cookie, &station, "JA1DEF", "0300", home).await;
+        let split = h.path("/exports/split");
+        let send = |body: Value| h.send("POST", &split, Auth::Session(&cookie), Some(body));
+
+        let (status, exported) = send(json!({ "kind": "lotw", "split": ["station_callsign"] })).await;
+        assert_eq!(status, StatusCode::CREATED, "{exported}");
+        assert_eq!((&exported["records"], &exported["format"]), (&json!(3), &json!("zip")));
+        let files = exported["files"].as_array().unwrap();
+        assert_eq!(
+            files
+                .iter()
+                .map(|f| (
+                    f["name"].as_str().unwrap(),
+                    f["label"].as_str().unwrap(),
+                    f["records"].as_u64().unwrap()
+                ))
+                .collect::<Vec<_>>(),
+            [("JL1HIS.adi", "JL1HIS", 2), ("JL1HIS_P.adi", "JL1HIS/P", 1)]
+        );
+        assert_eq!(files[1]["batch"]["label"], "JL1HIS/P");
+        assert_eq!(files[1]["batch"]["qso_count"], 1);
+        assert_eq!(files[1]["batch"]["kind"], "lotw");
+        let bytes = BASE64_STANDARD.decode(exported["file"].as_str().unwrap()).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        let names: Vec<_> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().unwrap().into_owned())
+            .collect();
+        assert_eq!(names, ["JL1HIS.adi", "JL1HIS_P.adi"]);
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("JL1HIS_P.adi").unwrap(), &mut text).unwrap();
+        assert!(text.contains("<CALL:6>JA1XYZ") && !text.contains("JA1ABC"), "{text}");
+
+        let (_, list) = h.send("GET", &h.path("/exports"), Auth::Session(&cookie), None).await;
+        let labels: Vec<_> = list.as_array().unwrap().iter().map(|b| b["label"].clone()).collect();
+        assert_eq!(labels, [json!("JL1HIS/P"), json!("JL1HIS")]);
+
+        let (status, one) = send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN"], "q": "call:JA1XYZ" })).await;
+        assert_eq!(status, StatusCode::CREATED, "{one}");
+        assert_eq!(one["format"], "adi");
+        assert_eq!(one["files"].as_array().unwrap().len(), 1);
+        let adi = BASE64_STANDARD.decode(one["file"].as_str().unwrap()).unwrap();
+        assert!(
+            std::str::from_utf8(&adi)
+                .unwrap()
+                .contains("<STATION_CALLSIGN:8>JL1HIS/P")
+        );
+
+        let (status, none) = send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN"], "q": "call:JA9ZZZ" })).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(none, json!({ "records": 0, "format": null, "file": null, "files": [] }));
+
+        for body in [
+            json!({ "kind": "adif", "split": [] }),
+            json!({ "kind": "adif", "split": ["1X"] }),
+        ] {
+            let (status, _) = send(body).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+        }
+        let (status, refused) =
+            send(json!({ "kind": "adif", "split": ["STATION_CALLSIGN"], "encoding": "ascii" })).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            (&refused["file"], &refused["record"]),
+            (&json!("JL1HIS_P.adi"), &json!(1))
+        );
+        let (_, list) = h.send("GET", &h.path("/exports"), Auth::Session(&cookie), None).await;
+        assert_eq!(list.as_array().unwrap().len(), 3);
     }
 
     #[tokio::test]

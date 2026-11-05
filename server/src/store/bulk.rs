@@ -214,7 +214,7 @@ pub(crate) mod tests {
         let outcome = update(
             &mut tx,
             &access,
-            &[target(&rows[0]), stale, target(&rows[2]), missing.clone()],
+            &[target(&rows[0]), stale, target(&rows[2]), missing],
             &change,
         )
         .await

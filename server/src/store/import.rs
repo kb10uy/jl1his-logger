@@ -245,7 +245,7 @@ pub async fn merge(
     for batch in planned.chunks(BATCH) {
         let mut groups: BTreeMap<&Changes, Vec<Target>> = BTreeMap::new();
         for (target, changes) in batch {
-            groups.entry(changes).or_default().push(target.clone());
+            groups.entry(changes).or_default().push(*target);
         }
         let mut tx = WriteTx::begin(db).await?;
         let access = access.revalidate(&mut tx).await?;

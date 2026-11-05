@@ -177,6 +177,7 @@ Dashboards, maps, DX cluster, QRZ / HamQTH integration, CAT on the server (the d
 - The QSL state of record is the ADIF fields (`QSL_SENT` / `QSL_RCVD` / `*_VIA` / `QSLSDATE` / `QSLRDATE`, `EQSL_QSL_*`, `LOTW_QSL_*`). No separate set of booleans is kept.
 - qsl_required is `QSL_SENT in {R, Q}`; received is `QSL_RCVD in {Y, V}`.
 - An export records the target UUIDs and `revision`s as a batch, and after the external processing only the matching rows of that batch are updated.
+- An export can be split into one file per value of ADIF fields, downloaded as a zip archive, because eQSL and LoTW take one upload per `STATION_CALLSIGN` (each is a separate eQSL account or TQSL certificate), and writing a query per callsign by hand does not scale. The unit is the value the records carry, never the Station: a Station's QSOs may hold several callsigns, since editing a Station rewrites no past QSO. `MY_GRIDSQUARE` is not part of the default split because the stored grids of one callsign vary in precision and case, which would scatter one upload over several files; it can be named as a further field when TQSL's location check needs it. Each file is its own batch, labelled with the value, so one upload that fails leaves the others to be marked as sent; a "mark every batch" action is left out until the number of files makes it worth having. The archive is built on the server, which already depends on `zip` for the reference data, so the entry names are decided there and the client gains no dependency.
 
 ### ADIF Import
 
