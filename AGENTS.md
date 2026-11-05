@@ -128,8 +128,9 @@ shared crate.
   Logbook's screens, so it enters the browser history. The log keeps its
   query in `?q=` and the open QSO in `?qso=`, replacing the history entry
   rather than adding one. The loaded list, its query, checked rows and
-  scroll stay in memory while the browser tab lives; the state of a Logbook
-  is kept per Logbook and its stream reopens with `?after=` on return.
+  scroll stay in memory while the browser tab lives, as do the unlogged forms
+  of live and voice entry; the state of a Logbook is kept per Logbook and its
+  stream reopens with `?after=` on return.
 - **Secrets stay on the server.** No CSRF tokens: the session is a `__Host-`
   `SameSite=Lax` cookie and state-changing requests must come from
   `public_origin`.

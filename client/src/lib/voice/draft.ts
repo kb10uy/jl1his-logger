@@ -36,8 +36,8 @@ export function newDraft(carry: Carry): Draft {
     return { ...carry, rstSent: rst, rstRcvd: rst, qsl: 'none' };
 }
 
-export function carryOf(draft: Draft): Carry {
-    return { freq: draft.freq, band: draft.band, mode: draft.mode, submode: draft.submode };
+export function carryOf(tuning: Carry): Carry {
+    return { freq: tuning.freq, band: tuning.band, mode: tuning.mode, submode: tuning.submode };
 }
 
 export function isPristine(draft: Draft): boolean {

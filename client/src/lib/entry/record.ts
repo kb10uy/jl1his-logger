@@ -11,6 +11,8 @@ import { utcFields } from '#lib/qso/format.ts';
 import { defaultRst } from '#lib/qso/modes.ts';
 import { isPower, powerRule } from '#lib/qso/power.ts';
 import { qslRequestFields, type QslRequest } from '#lib/qso/qsl.ts';
+import { retuned } from '#lib/qso/tuning.ts';
+import type { EntrySettings } from './settings.ts';
 
 export interface ExtraField {
     name: string;
@@ -34,6 +36,12 @@ export interface Entry {
     txPwr: string;
     notes: string;
     extra: ExtraField[];
+}
+
+export interface EntryDraft {
+    entry: Entry;
+    locked: Date | undefined;
+    instrumentId: string;
 }
 
 const ENTERED = new Set([
@@ -93,6 +101,11 @@ export function clearedEntry(entry: Entry): Entry {
         notes: '',
         extra: []
     };
+}
+
+export function restoredEntry(draft: EntryDraft, settings: EntrySettings): Entry {
+    const entry = retuned(draft.entry, settings);
+    return draft.instrumentId === settings.instrumentId ? entry : { ...entry, txPwr: '' };
 }
 
 export function entryProblem(
