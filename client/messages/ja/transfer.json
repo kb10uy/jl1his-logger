@@ -19,7 +19,6 @@
     "transfer_back": "ADIF 入出力に戻る",
     "transfer_sections": "ADIF 入出力の項目",
     "transfer_export_adif": "ADIF エクスポート",
-    "transfer_batches": "バッチ",
     "transfer_import_adif": "ADIF インポート",
     "transfer_kind": "種類",
     "transfer_kind_qsl_card": "紙 QSL",
@@ -39,8 +38,6 @@
             "match": { "": "除外レコードのファイルをダウンロード ({n} 件)" }
         }
     ],
-    "transfer_import": "インポート",
-    "transfer_export": "エクスポート",
     "transfer_source_new": "新しい QSO",
     "transfer_station_required": "先に運用地を作成してください。新しい QSO はいずれかの運用地で記録します。",
     "transfer_imported_label": "インポート完了",

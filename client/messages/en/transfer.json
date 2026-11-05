@@ -19,7 +19,6 @@
     "transfer_back": "Back to Import / Export",
     "transfer_sections": "Import / Export sections",
     "transfer_export_adif": "Export ADIF",
-    "transfer_batches": "Batches",
     "transfer_import_adif": "Import ADIF",
     "transfer_kind": "Kind",
     "transfer_kind_qsl_card": "QSL card",
@@ -46,8 +45,6 @@
             }
         }
     ],
-    "transfer_import": "Import",
-    "transfer_export": "Export",
     "transfer_source_new": "New QSOs",
     "transfer_station_required": "Create a Station first; new QSOs are recorded at one.",
     "transfer_imported_label": "Imported",

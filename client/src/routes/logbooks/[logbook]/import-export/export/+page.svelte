@@ -1,6 +1,8 @@
 <script lang="ts">
-    import type { Encoding, ExportKind, LengthUnit, Unencodable } from '#lib/api/types.ts';
+    import { onMount } from 'svelte';
+    import type { Batch, Encoding, ExportKind, LengthUnit, Unencodable } from '#lib/api/types.ts';
     import ExportForm from '#lib/components/transfer/ExportForm.svelte';
+    import ExportList from '#lib/components/transfer/ExportList.svelte';
     import Segmented from '#lib/components/ui/Segmented.svelte';
     import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
@@ -16,7 +18,9 @@
         SENT_FIELDS,
         SPLIT_FIELDS,
         defaultSplit,
+        exportRuns,
         missingCount,
+        partitionRuns,
         splitChoices,
         splitLabel
     } from '#lib/transfer/transfer.ts';
@@ -27,6 +31,21 @@
     const batches = transfer.batches;
     const matches = new Matches(logbook.logbook.id, () => draft.q);
     const fields = $derived(SENT_FIELDS[draft.kind]);
+    const lists = $derived(partitionRuns(exportRuns(batches.items)));
+
+    const actions = {
+        onapply: async (batch: Batch) => {
+            if (await batches.apply(batch)) matches.refresh();
+        },
+        ondismiss: (batch: Batch) => batches.dismiss(batch),
+        onrestore: (batch: Batch) => batches.restore(batch),
+        onapplyall: async (run: { id: string }) => {
+            if (await batches.applyExport(run.id)) matches.refresh();
+        },
+        ondismissall: (run: { id: string }) => batches.dismissExport(run.id)
+    };
+
+    onMount(() => batches.load());
 
     function pick(next: ExportKind) {
         if (draft.q === QUERY_PRESETS[draft.kind]) draft.q = QUERY_PRESETS[next];
@@ -152,3 +171,21 @@
         >
     {/if}
 </section>
+
+<ExportList
+    title={m.transfer_list_pending()}
+    empty={batches.items.length === 0 ? m.transfer_batch_none() : m.transfer_pending_none()}
+    runs={lists.pending}
+    callsigns={batches.callsigns}
+    results={batches.results}
+    working={batches.working}
+    {...actions}
+/>
+<ExportList
+    title={m.transfer_list_finished()}
+    runs={lists.finished}
+    callsigns={batches.callsigns}
+    results={batches.results}
+    working={batches.working}
+    {...actions}
+/>

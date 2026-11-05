@@ -17,7 +17,7 @@
     }
 
     export interface Group {
-        label: string;
+        label?: string;
         sections: Section[];
     }
 </script>
@@ -80,7 +80,7 @@
     subtitle={inner
         ? `${title} · ${inner.section.label}`
         : current
-          ? `${title} · ${current.group.label}`
+          ? [title, current.group.label].filter(Boolean).join(' · ')
           : session.me?.callsign}
     back={inner
         ? {
@@ -104,9 +104,11 @@
                 current && 'max-md:hidden'
             ]}
         >
-            {#each groups as group (group.label)}
+            {#each groups as group (group.sections[0].href)}
                 <section aria-label={group.label} class="flex flex-col gap-1">
-                    <h2 class="px-3 eyebrow max-md:px-1">{group.label}</h2>
+                    {#if group.label}
+                        <h2 class="px-3 eyebrow max-md:px-1">{group.label}</h2>
+                    {/if}
                     <div
                         class="flex flex-col gap-0.5 max-md:overflow-hidden max-md:rounded-lg max-md:border max-md:border-border max-md:bg-surface"
                     >

@@ -10,15 +10,10 @@
 
     const groups: Group[] = [
         {
-            label: m.transfer_export(),
             sections: [
                 { label: m.transfer_export_adif(), href: `${root}/export` },
-                { label: m.transfer_batches(), href: `${root}/batches` }
+                { label: m.transfer_import_adif(), href: `${root}/import` }
             ]
-        },
-        {
-            label: m.transfer_import(),
-            sections: [{ label: m.transfer_import_adif(), href: `${root}/import` }]
         }
     ];
 </script>
