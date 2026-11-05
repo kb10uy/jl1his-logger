@@ -81,12 +81,9 @@ export const SPLIT_FIELDS: Record<Exclude<SplitChoice, 'none'>, string[]> = {
     callsign_park: ['STATION_CALLSIGN', 'MY_SIG_INFO']
 };
 
-export const SPLIT_LABELS: Record<SplitChoice, () => string> = {
-    none: m.transfer_split_none,
-    callsign: m.transfer_split_callsign,
-    callsign_grid: m.transfer_split_callsign_grid,
-    callsign_park: m.transfer_split_callsign_park
-};
+export function splitLabel(choice: SplitChoice): string {
+    return choice === 'none' ? m.transfer_split_none() : SPLIT_FIELDS[choice].join(', ');
+}
 
 export function splitChoices(kind: ExportKind): SplitChoice[] {
     return kind === 'pota'

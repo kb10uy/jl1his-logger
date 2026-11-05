@@ -11,7 +11,8 @@ import {
     readingNote,
     recordOnly,
     rejectCount,
-    splitChoices
+    splitChoices,
+    splitLabel
 } from './transfer.ts';
 
 describe('transfer helpers', () => {
@@ -44,6 +45,8 @@ describe('transfer helpers', () => {
         }
         expect(splitChoices('pota')).not.toContain('callsign_grid');
         expect(SPLIT_FIELDS.callsign_park).toEqual(['STATION_CALLSIGN', 'MY_SIG_INFO']);
+        expect(splitLabel('callsign_grid')).toBe('STATION_CALLSIGN, MY_GRIDSQUARE');
+        expect(splitLabel('none')).toBe('No (one file)');
     });
 
     it('counts the records of files that lack a split field', () => {

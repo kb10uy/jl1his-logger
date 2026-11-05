@@ -38,13 +38,13 @@
         QUERY_PRESETS,
         SENT_FIELDS,
         SPLIT_FIELDS,
-        SPLIT_LABELS,
         type SplitChoice,
         defaultSplit,
         formatOf,
         missingCount,
         readingNote,
-        splitChoices
+        splitChoices,
+        splitLabel
     } from '#lib/transfer/transfer.ts';
 
     const logbook = useLogbook();
@@ -261,7 +261,7 @@
                     <label for="exp-split" class="text-2xs text-muted">{m.transfer_split()}</label>
                     <select id="exp-split" class="control h-9" bind:value={split}>
                         {#each splitChoices(kind) as choice (choice)}
-                            <option value={choice}>{SPLIT_LABELS[choice]()}</option>
+                            <option value={choice}>{splitLabel(choice)}</option>
                         {/each}
                     </select>
                     <label for="exp-encoding" class="text-2xs text-muted"
