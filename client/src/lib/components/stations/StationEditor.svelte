@@ -164,7 +164,10 @@
 </script>
 
 {#snippet labelFor(id: string, text: string, adif?: string)}
-    <label for={id} class="flex flex-col text-2xs text-muted md:pt-2">
+    <label
+        for={id}
+        class="flex flex-col text-2xs text-muted md:min-h-9 md:justify-center md:self-start"
+    >
         <span>{text}</span>
         {#if adif}
             <span class="font-mono text-2xs">{adif}</span>
@@ -240,21 +243,20 @@
                 spellcheck="false"
                 bind:value={draft.main.MY_GRIDSQUARE}
             />
-            <button
-                type="button"
+            <Button
+                size="lg"
                 title={m.stations_grid_locate()}
                 aria-label={m.stations_grid_locate()}
-                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-2 px-3.5 font-medium whitespace-nowrap text-text disabled:cursor-not-allowed"
                 disabled={locating}
                 onclick={locate}
             >
                 <Icon name={locating ? 'spinner' : 'locate'} size={16} />
                 <span class="hidden sm:inline">{m.stations_grid_locate()}</span>
-            </button>
+            </Button>
         </div>
         {@render labelFor('st-park', m.stations_pota_parks(), 'MY_POTA_REF')}
         <div
-            class="flex control h-auto min-h-10 flex-wrap items-center gap-1.5 px-1.5 py-1 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-info"
+            class="flex control h-auto min-h-9 flex-wrap items-center gap-1.5 px-1.5 py-0.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-info"
         >
             {#each draft.parks as park (park)}
                 <span
