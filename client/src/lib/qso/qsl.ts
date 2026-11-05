@@ -59,6 +59,11 @@ export function qslTone(value: string | undefined): QslTone {
     return 'none';
 }
 
+export function qslDimmed(value: string | undefined): boolean {
+    const v = qslValue(value);
+    return v === 'Q' || v === 'I';
+}
+
 export function qslLabel(value: string | undefined, sent: boolean): string {
     const v = qslValue(value);
     const table = sent ? QSL_SENT_VALUES : QSL_RCVD_VALUES;

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { qslTone, qslValue } from '#lib/qso/qsl.ts';
+    import { qslDimmed, qslTone, qslValue } from '#lib/qso/qsl.ts';
 
     let {
         value,
@@ -16,6 +16,7 @@
         small ? 'px-1.5 text-2xs leading-[18px]' : 'px-1.5 py-px text-2xs',
         tone === 'ok' && 'bg-ok-bg text-ok',
         tone === 'warn' && 'bg-warn-bg text-warn',
-        tone === 'none' && 'bg-surface-2 text-muted'
+        tone === 'none' && 'bg-surface-2 text-muted',
+        qslDimmed(value) && 'opacity-50'
     ]}>{label ?? qslValue(value)}</span
 >

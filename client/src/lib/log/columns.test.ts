@@ -11,7 +11,7 @@ describe('column', () => {
     it('knows the built-in columns and ADIF fields', () => {
         expect(column('time')?.label).toBe('Date / UTC');
         expect(column('freq')?.right).toBe(true);
-        expect(column('lotw')?.label).toBe('LoTW S / R');
+        expect(column('lotw')?.label).toBe('LoTW');
         expect(column('instrument')?.label).toBe('Instrument');
         expect(column('adif.TX_PWR')).toEqual({ id: 'adif.TX_PWR', label: 'TX_PWR' });
         expect(column('adif.APP_JL1HIS_X')?.label).toBe('APP_JL1HIS_X');

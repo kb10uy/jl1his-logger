@@ -10,7 +10,14 @@ import { BANDS, bandOf, frequencyHz, representativeFreq } from './bands.ts';
 import { MODE_CHOICES, followsBand, modeKey, parseModeKey, sidebandFor } from './modes.ts';
 import { uuidv7 } from './uuid.ts';
 import { compareNewestFirst, hhmm, isoDate, parks, rst, utcFields } from './format.ts';
-import { QSL_RCVD_VALUES, QSL_SENT_VALUES, QSL_VIA_VALUES, qslLabel, qslTone } from './qsl.ts';
+import {
+    QSL_RCVD_VALUES,
+    QSL_SENT_VALUES,
+    QSL_VIA_VALUES,
+    qslDimmed,
+    qslLabel,
+    qslTone
+} from './qsl.ts';
 import {
     contestProblem,
     defaultContest,
@@ -124,6 +131,17 @@ describe('qsl', () => {
         expect(qslTone('r')).toBe('warn');
         expect(qslTone('V')).toBe('ok');
         expect(qslLabel('q', true)).toBe('Queued');
+    });
+
+    it.each([
+        ['Q', true],
+        ['i', true],
+        ['R', false],
+        ['N', false],
+        ['Y', false],
+        [undefined, false]
+    ])('dims %s: %s', (value, dimmed) => {
+        expect(qslDimmed(value)).toBe(dimmed);
     });
 
     it.each([
