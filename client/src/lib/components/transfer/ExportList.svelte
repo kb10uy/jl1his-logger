@@ -5,33 +5,25 @@
     let {
         runs,
         callsigns,
-        selected,
-        onselect
+        href
     }: {
         runs: ExportRun[];
         callsigns: Record<string, string>;
-        selected?: string;
-        onselect: (id: string) => void;
+        href: (id: string) => string;
     } = $props();
 
     const when = (at: string) => at.replace('T', ' ').slice(0, 16);
 </script>
 
 <ul
-    aria-label={m.transfer_recent_exports()}
+    aria-label={m.transfer_batches()}
     class="flex flex-col overflow-hidden rounded-lg border border-border bg-surface"
 >
     {#each runs as run (run.id)}
-        {@const current = run.id === selected}
         <li class="border-b border-surface-2 last:border-b-0">
-            <button
-                type="button"
-                aria-current={current ? 'true' : undefined}
-                class={[
-                    'flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm',
-                    current ? 'bg-surface-2' : 'hover:bg-surface-2/50'
-                ]}
-                onclick={() => onselect(run.id)}
+            <a
+                href={href(run.id)}
+                class="flex min-h-12 flex-col justify-center gap-0.5 px-3 py-2 text-sm text-text no-underline hover:bg-surface-2/60"
             >
                 <span class="flex items-center gap-2">
                     <span class="font-medium">{KIND_LABELS[run.kind]()}</span>
@@ -55,7 +47,7 @@
                         <span class="ml-auto text-ok">{m.transfer_export_done()}</span>
                     {/if}
                 </span>
-            </button>
+            </a>
         </li>
     {:else}
         <li class="px-3 py-4 text-sm text-muted">{m.transfer_batch_none()}</li>

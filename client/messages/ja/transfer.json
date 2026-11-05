@@ -15,7 +15,13 @@
     "transfer_unencodable_omit": "フィールドを省く",
     "transfer_read_encoding": "{encoding} として読みました",
     "transfer_read_lengths": "ASCII 以外の長さは{units}",
-    "transfer_direction": "方向",
+    "transfer_section_title": "{section} - ADIF 入出力",
+    "transfer_back": "ADIF 入出力に戻る",
+    "transfer_sections": "ADIF 入出力の項目",
+    "transfer_export_adif": "ADIF エクスポート",
+    "transfer_batches": "バッチ",
+    "transfer_import_adif": "ADIF インポート",
+    "transfer_export_missing": "このエクスポートはこの Logbook にありません。",
     "transfer_kind": "種類",
     "transfer_kind_qsl_card": "紙 QSL",
     "transfer_query": "検索条件",
@@ -88,7 +94,6 @@
     "transfer_park_every": "すべてのパーク",
     "transfer_exporting": "エクスポート中…",
     "transfer_download_adif": "ADIF をダウンロード",
-    "transfer_recent_exports": "最近のエクスポート",
     "transfer_split": "ファイル分割",
     "transfer_split_none": "なし (1 ファイル)",
     "transfer_exported_missing": [
@@ -207,7 +212,6 @@
             "match": { "": "{n} ファイルを対象外にしました" }
         }
     ],
-    "transfer_export_choose": "エクスポートを選ぶとファイルが表示されます。",
     "transfer_outcome_updated": [
         {
             "declarations": ["input updated", "local u = updated: number"],

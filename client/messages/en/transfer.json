@@ -15,7 +15,13 @@
     "transfer_unencodable_omit": "Leave the field out",
     "transfer_read_encoding": "Read as {encoding}",
     "transfer_read_lengths": "non-ASCII lengths in {units}",
-    "transfer_direction": "Direction",
+    "transfer_section_title": "{section} - ADIF Import / Export",
+    "transfer_back": "Back to Import / Export",
+    "transfer_sections": "Import / Export sections",
+    "transfer_export_adif": "Export ADIF",
+    "transfer_batches": "Batches",
+    "transfer_import_adif": "Import ADIF",
+    "transfer_export_missing": "This export is not in the Logbook.",
     "transfer_kind": "Kind",
     "transfer_kind_qsl_card": "QSL card",
     "transfer_query": "Query",
@@ -123,7 +129,6 @@
     "transfer_park_every": "every park",
     "transfer_exporting": "Exporting…",
     "transfer_download_adif": "Download ADIF",
-    "transfer_recent_exports": "Recent exports",
     "transfer_split": "Split by",
     "transfer_split_none": "No (one file)",
     "transfer_exported_missing": [
@@ -293,7 +298,6 @@
             }
         }
     ],
-    "transfer_export_choose": "Choose an export to see its files.",
     "transfer_outcome_updated": [
         {
             "declarations": ["input updated", "local u = updated: number"],
