@@ -84,6 +84,7 @@ language; `error` stays English.
 | `too_many_values` | `count`, `max` | A filter lists more values than are taken |
 | `batch_empty` | | An export selects no QSOs |
 | `batch_applied` | `id` | The export batch has already been applied |
+| `batch_dismissed` | `id` | The export batch has been dismissed |
 | `batch_nothing_to_apply` | `kind` | Batches of this kind have nothing to apply |
 | `not_utf8` | | An imported file is not UTF-8 |
 | `not_encoding` | `encoding` | An imported file is not in the named encoding |
@@ -575,9 +576,15 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk changes |
+| `POST /exports/{id}/dismiss` | | The batch, with `dismissed_at` set |
+| `DELETE /exports/{id}/dismiss` | | The batch, with `dismissed_at` cleared |
+| `POST /exports/apply` | `{export_id}` | `{batches, updated, skipped}` |
+| `POST /exports/dismiss` | `{export_id}` | `{batches}` |
 
-A batch is `{id, kind, created_by, created_at, applied_at, qso_count, label}`;
-`label` is the value a split export grouped the batch by, and null for the
+A batch is `{id, export_id, kind, created_by, created_at, applied_at,
+dismissed_at, qso_count, label}`; `export_id` is shared by the batches one
+request created, so the files of a split export are one export; `label` is
+the value a split export grouped the batch by, and null for the
 others. `kind`
 is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. `q` chooses the QSOs as in
 Search; `park` keeps one park of a `pota` export and is
@@ -618,6 +625,12 @@ Applying an `eqsl`, `lotw` or `qsl_card` batch sets `EQSL_QSL_SENT`,
 `LOTW_QSL_SENT` or `QSL_SENT` to `Y` and its sent date to the UTC day, on the
 rows still at their recorded revisions. A batch is applied once; again is
 `409`. `adif` and `pota` batches are records only, and applying them is `400`.
+Dismissing a batch records that its result will not be applied (an upload
+that failed, say): applying or dismissing it again is `409 batch_dismissed`
+until `DELETE /exports/{id}/dismiss` restores it. `POST /exports/apply` and
+`POST /exports/dismiss` take an `export_id` and apply or dismiss every batch
+of that export that is still pending, in one transaction, reporting the
+number of `batches` they touched; an unknown `export_id` is `404`.
 
 ## ADIF Import
 

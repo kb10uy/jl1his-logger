@@ -66,10 +66,12 @@ impl ExportKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportBatch {
     pub id: String,
+    pub export_id: String,
     pub kind: ExportKind,
     pub created_by: String,
     pub created_at: String,
     pub applied_at: Option<String>,
+    pub dismissed_at: Option<String>,
     pub qso_count: i64,
     pub label: Option<String>,
 }
@@ -78,18 +80,51 @@ impl ExportBatch {
     fn from_row(row: &SqliteRow) -> Result<ExportBatch, StoreError> {
         Ok(ExportBatch {
             id: row.try_get("id")?,
+            export_id: row.try_get("export_id")?,
             kind: ExportKind::parse(row.try_get("kind")?)?,
             created_by: row.try_get("created_by")?,
             created_at: row.try_get("created_at")?,
             applied_at: row.try_get("applied_at")?,
+            dismissed_at: row.try_get("dismissed_at")?,
             qso_count: row.try_get("qso_count")?,
             label: row.try_get("label")?,
         })
     }
+
+    fn pending(&self) -> Result<(&'static str, &'static str), StoreError> {
+        let Some(fields) = self.kind.sent_fields() else {
+            return Err(StoreError::Invalid(
+                Fault::coded(
+                    "batch_nothing_to_apply",
+                    format!("{} export batches have nothing to apply", self.kind.as_str()),
+                )
+                .with("kind", self.kind.as_str()),
+            ));
+        };
+        if self.applied_at.is_some() {
+            return Err(StoreError::Conflict(
+                Fault::coded(
+                    "batch_applied",
+                    format!("export batch {} has already been applied", self.id),
+                )
+                .with("id", self.id.clone()),
+            ));
+        }
+        if self.dismissed_at.is_some() {
+            return Err(StoreError::Conflict(
+                Fault::coded(
+                    "batch_dismissed",
+                    format!("export batch {} has been dismissed", self.id),
+                )
+                .with("id", self.id.clone()),
+            ));
+        }
+        Ok(fields)
+    }
 }
 
-const SELECT: &str = "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, b.label, \
-     (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
+const SELECT: &str = "SELECT b.id, b.export_id, b.kind, b.created_by, b.created_at, b.applied_at, b.dismissed_at, \
+     b.label, (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
      FROM export_batches b";
 
 pub fn document(records: &[Qso], unit: LengthUnit) -> String {
@@ -182,6 +217,7 @@ pub async fn create(
     kind: ExportKind,
     qsos: &[Target],
     label: Option<&str>,
+    export_id: &str,
 ) -> Result<ExportBatch, StoreError> {
     let access = access.revalidate(tx).await?;
     if qsos.is_empty() {
@@ -204,9 +240,11 @@ pub async fn create(
 
     let id = new_id();
     sqlx::query(
-        "INSERT INTO export_batches (id, logbook_id, kind, created_by, created_at, label) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO export_batches (id, export_id, logbook_id, kind, created_by, created_at, label) \
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
+    .bind(export_id)
     .bind(access.logbook_id())
     .bind(kind.as_str())
     .bind(access.user_id())
@@ -253,30 +291,102 @@ pub async fn list(conn: &mut SqliteConnection, access: &LogbookAccess) -> Result
 pub async fn apply(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result<Outcome, StoreError> {
     let access = access.revalidate(tx).await?;
     let batch = fetch(tx, &access, id).await?;
-    if batch.applied_at.is_some() {
-        return Err(StoreError::Conflict(
-            Fault::coded("batch_applied", format!("export batch {id} has already been applied"))
-                .with("id", id.to_string()),
-        ));
-    }
-    let Some((sent, date)) = batch.kind.sent_fields() else {
-        return Err(StoreError::Invalid(
-            Fault::coded(
-                "batch_nothing_to_apply",
-                format!("{} export batches have nothing to apply", batch.kind.as_str()),
-            )
-            .with("kind", batch.kind.as_str()),
-        ));
-    };
-    let targets = targets(tx, id).await?;
-    let changes = vec![(sent, "Y".to_owned()), (date, today())];
-    let outcome = bulk::apply(tx, &access, &targets, &changes).await?;
-    sqlx::query("UPDATE export_batches SET applied_at = ? WHERE id = ?")
-        .bind(now())
+    apply_batch(tx, &access, &batch).await
+}
+
+pub async fn dismiss(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result<ExportBatch, StoreError> {
+    let access = access.revalidate(tx).await?;
+    let batch = fetch(tx, &access, id).await?;
+    batch.pending()?;
+    dismiss_batch(tx, &batch).await?;
+    fetch(tx, &access, id).await
+}
+
+pub async fn undismiss(tx: &mut WriteTx, access: &LogbookAccess, id: &str) -> Result<ExportBatch, StoreError> {
+    let access = access.revalidate(tx).await?;
+    fetch(tx, &access, id).await?;
+    sqlx::query("UPDATE export_batches SET dismissed_at = NULL WHERE id = ?")
         .bind(id)
         .execute(&mut **tx)
         .await?;
+    fetch(tx, &access, id).await
+}
+
+#[derive(Debug, Default)]
+pub struct ExportOutcome {
+    pub batches: usize,
+    pub outcome: Outcome,
+}
+
+pub async fn apply_export(
+    tx: &mut WriteTx,
+    access: &LogbookAccess,
+    export_id: &str,
+) -> Result<ExportOutcome, StoreError> {
+    let access = access.revalidate(tx).await?;
+    let mut result = ExportOutcome::default();
+    for batch in pending_in(tx, &access, export_id).await? {
+        let outcome = apply_batch(tx, &access, &batch).await?;
+        result.outcome.updated.extend(outcome.updated);
+        result.outcome.skipped.extend(outcome.skipped);
+        result.batches += 1;
+    }
+    Ok(result)
+}
+
+pub async fn dismiss_export(tx: &mut WriteTx, access: &LogbookAccess, export_id: &str) -> Result<usize, StoreError> {
+    let access = access.revalidate(tx).await?;
+    let batches = pending_in(tx, &access, export_id).await?;
+    for batch in &batches {
+        dismiss_batch(tx, batch).await?;
+    }
+    Ok(batches.len())
+}
+
+async fn apply_batch(tx: &mut WriteTx, access: &LogbookAccess, batch: &ExportBatch) -> Result<Outcome, StoreError> {
+    let (sent, date) = batch.pending()?;
+    let targets = targets(tx, &batch.id).await?;
+    let changes = vec![(sent, "Y".to_owned()), (date, today())];
+    let outcome = bulk::apply(tx, access, &targets, &changes).await?;
+    sqlx::query("UPDATE export_batches SET applied_at = ? WHERE id = ?")
+        .bind(now())
+        .bind(&batch.id)
+        .execute(&mut **tx)
+        .await?;
     Ok(outcome)
+}
+
+async fn dismiss_batch(tx: &mut WriteTx, batch: &ExportBatch) -> Result<(), StoreError> {
+    sqlx::query("UPDATE export_batches SET dismissed_at = ? WHERE id = ?")
+        .bind(now())
+        .bind(&batch.id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+async fn pending_in(
+    conn: &mut SqliteConnection,
+    access: &LogbookAccess,
+    export_id: &str,
+) -> Result<Vec<ExportBatch>, StoreError> {
+    let batches: Vec<ExportBatch> = sqlx::query(AssertSqlSafe(format!(
+        "{SELECT} WHERE b.logbook_id = ? AND b.export_id = ? ORDER BY b.created_at, b.id"
+    )))
+    .bind(access.logbook_id())
+    .bind(export_id)
+    .fetch_all(conn)
+    .await?
+    .iter()
+    .map(ExportBatch::from_row)
+    .collect::<Result<_, _>>()?;
+    if batches.is_empty() {
+        return Err(StoreError::NotFound("export"));
+    }
+    Ok(batches
+        .into_iter()
+        .filter(|b| b.applied_at.is_none() && b.dismissed_at.is_none() && b.kind.sent_fields().is_some())
+        .collect())
 }
 
 async fn fetch(conn: &mut SqliteConnection, access: &LogbookAccess, id: &str) -> Result<ExportBatch, StoreError> {
@@ -435,7 +545,7 @@ mod tests {
         let access = world.access(&world.operator).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let targets: Vec<_> = rows.iter().map(target).collect();
-        let batch = create(&mut tx, &access, ExportKind::QslCard, &targets, None)
+        let batch = create(&mut tx, &access, ExportKind::QslCard, &targets, None, "export")
             .await
             .unwrap();
         assert_eq!(
@@ -490,7 +600,7 @@ mod tests {
             ..target(&rows[0])
         };
         assert!(matches!(
-            create(&mut tx, &access, ExportKind::Eqsl, &[stale], None).await,
+            create(&mut tx, &access, ExportKind::Eqsl, &[stale], None, "export").await,
             Err(StoreError::Conflict(_))
         ));
         assert!(matches!(
@@ -499,16 +609,17 @@ mod tests {
                 &access,
                 ExportKind::Eqsl,
                 &[target(&rows[0]), target(&rows[0])],
-                None
+                None,
+                "export"
             )
             .await,
             Err(StoreError::Invalid(_))
         ));
         assert!(matches!(
-            create(&mut tx, &access, ExportKind::Eqsl, &[], None).await,
+            create(&mut tx, &access, ExportKind::Eqsl, &[], None, "export").await,
             Err(StoreError::Invalid(_))
         ));
-        let pota = create(&mut tx, &access, ExportKind::Pota, &[target(&rows[0])], None)
+        let pota = create(&mut tx, &access, ExportKind::Pota, &[target(&rows[0])], None, "export")
             .await
             .unwrap();
         assert!(matches!(
@@ -524,16 +635,31 @@ mod tests {
         let access = world.access(&world.owner).await;
         let (_, other_access) = world.other_logbook().await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let batch = create(&mut tx, &access, ExportKind::Lotw, &[target(&rows[0])], Some("JL1HIS"))
-            .await
-            .unwrap();
+        let batch = create(
+            &mut tx,
+            &access,
+            ExportKind::Lotw,
+            &[target(&rows[0])],
+            Some("JL1HIS"),
+            "export",
+        )
+        .await
+        .unwrap();
         assert_eq!(batch.label.as_deref(), Some("JL1HIS"));
         assert!(matches!(
             get(&mut tx, &other_access, &batch.id).await,
             Err(StoreError::NotFound(_))
         ));
         assert!(matches!(
-            create(&mut tx, &other_access, ExportKind::Lotw, &[target(&rows[0])], None).await,
+            create(
+                &mut tx,
+                &other_access,
+                ExportKind::Lotw,
+                &[target(&rows[0])],
+                None,
+                "export"
+            )
+            .await,
             Err(StoreError::NotFound(_))
         ));
     }
