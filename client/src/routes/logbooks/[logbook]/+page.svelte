@@ -541,9 +541,9 @@
                         onclick={() =>
                             applyChange(
                                 targetsOfChecked(),
-                                { fields: { QSL_SENT: 'Y', QSLSDATE: adifDate(today) } },
-                                (count) => m.log_marked_sent({ count })
-                            )}>{m.log_mark_sent_today()}</Button
+                                { fields: { QSL_SENT: 'R', QSLSDATE: '' } },
+                                (count) => m.log_marked_requested({ count })
+                            )}>{m.log_mark_requested()}</Button
                     >
                     <Button
                         size="sm"

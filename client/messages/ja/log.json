@@ -43,14 +43,14 @@
             "match": { "": "一致する {n} 件をすべてチェック" }
         }
     ],
-    "log_mark_sent_today": "今日 QSL 送付済みにする",
+    "log_mark_requested": "QSL 要求ありにする",
     "log_mark_received": "QSL 受領済みにする",
     "log_edit_fields": "フィールドを編集…",
-    "log_marked_sent": [
+    "log_marked_requested": [
         {
             "declarations": ["input count", "local n = count: number"],
             "selectors": [],
-            "match": { "": "{n} 件の QSO を QSL 送付済みにしました。" }
+            "match": { "": "{n} 件の QSO を QSL 要求ありにしました。" }
         }
     ],
     "log_marked_received": [
@@ -141,9 +141,9 @@
     "log_column_move_right": "{name} を右へ移動",
     "log_column_hide": "{name} を非表示",
     "log_adif_field": "ADIF フィールド",
-    "log_column_qsl": "QSL 送 / 受",
-    "log_column_lotw": "LoTW 送 / 受",
-    "log_column_eqsl": "eQSL 送 / 受",
+    "log_column_qsl": "QSL",
+    "log_column_lotw": "LoTW",
+    "log_column_eqsl": "eQSL",
     "log_column_rst": "RST 送 / 受",
     "log_column_tx_power": "送信出力 W",
     "log_column_park": "運用パーク",

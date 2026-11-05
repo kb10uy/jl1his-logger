@@ -43,10 +43,10 @@
             "match": { "": "Check all {n} matching" }
         }
     ],
-    "log_mark_sent_today": "Mark QSL sent today",
+    "log_mark_requested": "Mark QSL requested",
     "log_mark_received": "Mark QSL received",
     "log_edit_fields": "Edit fields…",
-    "log_marked_sent": [
+    "log_marked_requested": [
         {
             "declarations": [
                 "input count",
@@ -55,8 +55,8 @@
             ],
             "selectors": ["countPlural"],
             "match": {
-                "countPlural=one": "Marked QSL sent on {n} QSO",
-                "countPlural=other": "Marked QSL sent on {n} QSOs"
+                "countPlural=one": "Marked QSL requested on {n} QSO",
+                "countPlural=other": "Marked QSL requested on {n} QSOs"
             }
         }
     ],
@@ -190,9 +190,9 @@
     "log_column_move_right": "Move {name} right",
     "log_column_hide": "Hide {name}",
     "log_adif_field": "ADIF field",
-    "log_column_qsl": "QSL S / R",
-    "log_column_lotw": "LoTW S / R",
-    "log_column_eqsl": "eQSL S / R",
+    "log_column_qsl": "QSL",
+    "log_column_lotw": "LoTW",
+    "log_column_eqsl": "eQSL",
     "log_column_rst": "RST S / R",
     "log_column_tx_power": "TX Power W",
     "log_column_park": "Park",
