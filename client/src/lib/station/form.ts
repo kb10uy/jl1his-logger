@@ -17,7 +17,8 @@ export const EXTRA_FIELDS = [
     { name: 'MY_WWFF_REF', label: m.stations_field_wwff },
     { name: 'MY_CQ_ZONE', label: m.stations_field_cq_zone },
     { name: 'MY_ITU_ZONE', label: m.stations_field_itu_zone },
-    { name: 'OPERATOR', label: m.stations_field_operator }
+    { name: 'OPERATOR', label: m.stations_field_operator },
+    { name: 'APP_EQSL_QTH_NICKNAME', label: m.stations_field_eqsl_nickname }
 ] as const;
 
 const RESERVED = new Set(['CALL', 'QSO_DATE', 'TIME_ON', 'BAND', 'MODE', 'STATION_CALLSIGN']);
@@ -86,7 +87,9 @@ export function stationProblem(draft: StationDraft): string | undefined {
     for (const { name } of draft.extra) {
         const key = name.trim().toUpperCase();
         if (key === '') continue;
-        if (!isAdifQsoField(key)) return m.stations_problem_not_adif({ name });
+        if (!isAdifQsoField(key) && !key.startsWith('APP_')) {
+            return m.stations_problem_not_adif({ name });
+        }
         if (RESERVED.has(key)) return m.stations_problem_reserved({ key });
         if (EQUIPMENT.has(key)) return m.stations_problem_equipment({ key });
         if (MAIN.has(key) || names.has(key)) return m.stations_problem_twice({ key });

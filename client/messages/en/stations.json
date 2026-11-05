@@ -41,6 +41,7 @@
     "stations_field_cq_zone": "CQ zone",
     "stations_field_itu_zone": "ITU zone",
     "stations_field_operator": "Operator",
+    "stations_field_eqsl_nickname": "eQSL QTH nickname",
     "stations_pota_parks": "POTA parks",
     "stations_park_placeholder": "Add park, US-0001…",
     "stations_state_follows": "State choices follow this",

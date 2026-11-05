@@ -102,7 +102,8 @@ A Station Location of a Logbook.
   Station.
 - `fields` is the JSON map of the other defaults that are baked into a new
   QSO, keyed by their ADIF name (`MY_GRIDSQUARE`, `MY_CITY`, `MY_STATE`,
-  `MY_CNTY`, `MY_POTA_REF`, `MY_SIG`, `MY_SIG_INFO`, `MY_DXCC`, ...). The
+  `MY_CNTY`, `MY_POTA_REF`, `MY_SIG`, `MY_SIG_INFO`, `MY_DXCC`,
+  `APP_EQSL_QTH_NICKNAME`, ...). The
   web UI edits them as form fields; the server does not need columns for
   them because nothing searches Stations by them. `MY_RIG`, `MY_ANTENNA`
   and `TX_PWR` are never among them; they belong to `instruments`.

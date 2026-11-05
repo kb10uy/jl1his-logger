@@ -41,6 +41,7 @@
     "stations_field_cq_zone": "CQ ゾーン",
     "stations_field_itu_zone": "ITU ゾーン",
     "stations_field_operator": "運用者",
+    "stations_field_eqsl_nickname": "eQSL の QTH ニックネーム",
     "stations_pota_parks": "POTA パーク",
     "stations_park_placeholder": "パークを追加、US-0001…",
     "stations_state_follows": "州・地域の選択肢はこの値に連動します。",

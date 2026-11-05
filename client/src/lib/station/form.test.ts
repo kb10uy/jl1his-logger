@@ -81,4 +81,11 @@ describe('station drafts', () => {
     it('accepts a complete draft', () => {
         expect(stationProblem(draftOf(station))).toBeUndefined();
     });
+
+    it('accepts application fields such as the eQSL QTH nickname', () => {
+        const draft = draftOf(station);
+        draft.extra = [{ name: 'app_eqsl_qth_nickname', value: 'Home' }];
+        expect(stationProblem(draft)).toBeUndefined();
+        expect(stationInput(draft).fields.APP_EQSL_QTH_NICKNAME).toBe('Home');
+    });
 });
