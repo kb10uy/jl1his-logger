@@ -1,4 +1,5 @@
 import type {
+    Batch,
     Encoding,
     ExportKind,
     ExportedFile,
@@ -106,6 +107,55 @@ export function defaultSplit(kind: ExportKind): SplitChoice {
 
 export function missingCount(files: ExportedFile[]): number {
     return files.filter((f) => f.missing.length > 0).reduce((n, f) => n + f.records, 0);
+}
+
+export type BatchState = 'record' | 'pending' | 'applied' | 'dismissed';
+
+export function batchState(batch: Batch): BatchState {
+    if (recordOnly(batch.kind)) return 'record';
+    if (batch.applied_at !== null) return 'applied';
+    if (batch.dismissed_at !== null) return 'dismissed';
+    return 'pending';
+}
+
+export interface ExportRun {
+    id: string;
+    kind: ExportKind;
+    created_by: string;
+    created_at: string;
+    batches: Batch[];
+    qsos: number;
+    pending: number;
+    applied: number;
+    dismissed: number;
+}
+
+export function exportRuns(batches: Batch[]): ExportRun[] {
+    const runs = new Map<string, ExportRun>();
+    for (const batch of batches) {
+        let run = runs.get(batch.export_id);
+        if (run === undefined) {
+            run = {
+                id: batch.export_id,
+                kind: batch.kind,
+                created_by: batch.created_by,
+                created_at: batch.created_at,
+                batches: [],
+                qsos: 0,
+                pending: 0,
+                applied: 0,
+                dismissed: 0
+            };
+            runs.set(batch.export_id, run);
+        }
+        run.batches.push(batch);
+        run.qsos += batch.qso_count;
+        if (batch.created_at < run.created_at) run.created_at = batch.created_at;
+        const state = batchState(batch);
+        if (state !== 'record') run[state] += 1;
+    }
+    for (const run of runs.values()) run.batches.sort((a, b) => (a.id < b.id ? -1 : 1));
+    return [...runs.values()];
 }
 
 export function rejectCount(report: NewReport | MergeReport): number {

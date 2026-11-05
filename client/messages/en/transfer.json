@@ -200,7 +200,6 @@
             }
         }
     ],
-    "transfer_batch_created_at": "Created",
     "transfer_batch_qsos": "QSOs",
     "transfer_batch_state": "State",
     "transfer_batch_record_only": "Record only",
@@ -214,7 +213,87 @@
             "match": { "": "Mark {n} as sent" }
         }
     ],
-    "transfer_batch_none": "No batches yet.",
+    "transfer_batch_none": "No exports yet.",
+    "transfer_batch_file": "File",
+    "transfer_batch_dismiss": "Dismiss",
+    "transfer_batch_dismissed_at": "Dismissed {at}",
+    "transfer_batch_restore": "Restore",
+    "transfer_export_files": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} file",
+                "countPlural=other": "{n} files"
+            }
+        }
+    ],
+    "transfer_export_summary": [
+        {
+            "declarations": [
+                "input files",
+                "input qsos",
+                "local filesPlural = files: plural",
+                "local f = files: number",
+                "local q = qsos: number"
+            ],
+            "selectors": ["filesPlural"],
+            "match": {
+                "filesPlural=one": "{f} file · {q} QSOs",
+                "filesPlural=other": "{f} files · {q} QSOs"
+            }
+        }
+    ],
+    "transfer_export_pending": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} pending" }
+        }
+    ],
+    "transfer_export_done": "Done",
+    "transfer_export_mark_all": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "Mark the remaining {n} as sent" }
+        }
+    ],
+    "transfer_export_dismiss_all": "Dismiss the remaining",
+    "transfer_export_applied": [
+        {
+            "declarations": [
+                "input batches",
+                "input result",
+                "local batchesPlural = batches: plural",
+                "local n = batches: number"
+            ],
+            "selectors": ["batchesPlural"],
+            "match": {
+                "batchesPlural=one": "Marked {n} file as sent · {result}",
+                "batchesPlural=other": "Marked {n} files as sent · {result}"
+            }
+        }
+    ],
+    "transfer_export_dismissed": [
+        {
+            "declarations": [
+                "input batches",
+                "local batchesPlural = batches: plural",
+                "local n = batches: number"
+            ],
+            "selectors": ["batchesPlural"],
+            "match": {
+                "batchesPlural=one": "Dismissed {n} file",
+                "batchesPlural=other": "Dismissed {n} files"
+            }
+        }
+    ],
+    "transfer_export_choose": "Choose an export to see its files.",
     "transfer_outcome_updated": [
         {
             "declarations": ["input updated", "local u = updated: number"],

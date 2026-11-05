@@ -12,7 +12,7 @@ export class Batches {
     items = $state<Batch[]>([]);
     callsigns = $state<Record<string, string>>({});
     results = $state<Record<string, string>>({});
-    applying = $state<string | undefined>(undefined);
+    working = $state<string | undefined>(undefined);
     creating = $state(false);
     private readonly logbookId: string;
     private readonly logbookName: () => string;
@@ -73,20 +73,60 @@ export class Batches {
     }
 
     async apply(batch: Batch): Promise<boolean> {
-        this.applying = batch.id;
-        try {
+        return this.work(batch.id, async () => {
             const outcome = await api.applyBatch(this.logbookId, batch.id);
             this.results = { ...this.results, [batch.id]: outcomeText(outcome) };
-            const appliedAt = new Date().toISOString();
-            this.items = this.items.map((b) =>
-                b.id === batch.id ? { ...b, applied_at: appliedAt } : b
+            this.replace({ ...batch, applied_at: new Date().toISOString() });
+        });
+    }
+
+    async dismiss(batch: Batch): Promise<boolean> {
+        return this.work(batch.id, async () => {
+            this.replace(await api.dismissBatch(this.logbookId, batch.id));
+        });
+    }
+
+    async restore(batch: Batch): Promise<boolean> {
+        return this.work(batch.id, async () => {
+            this.replace(await api.restoreBatch(this.logbookId, batch.id));
+        });
+    }
+
+    async applyExport(exportId: string): Promise<boolean> {
+        return this.work(exportId, async () => {
+            const outcome = await api.applyExport(this.logbookId, exportId);
+            this.items = await api.batches(this.logbookId);
+            toasts.show(
+                m.transfer_export_applied({
+                    batches: outcome.batches,
+                    result: outcomeText(outcome)
+                })
             );
+        });
+    }
+
+    async dismissExport(exportId: string): Promise<boolean> {
+        return this.work(exportId, async () => {
+            const { batches } = await api.dismissExport(this.logbookId, exportId);
+            this.items = await api.batches(this.logbookId);
+            toasts.show(m.transfer_export_dismissed({ batches }));
+        });
+    }
+
+    private replace(batch: Batch) {
+        this.items = this.items.map((b) => (b.id === batch.id ? batch : b));
+    }
+
+    private async work(id: string, run: () => Promise<void>): Promise<boolean> {
+        this.working = id;
+        try {
+            await run();
             return true;
         } catch (e) {
             toasts.error(message(e));
             return false;
         } finally {
-            this.applying = undefined;
+            this.working = undefined;
         }
     }
 }

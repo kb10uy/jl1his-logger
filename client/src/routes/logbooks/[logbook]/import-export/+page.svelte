@@ -1,7 +1,10 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
+    import { goto } from '$app/navigation';
+    import { page } from '$app/state';
     import * as api from '#lib/api/api.ts';
     import type {
+        Batch,
         Encoding,
         ExportKind,
         ImportSource,
@@ -15,8 +18,9 @@
     import PageHeader from '#lib/components/PageHeader.svelte';
     import PageTitle from '#lib/components/PageTitle.svelte';
     import StationSelect from '#lib/components/StationSelect.svelte';
-    import BatchTable from '#lib/components/transfer/BatchTable.svelte';
+    import ExportDetail from '#lib/components/transfer/ExportDetail.svelte';
     import ExportForm from '#lib/components/transfer/ExportForm.svelte';
+    import ExportList from '#lib/components/transfer/ExportList.svelte';
     import MergeReportPanel from '#lib/components/transfer/MergeReportPanel.svelte';
     import NewReportPanel from '#lib/components/transfer/NewReportPanel.svelte';
     import Button from '#lib/components/ui/Button.svelte';
@@ -38,8 +42,10 @@
         QUERY_PRESETS,
         SENT_FIELDS,
         SPLIT_FIELDS,
+        type ExportRun,
         type SplitChoice,
         defaultSplit,
+        exportRuns,
         formatOf,
         missingCount,
         readingNote,
@@ -172,8 +178,22 @@
         );
     }
 
-    async function apply(batch: Parameters<typeof batches.apply>[0]) {
+    const runs = $derived(exportRuns(batches.items));
+    const selectedId = $derived(page.url.searchParams.get('export') ?? runs[0]?.id);
+    const selected = $derived(runs.find((r) => r.id === selectedId));
+
+    function select(id: string) {
+        const url = new URL(page.url.href);
+        url.searchParams.set('export', id);
+        goto(url, { replace: true, reset: false });
+    }
+
+    async function apply(batch: Batch) {
         if (await batches.apply(batch)) matches.refresh();
+    }
+
+    async function applyAll(run: ExportRun) {
+        if (await batches.applyExport(run.id)) matches.refresh();
     }
 
     const sources: { value: ImportSource; label: string }[] = [
@@ -302,17 +322,6 @@
                     >
                 {/if}
             </section>
-
-            <section aria-label={m.transfer_recent_exports()} class="flex flex-col gap-2">
-                <h2 class="eyebrow">{m.transfer_recent_exports()}</h2>
-                <BatchTable
-                    batches={batches.items}
-                    callsigns={batches.callsigns}
-                    results={batches.results}
-                    applying={batches.applying}
-                    onapply={apply}
-                />
-            </section>
         </div>
 
         <section
@@ -429,4 +438,34 @@
             {/if}
         </section>
     </div>
+
+    <section
+        aria-label={m.transfer_recent_exports()}
+        class={['flex flex-col gap-2', tab !== 'export' && 'max-md:hidden']}
+    >
+        <h2 class="eyebrow">{m.transfer_recent_exports()}</h2>
+        <div class="grid items-start gap-4 md:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
+            <ExportList
+                {runs}
+                callsigns={batches.callsigns}
+                selected={selectedId}
+                onselect={select}
+            />
+            {#if selected}
+                <ExportDetail
+                    run={selected}
+                    callsigns={batches.callsigns}
+                    results={batches.results}
+                    working={batches.working}
+                    onapply={apply}
+                    ondismiss={(batch) => batches.dismiss(batch)}
+                    onrestore={(batch) => batches.restore(batch)}
+                    onapplyall={applyAll}
+                    ondismissall={(run) => batches.dismissExport(run.id)}
+                />
+            {:else if runs.length > 0}
+                <span class="text-sm text-muted">{m.transfer_export_choose()}</span>
+            {/if}
+        </div>
+    </section>
 </main>

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Batch, MergeReport, NewReport, Qso } from '#lib/api/types.ts';
 import {
     SPLIT_FIELDS,
+    batchState,
     defaultSplit,
+    exportRuns,
     differencesText,
     fileName,
     formatOf,
@@ -71,6 +73,35 @@ describe('transfer helpers', () => {
             ])
         ).toBe(3);
         expect(missingCount([])).toBe(0);
+    });
+
+    it('groups batches into exports and counts their states', () => {
+        const batch = (over: Partial<Batch>): Batch => ({
+            id: '1',
+            export_id: 'a',
+            kind: 'lotw',
+            created_by: 'u',
+            created_at: '2026-11-05T10:00:01Z',
+            applied_at: null,
+            dismissed_at: null,
+            qso_count: 1,
+            label: null,
+            ...over
+        });
+        const runs = exportRuns([
+            batch({ id: '4', export_id: 'b', kind: 'adif', qso_count: 9 }),
+            batch({ id: '3', label: 'JL1HIS/P', dismissed_at: '2026-11-05T11:00:00Z' }),
+            batch({ id: '2', label: 'JL1HIS', applied_at: '2026-11-05T11:00:00Z', qso_count: 2 }),
+            batch({ id: '1', label: 'JA1ZZZ', created_at: '2026-11-05T10:00:00Z' })
+        ]);
+        expect(runs.map((r) => [r.id, r.kind, r.qsos, r.pending, r.applied, r.dismissed])).toEqual([
+            ['b', 'adif', 9, 0, 0, 0],
+            ['a', 'lotw', 4, 1, 1, 1]
+        ]);
+        expect(runs[1].created_at).toBe('2026-11-05T10:00:00Z');
+        expect(runs[1].batches.map((b) => b.id)).toEqual(['1', '2', '3']);
+        expect(batchState(runs[0].batches[0])).toBe('record');
+        expect(runs[1].batches.map(batchState)).toEqual(['pending', 'applied', 'dismissed']);
     });
 
     it('tells records from batches that can be applied', () => {

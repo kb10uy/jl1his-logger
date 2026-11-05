@@ -140,7 +140,6 @@
             "match": { "": "{n} 件の交信確認を反映" }
         }
     ],
-    "transfer_batch_created_at": "作成日時",
     "transfer_batch_qsos": "QSO 数",
     "transfer_batch_state": "状態",
     "transfer_batch_record_only": "記録のみ",
@@ -154,7 +153,61 @@
             "match": { "": "{n} 件を送付済みにする" }
         }
     ],
-    "transfer_batch_none": "バッチはまだありません。",
+    "transfer_batch_none": "エクスポートはまだありません。",
+    "transfer_batch_file": "ファイル",
+    "transfer_batch_dismiss": "対象外にする",
+    "transfer_batch_dismissed_at": "対象外 {at}",
+    "transfer_batch_restore": "戻す",
+    "transfer_export_files": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} ファイル" }
+        }
+    ],
+    "transfer_export_summary": [
+        {
+            "declarations": [
+                "input files",
+                "input qsos",
+                "local f = files: number",
+                "local q = qsos: number"
+            ],
+            "selectors": [],
+            "match": { "": "{f} ファイル · {q} QSO" }
+        }
+    ],
+    "transfer_export_pending": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "未処理 {n} 件" }
+        }
+    ],
+    "transfer_export_done": "完了",
+    "transfer_export_mark_all": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "残り {n} 件を送付済みにする" }
+        }
+    ],
+    "transfer_export_dismiss_all": "残りを対象外にする",
+    "transfer_export_applied": [
+        {
+            "declarations": ["input batches", "input result", "local n = batches: number"],
+            "selectors": [],
+            "match": { "": "{n} ファイルを送付済みにしました · {result}" }
+        }
+    ],
+    "transfer_export_dismissed": [
+        {
+            "declarations": ["input batches", "local n = batches: number"],
+            "selectors": [],
+            "match": { "": "{n} ファイルを対象外にしました" }
+        }
+    ],
+    "transfer_export_choose": "エクスポートを選ぶとファイルが表示されます。",
     "transfer_outcome_updated": [
         {
             "declarations": ["input updated", "local u = updated: number"],
