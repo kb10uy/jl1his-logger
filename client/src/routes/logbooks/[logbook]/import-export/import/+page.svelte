@@ -57,6 +57,8 @@
         if (draft.file !== undefined && ready) void importer.preview(draft.file);
     }
 
+    let restored = importer.report !== undefined;
+
     $effect(() => {
         void draft.source;
         void station;
@@ -65,7 +67,8 @@
         void draft.length;
         void draft.encoding;
         void draft.file;
-        untrack(preview);
+        if (restored) restored = false;
+        else untrack(preview);
     });
 
     const sources: { value: ImportSource; label: string }[] = [

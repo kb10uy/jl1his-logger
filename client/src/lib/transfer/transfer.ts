@@ -154,8 +154,17 @@ export function exportRuns(batches: Batch[]): ExportRun[] {
         const state = batchState(batch);
         if (state !== 'record') run[state] += 1;
     }
-    for (const run of runs.values()) run.batches.sort((a, b) => (a.id < b.id ? -1 : 1));
+    for (const run of runs.values()) {
+        run.batches.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
+    }
     return [...runs.values()];
+}
+
+export function partitionRuns(runs: ExportRun[]): { pending: ExportRun[]; finished: ExportRun[] } {
+    return {
+        pending: runs.filter((run) => run.pending > 0),
+        finished: runs.filter((run) => run.pending === 0)
+    };
 }
 
 export function rejectCount(report: NewReport | MergeReport): number {

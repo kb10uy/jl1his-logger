@@ -10,6 +10,7 @@ import {
     formatOf,
     missingCount,
     outcomeText,
+    partitionRuns,
     readingNote,
     recordOnly,
     rejectCount,
@@ -102,6 +103,9 @@ describe('transfer helpers', () => {
         expect(runs[1].batches.map((b) => b.id)).toEqual(['1', '2', '3']);
         expect(batchState(runs[0].batches[0])).toBe('record');
         expect(runs[1].batches.map(batchState)).toEqual(['pending', 'applied', 'dismissed']);
+        const lists = partitionRuns(runs);
+        expect(lists.pending.map((r) => r.id)).toEqual(['a']);
+        expect(lists.finished.map((r) => r.id)).toEqual(['b']);
     });
 
     it('tells records from batches that can be applied', () => {

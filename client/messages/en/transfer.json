@@ -21,7 +21,6 @@
     "transfer_export_adif": "Export ADIF",
     "transfer_batches": "Batches",
     "transfer_import_adif": "Import ADIF",
-    "transfer_export_missing": "This export is not in the Logbook.",
     "transfer_kind": "Kind",
     "transfer_kind_qsl_card": "QSL card",
     "transfer_query": "Query",
@@ -237,27 +236,28 @@
             }
         }
     ],
-    "transfer_export_summary": [
-        {
-            "declarations": [
-                "input files",
-                "input qsos",
-                "local filesPlural = files: plural",
-                "local f = files: number",
-                "local q = qsos: number"
-            ],
-            "selectors": ["filesPlural"],
-            "match": {
-                "filesPlural=one": "{f} file · {q} QSOs",
-                "filesPlural=other": "{f} files · {q} QSOs"
-            }
-        }
-    ],
     "transfer_export_pending": [
         {
             "declarations": ["input count", "local n = count: number"],
             "selectors": [],
             "match": { "": "{n} pending" }
+        }
+    ],
+    "transfer_list_pending": "Pending",
+    "transfer_list_finished": "Done and record only",
+    "transfer_pending_none": "Nothing is pending.",
+    "transfer_export_qsos": [
+        {
+            "declarations": [
+                "input count",
+                "local countPlural = count: plural",
+                "local n = count: number"
+            ],
+            "selectors": ["countPlural"],
+            "match": {
+                "countPlural=one": "{n} QSO",
+                "countPlural=other": "{n} QSOs"
+            }
         }
     ],
     "transfer_export_done": "Done",

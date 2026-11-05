@@ -21,7 +21,6 @@
     "transfer_export_adif": "ADIF エクスポート",
     "transfer_batches": "バッチ",
     "transfer_import_adif": "ADIF インポート",
-    "transfer_export_missing": "このエクスポートはこの Logbook にありません。",
     "transfer_kind": "種類",
     "transfer_kind_qsl_card": "紙 QSL",
     "transfer_query": "検索条件",
@@ -170,23 +169,21 @@
             "match": { "": "{n} ファイル" }
         }
     ],
-    "transfer_export_summary": [
-        {
-            "declarations": [
-                "input files",
-                "input qsos",
-                "local f = files: number",
-                "local q = qsos: number"
-            ],
-            "selectors": [],
-            "match": { "": "{f} ファイル · {q} QSO" }
-        }
-    ],
     "transfer_export_pending": [
         {
             "declarations": ["input count", "local n = count: number"],
             "selectors": [],
             "match": { "": "未処理 {n} 件" }
+        }
+    ],
+    "transfer_list_pending": "未処理",
+    "transfer_list_finished": "完了・記録のみ",
+    "transfer_pending_none": "未処理のバッチはありません。",
+    "transfer_export_qsos": [
+        {
+            "declarations": ["input count", "local n = count: number"],
+            "selectors": [],
+            "match": { "": "{n} QSO" }
         }
     ],
     "transfer_export_done": "完了",

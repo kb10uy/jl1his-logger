@@ -95,7 +95,9 @@ export class Batches {
     async apply(batch: Batch): Promise<boolean> {
         return this.work(batch.id, async () => {
             const outcome = await api.applyBatch(this.logbookId, batch.id);
-            this.results = { ...this.results, [batch.id]: outcomeText(outcome) };
+            const result = outcomeText(outcome);
+            this.results = { ...this.results, [batch.id]: result };
+            toasts.show(m.transfer_batch_applied_result({ result }));
             this.replace({ ...batch, applied_at: new Date().toISOString() });
         });
     }
