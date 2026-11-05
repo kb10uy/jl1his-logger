@@ -36,7 +36,7 @@
     ],
     "transfer_import": "インポート",
     "transfer_export": "エクスポート",
-    "transfer_import_new_title": "新しい QSO のインポート",
+    "transfer_source_new": "新しい QSO",
     "transfer_station_required": "先に運用地を作成してください。新しい QSO はいずれかの運用地で記録します。",
     "transfer_imported_label": "インポート完了",
     "transfer_stat_created": "作成",
@@ -89,12 +89,17 @@
     "transfer_exporting": "エクスポート中…",
     "transfer_download_adif": "ADIF をダウンロード",
     "transfer_recent_exports": "最近のエクスポート",
-    "transfer_qsl_no_batch": "該当する QSO がないため、バッチを作成しませんでした。",
-    "transfer_qsl_batch_created": [
+    "transfer_split_by_callsign": "STATION_CALLSIGN ごとにファイルを分けて zip にする",
+    "transfer_exported_files": [
         {
-            "declarations": ["input count", "local n = count: number"],
+            "declarations": [
+                "input records",
+                "input files",
+                "local n = records: number",
+                "local f = files: number"
+            ],
             "selectors": [],
-            "match": { "": "{n} 件の QSO のバッチを作成しました" }
+            "match": { "": "{n} 件のレコードを {f} ファイルにエクスポートしました" }
         }
     ],
     "transfer_qsl_merged_count": [
@@ -104,12 +109,7 @@
             "match": { "": "{n} 件の交信確認を反映しました" }
         }
     ],
-    "transfer_qsl_send": "送付",
-    "transfer_qsl_receive": "受領",
-    "transfer_qsl_creating": "作成中…",
-    "transfer_qsl_create_batch": "バッチを作成して ADIF をダウンロード",
     "transfer_qsl_mark_note": "後でバッチを送付済みにすると、記録したリビジョンから変わっていない QSO に {sent} = Y と {date} を設定します。",
-    "transfer_qsl_batches": "バッチ",
     "transfer_qsl_source": "取り込み元",
     "transfer_qsl_source_card": "紙 QSL",
     "transfer_qsl_any_station": "すべての運用地",

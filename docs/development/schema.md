@@ -237,7 +237,9 @@ since the export, or that was deleted, is skipped and reported rather than
 silently overwritten. `applied_at` is set when the result has been applied,
 and a batch is applied only once. `adif` and `pota` batches record what was
 exported and have nothing to apply. decisions.md lists the fields each kind
-sets.
+sets. `label` is the value a split export grouped the batch by (its
+`STATION_CALLSIGN`, say), shown beside the kind, and null for a batch of an
+unsplit export.
 
 `export_batch_qsos.logbook_id` participates in composite foreign keys to
 both `export_batches` and `qsos`, so a batch cannot include a QSO from

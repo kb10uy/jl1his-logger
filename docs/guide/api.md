@@ -88,7 +88,7 @@ language; `error` stays English.
 | `not_utf8` | | An imported file is not UTF-8 |
 | `not_encoding` | `encoding` | An imported file is not in the named encoding |
 | `not_adif` | `detail` | An imported file is not ADIF |
-| `unencodable` | `record`, `field`, `character` | An export holds a character the encoding cannot write |
+| `unencodable` | `record`, `field`, `character`, `file` (split exports) | An export holds a character the encoding cannot write |
 | `reference_invalid` | | A CTY archive was refused |
 
 The query codes of `q` are listed under Search.
@@ -571,11 +571,14 @@ those rows. Paths are relative to `/api/logbooks/{logbook_id}`.
 | Request | Body | Response |
 | --- | --- | --- |
 | `POST /exports` | `{kind, q?, park?, length?, encoding?, unencodable?}` | `201 {batch, records, adif, file}` |
+| `POST /exports/split` | `{kind, split, q?, park?, length?, encoding?, unencodable?}` | `201 {records, format, file, files}` |
 | `GET /exports` | | The batches, newest first |
 | `GET /exports/{id}` | | The batch with `qsos: [{id, revision}]` |
 | `POST /exports/{id}/apply` | | `{updated, skipped}`, as for bulk changes |
 
-A batch is `{id, kind, created_by, created_at, applied_at, qso_count}`. `kind`
+A batch is `{id, kind, created_by, created_at, applied_at, qso_count, label}`;
+`label` is the value a split export grouped the batch by, and null for the
+others. `kind`
 is `adif`, `pota`, `eqsl`, `lotw` or `qsl_card`. `q` chooses the QSOs as in
 Search; `park` keeps one park of a `pota` export and is
 `400` for other kinds. `encoding` is `utf-8` (default), `shift_jis`,
@@ -590,6 +593,23 @@ the whole file as text, oldest QSO first; `file` is its bytes in base64 for
 record per park of a QSO, with `MY_SIG` and `MY_SIG_INFO` set. When nothing
 matches, the response is `200` with `batch`, `adif` and `file` null and no
 batch is recorded.
+
+`POST /exports/split` takes the same options and `split`, a non-empty list of
+ADIF field names, and writes one file for each combination of their values
+the records carry, with one batch recorded for each file in one transaction;
+eQSL and LoTW take one upload per `STATION_CALLSIGN`, so
+`split: ["STATION_CALLSIGN"]` makes the files those uploads need. Values are
+compared trimmed and ignoring ASCII case, and a missing or empty value counts
+as `none`. `files` lists the files in the order of their values, each
+`{name, label, records, batch}`: `label` is the values joined with spaces, and
+`name` is the label with every run of characters other than ASCII letters,
+digits and `-` replaced by `_`, made unique with `-2`, `-3` and so on, plus
+`.adi`. `format` is `zip` and `file` the base64 of a zip archive holding the
+files, or, when there is one file, `adi` and the base64 of that file's bytes
+in the requested encoding. A `pota` export is split after its projection, so
+`split: ["MY_SIG_INFO"]` writes one file per park. An `unencodable` refusal
+also names the `file`, and records nothing. When nothing matches, the response
+is `200` with `records` 0, `format` and `file` null and `files` empty.
 
 Applying an `eqsl`, `lotw` or `qsl_card` batch sets `EQSL_QSL_SENT`,
 `LOTW_QSL_SENT` or `QSL_SENT` to `Y` and its sent date to the UTC day, on the

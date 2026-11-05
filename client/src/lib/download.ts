@@ -1,5 +1,10 @@
 export function download(name: string, data: string | Uint8Array<ArrayBuffer>) {
-    const type = typeof data === 'string' ? 'text/plain;charset=utf-8' : 'text/plain';
+    const type =
+        typeof data === 'string'
+            ? 'text/plain;charset=utf-8'
+            : name.endsWith('.zip')
+              ? 'application/zip'
+              : 'text/plain';
     const url = URL.createObjectURL(new Blob([data], { type }));
     const link = document.createElement('a');
     link.href = url;

@@ -79,13 +79,6 @@
                           mobile: false
                       },
                       {
-                          label: m.nav_qsl_management(),
-                          short: m.nav_qsl_management_short(),
-                          icon: 'qsl',
-                          href: `${root}/qsl-management`,
-                          mobile: false
-                      },
-                      {
                           label: m.nav_import_export(),
                           short: m.nav_import_export_short(),
                           icon: 'transfer',

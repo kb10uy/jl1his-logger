@@ -9,6 +9,7 @@ use crate::{
         adif::{self, LengthUnit, Output, UnencodableError},
         pota,
         qso::{InvalidQsoId, Qso},
+        split,
     },
     store::{
         Fault, StoreError, WriteTx,
@@ -70,6 +71,7 @@ pub struct ExportBatch {
     pub created_at: String,
     pub applied_at: Option<String>,
     pub qso_count: i64,
+    pub label: Option<String>,
 }
 
 impl ExportBatch {
@@ -81,11 +83,12 @@ impl ExportBatch {
             created_at: row.try_get("created_at")?,
             applied_at: row.try_get("applied_at")?,
             qso_count: row.try_get("qso_count")?,
+            label: row.try_get("label")?,
         })
     }
 }
 
-const SELECT: &str = "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, \
+const SELECT: &str = "SELECT b.id, b.kind, b.created_by, b.created_at, b.applied_at, b.label, \
      (SELECT count(*) FROM export_batch_qsos q WHERE q.batch_id = b.id) AS qso_count \
      FROM export_batches b";
 
@@ -101,6 +104,7 @@ pub fn encoded(records: &[Qso], output: Output) -> Result<String, UnencodableErr
 pub struct Selection {
     pub records: Vec<Qso>,
     pub targets: Vec<Target>,
+    pub owners: Vec<usize>,
 }
 
 pub async fn select(
@@ -131,6 +135,9 @@ fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<S
         if projected.is_empty() {
             continue;
         }
+        selection
+            .owners
+            .extend(projected.iter().map(|_| selection.targets.len()));
         selection.records.extend(projected);
         selection.targets.push(Target {
             id: row.id,
@@ -140,11 +147,39 @@ fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<S
     Ok(selection)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Part {
+    pub label: String,
+    pub records: Vec<Qso>,
+    pub targets: Vec<Target>,
+}
+
+pub fn split(selection: &Selection, fields: &[String]) -> Vec<Part> {
+    split::group(&selection.records, fields)
+        .into_iter()
+        .map(|group| {
+            let mut targets: Vec<Target> = Vec::new();
+            for &index in &group.records {
+                let target = selection.targets[selection.owners[index]];
+                if targets.last() != Some(&target) {
+                    targets.push(target);
+                }
+            }
+            Part {
+                label: group.label,
+                records: group.records.iter().map(|&i| selection.records[i].clone()).collect(),
+                targets,
+            }
+        })
+        .collect()
+}
+
 pub async fn create(
     tx: &mut WriteTx,
     access: &LogbookAccess,
     kind: ExportKind,
     qsos: &[Target],
+    label: Option<&str>,
 ) -> Result<ExportBatch, StoreError> {
     let access = access.revalidate(tx).await?;
     if qsos.is_empty() {
@@ -166,14 +201,17 @@ pub async fn create(
     }
 
     let id = new_id();
-    sqlx::query("INSERT INTO export_batches (id, logbook_id, kind, created_by, created_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(&id)
-        .bind(access.logbook_id())
-        .bind(kind.as_str())
-        .bind(access.user_id())
-        .bind(now())
-        .execute(&mut **tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO export_batches (id, logbook_id, kind, created_by, created_at, label) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(access.logbook_id())
+    .bind(kind.as_str())
+    .bind(access.user_id())
+    .bind(now())
+    .bind(label)
+    .execute(&mut **tx)
+    .await?;
     for target in qsos {
         sqlx::query("INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision) VALUES (?, ?, ?, ?)")
             .bind(access.logbook_id())
@@ -327,6 +365,43 @@ mod tests {
         assert_eq!((selection.records.len(), selection.targets.len()), (3, 3));
     }
 
+    #[test]
+    fn splits_a_selection_keeping_each_target_once_per_part() {
+        let rows = [
+            row(&[
+                ("CALL", "JA1AAA"),
+                ("MY_POTA_REF", "JP-0001,JP-0002"),
+                ("STATION_CALLSIGN", "JL1HIS"),
+            ]),
+            row(&[
+                ("CALL", "JA1BBB"),
+                ("MY_POTA_REF", "JP-0001"),
+                ("STATION_CALLSIGN", "JL1HIS/P"),
+            ]),
+        ];
+        let selection = project(&rows, ExportKind::Pota, None).unwrap();
+        assert_eq!(selection.owners, [0, 0, 1]);
+
+        let by_call = split(&selection, &["STATION_CALLSIGN".into()]);
+        assert_eq!(by_call.len(), 2);
+        assert_eq!((by_call[0].label.as_str(), by_call[0].records.len()), ("JL1HIS", 2));
+        assert_eq!(
+            by_call[0].targets,
+            [Target {
+                id: rows[0].id,
+                revision: 2
+            }]
+        );
+        assert_eq!(by_call[1].label, "JL1HIS/P");
+
+        let by_park = split(&selection, &["MY_SIG_INFO".into()]);
+        let parks: Vec<_> = by_park
+            .iter()
+            .map(|p| (p.label.as_str(), p.records.len(), p.targets.len()))
+            .collect();
+        assert_eq!(parks, [("JP-0001", 2, 2), ("JP-0002", 1, 1)]);
+    }
+
     #[tokio::test]
     async fn selects_matching_qsos_oldest_first() {
         let world = World::new().await;
@@ -358,10 +433,17 @@ mod tests {
         let access = world.access(&world.operator).await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
         let targets: Vec<_> = rows.iter().map(target).collect();
-        let batch = create(&mut tx, &access, ExportKind::QslCard, &targets).await.unwrap();
+        let batch = create(&mut tx, &access, ExportKind::QslCard, &targets, None)
+            .await
+            .unwrap();
         assert_eq!(
-            (batch.kind, batch.qso_count, batch.applied_at.as_deref()),
-            (ExportKind::QslCard, 3, None)
+            (
+                batch.kind,
+                batch.qso_count,
+                batch.applied_at.as_deref(),
+                batch.label.as_deref()
+            ),
+            (ExportKind::QslCard, 3, None, None)
         );
 
         let mut sorted = targets.clone();
@@ -406,7 +488,7 @@ mod tests {
             ..target(&rows[0])
         };
         assert!(matches!(
-            create(&mut tx, &access, ExportKind::Eqsl, &[stale]).await,
+            create(&mut tx, &access, ExportKind::Eqsl, &[stale], None).await,
             Err(StoreError::Conflict(_))
         ));
         assert!(matches!(
@@ -414,16 +496,17 @@ mod tests {
                 &mut tx,
                 &access,
                 ExportKind::Eqsl,
-                &[target(&rows[0]), target(&rows[0])]
+                &[target(&rows[0]), target(&rows[0])],
+                None
             )
             .await,
             Err(StoreError::Invalid(_))
         ));
         assert!(matches!(
-            create(&mut tx, &access, ExportKind::Eqsl, &[]).await,
+            create(&mut tx, &access, ExportKind::Eqsl, &[], None).await,
             Err(StoreError::Invalid(_))
         ));
-        let pota = create(&mut tx, &access, ExportKind::Pota, &[target(&rows[0])])
+        let pota = create(&mut tx, &access, ExportKind::Pota, &[target(&rows[0])], None)
             .await
             .unwrap();
         assert!(matches!(
@@ -439,15 +522,16 @@ mod tests {
         let access = world.access(&world.owner).await;
         let (_, other_access) = world.other_logbook().await;
         let mut tx = WriteTx::begin(&world.db).await.unwrap();
-        let batch = create(&mut tx, &access, ExportKind::Lotw, &[target(&rows[0])])
+        let batch = create(&mut tx, &access, ExportKind::Lotw, &[target(&rows[0])], Some("JL1HIS"))
             .await
             .unwrap();
+        assert_eq!(batch.label.as_deref(), Some("JL1HIS"));
         assert!(matches!(
             get(&mut tx, &other_access, &batch.id).await,
             Err(StoreError::NotFound(_))
         ));
         assert!(matches!(
-            create(&mut tx, &other_access, ExportKind::Lotw, &[target(&rows[0])]).await,
+            create(&mut tx, &other_access, ExportKind::Lotw, &[target(&rows[0])], None).await,
             Err(StoreError::NotFound(_))
         ));
     }
