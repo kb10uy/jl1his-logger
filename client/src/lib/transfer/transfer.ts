@@ -76,11 +76,11 @@ export function fileName(
     return `${safe}-${kind.replace('_', '-')}${suffix}-${stamp}.${extension}`;
 }
 
-export type SplitChoice = 'none' | 'callsign' | 'callsign_grid' | 'callsign_park';
+export type SplitChoice = 'none' | 'callsign' | 'callsign_location' | 'callsign_park';
 
 export const SPLIT_FIELDS: Record<Exclude<SplitChoice, 'none'>, string[]> = {
     callsign: ['STATION_CALLSIGN'],
-    callsign_grid: ['STATION_CALLSIGN', 'MY_GRIDSQUARE'],
+    callsign_location: ['STATION_CALLSIGN', 'MY_STATE', 'MY_CNTY', 'MY_GRIDSQUARE'],
     callsign_park: ['STATION_CALLSIGN', 'MY_SIG_INFO']
 };
 
@@ -91,13 +91,13 @@ export function splitLabel(choice: SplitChoice): string {
 export function splitChoices(kind: ExportKind): SplitChoice[] {
     return kind === 'pota'
         ? ['none', 'callsign', 'callsign_park']
-        : ['none', 'callsign', 'callsign_grid'];
+        : ['none', 'callsign', 'callsign_location'];
 }
 
 export function defaultSplit(kind: ExportKind): SplitChoice {
     switch (kind) {
         case 'lotw':
-            return 'callsign_grid';
+            return 'callsign_location';
         case 'eqsl':
             return 'callsign';
         case 'pota':

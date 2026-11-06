@@ -615,10 +615,11 @@ stays valid. `after` or `limit` without `state` is `400`.
 `POST /exports/split` takes the same options and `split`, a non-empty list of
 ADIF field names, and writes one file for each combination of their values
 the records carry, with one batch recorded for each file in one transaction;
-eQSL takes one upload per `STATION_CALLSIGN` and LoTW one per TQSL station
-location, so `split: ["STATION_CALLSIGN"]` and
-`split: ["STATION_CALLSIGN", "MY_GRIDSQUARE"]` make the files those uploads
-need. Values are
+eQSL takes one upload per `STATION_CALLSIGN`, and TQSL checks each QSO's
+`MY_STATE`, `MY_CNTY` and `MY_GRIDSQUARE` against the one station location
+chosen for a file, so `split: ["STATION_CALLSIGN"]` and
+`split: ["STATION_CALLSIGN", "MY_STATE", "MY_CNTY", "MY_GRIDSQUARE"]` make the
+files those uploads need. Values are
 compared trimmed and ignoring ASCII case, and a missing or empty value counts
 as `none`. `files` lists the files in the order of their values, each
 `{name, label, missing, records, batch}`: `label` is the values joined with
