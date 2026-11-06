@@ -261,6 +261,7 @@ export class ExportDraft {
     encoding = $state<Encoding>('utf-8');
     unencodable = $state<Unencodable>('error');
     split = $state<SplitChoice>('none');
+    customSplit = $state('');
 }
 
 export class ImportDraft {

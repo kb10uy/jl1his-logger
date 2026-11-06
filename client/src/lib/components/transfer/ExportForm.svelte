@@ -13,6 +13,7 @@
         matches,
         matchText,
         busy,
+        blocked = false,
         label,
         busyLabel,
         onexport,
@@ -24,6 +25,7 @@
         matches: Matches;
         matchText: string;
         busy: boolean;
+        blocked?: boolean;
         label: string;
         busyLabel: string;
         onexport: () => void;
@@ -57,7 +59,7 @@
     <Button
         variant="primary"
         size="lg"
-        disabled={busy || matches.error !== undefined || matches.total === 0}
+        disabled={busy || blocked || matches.error !== undefined || matches.total === 0}
         onclick={onexport}>{busy ? busyLabel : label}</Button
     >
 </div>

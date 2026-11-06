@@ -3,6 +3,7 @@
     import type { Batch, Encoding, ExportKind, LengthUnit, Unencodable } from '#lib/api/types.ts';
     import ExportForm from '#lib/components/transfer/ExportForm.svelte';
     import ExportList from '#lib/components/transfer/ExportList.svelte';
+    import Notice from '#lib/components/ui/Notice.svelte';
     import Segmented from '#lib/components/ui/Segmented.svelte';
     import { SLOT } from '#lib/i18n.ts';
     import { m } from '#lib/paraglide/messages.js';
@@ -17,6 +18,7 @@
         QUERY_PRESETS,
         SENT_FIELDS,
         SPLIT_FIELDS,
+        customSplitFields,
         defaultSplit,
         missingCount,
         splitChoices,
@@ -29,6 +31,17 @@
     const batches = transfer.batches;
     const matches = new Matches(logbook.logbook.id, () => draft.q);
     const fields = $derived(SENT_FIELDS[draft.kind]);
+    const custom = $derived(customSplitFields(draft.customSplit));
+    const splitFields = $derived(
+        draft.split === 'none'
+            ? []
+            : draft.split === 'custom'
+              ? custom.fields
+              : SPLIT_FIELDS[draft.split]
+    );
+    const splitBlocked = $derived(
+        draft.split === 'custom' && (custom.fields.length === 0 || custom.unknown.length > 0)
+    );
     const lists = $derived(batches.lists);
 
     const actions = {
@@ -66,7 +79,7 @@
             unencodable: draft.encoding === 'utf-8' ? undefined : draft.unencodable
         };
         if (draft.split !== 'none') {
-            const result = await batches.createSplit(req, SPLIT_FIELDS[draft.split]);
+            const result = await batches.createSplit(req, splitFields);
             if (result === undefined) return;
             if (result.format === null) {
                 toasts.show(m.transfer_export_nothing());
@@ -118,6 +131,7 @@
             ? m.transfer_qsos_match_pota({ total: SLOT })
             : m.transfer_qsos_match({ total: SLOT })}
         busy={batches.creating}
+        blocked={splitBlocked}
         label={m.transfer_download_adif()}
         busyLabel={m.transfer_exporting()}
         onexport={runExport}
@@ -139,6 +153,25 @@
                 <option value={choice}>{splitLabel(choice)}</option>
             {/each}
         </select>
+        {#if draft.split === 'custom'}
+            <label for="exp-split-fields" class="text-2xs text-muted"
+                >{m.transfer_split_fields()}</label
+            >
+            <input
+                id="exp-split-fields"
+                class="control h-9 font-mono uppercase"
+                placeholder="STATION_CALLSIGN, MY_STATE"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                bind:value={draft.customSplit}
+            />
+            {#if custom.unknown.length > 0}
+                <Notice tone="error" class="col-span-2"
+                    >{m.transfer_split_fields_unknown({ names: custom.unknown.join(', ') })}</Notice
+                >
+            {/if}
+        {/if}
         <label for="exp-encoding" class="text-2xs text-muted">{m.transfer_encoding()}</label>
         <select id="exp-encoding" class="control h-9" bind:value={draft.encoding}>
             {#each encodings as [value, name] (value)}

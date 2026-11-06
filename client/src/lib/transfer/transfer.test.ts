@@ -5,6 +5,7 @@ import {
     SPLIT_FIELDS,
     appendPage,
     batchState,
+    customSplitFields,
     defaultSplit,
     exportCount,
     exportRuns,
@@ -42,7 +43,7 @@ describe('transfer helpers', () => {
     });
 
     it('offers the split choices of a kind with its default among them', () => {
-        expect(defaultSplit('lotw')).toBe('callsign_grid');
+        expect(defaultSplit('lotw')).toBe('callsign_location');
         expect(defaultSplit('eqsl')).toBe('callsign');
         expect(defaultSplit('pota')).toBe('callsign_park');
         expect(defaultSplit('qsl_card')).toBe('none');
@@ -50,10 +51,27 @@ describe('transfer helpers', () => {
         for (const kind of ['adif', 'pota', 'eqsl', 'lotw', 'qsl_card'] as const) {
             expect(splitChoices(kind)).toContain(defaultSplit(kind));
         }
-        expect(splitChoices('pota')).not.toContain('callsign_grid');
+        expect(splitChoices('pota')).not.toContain('callsign_location');
         expect(SPLIT_FIELDS.callsign_park).toEqual(['STATION_CALLSIGN', 'MY_SIG_INFO']);
-        expect(splitLabel('callsign_grid')).toBe('STATION_CALLSIGN, MY_GRIDSQUARE');
+        expect(splitLabel('callsign_location')).toBe(
+            'STATION_CALLSIGN, MY_STATE, MY_CNTY, MY_GRIDSQUARE'
+        );
         expect(splitLabel('none')).toBe('No (one file)');
+    });
+
+    it('reads a custom split, keeping the unknown names apart', () => {
+        expect(customSplitFields(' my_state,MY_CNTY  my_state, app_x_y ')).toEqual({
+            fields: ['MY_STATE', 'MY_CNTY', 'APP_X_Y'],
+            unknown: []
+        });
+        expect(customSplitFields('MY_STAT, 1X, CALL')).toEqual({
+            fields: ['CALL'],
+            unknown: ['MY_STAT', '1X']
+        });
+        expect(customSplitFields(' , ').fields).toEqual([]);
+        expect(splitChoices('lotw')).toContain('custom');
+        expect(splitChoices('pota')).toContain('custom');
+        expect(splitLabel('custom')).toBe('Custom');
     });
 
     it('counts the records of files that lack a split field', () => {

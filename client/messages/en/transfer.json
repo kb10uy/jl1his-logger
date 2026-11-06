@@ -127,6 +127,9 @@
     "transfer_download_adif": "Download ADIF",
     "transfer_split": "Split by",
     "transfer_split_none": "No (one file)",
+    "transfer_split_custom": "Custom",
+    "transfer_split_fields": "Fields",
+    "transfer_split_fields_unknown": "Not ADIF fields: {names}",
     "transfer_exported_missing": [
         {
             "declarations": [
