@@ -92,6 +92,9 @@
     "transfer_download_adif": "ADIF をダウンロード",
     "transfer_split": "ファイル分割",
     "transfer_split_none": "なし (1 ファイル)",
+    "transfer_split_custom": "カスタム",
+    "transfer_split_fields": "フィールド",
+    "transfer_split_fields_unknown": "ADIF フィールドではありません: {names}",
     "transfer_exported_missing": [
         {
             "declarations": ["input count", "local n = count: number"],

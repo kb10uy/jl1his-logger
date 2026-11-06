@@ -5,6 +5,7 @@ import {
     SPLIT_FIELDS,
     appendPage,
     batchState,
+    customSplitFields,
     defaultSplit,
     exportCount,
     exportRuns,
@@ -56,6 +57,21 @@ describe('transfer helpers', () => {
             'STATION_CALLSIGN, MY_STATE, MY_CNTY, MY_GRIDSQUARE'
         );
         expect(splitLabel('none')).toBe('No (one file)');
+    });
+
+    it('reads a custom split, keeping the unknown names apart', () => {
+        expect(customSplitFields(' my_state,MY_CNTY  my_state, app_x_y ')).toEqual({
+            fields: ['MY_STATE', 'MY_CNTY', 'APP_X_Y'],
+            unknown: []
+        });
+        expect(customSplitFields('MY_STAT, 1X, CALL')).toEqual({
+            fields: ['CALL'],
+            unknown: ['MY_STAT', '1X']
+        });
+        expect(customSplitFields(' , ').fields).toEqual([]);
+        expect(splitChoices('lotw')).toContain('custom');
+        expect(splitChoices('pota')).toContain('custom');
+        expect(splitLabel('custom')).toBe('Custom');
     });
 
     it('counts the records of files that lack a split field', () => {

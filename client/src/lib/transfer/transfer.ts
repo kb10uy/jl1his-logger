@@ -11,6 +11,7 @@ import type {
     Outcome
 } from '#lib/api/types.ts';
 import { m } from '#lib/paraglide/messages.js';
+import { isAdifQsoField } from '#lib/qso/adif-fields.ts';
 
 export const MAX_IMPORT = 64 * 1024 * 1024;
 
@@ -76,22 +77,39 @@ export function fileName(
     return `${safe}-${kind.replace('_', '-')}${suffix}-${stamp}.${extension}`;
 }
 
-export type SplitChoice = 'none' | 'callsign' | 'callsign_location' | 'callsign_park';
+export type SplitChoice = 'none' | 'callsign' | 'callsign_location' | 'callsign_park' | 'custom';
 
-export const SPLIT_FIELDS: Record<Exclude<SplitChoice, 'none'>, string[]> = {
+export const SPLIT_FIELDS: Record<Exclude<SplitChoice, 'none' | 'custom'>, string[]> = {
     callsign: ['STATION_CALLSIGN'],
     callsign_location: ['STATION_CALLSIGN', 'MY_STATE', 'MY_CNTY', 'MY_GRIDSQUARE'],
     callsign_park: ['STATION_CALLSIGN', 'MY_SIG_INFO']
 };
 
 export function splitLabel(choice: SplitChoice): string {
-    return choice === 'none' ? m.transfer_split_none() : SPLIT_FIELDS[choice].join(', ');
+    if (choice === 'none') return m.transfer_split_none();
+    if (choice === 'custom') return m.transfer_split_custom();
+    return SPLIT_FIELDS[choice].join(', ');
+}
+
+export function customSplitFields(text: string): { fields: string[]; unknown: string[] } {
+    const names = [
+        ...new Set(
+            text
+                .split(/[\s,]+/)
+                .map((name) => name.toUpperCase())
+                .filter((name) => name !== '')
+        )
+    ];
+    return {
+        fields: names.filter(isAdifQsoField),
+        unknown: names.filter((name) => !isAdifQsoField(name))
+    };
 }
 
 export function splitChoices(kind: ExportKind): SplitChoice[] {
     return kind === 'pota'
-        ? ['none', 'callsign', 'callsign_park']
-        : ['none', 'callsign', 'callsign_location'];
+        ? ['none', 'callsign', 'callsign_park', 'custom']
+        : ['none', 'callsign', 'callsign_location', 'custom'];
 }
 
 export function defaultSplit(kind: ExportKind): SplitChoice {
