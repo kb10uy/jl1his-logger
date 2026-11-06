@@ -47,14 +47,15 @@ pnpm tauri build --bundles deb  # on Linux → desktop/src-tauri/target/release/
 ```
 
 The executable is handed out alone, without an installer, and on Linux as a
-Debian package. The Desktop workflow builds both for a `v*` tag, the package on
-Ubuntu 22.04 so that it runs on that glibc and newer, and attaches them to that
-tag's GitHub Release as `jl1his-logger-desktop-windows-x64.exe` and
+Debian package. The Desktop workflow builds both for a `desktop-v*` tag (see
+Releases), the package on Ubuntu 22.04 so that it runs on that glibc and newer,
+and attaches them to that tag's GitHub Release as
+`jl1his-logger-desktop-windows-x64.exe` and
 `jl1his-logger-desktop-linux-x64.deb`, creating the Release with
 generated notes when there is none yet; a manual run keeps them as the run's
-artifacts only. The names carry no version, so a new one overwrites the old
-file and the latest is always at
-`https://github.com/kb10uy/jl1his-logger/releases/latest/download/<name>`.
+artifacts only. The names carry no version, so every desktop Release holds the
+same two names, at
+`https://github.com/kb10uy/jl1his-logger/releases/download/desktop-v<version>/<name>`.
 To upgrade, quit the running copy from the tray and replace the file, or on
 Linux install the new package over the old one
 (`sudo apt install ./jl1his-logger-desktop-linux-x64.deb`); the settings, the
@@ -256,8 +257,9 @@ writable by UID 65532. `assets/config.example.toml` is in
 `/usr/share/jl1his-logger`.
 
 The Image workflow pushes it to `ghcr.io/kb10uy/jl1his-logger`: a `v*` tag
-publishes its version and `latest`, a manual run on `master` publishes `edge`,
-and every build is also tagged `sha-<commit>`.
+publishes its version and `latest` and creates the tag's GitHub Release with
+generated notes (see Releases), a manual run on `master` publishes `edge`, and
+every build is also tagged `sha-<commit>`.
 
 ```sh
 docker build -t jl1his-logger .
@@ -270,3 +272,22 @@ docker exec jl1his-logger jl1his-logger setup --callsign JL1HIS
 
 Then sign in, create the first Logbook and upload a CTY archive on the
 Administration screen.
+
+## Releases
+
+The server and the web client are released together, and the desktop client on
+its own, each from a tag series of its own:
+
+- `v<version>` releases the server and the web client. Set `version` in
+  `server/Cargo.toml` and `client/package.json` (and their lock files), tag the
+  commit, and the Image workflow publishes the image and creates the GitHub
+  Release.
+- `desktop-v<version>` releases the desktop client. Set `version` in
+  `desktop/package.json` and `desktop/src-tauri/Cargo.toml` (and its lock file;
+  `tauri.conf.json` reads `desktop/package.json`), tag the commit, and the
+  Desktop workflow builds the executables and attaches them to the GitHub
+  Release.
+
+The two versions move independently, so a desktop release need not follow a
+server release or the other way round. A Release's generated notes start at the
+previous tag of the same series.
