@@ -93,11 +93,14 @@ impl Conditions {
             ),
             Condition::StationId(ids) => {
                 binds.extend(ids.iter().cloned().map(Bind::Text));
-                format!("lower(station_id) IN ({})", vec!["?"; ids.len()].join(", "))
+                format!("station_id IN ({})", vec!["?"; ids.len()].join(", "))
             }
             Condition::InstrumentId(ids) => {
                 binds.extend(ids.iter().cloned().map(Bind::Text));
-                format!("lower(coalesce(instrument_id, '')) IN ({})", vec!["?"; ids.len()].join(", "))
+                format!(
+                    "(instrument_id IS NOT NULL AND instrument_id IN ({}))",
+                    vec!["?"; ids.len()].join(", ")
+                )
             }
             Condition::Instrument(needles) => any(
                 needles
@@ -550,21 +553,29 @@ mod tests {
             .join("; ")
     }
 
+    #[rstest]
+    #[case::call_prefix("call:JA1*", "qsos_logbook_call_upper (logbook_id=? AND <expr>>? AND <expr><?)")]
+    #[case::qsl_sent("sent:R,Q", "qsos_logbook_qsl_sent_upper (logbook_id=? AND <expr>=?)")]
+    #[case::station_id(
+        "station-id:0192B2F0-0000-7000-8000-00000000000A",
+        "qsos_logbook_station (logbook_id=? AND station_id=?)"
+    )]
+    #[case::instrument_id(
+        "instrument-id:0192b2f0-0000-7000-8000-00000000000a",
+        "qsos_logbook_instrument (logbook_id=? AND instrument_id=?)"
+    )]
     #[tokio::test]
-    async fn seeks_the_call_index_for_a_prefix() {
+    async fn seeks_an_index_for_a_term(#[case] q: &str, #[case] expected: &str) {
         let world = World::new().await;
         let access = world.access(&world.operator).await;
         let filter = Filter {
-            query: text::Query::parse("call:JA1*").unwrap(),
+            query: text::Query::parse(q).unwrap(),
             ..Filter::default()
         };
         let conditions = Conditions::of(&access, &filter).unwrap();
         let sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
         let plan = plan(&world, sql, &conditions).await;
-        assert!(
-            plan.contains("qsos_logbook_call_upper (logbook_id=? AND <expr>>? AND <expr><?)"),
-            "{plan}"
-        );
+        assert!(plan.contains(expected), "{plan}");
     }
 
     #[rstest]
