@@ -231,8 +231,8 @@ impl Order {
             }
             (Order::Newest, None) => Ok(("(qso_time, id) < (?, ?)", time.into())),
             (Order::Oldest, None) => Ok(("(qso_time, id) > (?, ?)", time.into())),
-            (Order::CallAscending, _) => call("(call_base > ? OR (call_base = ? AND (qso_time, id) < (?, ?)))"),
-            (Order::CallDescending, _) => call("(call_base < ? OR (call_base = ? AND (qso_time, id) < (?, ?)))"),
+            (Order::CallAscending, _) => call("call_base >= ? AND (call_base > ? OR (qso_time, id) < (?, ?))"),
+            (Order::CallDescending, _) => call("call_base <= ? AND (call_base < ? OR (qso_time, id) < (?, ?))"),
         }
     }
 }

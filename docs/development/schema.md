@@ -191,8 +191,8 @@ key references.
 | `UNIQUE (logbook_id, seq)` | Keeps the insertion order unique within the Logbook. |
 | `UNIQUE (logbook_id, id)` | Composite foreign key from `export_batch_qsos`, enforcing Logbook ownership. |
 | `(logbook_id, qso_time)` | The log list and date filters. |
-| `(logbook_id, call, qso_time)` | Searching an exact `call`. |
-| `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. `call` is stored as it arrived, so its index cannot answer that. |
+| `(logbook_id, upper(trim(coalesce(call, ''))), qso_time)` | The `call:` term of the query and the exact `call` a confirmation is matched by. `call` is stored as it arrived, so the index is on the expression those conditions compare, written the same way in `server/src/store/qso/filter.rs`. A pattern with a fixed prefix (`call:JA1*`) seeks it; any other pattern is tested against its entries without reading the rows. |
+| `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. |
 | `(logbook_id, call_base, qso_time DESC)` | The log list sorted by callsign ascending, whose order is `call_base, qso_time DESC`: an index in one direction cannot serve it, and without this one every page sorted the whole Logbook. The descending order walks the ascending index backwards. |
 | `(logbook_id, station_id, qso_time)` | Per-Station listing and export. |
 | `(logbook_id, instrument_id, qso_time)` | Per-Instrument listing and rewrites. |
