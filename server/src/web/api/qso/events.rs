@@ -8,13 +8,17 @@ use axum::{
 use futures_util::{Stream, stream};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    sync::{OwnedSemaphorePermit, watch},
+    sync::{
+        OwnedSemaphorePermit,
+        broadcast::{self, error::TryRecvError},
+        watch,
+    },
     time::Instant,
 };
 
 use crate::{
     store::{StoreError, access::LogbookAccess, account::session, logbook, qso},
-    web::{AppState, api::logbook::member::Member, api::qso::QsoBody, error::ApiError, extract::Query},
+    web::{AppState, Written, api::logbook::member::Member, api::qso::QsoBody, error::ApiError, extract::Query},
 };
 
 const POLL: Duration = Duration::from_secs(10);
@@ -43,7 +47,7 @@ struct Feed {
     state: Arc<AppState>,
     access: LogbookAccess,
     session_hash: Option<Vec<u8>>,
-    writes: watch::Receiver<u64>,
+    writes: broadcast::Receiver<Written>,
     closing: watch::Receiver<bool>,
     after: i64,
     pending: VecDeque<Event>,
@@ -58,9 +62,9 @@ impl Feed {
             if *closing.borrow() {
                 return None;
             }
-            let refresh = self.writes.has_changed().unwrap_or(true) || Instant::now() >= self.next_check;
+            let written = pending(&mut self.writes, self.access.logbook_id());
+            let refresh = written || Instant::now() >= self.next_check;
             if refresh {
-                self.writes.borrow_and_update();
                 self.next_check = Instant::now() + POLL;
                 self.more = true;
             }
@@ -90,7 +94,7 @@ impl Feed {
             tokio::select! {
                 biased;
                 _ = closing.wait_for(|closing| *closing) => return None,
-                _ = self.writes.changed() => {}
+                _ = concerned(&mut self.writes, self.access.logbook_id()) => {}
                 _ = tokio::time::sleep_until(self.next_check) => {}
             }
             self.next_check = Instant::now();
@@ -128,6 +132,26 @@ impl Feed {
             );
         }
         Ok(())
+    }
+}
+
+fn pending(writes: &mut broadcast::Receiver<Written>, logbook_id: &str) -> bool {
+    let mut concerned = false;
+    loop {
+        match writes.try_recv() {
+            Ok(written) => concerned |= written.concerns(logbook_id),
+            Err(TryRecvError::Lagged(_)) => concerned = true,
+            Err(TryRecvError::Empty) => return concerned,
+            Err(TryRecvError::Closed) => return true,
+        }
+    }
+}
+
+async fn concerned(writes: &mut broadcast::Receiver<Written>, logbook_id: &str) {
+    while let Ok(written) = writes.recv().await {
+        if written.concerns(logbook_id) {
+            return;
+        }
     }
 }
 
@@ -298,6 +322,31 @@ mod tests {
             id: Some(qso["updated_seq"].to_string()),
             data: json!({ "cursor_generation": h.world.logbook.cursor_generation, "qso": qso }),
         }
+    }
+
+    #[rstest]
+    #[case::nothing(&[], false)]
+    #[case::another_logbook(&[Written::Logbook("other".into())], false)]
+    #[case::its_logbook(&[Written::Logbook("other".into()), Written::Logbook("log".into())], true)]
+    #[case::elsewhere(&[Written::Elsewhere, Written::Logbook("other".into())], true)]
+    fn rereads_for_the_writes_that_concern_its_logbook(#[case] writes: &[Written], #[case] expected: bool) {
+        let sender = broadcast::Sender::new(4);
+        let mut receiver = sender.subscribe();
+        for written in writes {
+            sender.send(written.clone()).unwrap();
+        }
+        assert_eq!(pending(&mut receiver, "log"), expected);
+        assert!(!pending(&mut receiver, "log"));
+    }
+
+    #[test]
+    fn rereads_after_missing_writes() {
+        let sender = broadcast::Sender::new(1);
+        let mut receiver = sender.subscribe();
+        for _ in 0..3 {
+            sender.send(Written::Logbook("other".into())).unwrap();
+        }
+        assert!(pending(&mut receiver, "log"));
     }
 
     #[tokio::test]

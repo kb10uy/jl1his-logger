@@ -16,6 +16,8 @@ pub type Db = SqlitePool;
 
 pub static MIGRATOR: Migrator = sqlx::migrate!();
 
+const MMAP_BYTES: u32 = 256 * 1024 * 1024;
+
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("failed to create {}: {source}", path.display())]
@@ -73,6 +75,7 @@ pub async fn open(path: &Path) -> Result<Db, DbError> {
         .foreign_keys(true)
         .synchronous(SqliteSynchronous::Normal)
         .busy_timeout(Duration::from_secs(5))
+        .pragma("mmap_size", MMAP_BYTES.to_string())
         .optimize_on_close(true, None);
     Ok(SqlitePoolOptions::new().connect_with(options).await?)
 }
@@ -221,9 +224,10 @@ mod tests {
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db).await.unwrap();
         let busy_timeout: i64 = sqlx::query_scalar("PRAGMA busy_timeout").fetch_one(&db).await.unwrap();
         let synchronous: i64 = sqlx::query_scalar("PRAGMA synchronous").fetch_one(&db).await.unwrap();
+        let mmap_size: i64 = sqlx::query_scalar("PRAGMA mmap_size").fetch_one(&db).await.unwrap();
         assert_eq!(
-            (journal.as_str(), foreign_keys, busy_timeout, synchronous),
-            ("wal", 1, 5000, 1)
+            (journal.as_str(), foreign_keys, busy_timeout, synchronous, mmap_size),
+            ("wal", 1, 5000, 1, 256 * 1024 * 1024)
         );
     }
 
@@ -296,7 +300,7 @@ mod tests {
         let migrated = migrate(&db, &dir.path().join("snapshots")).await.unwrap();
         assert_eq!(
             migrated.applied,
-            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
         );
         assert!(migrated.snapshot.unwrap().is_file());
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db).await.unwrap();

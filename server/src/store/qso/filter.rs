@@ -8,6 +8,7 @@ use crate::{
 };
 
 const MAX_LIST: usize = 100;
+const CALL: &str = "upper(trim(coalesce(call, '')))";
 
 #[derive(Clone)]
 pub(super) enum Bind {
@@ -29,12 +30,13 @@ impl Conditions {
         };
         conditions.push("logbook_id = ?", [Bind::Text(access.logbook_id().to_owned())]);
         conditions.push("deleted_at IS NULL", []);
-        let text = |value: &str| [Bind::Text(value.trim().to_owned())];
         if let Some(station_ids) = &filter.station_ids {
             conditions.any_of("station_id", station_ids.iter().cloned())?;
         }
         match &filter.call {
-            Some(CallMatch::Exact(call)) => conditions.push("trim(call) = ? COLLATE NOCASE", text(call)),
+            Some(CallMatch::Exact(call)) => {
+                conditions.push(format!("{CALL} = ?"), [Bind::Text(call.trim().to_ascii_uppercase())])
+            }
             Some(CallMatch::Base(call)) => conditions.push("call_base = ?", [Bind::Text(callsign::base(call))]),
             None => {}
         }
@@ -59,7 +61,7 @@ impl Conditions {
                     .iter()
                     .map(|pattern| {
                         binds.push(Bind::Text(pattern.replace('[', "[[]")));
-                        "upper(trim(coalesce(call, ''))) GLOB ?".to_owned()
+                        format!("{CALL} GLOB ?")
                     })
                     .collect(),
             ),
@@ -91,11 +93,14 @@ impl Conditions {
             ),
             Condition::StationId(ids) => {
                 binds.extend(ids.iter().cloned().map(Bind::Text));
-                format!("lower(station_id) IN ({})", vec!["?"; ids.len()].join(", "))
+                format!("station_id IN ({})", vec!["?"; ids.len()].join(", "))
             }
             Condition::InstrumentId(ids) => {
                 binds.extend(ids.iter().cloned().map(Bind::Text));
-                format!("lower(coalesce(instrument_id, '')) IN ({})", vec!["?"; ids.len()].join(", "))
+                format!(
+                    "(instrument_id IS NOT NULL AND instrument_id IN ({}))",
+                    vec!["?"; ids.len()].join(", ")
+                )
             }
             Condition::Instrument(needles) => any(
                 needles
@@ -231,10 +236,14 @@ fn field_expression(name: &str, binds: &mut Vec<Bind>) -> String {
 mod tests {
     use jl1his_query::{self as text};
     use rstest::rstest;
+    use sqlx::{AssertSqlSafe, Row as _};
 
-    use super::super::{
-        CallMatch, Filter, Order, StoredQso, TimeRange, count, delete, get, search, search_all, targets,
-        tests::{create_one, entry, found, four_qsos},
+    use super::{
+        super::{
+            CallMatch, Cursor, Filter, Order, StoredQso, TimeRange, count, delete, get, search, search_all, targets,
+            tests::{create_one, entry, found, four_qsos},
+        },
+        Conditions,
     };
     use crate::{
         domain::qso::QsoId,
@@ -529,5 +538,67 @@ mod tests {
                 .collect();
             assert_eq!(targets.len(), expected.len(), "{q}");
         }
+    }
+
+    async fn plan(world: &World, sql: String, conditions: &Conditions) -> String {
+        let mut conn = world.db.acquire().await.unwrap();
+        conditions
+            .bind(sqlx::query(AssertSqlSafe(format!("EXPLAIN QUERY PLAN {sql}"))))
+            .fetch_all(&mut *conn)
+            .await
+            .unwrap()
+            .iter()
+            .map(|row| row.get::<String, _>("detail"))
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+
+    #[rstest]
+    #[case::call_prefix("call:JA1*", "qsos_logbook_call_upper (logbook_id=? AND <expr>>? AND <expr><?)")]
+    #[case::qsl_sent("sent:R,Q", "qsos_logbook_qsl_sent_upper (logbook_id=? AND <expr>=?)")]
+    #[case::station_id(
+        "station-id:0192B2F0-0000-7000-8000-00000000000A",
+        "qsos_logbook_station (logbook_id=? AND station_id=?)"
+    )]
+    #[case::instrument_id(
+        "instrument-id:0192b2f0-0000-7000-8000-00000000000a",
+        "qsos_logbook_instrument (logbook_id=? AND instrument_id=?)"
+    )]
+    #[tokio::test]
+    async fn seeks_an_index_for_a_term(#[case] q: &str, #[case] expected: &str) {
+        let world = World::new().await;
+        let access = world.access(&world.operator).await;
+        let filter = Filter {
+            query: text::Query::parse(q).unwrap(),
+            ..Filter::default()
+        };
+        let conditions = Conditions::of(&access, &filter).unwrap();
+        let sql = format!("SELECT count(*) FROM qsos WHERE {}", conditions.sql());
+        let plan = plan(&world, sql, &conditions).await;
+        assert!(plan.contains(expected), "{plan}");
+    }
+
+    #[rstest]
+    #[case::ascending(Order::CallAscending, "qsos_logbook_call_base_newest (logbook_id=? AND call_base>?)")]
+    #[case::descending(Order::CallDescending, "qsos_logbook_call_base (logbook_id=? AND call_base<?)")]
+    #[tokio::test]
+    async fn seeks_past_the_cursor_of_a_callsign_order(#[case] order: Order, #[case] expected: &str) {
+        let world = World::new().await;
+        let access = world.access(&world.operator).await;
+        let cursor = Cursor {
+            call_base: Some("JA1AAA".into()),
+            qso_time: 0,
+            id: String::new(),
+        };
+        let mut conditions = Conditions::of(&access, &Filter::default()).unwrap();
+        let (clause, binds) = order.after(&cursor).unwrap();
+        conditions.push(clause, binds);
+        let sql = format!(
+            "SELECT id FROM qsos WHERE {} ORDER BY {} LIMIT 10",
+            conditions.sql(),
+            order.sql()
+        );
+        let plan = plan(&world, sql, &conditions).await;
+        assert!(plan.contains(expected), "{plan}");
     }
 }

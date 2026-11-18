@@ -30,6 +30,10 @@ decisions.md.
   data as pooled connections are recycled. `NORMAL` with WAL fsyncs at each
   checkpoint instead of each commit: a crash of the process loses nothing,
   and a power loss can lose the last commits but never corrupts the file.
+  `PRAGMA mmap_size` maps the first 256 MiB of the file, so a search that has
+  to read the whole Logbook reads its pages from memory rather than through
+  a 2 MiB page cache; an I/O error on a mapped page ends the process instead
+  of failing the query.
   Foreign keys are only enforced when the
   pragma is on, so it is part of the connection options, not the migration.
   Migration 12 runs outside a transaction so that it can turn the pragma off
@@ -191,12 +195,12 @@ key references.
 | `UNIQUE (logbook_id, seq)` | Keeps the insertion order unique within the Logbook. |
 | `UNIQUE (logbook_id, id)` | Composite foreign key from `export_batch_qsos`, enforcing Logbook ownership. |
 | `(logbook_id, qso_time)` | The log list and date filters. |
-| `(logbook_id, call, qso_time)` | Searching an exact `call`. |
-| `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. `call` is stored as it arrived, so its index cannot answer that. |
+| `(logbook_id, upper(trim(coalesce(call, ''))), qso_time)` | The `call:` term of the query and the exact `call` a confirmation is matched by. `call` is stored as it arrived, so the index is on the expression those conditions compare, written the same way in `server/src/store/qso/filter.rs`. A pattern with a fixed prefix (`call:JA1*`) seeks it; any other pattern is tested against its entries without reading the rows. |
+| `(logbook_id, call_base, qso_time)` | Previous contacts with a station for `lookup`, and duplicate candidates: rows with the same `call_base` whose `qso_time` is within 15 minutes, kept when `call`, `band` and `mode` match ignoring case and surrounding spaces. |
 | `(logbook_id, call_base, qso_time DESC)` | The log list sorted by callsign ascending, whose order is `call_base, qso_time DESC`: an index in one direction cannot serve it, and without this one every page sorted the whole Logbook. The descending order walks the ascending index backwards. |
-| `(logbook_id, station_id, qso_time)` | Per-Station listing and export. |
-| `(logbook_id, instrument_id, qso_time)` | Per-Instrument listing and rewrites. |
-| `(logbook_id, qsl_sent)` | The QSL work queue. |
+| `(logbook_id, station_id, qso_time)` | The `station-id:` term, which entry screens use for the latest QSOs of their Station, and rewrites of a Station's past QSOs. IDs are generated in lowercase and the query lowercases the ones it is given, so the column is compared as it is. |
+| `(logbook_id, instrument_id, qso_time)` | The `instrument-id:` term and rewrites of an Instrument's past QSOs. |
+| `(logbook_id, upper(trim(coalesce(qsl_sent, ''))), qso_time)` | The `sent:` term, such as the `sent:R,Q` a QSL card export starts from. Counting the matches reads the index alone; a page of several values is still read in time order, since the index cannot give that order across values. |
 
 **Write flow.** In one short transaction opened with `BEGIN IMMEDIATE`, so
 no other writer runs between the reads and the writes (`server/src/store/qso.rs`):
@@ -215,7 +219,8 @@ no other writer runs between the reads and the writes (`server/src/store/qso.rs`
 3. `UPDATE logbooks SET last_seq = last_seq + 1, last_updated_seq = last_updated_seq + 1 WHERE id = ? RETURNING last_seq, last_updated_seq`
    for a create; an update or delete increments `last_updated_seq` only.
 4. `INSERT` for a create. An update first compares the revision it was based
-   on, then runs `UPDATE qsos SET ..., revision = revision + 1, updated_seq = ? WHERE id = ? AND revision = ?`.
+   on, then runs `UPDATE qsos SET ..., revision = revision + 1, updated_seq = ? WHERE id = ? AND revision = ? RETURNING ...`,
+   which hands the stored row back without a second read.
    A delete sets the tombstone the same way; deleting a deleted row returns it
    unchanged.
 

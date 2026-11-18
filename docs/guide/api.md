@@ -723,6 +723,7 @@ loses the Logbook (its Membership, its user or its token), its session expires
 or is deleted, and when the server shuts down; the browser then reconnects
 with `Last-Event-ID`, and a `404` or `401` stops it. Session checks do not renew
 the session. At most one page of 500 QSOs is queued per stream. Even while
-that queue is being sent, authorization is checked on server writes and every
-10 seconds, and shutdown discards the queue immediately. At most 64 streams
+that queue is being sent, authorization is checked on writes to its Logbook, on
+writes outside any Logbook (accounts, tokens, sessions, administration) and
+every 10 seconds, and shutdown discards the queue immediately. At most 64 streams
 are open per server; one more is `503`, and the client retries later.

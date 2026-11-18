@@ -10,7 +10,7 @@ use crate::{
         Fault, StoreError, WriteTx,
         access::LogbookAccess,
         logbook::{instrument, station},
-        qso::{self, StoredQso, Target},
+        qso::{self, Places, StoredQso, Target},
     },
 };
 
@@ -73,6 +73,7 @@ pub async fn update(
     }
 
     let mut outcome = Outcome::default();
+    let mut places = Places::default();
     for target in targets {
         let current = match live(tx, &access, target).await? {
             Ok(current) => current,
@@ -90,9 +91,10 @@ pub async fn update(
             Some(id) => id.as_deref(),
             None => current.instrument_id.as_deref(),
         };
+        let place = (station_id, instrument_id);
         outcome
             .updated
-            .push(qso::relocate(tx, &access, &current, (station_id, instrument_id), changed).await?);
+            .push(qso::relocate(tx, &access, &mut places, &current, place, changed).await?);
     }
     Ok(outcome)
 }
