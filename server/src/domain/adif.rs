@@ -7,8 +7,8 @@ use adif_manip::{
     error::AdifError,
     write,
 };
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use time::{OffsetDateTime, UtcOffset, macros::format_description};
 
 use crate::domain::qso::{Qso, QsoError};
 
@@ -226,8 +226,11 @@ impl Output {
     }
 }
 
-pub fn header(program_version: &str, created: DateTime<Utc>, output: Output) -> String {
-    let created = created.format("%Y%m%d %H%M%S").to_string();
+pub fn header(program_version: &str, created: OffsetDateTime, output: Output) -> String {
+    let created = created
+        .to_offset(UtcOffset::UTC)
+        .format(format_description!("[year][month][day] [hour][minute][second]"))
+        .expect("a UTC time formats");
     let fields = [
         ("ADIF_VER", ADIF_VERSION),
         ("CREATED_TIMESTAMP", &created),
@@ -240,7 +243,7 @@ pub fn header(program_version: &str, created: DateTime<Utc>, output: Output) -> 
 /// Writes the file as text; `output.encoding.encode` turns it into the file's bytes.
 pub fn document(
     program_version: &str,
-    created: DateTime<Utc>,
+    created: OffsetDateTime,
     records: &[Qso],
     output: Output,
 ) -> Result<String, UnencodableError> {
@@ -318,8 +321,8 @@ mod tests {
         .unwrap()
     }
 
-    fn created() -> DateTime<Utc> {
-        "2026-10-22T04:05:06Z".parse().unwrap()
+    fn created() -> OffsetDateTime {
+        time::macros::datetime!(2026-10-22 04:05:06 UTC)
     }
 
     fn read_utf8(text: &str, unit: LengthUnit) -> Vec<Result<Qso, QsoError>> {
