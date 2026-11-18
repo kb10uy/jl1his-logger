@@ -16,7 +16,7 @@ use axum::{
     middleware::{self, Next},
     response::{IntoResponse, Response},
 };
-use tokio::sync::{Semaphore, watch};
+use tokio::sync::{Semaphore, broadcast, watch};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeader,
@@ -32,6 +32,7 @@ use crate::{config::Config, db::Db};
 pub use self::serve::serve;
 
 pub const MAX_STREAMS: usize = 64;
+const WRITES_KEPT: usize = 256;
 const BODY_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 const SECURITY_HEADERS: [(HeaderName, &str); 5] = [
@@ -48,6 +49,32 @@ const SECURITY_HEADERS: [(HeaderName, &str); 5] = [
     ),
 ];
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Written {
+    Logbook(String),
+    Elsewhere,
+}
+
+impl Written {
+    fn at(path: &str) -> Written {
+        let logbook_id = path
+            .strip_prefix("/api/logbooks/")
+            .and_then(|rest| rest.split('/').next())
+            .filter(|id| !id.is_empty() && !id.contains('%'));
+        match logbook_id {
+            Some(id) => Written::Logbook(id.to_owned()),
+            None => Written::Elsewhere,
+        }
+    }
+
+    fn concerns(&self, logbook_id: &str) -> bool {
+        match self {
+            Written::Logbook(id) => id == logbook_id,
+            Written::Elsewhere => true,
+        }
+    }
+}
+
 pub struct AppState {
     pub db: Db,
     pub config: Config,
@@ -56,7 +83,7 @@ pub struct AppState {
     ceremonies: Ceremonies,
     references: References,
     streams: Arc<Semaphore>,
-    writes: watch::Sender<u64>,
+    writes: broadcast::Sender<Written>,
     closing: watch::Sender<bool>,
 }
 
@@ -74,7 +101,7 @@ impl AppState {
             ceremonies: Ceremonies::default(),
             references: References::default(),
             streams: Arc::new(Semaphore::new(MAX_STREAMS)),
-            writes: watch::Sender::new(0),
+            writes: broadcast::Sender::new(WRITES_KEPT),
             closing: watch::Sender::new(false),
         })
     }
@@ -159,9 +186,12 @@ async fn same_origin_only(State(state): State<Arc<AppState>>, request: Request, 
 async fn announce_writes(State(state): State<Arc<AppState>>, request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let write = !matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS) && !under(path, "/api/auth");
+    let written = write.then(|| Written::at(path));
     let response = next.run(request).await;
-    if write && response.status().is_success() {
-        state.writes.send_modify(|n| *n = n.wrapping_add(1));
+    if let Some(written) = written
+        && response.status().is_success()
+    {
+        let _ = state.writes.send(written);
     }
     response
 }
@@ -275,7 +305,7 @@ mod tests {
     #[tokio::test]
     async fn wakes_streams_for_writes_outside_sign_in() {
         let h = Harness::new().await;
-        let writes = h.state.writes.subscribe();
+        let mut writes = h.state.writes.subscribe();
         let session = h.session(&h.world.operator).await;
 
         let (status, _) = h.send("POST", "/api/auth/logout", Auth::Session(&session), None).await;
@@ -283,10 +313,30 @@ mod tests {
         let session = h.session(&h.world.operator).await;
         let (status, _) = h.send("POST", &h.path("/qsos"), Auth::Anonymous, Some(json!({}))).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
-        assert!(!writes.has_changed().unwrap());
+        assert!(writes.try_recv().is_err());
 
         h.create_qso(&session, &h.station.id, "JA1XYZ", "1200", &[]).await;
-        assert!(writes.has_changed().unwrap());
+        assert_eq!(writes.try_recv(), Ok(Written::Logbook(h.world.logbook.id.clone())));
+        let request = json!({ "freq": "7.041", "mode": "CW" });
+        let (status, body) = h
+            .send("POST", "/api/frequencies", Auth::Session(&session), Some(request))
+            .await;
+        assert!(status.is_success(), "{body}");
+        assert_eq!(writes.try_recv(), Ok(Written::Elsewhere));
+        assert!(writes.try_recv().is_err());
+    }
+
+    #[rstest]
+    #[case::logbook("/api/logbooks/log/qsos", Written::Logbook("log".into()))]
+    #[case::logbook_itself("/api/logbooks/log", Written::Logbook("log".into()))]
+    #[case::escaped("/api/logbooks/lo%67/qsos", Written::Elsewhere)]
+    #[case::no_logbook("/api/logbooks/", Written::Elsewhere)]
+    #[case::administration("/api/admin/logbooks/log", Written::Elsewhere)]
+    #[case::account("/api/tokens", Written::Elsewhere)]
+    fn names_the_logbook_a_write_is_under(#[case] path: &str, #[case] written: Written) {
+        assert_eq!(Written::at(path), written);
+        assert!(written.concerns("log"));
+        assert_eq!(written.concerns("other"), written == Written::Elsewhere);
     }
 
     #[rstest]
