@@ -73,7 +73,7 @@ pub async fn import_new(
         ..NewReport::default()
     };
     let mut ids = RecordIds::new(access.logbook_id());
-    let mut planned: Vec<(usize, QsoId, Qso)> = vec![];
+    let mut planned: Vec<(usize, QsoId, Qso)> = Vec::with_capacity(records.len());
     for (index, record) in (1..).zip(records) {
         match record {
             Ok(qso) => match ids.next(&qso) {
