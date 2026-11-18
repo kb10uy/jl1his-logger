@@ -172,18 +172,22 @@ pub async fn select(
     }
     let mut rows = qso::search_all(conn, access, filter).await?;
     rows.reverse();
-    project(&rows, kind, park)
+    project(rows, kind, park)
 }
 
-fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<Selection, StoreError> {
+fn project(rows: Vec<StoredQso>, kind: ExportKind, park: Option<&str>) -> Result<Selection, StoreError> {
     let mut selection = Selection::default();
     for row in rows {
+        let target = Target {
+            id: row.id,
+            revision: row.revision,
+        };
         let projected = match kind {
             ExportKind::Pota => pota::project(&row.qso)?
                 .into_iter()
                 .filter(|r| park.is_none_or(|p| r.get("MY_POTA_REF").is_some_and(|r| r.eq_ignore_ascii_case(p.trim()))))
                 .collect(),
-            _ => vec![row.qso.clone()],
+            _ => vec![row.qso],
         };
         if projected.is_empty() {
             continue;
@@ -192,10 +196,7 @@ fn project(rows: &[StoredQso], kind: ExportKind, park: Option<&str>) -> Result<S
             .owners
             .extend(projected.iter().map(|_| selection.targets.len()));
         selection.records.extend(projected);
-        selection.targets.push(Target {
-            id: row.id,
-            revision: row.revision,
-        });
+        selection.targets.push(target);
     }
     Ok(selection)
 }
@@ -208,8 +209,10 @@ pub struct Part {
     pub targets: Vec<Target>,
 }
 
-pub fn split(selection: &Selection, fields: &[String]) -> Vec<Part> {
-    split::group(&selection.records, fields)
+pub fn split(selection: Selection, fields: &[String]) -> Vec<Part> {
+    let groups = split::group(&selection.records, fields);
+    let mut records: Vec<Option<Qso>> = selection.records.into_iter().map(Some).collect();
+    groups
         .into_iter()
         .map(|group| {
             let mut targets: Vec<Target> = Vec::new();
@@ -222,7 +225,11 @@ pub fn split(selection: &Selection, fields: &[String]) -> Vec<Part> {
             Part {
                 label: group.label,
                 missing: group.missing,
-                records: group.records.iter().map(|&i| selection.records[i].clone()).collect(),
+                records: group
+                    .records
+                    .iter()
+                    .map(|&i| records[i].take().expect("a record is in one group"))
+                    .collect(),
                 targets,
             }
         })
@@ -547,7 +554,7 @@ mod tests {
             row(&[("CALL", "JA1BBB")]),
             row(&[("CALL", "JA1CCC"), ("MY_SIG", "POTA"), ("MY_SIG_INFO", "JP-0002")]),
         ];
-        let selection = project(&rows, ExportKind::Pota, None).unwrap();
+        let selection = project(rows.to_vec(), ExportKind::Pota, None).unwrap();
         let calls: Vec<_> = selection
             .records
             .iter()
@@ -560,10 +567,10 @@ mod tests {
         assert_eq!(selection.targets.len(), 2);
         assert_eq!(selection.targets[0].revision, 2);
 
-        let selection = project(&rows, ExportKind::Pota, Some("jp-0002")).unwrap();
+        let selection = project(rows.to_vec(), ExportKind::Pota, Some("jp-0002")).unwrap();
         assert_eq!((selection.records.len(), selection.targets.len()), (2, 2));
 
-        let selection = project(&rows, ExportKind::Adif, None).unwrap();
+        let selection = project(rows.to_vec(), ExportKind::Adif, None).unwrap();
         assert_eq!((selection.records.len(), selection.targets.len()), (3, 3));
     }
 
@@ -581,10 +588,10 @@ mod tests {
                 ("STATION_CALLSIGN", "JL1HIS/P"),
             ]),
         ];
-        let selection = project(&rows, ExportKind::Pota, None).unwrap();
+        let selection = project(rows.to_vec(), ExportKind::Pota, None).unwrap();
         assert_eq!(selection.owners, [0, 0, 1]);
 
-        let by_call = split(&selection, &["STATION_CALLSIGN".into()]);
+        let by_call = split(selection.clone(), &["STATION_CALLSIGN".into()]);
         assert_eq!(by_call.len(), 2);
         assert_eq!((by_call[0].label.as_str(), by_call[0].records.len()), ("JL1HIS", 2));
         assert_eq!(
@@ -596,7 +603,7 @@ mod tests {
         );
         assert_eq!(by_call[1].label, "JL1HIS/P");
 
-        let by_park = split(&selection, &["MY_SIG_INFO".into()]);
+        let by_park = split(selection, &["MY_SIG_INFO".into()]);
         let parks: Vec<_> = by_park
             .iter()
             .map(|p| (p.label.as_str(), p.records.len(), p.targets.len()))

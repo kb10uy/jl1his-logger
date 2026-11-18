@@ -19,6 +19,7 @@ use crate::{
         AppState,
         api::logbook::member::Member,
         api::qso::export::SkippedBody,
+        blocking,
         error::ApiError,
         extract::{Json, Query},
     },
@@ -183,26 +184,20 @@ impl ImportBody {
     }
 }
 
-pub async fn import(
-    State(state): State<Arc<AppState>>,
-    member: Member,
-    Query(query): Query<ImportQuery>,
-    body: Bytes,
-) -> Result<Json<ImportBody>, ApiError> {
-    let access = member.access;
-    let default = state.config.adif.length;
-    let (text, encoding) =
-        adif::decode(&body, query.encoding, state.config.adif.fallback_encoding).map_err(|e| match e {
-            Encoding::Utf8 => ApiError::bad_request("the file is not UTF-8").with("code", "not_utf8".into()),
-            e => ApiError::bad_request(format!("the file is not {}", e.name()))
-                .with("code", "not_encoding".into())
-                .with("encoding", e.name().into()),
-        })?;
-    let lengths = match query.length {
-        Some(unit) => Lengths::Fixed(unit),
-        None => Lengths::Detect { default },
-    };
-    let read = match query.format {
+fn parse(
+    body: &[u8],
+    format: FormatRequest,
+    encoding: Option<Encoding>,
+    fallback: Encoding,
+    lengths: Lengths,
+) -> Result<(adif::Read, Encoding), ApiError> {
+    let (text, encoding) = adif::decode(body, encoding, fallback).map_err(|e| match e {
+        Encoding::Utf8 => ApiError::bad_request("the file is not UTF-8").with("code", "not_utf8".into()),
+        e => ApiError::bad_request(format!("the file is not {}", e.name()))
+            .with("code", "not_encoding".into())
+            .with("encoding", e.name().into()),
+    })?;
+    let read = match format {
         FormatRequest::Adi => adif::read_adi(&text, encoding, lengths),
         FormatRequest::Adx => adif::read_adx(&text),
     }
@@ -211,6 +206,24 @@ pub async fn import(
             .with("code", "not_adif".into())
             .with("detail", e.to_string().into())
     })?;
+    Ok((read, encoding))
+}
+
+pub async fn import(
+    State(state): State<Arc<AppState>>,
+    member: Member,
+    Query(query): Query<ImportQuery>,
+    body: Bytes,
+) -> Result<Json<ImportBody>, ApiError> {
+    let access = member.access;
+    let default = state.config.adif.length;
+    let fallback = state.config.adif.fallback_encoding;
+    let lengths = match query.length {
+        Some(unit) => Lengths::Fixed(unit),
+        None => Lengths::Detect { default },
+    };
+    let (format, given) = (query.format, query.encoding);
+    let (read, encoding) = blocking(move || parse(&body, format, given, fallback, lengths)).await??;
     let records = read.records;
     let reading = Reading {
         encoding,

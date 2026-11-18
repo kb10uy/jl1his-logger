@@ -24,6 +24,7 @@ use crate::{
         AppState,
         api::logbook::member::{Item, Member},
         api::qso::{QsoBody, limit},
+        blocking,
         error::ApiError,
         extract::{Json, Query},
         query::text,
@@ -320,21 +321,62 @@ pub async fn create(
             }),
         ));
     }
-    let adif = export::encoded(&selection.records, output).map_err(unencodable)?;
-    let file = matches!(req.encoding, Encoding::ShiftJis | Encoding::Windows1252)
-        .then(|| BASE64_STANDARD.encode(req.encoding.encode(&adif)));
+    let export::Selection { records, targets, .. } = selection;
+    let encoding = req.encoding;
+    let (records, adif, file) = blocking(move || {
+        let adif = export::encoded(&records, output)?;
+        let file = matches!(encoding, Encoding::ShiftJis | Encoding::Windows1252)
+            .then(|| BASE64_STANDARD.encode(encoding.encode(&adif)));
+        Ok((records.len(), adif, file))
+    })
+    .await?
+    .map_err(unencodable)?;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let batch = export::create(&mut tx, &member.access, req.kind, &selection.targets, None, &new_id()).await?;
+    let batch = export::create(&mut tx, &member.access, req.kind, &targets, None, &new_id()).await?;
     tx.commit().await?;
     Ok((
         StatusCode::CREATED,
         Json(ExportBody {
             batch: Some(batch.into()),
-            records: selection.records.len(),
+            records,
             adif: Some(adif),
             file,
         }),
     ))
+}
+
+struct Written {
+    name: String,
+    label: String,
+    missing: Vec<String>,
+    records: usize,
+    targets: Vec<Target>,
+}
+
+fn write(
+    parts: Vec<export::Part>,
+    names: Vec<String>,
+    output: Output,
+) -> Result<(Vec<Written>, &'static str, String), ApiError> {
+    let mut files = Vec::with_capacity(parts.len());
+    let mut written = Vec::with_capacity(parts.len());
+    for (part, name) in parts.into_iter().zip(names) {
+        let adif =
+            export::encoded(&part.records, output).map_err(|e| unencodable(e).with("file", name.clone().into()))?;
+        files.push((name.clone(), output.encoding.encode(&adif).into_owned()));
+        written.push(Written {
+            name,
+            label: part.label,
+            missing: part.missing,
+            records: part.records.len(),
+            targets: part.targets,
+        });
+    }
+    let (format, bytes) = match files.len() {
+        1 => ("adi", files.pop().expect("one file").1),
+        _ => ("zip", split::archive(&files)),
+    };
+    Ok((written, format, BASE64_STANDARD.encode(bytes)))
 }
 
 pub async fn create_split(
@@ -348,7 +390,8 @@ pub async fn create_split(
     let fields = split::fields(&req.split).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let output = req.export.output(&state)?;
     let selection = req.export.select(&state, &member).await?;
-    let parts = export::split(&selection, &fields);
+    let records = selection.records.len();
+    let parts = export::split(selection, &fields);
     if parts.is_empty() {
         return Ok((
             StatusCode::OK,
@@ -362,16 +405,11 @@ pub async fn create_split(
     }
     let labels: Vec<String> = parts.iter().map(|p| p.label.clone()).collect();
     let names = split::file_names(&labels, "adi");
-    let mut files = Vec::with_capacity(parts.len());
-    for (part, name) in parts.iter().zip(&names) {
-        let adif =
-            export::encoded(&part.records, output).map_err(|e| unencodable(e).with("file", name.clone().into()))?;
-        files.push((name.clone(), req.export.encoding.encode(&adif).into_owned()));
-    }
+    let (written, format, file) = blocking(move || write(parts, names, output)).await??;
     let mut tx = WriteTx::begin(&state.db).await?;
-    let mut bodies = Vec::with_capacity(parts.len());
+    let mut bodies = Vec::with_capacity(written.len());
     let export_id = new_id();
-    for (part, name) in parts.iter().zip(&names) {
+    for part in written {
         let batch = export::create(
             &mut tx,
             &member.access,
@@ -382,24 +420,20 @@ pub async fn create_split(
         )
         .await?;
         bodies.push(FileBody {
-            name: name.clone(),
-            label: part.label.clone(),
-            missing: part.missing.clone(),
-            records: part.records.len(),
+            name: part.name,
+            label: part.label,
+            missing: part.missing,
+            records: part.records,
             batch: batch.into(),
         });
     }
     tx.commit().await?;
-    let (format, bytes) = match files.len() {
-        1 => ("adi", files.pop().expect("one file").1),
-        _ => ("zip", split::archive(&files)),
-    };
     Ok((
         StatusCode::CREATED,
         Json(SplitBody {
-            records: selection.records.len(),
+            records,
             format: Some(format),
-            file: Some(BASE64_STANDARD.encode(bytes)),
+            file: Some(file),
             files: bodies,
         }),
     ))

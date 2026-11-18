@@ -119,6 +119,12 @@ fn is_api(path: &str) -> bool {
     under(path, "/api")
 }
 
+async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Result<T, ApiError> {
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|e| ApiError::internal(format!("a blocking task failed: {e}")))
+}
+
 async fn security_headers(request: Request, next: Next) -> Response {
     let api = is_api(request.uri().path());
     let mut response = next.run(request).await;
