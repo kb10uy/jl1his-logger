@@ -1,7 +1,10 @@
 mod duplicate;
 mod filter;
 
-use std::{collections::BTreeMap, sync::LazyLock};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::LazyLock,
+};
 
 use jl1his_query as text;
 use sqlx::{AssertSqlSafe, Connection, Row, SqliteConnection, sqlite::SqliteRow};
@@ -41,7 +44,7 @@ const BOOKKEEPING: &[&str] = &[
 static ADIF_COLUMNS: LazyLock<Vec<String>> =
     LazyLock::new(|| Columns::NAMES.iter().map(|name| name.to_ascii_lowercase()).collect());
 
-static SELECT: LazyLock<String> = LazyLock::new(|| {
+static STORED: LazyLock<String> = LazyLock::new(|| {
     let columns: Vec<&str> = BOOKKEEPING
         .iter()
         .copied()
@@ -52,8 +55,10 @@ static SELECT: LazyLock<String> = LazyLock::new(|| {
             "(SELECT callsign FROM users WHERE users.id = qsos.updated_by) AS updated_by_callsign",
         ])
         .collect();
-    format!("SELECT {} FROM qsos", columns.join(", "))
+    columns.join(", ")
 });
+
+static SELECT: LazyLock<String> = LazyLock::new(|| format!("SELECT {} FROM qsos", *STORED));
 
 static INSERT: LazyLock<String> = LazyLock::new(|| {
     let columns: Vec<&str> = [
@@ -85,8 +90,9 @@ static UPDATE: LazyLock<String> = LazyLock::new(|| {
         .collect();
     format!(
         "UPDATE qsos SET {}, revision = revision + 1 \
-         WHERE logbook_id = ? AND id = ? AND revision = ? AND deleted_at IS NULL",
-        assignments.join(", ")
+         WHERE logbook_id = ? AND id = ? AND revision = ? AND deleted_at IS NULL RETURNING {}",
+        assignments.join(", "),
+        *STORED
     )
 });
 
@@ -141,25 +147,28 @@ impl StoredQso {
     }
 
     pub fn require_revision(&self, base: i64) -> Result<(), StoreError> {
-        if self.deleted_at.is_some() {
-            return Err(StoreError::Conflict(
-                Fault::coded("qso_deleted", format!("QSO {} has been deleted", self.id))
-                    .with("id", self.id.to_string()),
-            ));
-        }
-        if self.revision != base {
-            return Err(StoreError::Conflict(
-                Fault::coded(
-                    "revision_conflict",
-                    format!("QSO {} is at revision {}, not {base}", self.id, self.revision),
-                )
-                .with("id", self.id.to_string())
-                .with("revision", self.revision)
-                .with("base", base),
-            ));
-        }
-        Ok(())
+        require_revision(&self.id, self.revision, self.deleted_at.is_some(), base)
     }
+}
+
+pub(crate) fn require_revision(id: &QsoId, revision: i64, deleted: bool, base: i64) -> Result<(), StoreError> {
+    if deleted {
+        return Err(StoreError::Conflict(
+            Fault::coded("qso_deleted", format!("QSO {id} has been deleted")).with("id", id.to_string()),
+        ));
+    }
+    if revision != base {
+        return Err(StoreError::Conflict(
+            Fault::coded(
+                "revision_conflict",
+                format!("QSO {id} is at revision {revision}, not {base}"),
+            )
+            .with("id", id.to_string())
+            .with("revision", revision)
+            .with("base", base),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -404,7 +413,7 @@ pub async fn update(
     let current = fetch(tx, access, id).await?;
     current.require_revision(base_revision)?;
     let place = (input.station_id.as_str(), input.instrument_id.as_deref());
-    let qso = rebaked(tx, access, &current, place, input.qso).await?;
+    let qso = rebaked(tx, access, &mut Places::default(), &current, place, input.qso).await?;
     let checked = duplicate::check(tx, access, &qso, Some(id)).await?;
     let stored = write_update(tx, access, &current, place, &qso, &checked).await?;
     Ok((stored, checked.warnings))
@@ -413,11 +422,12 @@ pub async fn update(
 pub(crate) async fn relocate(
     tx: &mut WriteTx,
     access: &LogbookAccess,
+    places: &mut Places,
     current: &StoredQso,
     place: (&str, Option<&str>),
     qso: Qso,
 ) -> Result<StoredQso, StoreError> {
-    let qso = rebaked(tx, access, current, place, qso).await?;
+    let qso = rebaked(tx, access, places, current, place, qso).await?;
     let checked = qso.check()?;
     write_update(tx, access, current, place, &qso, &checked).await
 }
@@ -425,29 +435,49 @@ pub(crate) async fn relocate(
 async fn rebaked(
     conn: &mut SqliteConnection,
     access: &LogbookAccess,
+    places: &mut Places,
     current: &StoredQso,
     (station_id, instrument_id): (&str, Option<&str>),
     mut qso: Qso,
 ) -> Result<Qso, StoreError> {
-    let after = baked(conn, access, station_id, instrument_id).await?;
+    let after = places.baked(conn, access, station_id, instrument_id).await?;
     if (station_id, instrument_id) != (current.station_id.as_str(), current.instrument_id.as_deref()) {
-        let before = baked(conn, access, &current.station_id, current.instrument_id.as_deref()).await?;
+        let before = places
+            .baked(conn, access, &current.station_id, current.instrument_id.as_deref())
+            .await?;
         qso.rebake(&current.qso, &before, &after)?;
     }
     Ok(qso)
 }
 
-async fn baked(
-    conn: &mut SqliteConnection,
-    access: &LogbookAccess,
-    station_id: &str,
-    instrument_id: Option<&str>,
-) -> Result<BTreeMap<String, String>, StoreError> {
-    let mut values = station::fetch(conn, access, station_id).await?.values();
-    if let Some(id) = instrument_id {
-        values.extend(instrument::fetch(conn, access, id).await?.defaults());
+#[derive(Default)]
+pub(crate) struct Places {
+    stations: HashMap<String, BTreeMap<String, String>>,
+    instruments: HashMap<String, BTreeMap<String, String>>,
+}
+
+impl Places {
+    async fn baked(
+        &mut self,
+        conn: &mut SqliteConnection,
+        access: &LogbookAccess,
+        station_id: &str,
+        instrument_id: Option<&str>,
+    ) -> Result<BTreeMap<String, String>, StoreError> {
+        if !self.stations.contains_key(station_id) {
+            let values = station::fetch(conn, access, station_id).await?.values();
+            self.stations.insert(station_id.to_owned(), values);
+        }
+        let mut values = self.stations[station_id].clone();
+        if let Some(id) = instrument_id {
+            if !self.instruments.contains_key(id) {
+                let defaults = instrument::fetch(conn, access, id).await?.defaults();
+                self.instruments.insert(id.to_owned(), defaults);
+            }
+            values.extend(self.instruments[id].clone());
+        }
+        Ok(values)
     }
-    Ok(values)
 }
 
 pub(crate) async fn rewrite_all(
@@ -509,18 +539,18 @@ async fn write_update(
         .bind(access.logbook_id())
         .bind(current.id.to_string())
         .bind(current.revision)
-        .execute(&mut **tx)
+        .fetch_optional(&mut **tx)
         .await?;
-    if updated.rows_affected() == 0 {
-        return Err(StoreError::Conflict(
+    match updated {
+        Some(row) => StoredQso::from_row(&row),
+        None => Err(StoreError::Conflict(
             Fault::coded(
                 "qso_changed",
                 format!("QSO {} changed while it was being updated", current.id),
             )
             .with("id", current.id.to_string()),
-        ));
+        )),
     }
-    fetch(tx, access, &current.id).await
 }
 
 pub async fn delete(

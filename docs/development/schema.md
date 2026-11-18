@@ -215,7 +215,8 @@ no other writer runs between the reads and the writes (`server/src/store/qso.rs`
 3. `UPDATE logbooks SET last_seq = last_seq + 1, last_updated_seq = last_updated_seq + 1 WHERE id = ? RETURNING last_seq, last_updated_seq`
    for a create; an update or delete increments `last_updated_seq` only.
 4. `INSERT` for a create. An update first compares the revision it was based
-   on, then runs `UPDATE qsos SET ..., revision = revision + 1, updated_seq = ? WHERE id = ? AND revision = ?`.
+   on, then runs `UPDATE qsos SET ..., revision = revision + 1, updated_seq = ? WHERE id = ? AND revision = ? RETURNING ...`,
+   which hands the stored row back without a second read.
    A delete sets the tombstone the same way; deleting a deleted row returns it
    unchanged.
 

@@ -251,9 +251,23 @@ pub async fn create(
                 format!("QSO {} is given more than once", target.id).into(),
             ));
         }
-        qso::fetch(tx, &access, &target.id)
-            .await?
-            .require_revision(target.revision)?;
+    }
+    let listed: Vec<(String, i64)> = qsos.iter().map(|t| (t.id.to_string(), t.revision)).collect();
+    let listed = serde_json::to_string(&listed).expect("a list of targets serializes");
+    let stale: Option<(i64, Option<i64>, bool)> = sqlx::query_as(
+        "SELECT t.key, q.revision, q.deleted_at IS NOT NULL \
+         FROM json_each(?) t LEFT JOIN qsos q ON q.logbook_id = ? AND q.id = t.value ->> 0 \
+         WHERE q.id IS NULL OR q.deleted_at IS NOT NULL OR q.revision <> t.value ->> 1 \
+         ORDER BY t.key LIMIT 1",
+    )
+    .bind(&listed)
+    .bind(access.logbook_id())
+    .fetch_optional(&mut **tx)
+    .await?;
+    if let Some((index, revision, deleted)) = stale {
+        let target = &qsos[index as usize];
+        let revision = revision.ok_or(StoreError::NotFound("QSO"))?;
+        qso::require_revision(&target.id, revision, deleted, target.revision)?;
     }
 
     let id = new_id();
@@ -270,15 +284,15 @@ pub async fn create(
     .bind(label)
     .execute(&mut **tx)
     .await?;
-    for target in qsos {
-        sqlx::query("INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision) VALUES (?, ?, ?, ?)")
-            .bind(access.logbook_id())
-            .bind(&id)
-            .bind(target.id.to_string())
-            .bind(target.revision)
-            .execute(&mut **tx)
-            .await?;
-    }
+    sqlx::query(
+        "INSERT INTO export_batch_qsos (logbook_id, batch_id, qso_id, revision) \
+         SELECT ?, ?, value ->> 0, value ->> 1 FROM json_each(?)",
+    )
+    .bind(access.logbook_id())
+    .bind(&id)
+    .bind(&listed)
+    .execute(&mut **tx)
+    .await?;
     fetch(tx, &access, &id).await
 }
 
@@ -677,7 +691,38 @@ mod tests {
         };
         assert!(matches!(
             create(&mut tx, &access, ExportKind::Eqsl, &[stale], None, "export").await,
-            Err(StoreError::Conflict(_))
+            Err(StoreError::Conflict(fault)) if fault.code == Some("revision_conflict")
+        ));
+        let missing = Target {
+            id: QsoId::generate(),
+            revision: 1,
+        };
+        assert!(matches!(
+            create(
+                &mut tx,
+                &access,
+                ExportKind::Eqsl,
+                &[target(&rows[1]), missing, stale],
+                None,
+                "export"
+            )
+            .await,
+            Err(StoreError::NotFound("QSO"))
+        ));
+        qso::delete(&mut tx, &access, &rows[2].id, rows[2].revision)
+            .await
+            .unwrap();
+        assert!(matches!(
+            create(
+                &mut tx,
+                &access,
+                ExportKind::Eqsl,
+                &[target(&rows[1]), target(&rows[2]), stale],
+                None,
+                "export"
+            )
+            .await,
+            Err(StoreError::Conflict(fault)) if fault.code == Some("qso_deleted")
         ));
         assert!(matches!(
             create(
