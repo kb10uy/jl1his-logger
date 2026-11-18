@@ -1,5 +1,5 @@
-use chrono::{TimeDelta, Utc};
 use sqlx::SqliteConnection;
+use time::{Duration, OffsetDateTime};
 
 use crate::store::{
     StoreError, WriteTx,
@@ -9,7 +9,7 @@ use crate::store::{
     hash_token, random_token, timestamp,
 };
 
-pub const DEFAULT_TTL: TimeDelta = TimeDelta::hours(24);
+pub const DEFAULT_TTL: Duration = Duration::hours(24);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Registration {
@@ -17,12 +17,12 @@ pub struct Registration {
     pub credential_ids: Vec<Vec<u8>>,
 }
 
-pub async fn issue(tx: &mut WriteTx, admin: &AdminAccess, user_id: &str, ttl: TimeDelta) -> Result<String, StoreError> {
+pub async fn issue(tx: &mut WriteTx, admin: &AdminAccess, user_id: &str, ttl: Duration) -> Result<String, StoreError> {
     let admin = admin.revalidate(tx).await?;
     insert(tx, user_id, Some(admin.user_id()), ttl).await
 }
 
-pub async fn issue_for_setup(tx: &mut WriteTx, user_id: &str, ttl: TimeDelta) -> Result<String, StoreError> {
+pub async fn issue_for_setup(tx: &mut WriteTx, user_id: &str, ttl: Duration) -> Result<String, StoreError> {
     let user = user::find(tx, user_id).await?.ok_or(StoreError::NotFound("user"))?;
     if user.role != Role::Admin {
         return Err(StoreError::Conflict(
@@ -38,7 +38,7 @@ pub async fn check(conn: &mut SqliteConnection, plaintext: &str) -> Result<Regis
          WHERE r.token_hash = ? AND r.used_at IS NULL AND r.expires_at > ? AND u.disabled_at IS NULL",
     )
     .bind(hash_token(plaintext))
-    .bind(timestamp(Utc::now()))
+    .bind(timestamp(OffsetDateTime::now_utc()))
     .fetch_optional(&mut *conn)
     .await?
     .ok_or(StoreError::Unauthenticated)?;
@@ -52,7 +52,7 @@ pub async fn check(conn: &mut SqliteConnection, plaintext: &str) -> Result<Regis
 }
 
 pub async fn complete(tx: &mut WriteTx, plaintext: &str, new: &NewPasskey) -> Result<(User, Passkey), StoreError> {
-    let now = timestamp(Utc::now());
+    let now = timestamp(OffsetDateTime::now_utc());
     let user_id: String = sqlx::query_scalar(
         "UPDATE registration_tokens SET used_at = ? \
          WHERE token_hash = ? AND used_at IS NULL AND expires_at > ? \
@@ -74,9 +74,9 @@ async fn insert(
     tx: &mut WriteTx,
     user_id: &str,
     created_by: Option<&str>,
-    ttl: TimeDelta,
+    ttl: Duration,
 ) -> Result<String, StoreError> {
-    if ttl <= TimeDelta::zero() {
+    if ttl <= Duration::ZERO {
         return Err(StoreError::Invalid(
             "a registration link needs a positive lifetime".into(),
         ));
@@ -88,7 +88,7 @@ async fn insert(
         .bind(user_id)
         .execute(&mut **tx)
         .await?;
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     let plaintext = random_token();
     sqlx::query(
         "INSERT INTO registration_tokens (token_hash, user_id, created_by, created_at, expires_at) \
@@ -145,7 +145,7 @@ mod tests {
         assert!(check(&mut tx, &second).await.is_ok());
 
         sqlx::query("UPDATE registration_tokens SET expires_at = ?")
-            .bind(timestamp(Utc::now() - TimeDelta::seconds(1)))
+            .bind(timestamp(OffsetDateTime::now_utc() - Duration::seconds(1)))
             .execute(&mut *tx)
             .await
             .unwrap();
@@ -154,7 +154,7 @@ mod tests {
             Err(StoreError::Unauthenticated)
         ));
         assert!(matches!(
-            issue(&mut tx, &admin, &world.operator.id, TimeDelta::zero()).await,
+            issue(&mut tx, &admin, &world.operator.id, Duration::ZERO).await,
             Err(StoreError::Invalid(_))
         ));
     }

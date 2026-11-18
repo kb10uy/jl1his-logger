@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use chrono::{TimeDelta, Utc};
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
+use time::{Duration, OffsetDateTime};
 
 use crate::{
     db::Db,
@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-const TOUCH_INTERVAL: TimeDelta = TimeDelta::days(1);
+const TOUCH_INTERVAL: Duration = Duration::days(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenInput {
@@ -137,7 +137,7 @@ pub async fn authenticate(db: &Db, plaintext: &str) -> Result<(Principal, ApiTok
         ApiToken::from_row(&row)?
     };
 
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     let stale = timestamp(now - TOUCH_INTERVAL);
     if token.last_used_at.as_ref().is_none_or(|used| *used < stale) {
         let used = timestamp(now);
@@ -287,7 +287,7 @@ mod tests {
     async fn touches_last_used_at_once_a_day() {
         let world = World::new().await;
         let issued = issue_one(&world, &input(&[&world.logbook.id])).await;
-        let old = timestamp(Utc::now() - TimeDelta::hours(1));
+        let old = timestamp(OffsetDateTime::now_utc() - Duration::hours(1));
         sqlx::query("UPDATE api_tokens SET last_used_at = ?")
             .bind(&old)
             .execute(&world.db)
@@ -296,7 +296,7 @@ mod tests {
         let (_, token) = authenticate(&world.db, &issued.plaintext).await.unwrap();
         assert_eq!(token.last_used_at, Some(old));
 
-        let older = timestamp(Utc::now() - TimeDelta::hours(25));
+        let older = timestamp(OffsetDateTime::now_utc() - Duration::hours(25));
         sqlx::query("UPDATE api_tokens SET last_used_at = ?")
             .bind(&older)
             .execute(&world.db)

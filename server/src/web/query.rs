@@ -1,6 +1,6 @@
-use chrono::DateTime;
 use jl1his_query::{ErrorKind, MAX_VALUES};
 use serde::{Deserialize, Serialize};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{store::qso::TimeRange, web::error::ApiError};
 
@@ -42,8 +42,8 @@ pub fn text(query: Option<&str>) -> Result<jl1his_query::Query, ApiError> {
 }
 
 pub fn time(name: &str, value: &str) -> Result<i64, ApiError> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|t| t.timestamp())
+    OffsetDateTime::parse(value, &Rfc3339)
+        .map(OffsetDateTime::unix_timestamp)
         .map_err(|_| ApiError::bad_request(format!("{name} {value:?} is not an RFC 3339 time")))
 }
 

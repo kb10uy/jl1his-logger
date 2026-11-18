@@ -234,7 +234,7 @@ pub(super) fn session_cookie(token: String) -> Cookie<'static> {
         .secure(true)
         .http_only(true)
         .same_site(SameSite::Lax)
-        .max_age(cookie::time::Duration::seconds(SESSION_TTL.num_seconds()))
+        .max_age(SESSION_TTL)
         .build()
 }
 

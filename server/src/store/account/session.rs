@@ -1,5 +1,5 @@
-use chrono::{DateTime, TimeDelta, Utc};
 use sqlx::{Row, SqliteConnection, sqlite::SqliteRow};
+use time::{Duration, OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
     db::Db,
@@ -11,9 +11,9 @@ use crate::{
     },
 };
 
-pub const SESSION_TTL: TimeDelta = TimeDelta::days(30);
-pub const SESSION_MAX: TimeDelta = TimeDelta::days(90);
-const SESSION_REFRESH: TimeDelta = TimeDelta::days(1);
+pub const SESSION_TTL: Duration = Duration::days(30);
+pub const SESSION_MAX: Duration = Duration::days(90);
+const SESSION_REFRESH: Duration = Duration::days(1);
 const MAX_USER_AGENT: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +47,7 @@ pub async fn create(tx: &mut WriteTx, user_id: &str, user_agent: Option<&str>) -
     if !user::is_active(tx, user_id).await? {
         return Err(StoreError::Unauthenticated);
     }
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     sqlx::query("DELETE FROM sessions WHERE expires_at <= ?")
         .bind(timestamp(now))
         .execute(&mut **tx)
@@ -74,7 +74,7 @@ pub async fn create(tx: &mut WriteTx, user_id: &str, user_agent: Option<&str>) -
 
 pub async fn authenticate(db: &Db, plaintext: &str) -> Result<Principal, StoreError> {
     let hash = hash_token(plaintext);
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     let (user_id, created_at, last_used_at): (String, String, String) = sqlx::query_as(
         "SELECT s.user_id, s.created_at, s.last_used_at FROM sessions s JOIN users u ON u.id = s.user_id \
          WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled_at IS NULL",
@@ -86,9 +86,8 @@ pub async fn authenticate(db: &Db, plaintext: &str) -> Result<Principal, StoreEr
     .ok_or(StoreError::Unauthenticated)?;
 
     if last_used_at < timestamp(now - SESSION_REFRESH) {
-        let created = DateTime::parse_from_rfc3339(&created_at)
-            .map_err(|e| StoreError::Invalid(format!("session created_at {created_at:?}: {e}").into()))?
-            .to_utc();
+        let created = OffsetDateTime::parse(&created_at, &Rfc3339)
+            .map_err(|e| StoreError::Invalid(format!("session created_at {created_at:?}: {e}").into()))?;
         let mut tx = WriteTx::begin(db).await?;
         sqlx::query("UPDATE sessions SET last_used_at = ?, expires_at = max(expires_at, ?) WHERE token_hash = ?")
             .bind(timestamp(now))
@@ -101,7 +100,7 @@ pub async fn authenticate(db: &Db, plaintext: &str) -> Result<Principal, StoreEr
     Ok(Principal::user(&user_id))
 }
 
-fn expiry(created: DateTime<Utc>, now: DateTime<Utc>) -> DateTime<Utc> {
+fn expiry(created: OffsetDateTime, now: OffsetDateTime) -> OffsetDateTime {
     (now + SESSION_TTL).min(created + SESSION_MAX)
 }
 
@@ -119,7 +118,7 @@ pub async fn revalidate(conn: &mut SqliteConnection, hash: &[u8]) -> Result<(), 
          WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled_at IS NULL)",
     )
     .bind(hash)
-    .bind(timestamp(Utc::now()))
+    .bind(timestamp(OffsetDateTime::now_utc()))
     .fetch_one(conn)
     .await?;
     match valid {
@@ -137,7 +136,7 @@ pub async fn list(conn: &mut SqliteConnection, user: &UserAccess, user_id: &str)
         "{SELECT} WHERE user_id = ? AND expires_at > ? ORDER BY last_used_at DESC, created_at DESC, id"
     )))
     .bind(user_id)
-    .bind(timestamp(Utc::now()))
+    .bind(timestamp(OffsetDateTime::now_utc()))
     .fetch_all(conn)
     .await?
     .iter()
@@ -217,7 +216,7 @@ mod tests {
     async fn revalidates_without_renewing_the_session(#[case] revoke: Option<&str>, #[case] valid: bool) {
         let world = World::new().await;
         let plaintext = signed_in(&world, None).await;
-        let expires_at = timestamp(Utc::now() + TimeDelta::days(3));
+        let expires_at = timestamp(OffsetDateTime::now_utc() + Duration::days(3));
         set(&world, "UPDATE sessions SET expires_at = ?", expires_at.clone()).await;
         let mut conn = world.db.acquire().await.unwrap();
         if let Some(revoke) = revoke {
@@ -244,27 +243,30 @@ mod tests {
         authenticate(&world.db, &plaintext).await.unwrap();
         assert_eq!(stored(&world).await, (created, expires.clone()));
 
-        let yesterday = timestamp(Utc::now() - TimeDelta::days(2));
+        let yesterday = timestamp(OffsetDateTime::now_utc() - Duration::days(2));
         set(&world, "UPDATE sessions SET last_used_at = ?", yesterday.clone()).await;
         authenticate(&world.db, &plaintext).await.unwrap();
         let (used, renewed) = stored(&world).await;
         assert!(used > yesterday);
         assert!(renewed >= expires);
 
-        let old = timestamp(Utc::now() - TimeDelta::days(80));
+        let old = timestamp(OffsetDateTime::now_utc() - Duration::days(80));
         set(&world, "UPDATE sessions SET created_at = ?", old).await;
         set(&world, "UPDATE sessions SET last_used_at = ?", yesterday).await;
-        let soon = timestamp(Utc::now() + TimeDelta::days(5));
+        let soon = timestamp(OffsetDateTime::now_utc() + Duration::days(5));
         set(&world, "UPDATE sessions SET expires_at = ?", soon.clone()).await;
         authenticate(&world.db, &plaintext).await.unwrap();
         let (_, capped) = stored(&world).await;
         assert!(capped > soon);
-        assert!(capped < timestamp(Utc::now() + TimeDelta::days(11)), "{capped}");
+        assert!(
+            capped < timestamp(OffsetDateTime::now_utc() + Duration::days(11)),
+            "{capped}"
+        );
 
         set(
             &world,
             "UPDATE sessions SET last_used_at = ?",
-            timestamp(Utc::now() - TimeDelta::days(2)),
+            timestamp(OffsetDateTime::now_utc() - Duration::days(2)),
         )
         .await;
         authenticate(&world.db, &plaintext).await.unwrap();
@@ -278,7 +280,7 @@ mod tests {
         set(
             &world,
             "UPDATE sessions SET expires_at = ?",
-            timestamp(Utc::now() - TimeDelta::seconds(1)),
+            timestamp(OffsetDateTime::now_utc() - Duration::seconds(1)),
         )
         .await;
         assert!(matches!(
