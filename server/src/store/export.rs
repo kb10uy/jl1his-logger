@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
+use time::OffsetDateTime;
 
 use crate::{
     domain::{
@@ -150,7 +150,7 @@ pub fn document(records: &[Qso], unit: LengthUnit) -> String {
 }
 
 pub fn encoded(records: &[Qso], output: Output) -> Result<String, UnencodableError> {
-    adif::document(env!("CARGO_PKG_VERSION"), Utc::now(), records, output)
+    adif::document(env!("CARGO_PKG_VERSION"), OffsetDateTime::now_utc(), records, output)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

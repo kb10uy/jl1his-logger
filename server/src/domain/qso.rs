@@ -3,9 +3,9 @@ mod id;
 
 use std::{collections::BTreeMap, str::FromStr};
 
-use chrono::NaiveDate;
 use jl1his_query::millionths;
 use serde::Serialize;
+use time::{Date, Month};
 
 use crate::domain::{
     band::{Band, parse_frequency_hz},
@@ -287,11 +287,12 @@ fn digits<T: FromStr>(s: &str) -> Option<T> {
     s.bytes().all(|b| b.is_ascii_digit()).then(|| s.parse().ok())?
 }
 
-pub(crate) fn parse_date(date: &str) -> Option<NaiveDate> {
+pub(crate) fn parse_date(date: &str) -> Option<Date> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    NaiveDate::from_ymd_opt(digits(&date[..4])?, digits(&date[4..6])?, digits(&date[6..])?)
+    let month = Month::try_from(digits::<u8>(&date[4..6])?).ok()?;
+    Date::from_calendar_date(digits(&date[..4])?, month, digits(&date[6..])?).ok()
 }
 
 fn unix_time(date: &str, time: &str) -> Option<i64> {
@@ -300,8 +301,10 @@ fn unix_time(date: &str, time: &str) -> Option<i64> {
         6 => time.get(4..)?,
         _ => return None,
     };
-    let time = parse_date(date)?.and_hms_opt(digits(time.get(..2)?)?, digits(time.get(2..4)?)?, digits(seconds)?)?;
-    Some(time.and_utc().timestamp())
+    let time = parse_date(date)?
+        .with_hms(digits(time.get(..2)?)?, digits(time.get(2..4)?)?, digits(seconds)?)
+        .ok()?;
+    Some(time.assume_utc().unix_timestamp())
 }
 
 #[cfg(test)]

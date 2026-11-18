@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chrono::Utc;
+use time::OffsetDateTime;
 
 use crate::db::{self, Db, DbError, Migrated, create_dir, new_id, now, vacuum_into};
 
@@ -90,7 +90,7 @@ pub fn backup_dir(database: &Path) -> PathBuf {
 }
 
 pub fn backup_path(dir: &Path) -> PathBuf {
-    dir.join(format!("{PREFIX}{}.db", db::file_stamp(Utc::now())))
+    dir.join(format!("{PREFIX}{}.db", db::file_stamp(OffsetDateTime::now_utc())))
 }
 
 pub async fn backup(db: &Db, path: &Path) -> Result<(), BackupError> {

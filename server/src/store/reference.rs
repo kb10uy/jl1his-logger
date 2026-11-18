@@ -3,10 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chrono::Utc;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use sqlx::{AssertSqlSafe, Row, SqliteConnection, sqlite::SqliteRow};
+use time::{OffsetDateTime, macros::format_description};
 use tokio::fs;
 
 use crate::{
@@ -141,10 +141,11 @@ pub async fn install(
 ) -> Result<Installed, InstallError> {
     let (detected, entries) =
         check(kind, bytes).map_err(|e| StoreError::Invalid(Fault::coded("reference_invalid", e.to_string())))?;
-    let version = version
-        .map(str::to_owned)
-        .or(detected)
-        .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
+    let version = version.map(str::to_owned).or(detected).unwrap_or_else(|| {
+        OffsetDateTime::now_utc()
+            .format(format_description!("[year]-[month]-[day]"))
+            .expect("a date formats")
+    });
     let (db, admin, path, bytes) = (db.clone(), admin.clone(), path.to_owned(), bytes.to_vec());
     let installed = tokio::spawn(async move { swap(&db, &admin, kind, &path, &bytes, &version).await })
         .await

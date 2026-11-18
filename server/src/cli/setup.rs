@@ -1,5 +1,5 @@
-use chrono::TimeDelta;
 use clap::Args;
+use time::Duration;
 use url::Url;
 
 use crate::{
@@ -44,8 +44,8 @@ impl LinkArgs {
         println!("{}", registration_url(origin, token));
     }
 
-    pub(super) fn ttl(&self) -> TimeDelta {
-        TimeDelta::hours(i64::from(self.ttl_hours))
+    pub(super) fn ttl(&self) -> Duration {
+        Duration::hours(i64::from(self.ttl_hours))
     }
 }
 

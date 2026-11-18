@@ -5,11 +5,11 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, SecondsFormat, Utc};
 use sqlx::{
     migrate::{Migrate, MigrateError, Migrator},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous},
 };
+use time::{OffsetDateTime, UtcOffset, macros::format_description};
 use uuid::Uuid;
 
 pub type Db = SqlitePool;
@@ -31,15 +31,19 @@ pub enum DbError {
 }
 
 pub fn now() -> String {
-    timestamp(Utc::now())
+    timestamp(OffsetDateTime::now_utc())
 }
 
-pub fn timestamp(time: DateTime<Utc>) -> String {
-    time.to_rfc3339_opts(SecondsFormat::Secs, true)
+pub fn timestamp(time: OffsetDateTime) -> String {
+    time.to_offset(UtcOffset::UTC)
+        .format(format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z"))
+        .expect("a UTC time formats")
 }
 
 pub fn today() -> String {
-    Utc::now().format("%Y%m%d").to_string()
+    OffsetDateTime::now_utc()
+        .format(format_description!("[year][month][day]"))
+        .expect("a date formats")
 }
 
 pub fn new_id() -> String {
@@ -138,7 +142,7 @@ pub fn snapshot_dir(database: &Path) -> PathBuf {
 
 pub async fn snapshot(db: &Db, dir: &Path, label: &str) -> Result<PathBuf, DbError> {
     create_dir(dir)?;
-    let path = dir.join(format!("{}-{label}.db", file_stamp(Utc::now())));
+    let path = dir.join(format!("{}-{label}.db", file_stamp(OffsetDateTime::now_utc())));
     vacuum_into(db, &path).await?;
     Ok(path)
 }
@@ -147,8 +151,10 @@ pub(crate) fn parent(path: &Path) -> Option<&Path> {
     path.parent().filter(|d| !d.as_os_str().is_empty())
 }
 
-pub(crate) fn file_stamp(time: DateTime<Utc>) -> String {
-    time.format("%Y%m%dT%H%M%SZ").to_string()
+pub(crate) fn file_stamp(time: OffsetDateTime) -> String {
+    time.to_offset(UtcOffset::UTC)
+        .format(format_description!("[year][month][day]T[hour][minute][second]Z"))
+        .expect("a UTC time formats")
 }
 
 async fn vacuum_into(db: &Db, path: &Path) -> Result<(), DbError> {
@@ -175,6 +181,7 @@ mod tests {
         migrate::{Migration, MigrationType},
     };
     use tempfile::TempDir;
+    use time::macros::datetime;
 
     use super::*;
 
@@ -182,6 +189,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = open(&dir.path().join("data").join("test.db")).await.unwrap();
         (dir, db)
+    }
+
+    #[test]
+    fn stamps_are_utc_to_the_second() {
+        let time = datetime!(2026-11-18 22:55:06.801886700 +09:00);
+        assert_eq!(timestamp(time), "2026-11-18T13:55:06Z");
+        assert_eq!(file_stamp(time), "20261118T135506Z");
     }
 
     fn migration(version: i64, sql: &str) -> Migration {
